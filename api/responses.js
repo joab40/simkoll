@@ -1,4 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getSessionProfile } from '../server/profile-auth.js'
 
 const numberFields = {
   feeling: [1, 5], energy: [1, 5], body: [1, 5], motivation: [1, 5],
@@ -15,7 +16,7 @@ function validate(body) {
   )
 }
 
-function toDatabase(response) {
+function toDatabase(response, profileId) {
   return {
     day_type: response.type,
     feeling: response.feeling,
@@ -27,6 +28,7 @@ function toDatabase(response) {
     pass_rating: response.pass ?? null,
     setup_rating: response.setup ?? null,
     comment: response.comment?.trim().slice(0, 300) || null,
+    profile_id: profileId || null,
   }
 }
 
@@ -44,6 +46,7 @@ function fromDatabase(response, includeDetails) {
     pass: response.pass_rating,
     setup: response.setup_rating,
     comment: response.comment || '',
+    profileId: response.profile_id || null,
   }
 }
 
@@ -54,22 +57,27 @@ export default async function handler(request, response) {
 
   try {
     if (request.method === 'GET') {
-      const isCoach = role === 'coach'
-      const select = isCoach ? '*' : 'id,created_at,feeling'
+      const wantsOwn = request.query?.mine === 'true'
+      const sessionProfile = wantsOwn ? await getSessionProfile(request) : null
+      if (wantsOwn && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på din profil igen.' })
+      const isDetailed = role === 'coach' || Boolean(sessionProfile)
+      const select = isDetailed ? '*' : 'id,created_at,feeling'
       const recent = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-      const filter = isCoach ? '' : `&created_at=gte.${encodeURIComponent(recent)}`
+      const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? '' : `&created_at=gte.${encodeURIComponent(recent)}`
       const result = await supabaseRequest(`responses?select=${select}${filter}&order=created_at.desc&limit=2000`)
       if (!result.ok) throw new Error(`Supabase GET failed: ${result.status} ${await result.text()}`)
       const rows = await result.json()
-      return sendJson(response, 200, { responses: rows.map((item) => fromDatabase(item, isCoach)) })
+      return sendJson(response, 200, { responses: rows.map((item) => fromDatabase(item, isDetailed)) })
     }
 
     if (request.method === 'POST') {
       if (!validate(request.body || {})) return sendJson(response, 400, { error: 'Svaret innehåller ogiltiga värden.' })
+      const profile = request.body?.identified ? await getSessionProfile(request) : null
+      if (request.body?.identified && !profile) return sendJson(response, 401, { error: 'Logga in på profilen igen eller svara anonymt.' })
       const result = await supabaseRequest('responses', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(toDatabase(request.body)),
+        body: JSON.stringify(toDatabase(request.body, profile?.id)),
       })
       if (!result.ok) throw new Error(`Supabase POST failed: ${result.status} ${await result.text()}`)
       const [created] = await result.json()

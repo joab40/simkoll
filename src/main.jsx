@@ -41,39 +41,68 @@ function previousWeekRange() {
 
 function App() {
   const [auth, setAuth] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
 
   useEffect(() => {
     if (!auth) return
     setLoading(true)
-    fetchResponses(auth.code)
-      .then(setResponses)
+    Promise.all([
+      fetchResponses(auth.code),
+      auth.role === 'coach' ? apiRequest('/api/profiles', auth.code).then((data) => data.profiles) : Promise.resolve([]),
+    ])
+      .then(([nextResponses, nextProfiles]) => { setResponses(nextResponses); setProfiles(nextProfiles) })
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [auth])
 
-  if (!auth) return <Login onLogin={setAuth} />
+  if (!auth) return <Login onLogin={(nextAuth) => { setAuth(nextAuth); setScreen(nextAuth.role === 'swimmer' ? 'account' : 'home') }} />
 
   const logout = () => {
     setAuth(null)
+    setProfile(null)
     setResponses([])
+    setProfiles([])
     setScreen('home')
   }
 
   if (auth.role === 'coach') {
-    return <Coach responses={responses} loading={loading} onLogout={logout} onClear={async () => {
+    return <Coach responses={responses} profiles={profiles} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
       await apiRequest('/api/responses', auth.code, { method: 'DELETE' })
       setResponses([])
     }} />
   }
 
   return (
-    <Shell onLogout={logout}>
-      {screen === 'home' && (
-        <Home responses={responses} onStart={() => setScreen('checkin')} />
+    <Shell profile={profile} onProfile={() => setScreen('profile')} onLogout={logout}>
+      {screen === 'account' && <AccountChoice
+        onAnonymous={() => { setProfile(null); setScreen('home') }}
+        onLogin={() => setScreen('profile-login')}
+        onCreate={() => setScreen('profile-create')}
+      />}
+      {(screen === 'profile-login' || screen === 'profile-create' || screen === 'profile-reset') && (
+        <ProfileAccess
+          mode={screen.replace('profile-', '')}
+          code={auth.code}
+          onBack={() => setScreen('account')}
+          onMode={(mode) => setScreen(`profile-${mode}`)}
+          onSuccess={async (nextProfile) => {
+            if (nextProfile) setProfile(nextProfile)
+            setScreen(nextProfile ? 'home' : 'profile-login')
+          }}
+        />
       )}
+      {screen === 'home' && (
+        <Home responses={responses} profile={profile} onStart={() => {
+          if (profile) setScreen('privacy-choice')
+          else { setIdentified(false); setScreen('checkin') }
+        }} />
+      )}
+      {screen === 'privacy-choice' && <PrivacyChoice profile={profile} onBack={() => setScreen('home')} onChoose={(value) => { setIdentified(value); setScreen('checkin') }} />}
       {screen === 'checkin' && (
         <CheckIn
           onBack={() => setScreen('home')}
@@ -81,7 +110,7 @@ function App() {
             const result = await apiRequest('/api/responses', auth.code, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(response),
+              body: JSON.stringify({ ...response, identified }),
             })
             setResponses((current) => [...current, result.response])
             setScreen('thanks')
@@ -89,6 +118,11 @@ function App() {
         />
       )}
       {screen === 'thanks' && <Thanks responses={responses} onDone={() => setScreen('home')} />}
+      {screen === 'profile' && <MyProfile profile={profile} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
+        await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
+        setProfile(null)
+        setScreen('account')
+      }} />}
     </Shell>
   )
 }
@@ -169,10 +203,10 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, onLogout }) {
+function Shell({ children, profile, onProfile, onLogout }) {
   return (
     <main className="app-shell">
-      <header><ClubBrand /><button className="text-button" onClick={onLogout}>Logga ut</button></header>
+      <header><ClubBrand /><div className="header-actions">{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}<button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       {children}
     </main>
   )
@@ -196,7 +230,7 @@ function Logo({ compact = false }) {
   )
 }
 
-function Home({ responses, onStart }) {
+function Home({ responses, profile, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -215,12 +249,110 @@ function Home({ responses, onStart }) {
 
       <section className="start-card">
         <div>
-          <p className="eyebrow">Din tur</p>
+          <p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p>
           <h2>Hur är läget?</h2>
           <p>Det tar mindre än 20 sekunder.</p>
         </div>
         <button className="primary-button" onClick={onStart}>Checka in <span>→</span></button>
       </section>
+    </div>
+  )
+}
+
+function AccountChoice({ onAnonymous, onLogin, onCreate }) {
+  return (
+    <div className="account-page">
+      <section className="account-intro">
+        <p className="eyebrow">Välj hur du vill fortsätta</p>
+        <h1>Vem checkar in?</h1>
+        <p>Du kan alltid svara anonymt – även om du har en profil.</p>
+        <div className="account-options">
+          <button className="account-option anonymous" onClick={onAnonymous}><span>🥷</span><div><strong>Svara anonymt</strong><small>Snabbt, utan profil</small></div><b>→</b></button>
+          <button className="account-option" onClick={onLogin}><span>👋</span><div><strong>Logga in</strong><small>Fortsätt med din profil</small></div><b>→</b></button>
+          <button className="account-option" onClick={onCreate}><span>✨</span><div><strong>Skapa profil</strong><small>Välj namn och gubbe</small></div><b>→</b></button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const PROFILE_EMOJIS = ['🏊', '🐬', '🦈', '🐙', '🐢', '🦦', '🐳', '⚡', '🌊', '🔥']
+
+function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
+  const [form, setForm] = useState({ emoji: '🏊' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const action = mode === 'create' ? 'create' : mode === 'reset' ? 'reset-pin' : 'login'
+      const data = await apiRequest('/api/profiles', code, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...form }),
+      })
+      onSuccess(data.profile || null)
+    } catch (submitError) {
+      setError(submitError.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const title = mode === 'create' ? 'Skapa din profil' : mode === 'reset' ? 'Välj en ny PIN' : 'Välkommen tillbaka'
+  return (
+    <div className="profile-access-page">
+      <button className="back-button" onClick={onBack}>← Tillbaka</button>
+      <form className="profile-form" onSubmit={submit}>
+        <p className="eyebrow">Din profil</p><h1>{title}</h1>
+        {mode === 'create' && <>
+          <label>Vad vill du kallas?<input required maxLength="40" placeholder="Ditt namn eller smeknamn" value={form.displayName || ''} onChange={(event) => update('displayName', event.target.value)} /></label>
+          <fieldset><legend>Välj din gubbe</legend><div className="avatar-picker">{PROFILE_EMOJIS.map((emoji) => <button className={form.emoji === emoji ? 'selected' : ''} type="button" key={emoji} onClick={() => update('emoji', emoji)}>{emoji}</button>)}</div></fieldset>
+        </>}
+        <label>Användarnamn<input required minLength="3" maxLength="24" autoCapitalize="none" autoComplete="username" placeholder="t.ex. delfinen7" value={form.username || ''} onChange={(event) => update('username', event.target.value)} /></label>
+        {mode === 'reset' && <label>Återställningskod<input required inputMode="numeric" maxLength="8" placeholder="8 siffror" value={form.resetCode || ''} onChange={(event) => update('resetCode', event.target.value.replace(/\D/g, ''))} /></label>}
+        <label>{mode === 'reset' ? 'Ny fyrsiffrig PIN' : 'Fyrsiffrig PIN'}<input required inputMode="numeric" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength="4" placeholder="••••" value={(mode === 'reset' ? form.newPin : form.pin) || ''} onChange={(event) => update(mode === 'reset' ? 'newPin' : 'pin', event.target.value.replace(/\D/g, ''))} /></label>
+        {error && <span className="form-error">{error}</span>}
+        <button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : mode === 'create' ? 'Skapa profil →' : mode === 'reset' ? 'Spara ny PIN →' : 'Logga in →'}</button>
+        {mode === 'login' && <button type="button" className="form-link" onClick={() => onMode('reset')}>Glömt din PIN?</button>}
+      </form>
+    </div>
+  )
+}
+
+function PrivacyChoice({ profile, onBack, onChoose }) {
+  return (
+    <div className="privacy-choice-page">
+      <button className="back-button" onClick={onBack}>← Tillbaka</button>
+      <section>
+        <p className="eyebrow">Din check-in</p><h1>Hur vill du svara?</h1>
+        <p>Du bestämmer för varje gång.</p>
+        <div className="account-options">
+          <button className="account-option" onClick={() => onChoose(true)}><span>{profile.emoji}</span><div><strong>Som {profile.displayName}</strong><small>Syns i din historik och för tränaren</small></div><b>→</b></button>
+          <button className="account-option anonymous" onClick={() => onChoose(false)}><span>🥷</span><div><strong>Anonymt</strong><small>Kan inte kopplas till din profil</small></div><b>→</b></button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function MyProfile({ profile, code, onBack, onProfileLogout }) {
+  const [responses, setResponses] = useState([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    apiRequest('/api/responses?mine=true', code).then((data) => setResponses(data.responses)).finally(() => setLoading(false))
+  }, [code])
+  return (
+    <div className="my-profile-page">
+      <button className="back-button" onClick={onBack}>← Tillbaka</button>
+      <section className="profile-summary"><span>{profile.emoji}</span><div><p className="eyebrow">Min profil</p><h1>{profile.displayName}</h1><small>@{profile.username}</small></div></section>
+      <section className="my-history">
+        <div><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></div>
+        {loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}
+      </section>
+      <button className="profile-logout" onClick={onProfileLogout}>Logga ut från profilen</button>
     </div>
   )
 }
@@ -365,7 +497,7 @@ function Thanks({ responses, onDone }) {
   )
 }
 
-function Coach({ responses, loading, onLogout, onClear }) {
+function Coach({ responses, profiles, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
@@ -386,9 +518,12 @@ function Coach({ responses, loading, onLogout, onClear }) {
           <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Idag</button>
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
+          <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'history' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'swimmers' ? (
+          <Swimmers profiles={profiles} responses={responses} code={code} />
+        ) : view === 'history' ? (
           <History responses={responses} />
         ) : (
           <PeriodOverview
@@ -406,6 +541,36 @@ function Coach({ responses, loading, onLogout, onClear }) {
         }}>Radera alla svar</button>
       </div>
     </main>
+  )
+}
+
+function Swimmers({ profiles, responses, code }) {
+  const [reset, setReset] = useState(null)
+  const createReset = async (profile) => {
+    try {
+      const data = await apiRequest('/api/profiles', code, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create-reset', profileId: profile.id }),
+      })
+      setReset({ profile, code: data.resetCode })
+    } catch (error) { window.alert(error.message) }
+  }
+
+  return (
+    <section className="swimmers-section">
+      <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
+      {reset && <div className="reset-banner"><span>{reset.profile.emoji}</span><div><small>Engångskod för {reset.profile.displayName} · giltig 30 minuter</small><strong>{reset.code}</strong></div><button onClick={() => setReset(null)}>×</button></div>}
+      {profiles.length ? <div className="swimmer-grid">{profiles.map((profile) => {
+        const items = responses.filter((item) => item.profileId === profile.id)
+        const after = items.filter((item) => item.type === 'after')
+        return <article key={profile.id} className="swimmer-card">
+          <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div></div>
+          <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
+          {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
+          <button onClick={() => createReset(profile)}>Skapa återställningskod</button>
+        </article>
+      })}</div> : <EmptyPeriod title="Inga profiler ännu" periodLabel="Simmare" />}
+    </section>
   )
 }
 

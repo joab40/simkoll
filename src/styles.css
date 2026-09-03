@@ -50,6 +50,9 @@ button { cursor: pointer; }
 
 .app-shell, .coach-shell { min-height: 100vh; background: #eff6f4; }
 .app-shell > header, .coach-shell > header { height: 72px; padding: 0 max(24px, calc((100vw - 1120px) / 2)); display: flex; align-items: center; justify-content: space-between; background: rgba(251,253,248,.88); border-bottom: 1px solid #dae6e2; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.profile-chip { border: 1px solid #d5e2df; background: white; border-radius: 20px; padding: 5px 11px 5px 6px; font-size: 12px; font-weight: 700; }
+.profile-chip span { font-size: 18px; margin-right: 5px; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
@@ -67,6 +70,51 @@ button { cursor: pointer; }
 .primary-button { border: 0; background: var(--lime); border-radius: 13px; min-height: 52px; padding: 0 22px; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 14px rgba(107,140,26,.12); }
 .primary-button:hover { background: #d5f877; transform: translateY(-1px); }
 .primary-button span { margin-left: 20px; font-size: 20px; }
+.account-page, .profile-access-page, .privacy-choice-page, .my-profile-page { min-height: calc(100vh - 72px); background: var(--paper); }
+.account-page, .privacy-choice-page { display: grid; place-items: center; padding: 50px 20px; }
+.account-intro, .privacy-choice-page > section { width: min(100%, 650px); }
+.account-intro h1, .privacy-choice-page h1, .profile-form h1 { font-size: clamp(38px, 7vw, 56px); margin-bottom: 13px; }
+.account-intro > p:not(.eyebrow), .privacy-choice-page section > p:not(.eyebrow) { color: var(--muted); margin-bottom: 32px; }
+.account-options { display: grid; gap: 10px; }
+.account-option { border: 1.5px solid #d6e2df; background: white; border-radius: 17px; padding: 17px 19px; display: grid; grid-template-columns: 50px 1fr auto; align-items: center; text-align: left; }
+.account-option:hover { border-color: var(--teal); transform: translateY(-1px); }
+.account-option > span { font-size: 31px; }
+.account-option > div { display: flex; flex-direction: column; }
+.account-option strong { font-size: 16px; }
+.account-option small { color: var(--muted); margin-top: 3px; }
+.account-option b { font-size: 20px; }
+.account-option.anonymous { background: #f1f7f5; }
+.privacy-choice-page, .profile-access-page, .my-profile-page { position: relative; }
+.privacy-choice-page > .back-button { position: absolute; top: 25px; left: 0; }
+.profile-access-page { padding: 45px 20px; }
+.profile-access-page > .back-button, .my-profile-page > .back-button { position: absolute; top: 22px; left: 5px; }
+.profile-form { width: min(100%, 500px); margin: 30px auto 0; display: flex; flex-direction: column; }
+.profile-form label, .profile-form legend { font-size: 12px; font-weight: 700; margin-bottom: 7px; }
+.profile-form label { display: flex; flex-direction: column; margin-top: 16px; }
+.profile-form input { height: 52px; border: 1.5px solid #d6e2df; border-radius: 13px; padding: 0 15px; outline: 0; margin-top: 7px; font-size: 16px; }
+.profile-form input:focus { border-color: var(--teal); box-shadow: 0 0 0 4px rgba(15,110,112,.08); }
+.profile-form fieldset { border: 0; padding: 0; margin: 21px 0 2px; }
+.avatar-picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+.avatar-picker button { aspect-ratio: 1; border: 1.5px solid #d6e2df; background: white; border-radius: 12px; font-size: 28px; }
+.avatar-picker button.selected { border-color: var(--teal); background: #e9f7f3; box-shadow: inset 0 0 0 1px var(--teal); }
+.profile-form .primary-button { margin-top: 22px; }
+.form-error { color: #ba4040; font-size: 13px; margin-top: 12px; }
+.form-link { border: 0; background: transparent; color: var(--teal); margin-top: 17px; font-size: 13px; }
+.my-profile-page { padding: 80px max(20px, calc((100vw - 850px) / 2)); }
+.profile-summary { display: flex; align-items: center; gap: 24px; margin-bottom: 38px; }
+.profile-summary > span { width: 86px; height: 86px; display: grid; place-items: center; background: #dff1ed; border-radius: 50%; font-size: 47px; }
+.profile-summary h1 { font-size: 42px; margin: 0 0 2px; }
+.profile-summary small { color: var(--muted); }
+.my-history { background: white; border: 1px solid #dbe6e3; border-radius: 19px; padding: 26px; }
+.my-history > div:first-child { margin-bottom: 18px; }
+.my-history h2 { margin-bottom: 4px; }
+.my-history > div > small { color: var(--muted); }
+.my-history article { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; border-top: 1px solid #e4ece9; padding: 13px 0; }
+.my-history article > span { font-size: 28px; }
+.my-history article > div { display: flex; flex-direction: column; text-transform: capitalize; }
+.my-history article small { color: var(--muted); font-size: 11px; }
+.my-history article b { font-size: 12px; color: var(--teal); }
+.profile-logout { display: block; margin: 22px auto; border: 0; background: transparent; color: #956262; font-size: 12px; }
 .primary-button.small { min-height: 46px; }
 
 .checkin-page { min-height: calc(100vh - 72px); background: var(--paper); position: relative; }
@@ -160,6 +208,29 @@ button { cursor: pointer; }
 .history-date strong { font-size: 15px; margin-bottom: 2px; }
 .history-mood { display: flex; align-items: center; gap: 9px; }
 .history-mood > span { font-size: 28px; }
+.swimmer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 22px; }
+.swimmer-name { display: flex; align-items: center; gap: 12px; }
+.swimmer-name > span { width: 48px; height: 48px; display: grid; place-items: center; background: #e3f2ee; border-radius: 50%; font-size: 28px; }
+.swimmer-name > div { display: flex; flex-direction: column; }
+.swimmer-name small { color: var(--muted); }
+.swimmer-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 20px 0; }
+.swimmer-stats > div { background: #edf5f2; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+.swimmer-stats small { color: var(--muted); font-size: 10px; }
+.swimmer-details { border-top: 1px solid #e0eae7; margin: 0 0 15px; padding-top: 12px; }
+.swimmer-details summary { cursor: pointer; color: var(--teal); font-size: 12px; margin-bottom: 7px; }
+.swimmer-details > div { display: grid; grid-template-columns: 31px 1fr; align-items: center; padding: 7px 0; }
+.swimmer-details > div > span { font-size: 22px; }
+.swimmer-details p { display: flex; flex-direction: column; margin: 0; }
+.swimmer-details p strong { font-size: 12px; }
+.swimmer-details p small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.swimmer-card > button { width: 100%; min-height: 39px; border: 1px solid #cddcd8; border-radius: 10px; background: white; font-size: 12px; }
+.reset-banner { background: var(--ink); color: white; border-radius: 16px; padding: 16px 18px; margin-bottom: 13px; display: grid; grid-template-columns: 42px 1fr auto; align-items: center; }
+.reset-banner > span { font-size: 30px; }
+.reset-banner > div { display: flex; flex-direction: column; }
+.reset-banner small { color: #b8c9c9; }
+.reset-banner strong { color: var(--lime); font: 800 25px 'Manrope'; letter-spacing: .12em; }
+.reset-banner button { border: 0; background: transparent; color: white; font-size: 22px; }
 .clear-button { display: block; margin: 25px auto 0; border: 0; background: transparent; color: #9b6868; font-size: 12px; }
 
 @media (max-width: 700px) {
@@ -193,6 +264,7 @@ button { cursor: pointer; }
   .week-days strong { font-size: 23px; }
   .week-days small { font-size: 8px; }
   .coach-columns { grid-template-columns: 1fr; }
+  .swimmer-grid { grid-template-columns: 1fr; }
   .history-row { grid-template-columns: 1fr repeat(3, .55fr); gap: 12px; padding: 16px; }
   .history-date { grid-column: 1 / -1; border-bottom: 1px solid #e2ebe8; padding-bottom: 11px; }
   .history-mood { align-items: flex-start; flex-direction: column; gap: 2px; }
@@ -203,4 +275,5 @@ button { cursor: pointer; }
   .coach-badge { display: none; }
   .club-brand { gap: 9px; }
   .club-brand > span { padding-left: 9px; font-size: 10px; max-width: 82px; line-height: 1.15; }
+  .profile-chip { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
