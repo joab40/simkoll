@@ -16,8 +16,6 @@ const DAY_TYPES = [
   { value: 'rest', title: 'Ingen träning idag', icon: '–' },
 ]
 
-const STORAGE_KEY = 'simkoll-responses-v1'
-
 const dateKey = (date) => {
   const value = new Date(date)
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -41,36 +39,34 @@ function previousWeekRange() {
   return { start, end }
 }
 
-function readResponses() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    // Äldre testversioner innehöll demodata. Filtrera bort den automatiskt.
-    return stored ? JSON.parse(stored)
-      .filter((response) => !response.demo)
-      .map((response) => ({ ...response, createdAt: response.createdAt || new Date().toISOString() })) : []
-  } catch {
-    return []
-  }
-}
-
 function App() {
-  const [role, setRole] = useState(null)
-  const [responses, setResponses] = useState(readResponses)
+  const [auth, setAuth] = useState(null)
+  const [responses, setResponses] = useState([])
+  const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(responses))
-  }, [responses])
+    if (!auth) return
+    setLoading(true)
+    fetchResponses(auth.code)
+      .then(setResponses)
+      .catch((error) => window.alert(error.message))
+      .finally(() => setLoading(false))
+  }, [auth])
 
-  if (!role) return <Login onLogin={setRole} />
+  if (!auth) return <Login onLogin={setAuth} />
 
   const logout = () => {
-    setRole(null)
+    setAuth(null)
+    setResponses([])
     setScreen('home')
   }
 
-  if (role === 'coach') {
-    return <Coach responses={responses} onLogout={logout} onClear={() => setResponses([])} />
+  if (auth.role === 'coach') {
+    return <Coach responses={responses} loading={loading} onLogout={logout} onClear={async () => {
+      await apiRequest('/api/responses', auth.code, { method: 'DELETE' })
+      setResponses([])
+    }} />
   }
 
   return (
@@ -81,8 +77,13 @@ function App() {
       {screen === 'checkin' && (
         <CheckIn
           onBack={() => setScreen('home')}
-          onSubmit={(response) => {
-            setResponses((current) => [...current, { ...response, id: crypto.randomUUID(), createdAt: new Date().toISOString() }])
+          onSubmit={async (response) => {
+            const result = await apiRequest('/api/responses', auth.code, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(response),
+            })
+            setResponses((current) => [...current, result.response])
             setScreen('thanks')
           }}
         />
@@ -92,15 +93,44 @@ function App() {
   )
 }
 
+async function apiRequest(url, code, options = {}) {
+  const result = await fetch(url, {
+    ...options,
+    headers: { ...options.headers, 'x-simkoll-code': code },
+  })
+  const data = await result.json().catch(() => ({}))
+  if (!result.ok) throw new Error(data.error || 'Något gick fel. Försök igen.')
+  return data
+}
+
+async function fetchResponses(code) {
+  const data = await apiRequest('/api/responses', code)
+  return data.responses
+}
+
 function Login({ onLogin }) {
   const [code, setCode] = useState('')
-  const [error, setError] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
-    if (code === '1871') return onLogin('swimmer')
-    if (code === '1781') return onLogin('coach')
-    setError(true)
+    setLoading(true)
+    setError('')
+    try {
+      const result = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await result.json()
+      if (!result.ok) throw new Error(data.error)
+      onLogin({ role: data.role, code })
+    } catch (loginError) {
+      setError(loginError.message || 'Kunde inte logga in.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -125,13 +155,13 @@ function Login({ onLogin }) {
               value={code}
               onChange={(event) => {
                 setCode(event.target.value.replace(/\D/g, ''))
-                setError(false)
+                setError('')
               }}
               autoFocus
             />
-            <button aria-label="Logga in" type="submit">→</button>
+            <button aria-label="Logga in" type="submit" disabled={loading}>{loading ? '…' : '→'}</button>
           </div>
-          {error && <span className="error-text">Koden stämmer inte. Försök igen.</span>}
+          {error && <span className="error-text">{error}</span>}
         </form>
         <p className="privacy-note"><span>●</span> Dina svar är anonyma</p>
       </section>
@@ -198,11 +228,23 @@ function Home({ responses, onStart }) {
 function CheckIn({ onBack, onSubmit }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const typeQuestions = form.type ? getQuestions(form.type) : []
   const total = 2 + typeQuestions.length
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const next = () => setStep((current) => current + 1)
+  const submit = async () => {
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      await onSubmit(form)
+    } catch (error) {
+      setSubmitError(error.message || 'Kunde inte skicka svaret. Försök igen.')
+      setSubmitting(false)
+    }
+  }
 
   let content
   if (step === 0) {
@@ -253,7 +295,8 @@ function CheckIn({ onBack, onSubmit }) {
         {question.kind === 'comment' && (
           <div className="comment-box">
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
-            <div><button className="skip-button" onClick={() => onSubmit(form)}>Hoppa över</button><button className="primary-button small" onClick={() => onSubmit(form)}>Skicka →</button></div>
+            {submitError && <span className="error-text">{submitError}</span>}
+            <div><button className="skip-button" disabled={submitting} onClick={submit}>Hoppa över</button><button className="primary-button small" disabled={submitting} onClick={submit}>{submitting ? 'Skickar…' : 'Skicka →'}</button></div>
           </div>
         )}
       </Question>
@@ -322,7 +365,7 @@ function Thanks({ responses, onDone }) {
   )
 }
 
-function Coach({ responses, onLogout, onClear }) {
+function Coach({ responses, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
@@ -345,7 +388,7 @@ function Coach({ responses, onLogout, onClear }) {
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
         </nav>
 
-        {view === 'history' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'history' ? (
           <History responses={responses} />
         ) : (
           <PeriodOverview
@@ -357,7 +400,10 @@ function Coach({ responses, onLogout, onClear }) {
             showDays={view === 'week'}
           />
         )}
-        <button className="clear-button" onClick={() => { if (window.confirm('Vill du ta bort alla lokala testsvar?')) onClear() }}>Rensa alla testsvar</button>
+        <button className="clear-button" onClick={async () => {
+          if (!window.confirm('Vill du radera alla svar permanent?')) return
+          try { await onClear() } catch (error) { window.alert(error.message) }
+        }}>Radera alla svar</button>
       </div>
     </main>
   )
