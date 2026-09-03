@@ -18,11 +18,36 @@ const DAY_TYPES = [
 
 const STORAGE_KEY = 'simkoll-responses-v1'
 
+const dateKey = (date) => {
+  const value = new Date(date)
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+}
+
+const responseDate = (response) => new Date(response.createdAt)
+const todayKey = () => dateKey(new Date())
+const average = (key, items) => {
+  const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
+  return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
+}
+
+function previousWeekRange() {
+  const today = new Date()
+  const mondayOffset = (today.getDay() + 6) % 7
+  const thisMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset)
+  const start = new Date(thisMonday)
+  start.setDate(start.getDate() - 7)
+  const end = new Date(thisMonday)
+  end.setMilliseconds(-1)
+  return { start, end }
+}
+
 function readResponses() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     // Äldre testversioner innehöll demodata. Filtrera bort den automatiskt.
-    return stored ? JSON.parse(stored).filter((response) => !response.demo) : []
+    return stored ? JSON.parse(stored)
+      .filter((response) => !response.demo)
+      .map((response) => ({ ...response, createdAt: response.createdAt || new Date().toISOString() })) : []
   } catch {
     return []
   }
@@ -57,7 +82,7 @@ function App() {
         <CheckIn
           onBack={() => setScreen('home')}
           onSubmit={(response) => {
-            setResponses((current) => [...current, { ...response, id: crypto.randomUUID() }])
+            setResponses((current) => [...current, { ...response, id: crypto.randomUUID(), createdAt: new Date().toISOString() }])
             setScreen('thanks')
           }}
         />
@@ -142,19 +167,20 @@ function Logo({ compact = false }) {
 }
 
 function Home({ responses, onStart }) {
+  const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
       <section className="mood-hero">
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
-        <div className="emoji-cloud" aria-label={`${responses.length} svar idag`}>
-          {responses.length ? responses.map((response, index) => (
+        <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`}>
+          {todayResponses.length ? todayResponses.map((response, index) => (
             <span key={response.id} style={{ '--delay': `${index * 40}ms` }}>
               {FEELINGS.find((item) => item.value === response.feeling)?.emoji}
             </span>
           )) : <p>Inga svar ännu – bli först!</p>}
         </div>
-        <div className="response-count"><strong>{responses.length}</strong> anonyma svar idag</div>
+        <div className="response-count"><strong>{todayResponses.length}</strong> anonyma svar idag</div>
       </section>
 
       <section className="start-card">
@@ -283,63 +309,168 @@ function getQuestions(type) {
 }
 
 function Thanks({ responses, onDone }) {
+  const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="thanks-page">
       <div className="success-mark">✓</div>
       <p className="eyebrow">Klart</p>
       <h1>Tack för din check-in!</h1>
       <p>Svaret är anonymt och hjälper tränaren att göra passen bättre.</p>
-      <div className="mini-moods">{responses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
+      <div className="mini-moods">{todayResponses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
       <button className="primary-button" onClick={onDone}>Till dagens läge →</button>
     </div>
   )
 }
 
 function Coach({ responses, onLogout, onClear }) {
-  const after = responses.filter((item) => item.type === 'after')
-  const average = (key, items = responses) => {
-    const values = items.map((item) => item[key]).filter(Boolean)
-    return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
-  }
-  const distribution = useMemo(() => FEELINGS.map((feeling) => ({ ...feeling, count: responses.filter((item) => item.feeling === feeling.value).length })), [responses])
+  const [view, setView] = useState('today')
+  const previousWeek = previousWeekRange()
+  const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const previousWeekResponses = responses.filter((response) => {
+    const date = responseDate(response)
+    return date >= previousWeek.start && date <= previousWeek.end
+  })
+  const scopedResponses = view === 'today' ? todayResponses : previousWeekResponses
+
+  const previousWeekLabel = `${previousWeek.start.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${previousWeek.end.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
 
   return (
     <main className="coach-shell">
       <header><ClubBrand /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       <div className="coach-content">
-        <div className="coach-heading"><div><p className="eyebrow">Torsdag · idag</p><h1>Gruppens läge</h1></div><div className="big-count"><strong>{responses.length}</strong><span>anonyma svar</span></div></div>
-        <section className="stats-grid">
-          <Stat title="Dagens känsla" value={`${average('feeling')} / 5`} note="Alla svar" />
-          <Stat title="Upplevd ansträngning" value={`${average('rpe', after)} / 10`} note={`${after.length} efter passet`} />
-          <Stat title="Passet" value={`${average('pass', after)} / 5`} note="Simmarnas betyg" />
-          <Stat title="Upplägget" value={`${average('setup', after)} / 5`} note="Hur det fungerade" />
-        </section>
+        <div className="coach-heading"><div><p className="eyebrow">Tränaröversikt</p><h1>Gruppens läge</h1></div></div>
+        <nav className="coach-tabs" aria-label="Välj tidsperiod">
+          <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Idag</button>
+          <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
+          <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
+        </nav>
 
-        <section className="coach-card">
-          <div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det idag</h2></div></div>
-          <div className="distribution">
-            {distribution.map((item) => (
-              <div key={item.value}><span className="dist-emoji">{item.emoji}</span><div className="bar-track"><span style={{ height: `${responses.length ? Math.max(8, (item.count / responses.length) * 100) : 0}%` }} /></div><strong>{item.count}</strong><small>{item.label}</small></div>
-            ))}
-          </div>
-        </section>
-
-        <div className="coach-columns">
-          <section className="coach-card">
-            <p className="eyebrow">Dagens flöde</p><h2>Vad har gruppen gjort?</h2>
-            <div className="type-list">
-              {DAY_TYPES.map((type) => <div key={type.value}><span>{type.title}</span><strong>{responses.filter((item) => item.type === type.value).length}</strong></div>)}
-            </div>
-          </section>
-          <section className="coach-card comments-card">
-            <p className="eyebrow">Anonymt</p><h2>Kommentarer</h2>
-            {responses.filter((item) => item.comment).length ? responses.filter((item) => item.comment).map((item) => <blockquote key={item.id}>“{item.comment}”</blockquote>) : <p className="empty">Inga kommentarer ännu.</p>}
-          </section>
-        </div>
+        {view === 'history' ? (
+          <History responses={responses} />
+        ) : (
+          <PeriodOverview
+            responses={scopedResponses}
+            title={view === 'today' ? 'Idag' : 'Förra veckan'}
+            periodLabel={view === 'today'
+              ? new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
+              : previousWeekLabel}
+            showDays={view === 'week'}
+          />
+        )}
         <button className="clear-button" onClick={() => { if (window.confirm('Vill du ta bort alla lokala testsvar?')) onClear() }}>Rensa alla testsvar</button>
       </div>
     </main>
   )
+}
+
+function PeriodOverview({ responses, title, periodLabel, showDays }) {
+  const after = responses.filter((item) => item.type === 'after')
+  const distribution = useMemo(() => FEELINGS.map((feeling) => ({
+    ...feeling,
+    count: responses.filter((item) => item.feeling === feeling.value).length,
+  })), [responses])
+
+  if (!responses.length) {
+    return <EmptyPeriod title={title} periodLabel={periodLabel} />
+  }
+
+  return (
+    <>
+      <div className="period-heading"><div><p className="eyebrow">{periodLabel}</p><h2>{title}</h2></div><div className="big-count"><strong>{responses.length}</strong><span>anonyma svar</span></div></div>
+      <section className="stats-grid">
+        <Stat title="Gruppens känsla" value={`${average('feeling', responses)} / 5`} note="Alla svar" />
+        <Stat title="Upplevd ansträngning" value={`${average('rpe', after)} / 10`} note={`${after.length} efter passet`} />
+        <Stat title="Passet" value={`${average('pass', after)} / 5`} note="Simmarnas betyg" />
+        <Stat title="Upplägget" value={`${average('setup', after)} / 5`} note="Hur det fungerade" />
+      </section>
+
+      {showDays && <WeekDays responses={responses} />}
+
+      <section className="coach-card">
+        <div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>
+        <div className="distribution">
+          {distribution.map((item) => (
+            <div key={item.value}><span className="dist-emoji">{item.emoji}</span><div className="bar-track"><span style={{ height: `${Math.max(8, (item.count / responses.length) * 100)}%` }} /></div><strong>{item.count}</strong><small>{item.label}</small></div>
+          ))}
+        </div>
+      </section>
+
+      <div className="coach-columns">
+        <section className="coach-card">
+          <p className="eyebrow">Aktivitet</p><h2>Vad har gruppen gjort?</h2>
+          <div className="type-list">
+            {DAY_TYPES.map((type) => <div key={type.value}><span>{type.title}</span><strong>{responses.filter((item) => item.type === type.value).length}</strong></div>)}
+          </div>
+        </section>
+        <section className="coach-card comments-card">
+          <p className="eyebrow">Anonymt</p><h2>Kommentarer</h2>
+          {responses.filter((item) => item.comment).length ? responses.filter((item) => item.comment).map((item) => <blockquote key={item.id}>“{item.comment}”</blockquote>) : <p className="empty">Inga kommentarer under perioden.</p>}
+        </section>
+      </div>
+    </>
+  )
+}
+
+function WeekDays({ responses }) {
+  const { start } = previousWeekRange()
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    const items = responses.filter((response) => dateKey(responseDate(response)) === dateKey(date))
+    return { date, items }
+  })
+
+  return (
+    <section className="coach-card week-card">
+      <p className="eyebrow">Dag för dag</p><h2>Veckans utveckling</h2>
+      <div className="week-days">
+        {days.map(({ date, items }) => (
+          <div key={dateKey(date)} className={items.length ? '' : 'no-data'}>
+            <span>{date.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '')}</span>
+            <strong>{items.length ? FEELINGS[Math.max(0, Math.round(Number(average('feeling', items))) - 1)]?.emoji : '–'}</strong>
+            <small>{items.length} svar</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function History({ responses }) {
+  const groups = useMemo(() => {
+    const byDay = responses.reduce((result, response) => {
+      const key = dateKey(responseDate(response))
+      result[key] = [...(result[key] || []), response]
+      return result
+    }, {})
+    return Object.entries(byDay).sort(([a], [b]) => b.localeCompare(a))
+  }, [responses])
+
+  if (!groups.length) return <EmptyPeriod title="Ingen historik ännu" periodLabel="Tidigare svar" />
+
+  return (
+    <section className="history-section">
+      <div className="period-heading"><div><p className="eyebrow">Alla registrerade dagar</p><h2>Historik</h2></div><div className="big-count"><strong>{groups.length}</strong><span>dagar med svar</span></div></div>
+      <div className="history-list">
+        {groups.map(([key, items]) => {
+          const after = items.filter((item) => item.type === 'after')
+          return (
+            <article key={key} className="history-row">
+              <div className="history-date"><strong>{new Date(`${key}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><span>{new Date(`${key}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+              <div className="history-mood"><span>{FEELINGS[Math.max(0, Math.round(Number(average('feeling', items))) - 1)]?.emoji}</span><small>Känsla {average('feeling', items)}/5</small></div>
+              <div><strong>{items.length}</strong><small>svar</small></div>
+              <div><strong>{average('rpe', after)}</strong><small>RPE</small></div>
+              <div><strong>{average('pass', after)}</strong><small>passet</small></div>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function EmptyPeriod({ title, periodLabel }) {
+  return <section className="empty-period"><span>≈</span><p className="eyebrow">{periodLabel}</p><h2>{title}</h2><p>När simmarna har svarat visas sammanställningen här.</p></section>
 }
 
 function Stat({ title, value, note }) {

@@ -113,6 +113,11 @@ button { cursor: pointer; }
 .coach-content { width: min(100% - 36px, 1120px); margin: 0 auto; padding: 48px 0 70px; }
 .coach-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
 .coach-heading h1 { font-size: clamp(38px, 6vw, 55px); margin: 0; }
+.coach-tabs { display: inline-flex; padding: 4px; gap: 3px; background: #dfeae7; border-radius: 13px; margin-bottom: 28px; }
+.coach-tabs button { min-height: 39px; padding: 0 17px; border: 0; border-radius: 10px; background: transparent; color: #687b7e; font-size: 13px; font-weight: 600; }
+.coach-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
+.period-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 20px; }
+.period-heading h2 { font-size: 30px; margin: 0; text-transform: capitalize; }
 .big-count { display: flex; flex-direction: column; align-items: flex-end; }
 .big-count strong { font: 800 34px 'Manrope'; }
 .big-count span { color: var(--muted); font-size: 12px; }
@@ -130,11 +135,31 @@ button { cursor: pointer; }
 .bar-track { height: 100%; width: min(44px, 60%); background: #e5efec; border-radius: 8px 8px 3px 3px; display: flex; align-items: flex-end; overflow: hidden; }
 .bar-track span { display: block; width: 100%; background: var(--aqua); border-radius: 8px 8px 3px 3px; transition: height .5s; }
 .distribution small { color: var(--muted); }
+.week-card { margin-bottom: 12px; }
+.week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.week-days > div { min-height: 112px; border-radius: 13px; background: #edf5f2; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.week-days > div > span { color: var(--muted); font-size: 12px; text-transform: capitalize; }
+.week-days strong { font-size: 30px; margin: 8px 0 3px; }
+.week-days small { color: var(--muted); font-size: 10px; }
+.week-days .no-data { opacity: .55; }
 .coach-columns { display: grid; grid-template-columns: .8fr 1.2fr; gap: 12px; margin-top: 12px; align-items: start; }
 .type-list > div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid #e4ece9; }
 .type-list strong { color: var(--teal); }
 .comments-card blockquote { margin: 0; padding: 14px 0; border-top: 1px solid #e4ece9; color: #40565b; font-size: 14px; line-height: 1.5; }
 .empty { color: var(--muted); }
+.empty-period { min-height: 430px; border: 1px dashed #c7d8d3; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
+.empty-period > span { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 50%; background: #dceee9; color: var(--teal); font-size: 35px; margin-bottom: 22px; }
+.empty-period h2 { font-size: 29px; margin-bottom: 8px; }
+.empty-period > p:last-child { color: var(--muted); }
+.history-list { display: grid; gap: 8px; }
+.history-row { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 16px; padding: 18px 22px; display: grid; grid-template-columns: minmax(190px, 1.8fr) 1.2fr repeat(3, .65fr); align-items: center; gap: 20px; }
+.history-row > div:not(.history-date):not(.history-mood) { display: flex; flex-direction: column; }
+.history-row > div > strong { font: 700 18px 'Manrope'; }
+.history-row small, .history-date span { color: var(--muted); font-size: 11px; }
+.history-date { display: flex; flex-direction: column; text-transform: capitalize; }
+.history-date strong { font-size: 15px; margin-bottom: 2px; }
+.history-mood { display: flex; align-items: center; gap: 9px; }
+.history-mood > span { font-size: 28px; }
 .clear-button { display: block; margin: 25px auto 0; border: 0; background: transparent; color: #9b6868; font-size: 12px; }
 
 @media (max-width: 700px) {
@@ -154,13 +179,23 @@ button { cursor: pointer; }
   .scale-grid button { aspect-ratio: auto; min-height: 51px; }
   .coach-content { padding-top: 28px; }
   .coach-heading { align-items: start; }
+  .coach-tabs { display: flex; }
+  .coach-tabs button { flex: 1; padding: 0 8px; }
+  .period-heading { align-items: start; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .stat { padding: 18px; }
   .stat strong { font-size: 23px; }
   .coach-card { padding: 23px 18px; }
   .distribution { gap: 6px; }
   .distribution small { font-size: 10px; }
+  .week-days { gap: 3px; }
+  .week-days > div { min-height: 91px; }
+  .week-days strong { font-size: 23px; }
+  .week-days small { font-size: 8px; }
   .coach-columns { grid-template-columns: 1fr; }
+  .history-row { grid-template-columns: 1fr repeat(3, .55fr); gap: 12px; padding: 16px; }
+  .history-date { grid-column: 1 / -1; border-bottom: 1px solid #e2ebe8; padding-bottom: 11px; }
+  .history-mood { align-items: flex-start; flex-direction: column; gap: 2px; }
 }
 
 @media (max-width: 390px) {
