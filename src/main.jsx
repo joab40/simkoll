@@ -1,0 +1,351 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import './styles.css'
+
+const FEELINGS = [
+  { value: 1, emoji: '😣', label: 'Tungt' },
+  { value: 2, emoji: '😕', label: 'Segt' },
+  { value: 3, emoji: '😐', label: 'Okej' },
+  { value: 4, emoji: '🙂', label: 'Bra' },
+  { value: 5, emoji: '🤩', label: 'Toppen' },
+]
+
+const DAY_TYPES = [
+  { value: 'before', title: 'Jag ska träna', icon: '→' },
+  { value: 'after', title: 'Jag har tränat', icon: '✓' },
+  { value: 'rest', title: 'Ingen träning idag', icon: '–' },
+]
+
+const seedResponses = [
+  { feeling: 4, type: 'after', rpe: 7, pass: 5, setup: 4, body: 4, comment: '' },
+  { feeling: 3, type: 'after', rpe: 8, pass: 3, setup: 3, body: 3, comment: '' },
+  { feeling: 5, type: 'after', rpe: 6, pass: 5, setup: 5, body: 4, comment: 'Kul med lite mer fart idag!' },
+  { feeling: 4, type: 'before', energy: 4, body: 4, motivation: 5, comment: '' },
+  { feeling: 2, type: 'rest', energy: 2, body: 3, sleep: 2, comment: '' },
+  { feeling: 4, type: 'after', rpe: 7, pass: 4, setup: 4, body: 4, comment: '' },
+  { feeling: 3, type: 'before', energy: 3, body: 3, motivation: 4, comment: '' },
+  { feeling: 5, type: 'after', rpe: 9, pass: 5, setup: 5, body: 3, comment: '' },
+].map((response, index) => ({ ...response, id: `demo-${index}`, demo: true }))
+
+const STORAGE_KEY = 'simkoll-responses-v1'
+
+function readResponses() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? JSON.parse(stored) : seedResponses
+  } catch {
+    return seedResponses
+  }
+}
+
+function App() {
+  const [role, setRole] = useState(null)
+  const [responses, setResponses] = useState(readResponses)
+  const [screen, setScreen] = useState('home')
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(responses))
+  }, [responses])
+
+  if (!role) return <Login onLogin={setRole} />
+
+  const logout = () => {
+    setRole(null)
+    setScreen('home')
+  }
+
+  if (role === 'coach') {
+    return <Coach responses={responses} onLogout={logout} onClear={() => setResponses([])} />
+  }
+
+  return (
+    <Shell onLogout={logout}>
+      {screen === 'home' && (
+        <Home responses={responses} onStart={() => setScreen('checkin')} />
+      )}
+      {screen === 'checkin' && (
+        <CheckIn
+          onBack={() => setScreen('home')}
+          onSubmit={(response) => {
+            setResponses((current) => [...current, { ...response, id: crypto.randomUUID() }])
+            setScreen('thanks')
+          }}
+        />
+      )}
+      {screen === 'thanks' && <Thanks responses={responses} onDone={() => setScreen('home')} />}
+    </Shell>
+  )
+}
+
+function Login({ onLogin }) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState(false)
+
+  const submit = (event) => {
+    event.preventDefault()
+    if (code === '1871') return onLogin('swimmer')
+    if (code === '1781') return onLogin('coach')
+    setError(true)
+  }
+
+  return (
+    <main className="login-page">
+      <div className="watermark">SIMKOLL</div>
+      <section className="login-card">
+        <Logo />
+        <div className="login-copy">
+          <p className="eyebrow">Välkommen</p>
+          <h1>Hur känns<br />träningen idag?</h1>
+          <p>Snabb och anonym feedback som gör nästa pass ännu bättre.</p>
+        </div>
+        <form onSubmit={submit} className="code-form">
+          <label htmlFor="code">Gruppkod</label>
+          <div className={`code-field ${error ? 'has-error' : ''}`}>
+            <input
+              id="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength="4"
+              placeholder="••••"
+              value={code}
+              onChange={(event) => {
+                setCode(event.target.value.replace(/\D/g, ''))
+                setError(false)
+              }}
+              autoFocus
+            />
+            <button aria-label="Logga in" type="submit">→</button>
+          </div>
+          {error && <span className="error-text">Koden stämmer inte. Försök igen.</span>}
+        </form>
+        <p className="privacy-note"><span>●</span> Dina svar är anonyma</p>
+      </section>
+    </main>
+  )
+}
+
+function Shell({ children, onLogout }) {
+  return (
+    <main className="app-shell">
+      <header><Logo compact /><button className="text-button" onClick={onLogout}>Logga ut</button></header>
+      {children}
+    </main>
+  )
+}
+
+function Logo({ compact = false }) {
+  return (
+    <div className={`logo ${compact ? 'compact' : ''}`}>
+      <span className="logo-mark">≈</span>
+      <span>SIMKOLL</span>
+    </div>
+  )
+}
+
+function Home({ responses, onStart }) {
+  return (
+    <div className="page-content home">
+      <section className="mood-hero">
+        <p className="eyebrow light">Idag i gruppen</p>
+        <h1>Så här känns det</h1>
+        <div className="emoji-cloud" aria-label={`${responses.length} svar idag`}>
+          {responses.length ? responses.map((response, index) => (
+            <span key={response.id} style={{ '--delay': `${index * 40}ms` }}>
+              {FEELINGS.find((item) => item.value === response.feeling)?.emoji}
+            </span>
+          )) : <p>Inga svar ännu – bli först!</p>}
+        </div>
+        <div className="response-count"><strong>{responses.length}</strong> anonyma svar idag</div>
+      </section>
+
+      <section className="start-card">
+        <div>
+          <p className="eyebrow">Din tur</p>
+          <h2>Hur är läget?</h2>
+          <p>Det tar mindre än 20 sekunder.</p>
+        </div>
+        <button className="primary-button" onClick={onStart}>Checka in <span>→</span></button>
+      </section>
+      {responses.some((item) => item.demo) && <p className="demo-note">Du ser några exempel-svar för att kunna testa appen.</p>}
+    </div>
+  )
+}
+
+function CheckIn({ onBack, onSubmit }) {
+  const [step, setStep] = useState(0)
+  const [form, setForm] = useState({})
+  const typeQuestions = form.type ? getQuestions(form.type) : []
+  const total = 2 + typeQuestions.length
+
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+  const next = () => setStep((current) => current + 1)
+
+  let content
+  if (step === 0) {
+    content = (
+      <Question title="Hur ser din dag ut?" hint="Välj det som stämmer bäst just nu.">
+        <div className="choice-stack">
+          {DAY_TYPES.map((type) => (
+            <button key={type.value} className="choice-card" onClick={() => { update('type', type.value); next() }}>
+              <span className="choice-icon">{type.icon}</span>{type.title}<span>›</span>
+            </button>
+          ))}
+        </div>
+      </Question>
+    )
+  } else if (step === 1) {
+    content = (
+      <Question title="Hur känns det idag?" hint="Gå på magkänslan.">
+        <div className="feeling-grid">
+          {FEELINGS.map((feeling) => (
+            <button key={feeling.value} onClick={() => { update('feeling', feeling.value); next() }}>
+              <span>{feeling.emoji}</span><small>{feeling.label}</small>
+            </button>
+          ))}
+        </div>
+      </Question>
+    )
+  } else {
+    const question = typeQuestions[step - 2]
+    content = (
+      <Question title={question.title} hint={question.hint}>
+        {question.kind === 'scale' && (
+          <Scale
+            count={question.count}
+            left={question.left}
+            right={question.right}
+            onChange={(value) => { update(question.key, value); next() }}
+          />
+        )}
+        {question.kind === 'rating' && (
+          <div className="thumb-grid">
+            {[{ value: 1, icon: '👎', label: 'Inte bra' }, { value: 3, icon: '😐', label: 'Helt okej' }, { value: 5, icon: '👍', label: 'Bra' }].map((option) => (
+              <button key={option.value} onClick={() => { update(question.key, option.value); next() }}>
+                <span>{option.icon}</span><small>{option.label}</small>
+              </button>
+            ))}
+          </div>
+        )}
+        {question.kind === 'comment' && (
+          <div className="comment-box">
+            <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
+            <div><button className="skip-button" onClick={() => onSubmit(form)}>Hoppa över</button><button className="primary-button small" onClick={() => onSubmit(form)}>Skicka →</button></div>
+          </div>
+        )}
+      </Question>
+    )
+  }
+
+  return (
+    <div className="checkin-page">
+      <div className="progress"><span style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
+      <button className="back-button" onClick={step === 0 ? onBack : () => setStep((current) => current - 1)}>← Tillbaka</button>
+      <div className="question-wrap">{content}</div>
+      <div className="step-count">{Math.min(step + 1, total)} / {total}</div>
+    </div>
+  )
+}
+
+function Question({ title, hint, children }) {
+  return <section className="question"><p className="eyebrow">Snabbkoll</p><h1>{title}</h1><p>{hint}</p>{children}</section>
+}
+
+function Scale({ count, left, right, onChange }) {
+  return (
+    <div className="scale-wrap">
+      <div className={`scale-grid scale-${count}`}>
+        {Array.from({ length: count }, (_, index) => <button key={index} onClick={() => onChange(index + 1)}>{index + 1}</button>)}
+      </div>
+      <div className="scale-labels"><span>{left}</span><span>{right}</span></div>
+    </div>
+  )
+}
+
+function getQuestions(type) {
+  const comment = { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt. Tränaren ser inte vem som har skrivit.', kind: 'comment' }
+  if (type === 'after') return [
+    { key: 'rpe', title: 'Hur jobbigt var passet?', hint: '1 är väldigt lätt. 10 är maxjobbigt.', kind: 'scale', count: 10, left: 'Väldigt lätt', right: 'Maxjobbigt' },
+    { key: 'pass', title: 'Hur var passet?', hint: 'Din upplevelse – det finns inget rätt svar.', kind: 'rating' },
+    { key: 'setup', title: 'Funkade upplägget för dig?', hint: 'Tänk på passet som helhet.', kind: 'rating' },
+    { key: 'body', title: 'Hur känns kroppen nu?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' },
+    comment,
+  ]
+  if (type === 'before') return [
+    { key: 'energy', title: 'Hur mycket energi har du?', hint: 'Gå på känslan just nu.', kind: 'scale', count: 5, left: 'Ingen energi', right: 'Full fart' },
+    { key: 'body', title: 'Hur känns kroppen?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' },
+    { key: 'motivation', title: 'Hur taggad är du?', hint: 'På dagens träning.', kind: 'scale', count: 5, left: 'Inte alls', right: 'Mycket' },
+    comment,
+  ]
+  return [
+    { key: 'energy', title: 'Hur mycket energi har du?', hint: 'Gå på känslan just nu.', kind: 'scale', count: 5, left: 'Ingen energi', right: 'Full fart' },
+    { key: 'body', title: 'Hur känns kroppen?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' },
+    { key: 'sleep', title: 'Hur sov du?', hint: 'Tänk på natten som helhet.', kind: 'scale', count: 5, left: 'Dåligt', right: 'Jättebra' },
+    comment,
+  ]
+}
+
+function Thanks({ responses, onDone }) {
+  return (
+    <div className="thanks-page">
+      <div className="success-mark">✓</div>
+      <p className="eyebrow">Klart</p>
+      <h1>Tack för din check-in!</h1>
+      <p>Svaret är anonymt och hjälper tränaren att göra passen bättre.</p>
+      <div className="mini-moods">{responses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
+      <button className="primary-button" onClick={onDone}>Till dagens läge →</button>
+    </div>
+  )
+}
+
+function Coach({ responses, onLogout, onClear }) {
+  const after = responses.filter((item) => item.type === 'after')
+  const average = (key, items = responses) => {
+    const values = items.map((item) => item[key]).filter(Boolean)
+    return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
+  }
+  const distribution = useMemo(() => FEELINGS.map((feeling) => ({ ...feeling, count: responses.filter((item) => item.feeling === feeling.value).length })), [responses])
+
+  return (
+    <main className="coach-shell">
+      <header><Logo compact /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
+      <div className="coach-content">
+        <div className="coach-heading"><div><p className="eyebrow">Torsdag · idag</p><h1>Gruppens läge</h1></div><div className="big-count"><strong>{responses.length}</strong><span>anonyma svar</span></div></div>
+        <section className="stats-grid">
+          <Stat title="Dagens känsla" value={`${average('feeling')} / 5`} note="Alla svar" />
+          <Stat title="Upplevd ansträngning" value={`${average('rpe', after)} / 10`} note={`${after.length} efter passet`} />
+          <Stat title="Passet" value={`${average('pass', after)} / 5`} note="Simmarnas betyg" />
+          <Stat title="Upplägget" value={`${average('setup', after)} / 5`} note="Hur det fungerade" />
+        </section>
+
+        <section className="coach-card">
+          <div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det idag</h2></div></div>
+          <div className="distribution">
+            {distribution.map((item) => (
+              <div key={item.value}><span className="dist-emoji">{item.emoji}</span><div className="bar-track"><span style={{ height: `${responses.length ? Math.max(8, (item.count / responses.length) * 100) : 0}%` }} /></div><strong>{item.count}</strong><small>{item.label}</small></div>
+            ))}
+          </div>
+        </section>
+
+        <div className="coach-columns">
+          <section className="coach-card">
+            <p className="eyebrow">Dagens flöde</p><h2>Vad har gruppen gjort?</h2>
+            <div className="type-list">
+              {DAY_TYPES.map((type) => <div key={type.value}><span>{type.title}</span><strong>{responses.filter((item) => item.type === type.value).length}</strong></div>)}
+            </div>
+          </section>
+          <section className="coach-card comments-card">
+            <p className="eyebrow">Anonymt</p><h2>Kommentarer</h2>
+            {responses.filter((item) => item.comment).length ? responses.filter((item) => item.comment).map((item) => <blockquote key={item.id}>“{item.comment}”</blockquote>) : <p className="empty">Inga kommentarer ännu.</p>}
+          </section>
+        </div>
+        <button className="clear-button" onClick={() => { if (window.confirm('Vill du ta bort alla lokala testsvar?')) onClear() }}>Rensa alla testsvar</button>
+      </div>
+    </main>
+  )
+}
+
+function Stat({ title, value, note }) {
+  return <article className="stat"><span>{title}</span><strong>{value}</strong><small>{note}</small></article>
+}
+
+createRoot(document.getElementById('root')).render(<App />)
