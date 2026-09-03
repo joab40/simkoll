@@ -44,6 +44,7 @@ function App() {
   const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
   const [profiles, setProfiles] = useState([])
+  const [workout, setWorkout] = useState(null)
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
@@ -60,6 +61,11 @@ function App() {
       .finally(() => setLoading(false))
   }, [auth])
 
+  useEffect(() => {
+    if (!auth || !profile) { setWorkout(null); return }
+    apiRequest('/api/workouts', auth.code).then((data) => setWorkout(data.workout)).catch(() => setWorkout(null))
+  }, [auth, profile])
+
   if (!auth) return <Login onLogin={(nextAuth) => { setAuth(nextAuth); setScreen(nextAuth.role === 'swimmer' ? 'account' : 'home') }} />
 
   const logout = () => {
@@ -67,6 +73,7 @@ function App() {
     setProfile(null)
     setResponses([])
     setProfiles([])
+    setWorkout(null)
     setScreen('home')
   }
 
@@ -97,7 +104,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} onStart={() => {
+        <Home responses={responses} profile={profile} workout={workout} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -230,7 +237,7 @@ function Logo({ compact = false }) {
   )
 }
 
-function Home({ responses, profile, onStart }) {
+function Home({ responses, profile, workout, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -247,6 +254,8 @@ function Home({ responses, profile, onStart }) {
         <div className="response-count"><strong>{todayResponses.length}</strong> anonyma svar idag</div>
       </section>
 
+      {profile && <WorkoutCard workout={workout} />}
+
       <section className="start-card">
         <div>
           <p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p>
@@ -256,6 +265,15 @@ function Home({ responses, profile, onStart }) {
         <button className="primary-button" onClick={onStart}>Checka in <span>→</span></button>
       </section>
     </div>
+  )
+}
+
+function WorkoutCard({ workout }) {
+  return (
+    <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
+      <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div></div>
+      {workout ? <div className="workout-body"><h3>{workout.title}</h3><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+    </section>
   )
 }
 
@@ -519,9 +537,12 @@ function Coach({ responses, profiles, code, loading, onLogout, onClear }) {
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
           <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare</button>
+          <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'swimmers' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'workout' ? (
+          <WorkoutEditor code={code} />
+        ) : view === 'swimmers' ? (
           <Swimmers profiles={profiles} responses={responses} code={code} />
         ) : view === 'history' ? (
           <History responses={responses} />
@@ -541,6 +562,61 @@ function Coach({ responses, profiles, code, loading, onLogout, onClear }) {
         }}>Radera alla svar</button>
       </div>
     </main>
+  )
+}
+
+function localDateValue() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+function WorkoutEditor({ code }) {
+  const [date, setDate] = useState(localDateValue)
+  const [form, setForm] = useState({ title: '', content: '', note: '' })
+  const [loading, setLoading] = useState(true)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    apiRequest(`/api/workouts?date=${date}`, code)
+      .then((data) => setForm(data.workout || { title: '', content: '', note: '' }))
+      .catch((error) => window.alert(error.message))
+      .finally(() => setLoading(false))
+  }, [code, date])
+
+  const save = async (event) => {
+    event.preventDefault()
+    setLoading(true)
+    setSaved(false)
+    try {
+      const data = await apiRequest('/api/workouts', code, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, date }),
+      })
+      setForm(data.workout)
+      setSaved(true)
+    } catch (error) { window.alert(error.message) } finally { setLoading(false) }
+  }
+
+  const remove = async () => {
+    if (!window.confirm('Vill du ta bort passet för det här datumet?')) return
+    try {
+      await apiRequest(`/api/workouts?date=${date}`, code, { method: 'DELETE' })
+      setForm({ title: '', content: '', note: '' })
+      setSaved(false)
+    } catch (error) { window.alert(error.message) }
+  }
+
+  return (
+    <section className="workout-editor">
+      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>Lägg upp ett pass</h2></div></div>
+      <form onSubmit={save}>
+        <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setDate(event.target.value) }} /></label>
+        <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
+        <label>Passet<textarea required maxLength="5000" placeholder={'Insim 800 m\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /></label>
+        <label>Meddelande till simmarna <small>Frivilligt</small><textarea className="short" maxLength="500" placeholder="Fokus för dagen eller något att tänka på…" value={form.note || ''} onChange={(event) => { setSaved(false); setForm({ ...form, note: event.target.value }) }} /></label>
+        <div className="editor-actions">{form.id && <button type="button" className="delete-workout" onClick={remove}>Ta bort passet</button>}<span>{saved ? '✓ Sparat och publicerat' : ''}</span><button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : 'Publicera passet →'}</button></div>
+      </form>
+    </section>
   )
 }
 

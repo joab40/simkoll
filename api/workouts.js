@@ -1,0 +1,60 @@
+import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getSessionProfile } from '../server/profile-auth.js'
+
+function stockholmDate() {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
+}
+
+function publicWorkout(item) {
+  if (!item) return null
+  return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', updatedAt: item.updated_at }
+}
+
+export default async function handler(request, response) {
+  const code = String(request.headers['x-simkoll-code'] || '')
+  const role = getRole(code)
+
+  try {
+    if (request.method === 'GET') {
+      const profile = role === 'coach' ? null : await getSessionProfile(request)
+      if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })
+      const requestedDate = role === 'coach' && /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
+      const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&limit=1`)
+      if (!result.ok) throw new Error(`Workout GET failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { workout: publicWorkout((await result.json())[0]) })
+    }
+
+    if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
+
+    if (request.method === 'POST') {
+      const date = String(request.body?.date || stockholmDate())
+      const title = String(request.body?.title || '').trim()
+      const content = String(request.body?.content || '').trim()
+      const note = String(request.body?.note || '').trim()
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500) {
+        return sendJson(response, 400, { error: 'Kontrollera datum, rubrik och passbeskrivning.' })
+      }
+      const result = await supabaseRequest('daily_workouts?on_conflict=workout_date', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify({ workout_date: date, title, content, note: note || null, updated_at: new Date().toISOString() }),
+      })
+      if (!result.ok) throw new Error(`Workout POST failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { workout: publicWorkout((await result.json())[0]) })
+    }
+
+    if (request.method === 'DELETE') {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
+      const result = await supabaseRequest(`daily_workouts?workout_date=eq.${date}`, { method: 'DELETE' })
+      if (!result.ok) throw new Error(`Workout DELETE failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { ok: true })
+    }
+
+    return sendJson(response, 405, { error: 'Method not allowed' })
+  } catch (error) {
+    console.error(error)
+    return sendJson(response, 500, { error: 'Kunde inte hämta dagens pass. Försök igen.' })
+  }
+}
