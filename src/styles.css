@@ -30,6 +30,8 @@ button { cursor: pointer; }
 .logo { font: 800 18px/1 'Manrope'; letter-spacing: .08em; display: flex; align-items: center; gap: 9px; }
 .logo-mark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--lime); border-radius: 50%; font-size: 25px; letter-spacing: 0; }
 .logo.compact .logo-mark { width: 29px; height: 29px; font-size: 21px; }
+.club-brand { display: flex; align-items: center; gap: 17px; }
+.club-brand > span { border-left: 1px solid #ccd9d6; padding-left: 17px; color: #617579; font-size: 12px; font-weight: 600; }
 .login-copy { margin: 64px 0 44px; }
 .eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 700; color: var(--teal); margin-bottom: 13px; }
 .eyebrow.light { color: var(--aqua); }
@@ -66,7 +68,6 @@ button { cursor: pointer; }
 .primary-button:hover { background: #d5f877; transform: translateY(-1px); }
 .primary-button span { margin-left: 20px; font-size: 20px; }
 .primary-button.small { min-height: 46px; }
-.demo-note { text-align: center; font-size: 12px; color: var(--muted); margin-top: 14px; }
 
 .checkin-page { min-height: calc(100vh - 72px); background: var(--paper); position: relative; }
 .progress { height: 4px; background: #dce7e4; }
@@ -165,4 +166,6 @@ button { cursor: pointer; }
 @media (max-width: 390px) {
   .thumb-grid button span { font-size: 35px; }
   .coach-badge { display: none; }
+  .club-brand { gap: 9px; }
+  .club-brand > span { padding-left: 9px; font-size: 10px; max-width: 82px; line-height: 1.15; }
 }

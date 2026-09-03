@@ -16,25 +16,15 @@ const DAY_TYPES = [
   { value: 'rest', title: 'Ingen träning idag', icon: '–' },
 ]
 
-const seedResponses = [
-  { feeling: 4, type: 'after', rpe: 7, pass: 5, setup: 4, body: 4, comment: '' },
-  { feeling: 3, type: 'after', rpe: 8, pass: 3, setup: 3, body: 3, comment: '' },
-  { feeling: 5, type: 'after', rpe: 6, pass: 5, setup: 5, body: 4, comment: 'Kul med lite mer fart idag!' },
-  { feeling: 4, type: 'before', energy: 4, body: 4, motivation: 5, comment: '' },
-  { feeling: 2, type: 'rest', energy: 2, body: 3, sleep: 2, comment: '' },
-  { feeling: 4, type: 'after', rpe: 7, pass: 4, setup: 4, body: 4, comment: '' },
-  { feeling: 3, type: 'before', energy: 3, body: 3, motivation: 4, comment: '' },
-  { feeling: 5, type: 'after', rpe: 9, pass: 5, setup: 5, body: 3, comment: '' },
-].map((response, index) => ({ ...response, id: `demo-${index}`, demo: true }))
-
 const STORAGE_KEY = 'simkoll-responses-v1'
 
 function readResponses() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : seedResponses
+    // Äldre testversioner innehöll demodata. Filtrera bort den automatiskt.
+    return stored ? JSON.parse(stored).filter((response) => !response.demo) : []
   } catch {
-    return seedResponses
+    return []
   }
 }
 
@@ -127,9 +117,18 @@ function Login({ onLogin }) {
 function Shell({ children, onLogout }) {
   return (
     <main className="app-shell">
-      <header><Logo compact /><button className="text-button" onClick={onLogout}>Logga ut</button></header>
+      <header><ClubBrand /><button className="text-button" onClick={onLogout}>Logga ut</button></header>
       {children}
     </main>
+  )
+}
+
+function ClubBrand() {
+  return (
+    <div className="club-brand">
+      <Logo compact />
+      <span>Sundsvalls Simsällskap</span>
+    </div>
   )
 }
 
@@ -166,7 +165,6 @@ function Home({ responses, onStart }) {
         </div>
         <button className="primary-button" onClick={onStart}>Checka in <span>→</span></button>
       </section>
-      {responses.some((item) => item.demo) && <p className="demo-note">Du ser några exempel-svar för att kunna testa appen.</p>}
     </div>
   )
 }
@@ -307,7 +305,7 @@ function Coach({ responses, onLogout, onClear }) {
 
   return (
     <main className="coach-shell">
-      <header><Logo compact /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
+      <header><ClubBrand /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       <div className="coach-content">
         <div className="coach-heading"><div><p className="eyebrow">Torsdag · idag</p><h1>Gruppens läge</h1></div><div className="big-count"><strong>{responses.length}</strong><span>anonyma svar</span></div></div>
         <section className="stats-grid">
