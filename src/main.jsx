@@ -138,7 +138,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -320,7 +320,7 @@ function Faq({ role, onBack }) {
   return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
 }
 
-function Home({ responses, profile, points, training, workout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onStart }) {
+function Home({ responses, profile, points, training, workout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -340,7 +340,7 @@ function Home({ responses, profile, points, training, workout, workoutLocked, ac
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
-      {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} />}
+      {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
@@ -374,7 +374,7 @@ const WEEK_SLOTS = [
   { key: 'dryland', short: 'Land', icon: '🤸' }, { key: 'afternoon_swim', short: 'Eftermiddag', icon: '🌇' },
 ]
 
-function WeeklySwimCard({ training, onOpen, onToggle }) {
+function WeeklySwimCard({ training, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState('')
   const [cheer, setCheer] = useState('')
   const goal = currentSeasonGoal(training)
@@ -382,18 +382,21 @@ function WeeklySwimCard({ training, onOpen, onToggle }) {
   const start = weekStart(), today = todayKey()
   const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(start); date.setDate(date.getDate() + index); return { date: dateKey(date), label: date.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), future: dateKey(date) > today } })
   const weeklySessions = training?.sessions?.filter((item) => item.date >= dateKey(start) && item.date <= today) || []
+  const plannedSessions = training?.plannedSessions?.filter((item) => item.weekStart === dateKey(start)) || []
+  const plannedDays = new Set(plannedSessions.map((item) => item.date)).size
   const crossGoal = training?.crossGoals?.find((item) => item.startDate <= today && (!item.endDate || item.endDate >= today))
   const typeProgress = {
     strength: { completed: weeklySessions.filter((item) => item.type === 'strength').length, target: crossGoal?.strengthTarget || 0 },
     dryland: { completed: weeklySessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget || 0 },
   }
   const toggle = async (date, slot, checked) => { const key = `${date}-${slot}`; setSaving(key); try { const result = await onToggle(date, slot, checked); if (result?.message) setCheer(result.message) } catch (error) { window.alert(error.message) } finally { setSaving('') } }
+  const togglePlan = async (date, slot, checked) => { const key = `plan-${date}-${slot}`; setSaving(key); try { const result = await onPlan(date, slot, checked); if (result?.message) setCheer(result.message) } catch (error) { window.alert(error.message) } finally { setSaving('') } }
   const percentage = goal ? Math.round((completed / goal.target) * 100) : null
   return <section className="weekly-training-card">
-    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}</div><button onClick={onOpen}>Mina mål →</button></div>
+    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small></div><button onClick={onOpen}>Mina mål →</button></div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {cheer && <div className="cheer-message"><span>✨</span><strong>{cheer}</strong><button onClick={() => setCheer('')}>×</button></div>}
-    <div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; return <label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''}`} key={day.date}><input type="checkbox" disabled={day.future || saving === key} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} /><i>{saving === key ? '…' : marked ? '✓' : ''}</i></label> })}</div>)}</div>
+    <p className="plan-hint">◆ Planerat · ✓ Genomfört</p><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const planned = plannedSessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; const planKey = `plan-${key}`; return <div className="week-cell" key={day.date}><button type="button" className={`plan-toggle ${planned ? 'planned' : ''}`} disabled={day.date < today || saving === planKey} onClick={() => togglePlan(day.date, slot.key, !planned)} aria-label={`${planned ? 'Ta bort' : 'Planera'} ${slot.short} ${day.date}`}>{saving === planKey ? '…' : '◆'}</button><label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''}`}><input type="checkbox" disabled={day.future || saving === key} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} /><i>{saving === key ? '…' : marked ? '✓' : ''}</i></label></div> })}</div>)}</div>
   </section>
 }
 

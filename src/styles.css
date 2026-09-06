@@ -423,6 +423,12 @@ button { cursor: pointer; }
 .week-log-row label.marked { background: #eaf4cb; }
 .week-log-row label.marked i { border-color: var(--lime); background: var(--lime); }
 .week-log-row label.future { opacity: .38; cursor: not-allowed; }
+.plan-hint { color: var(--muted); font-size: 10px; margin: 14px 0 5px; }
+.week-cell { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; min-height: 39px; border-radius: 9px; background: #edf5f2; padding: 3px; }
+.week-cell .plan-toggle { border: 0; border-radius: 6px; background: transparent; color: #9bb2ac; font-size: 10px; cursor: pointer; }
+.week-cell .plan-toggle.planned { background: #dcebb0; color: #627e1d; }
+.week-cell .plan-toggle:disabled { opacity: .35; cursor: not-allowed; }
+.week-cell label { min-height: 32px !important; background: transparent !important; }
 .cross-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .cross-progress > div { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: center; background: #edf5f2; border-radius: 11px; padding: 11px; }
 .cross-progress > div > span { font-size: 23px; }
