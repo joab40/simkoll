@@ -136,7 +136,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)) }} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -298,15 +298,26 @@ const HELP_TEXT = {
   'Trend': 'Ett mönster över flera svar. En enstaka skattning ska inte övertolkas.',
 }
 
+const FAQ_SCALES = {
+  'Känsla': [['1', 'Mycket tung dag'], ['2', 'Ganska tungt'], ['3', 'Okej / neutralt'], ['4', 'Bra'], ['5', 'Toppen']],
+  'Energi': [['1', 'Ingen energi'], ['2', 'Ganska trött'], ['3', 'Normal energi'], ['4', 'Pigg'], ['5', 'Full fart']],
+  'Kroppen': [['1', 'Mycket tung, öm eller något känns inte bra'], ['2', 'Ganska tung eller sliten'], ['3', 'Som vanligt'], ['4', 'Pigg och fräsch'], ['5', 'Väldigt fräsch och redo']],
+  'Motivation': [['1', 'Inte alls taggad'], ['2', 'Lite omotiverad'], ['3', 'Neutral'], ['4', 'Taggad'], ['5', 'Väldigt taggad']],
+  'Sömn': [['1', 'Mycket dålig'], ['2', 'Ganska dålig'], ['3', 'Okej'], ['4', 'Bra'], ['5', 'Jättebra']],
+  'RPE': [['1–2', 'Mycket lätt'], ['3–4', 'Lätt'], ['5–6', 'Medel'], ['7–8', 'Jobbigt'], ['9–10', 'Mycket jobbigt / max']],
+  'Passet': [['1', 'Inte bra'], ['3', 'Helt okej'], ['5', 'Bra']],
+  'Upplägget': [['1', 'Fungerade inte bra'], ['3', 'Fungerade okej'], ['5', 'Fungerade bra']],
+}
+
 function HelpTip({ term }) {
   return HELP_TEXT[term] ? <button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`}>i</button> : null
 }
 
 function Faq({ role, onBack }) {
-  return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{term === 'RPE' && <div className="rpe-guide"><span><b>1–2</b> Mycket lätt</span><span><b>3–4</b> Lätt</span><span><b>5–6</b> Medel</span><span><b>7–8</b> Jobbigt</span><span><b>9–10</b> Mycket jobbigt / max</span></div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
+  return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
 }
 
-function Home({ responses, profile, points, training, workout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onStart }) {
+function Home({ responses, profile, points, training, workout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -326,7 +337,7 @@ function Home({ responses, profile, points, training, workout, workoutLocked, ac
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
-      {profile && <WeeklySwimCard training={training} onOpen={onGoals} />}
+      {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
@@ -351,14 +362,24 @@ function currentSeasonGoal(training) {
 function currentWeekSwims(training) {
   const start = weekStart()
   const end = new Date(start); end.setDate(end.getDate() + 7)
-  return training?.sessions?.filter((item) => item.type === 'swim' && new Date(item.completedAt) >= start && new Date(item.completedAt) < end).length || 0
+  const startKey = dateKey(start), endKey = dateKey(end)
+  return training?.sessions?.filter((item) => item.type === 'swim' && (item.date ? item.date >= startKey && item.date < endKey : new Date(item.completedAt) >= start && new Date(item.completedAt) < end)).length || 0
 }
 
-function WeeklySwimCard({ training, onOpen }) {
+const WEEK_SLOTS = [
+  { key: 'morning_swim', short: 'Morgon', icon: '🌅' }, { key: 'strength', short: 'Styrka', icon: '🏋️' },
+  { key: 'dryland', short: 'Land', icon: '🤸' }, { key: 'afternoon_swim', short: 'Eftermiddag', icon: '🌇' },
+]
+
+function WeeklySwimCard({ training, onOpen, onToggle }) {
+  const [saving, setSaving] = useState('')
   const goal = currentSeasonGoal(training)
-  if (!goal) return <section className="weekly-card empty-weekly"><span>🎯</span><div><strong>Sätt ditt eget simmål</strong><small>Hur många pass vill du simma per vecka?</small></div><button onClick={onOpen}>Skapa mål →</button></section>
   const completed = currentWeekSwims(training)
-  return <section className="weekly-card"><div><p className="eyebrow">Mitt simmål den här veckan</p><h3>{completed} av {goal.target} simpass</h3><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>Du har själv valt {goal.target} pass per vecka</small></div><button onClick={onOpen}>Följ upp →</button></section>
+  const start = weekStart(), today = todayKey()
+  const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(start); date.setDate(date.getDate() + index); return { date: dateKey(date), label: date.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), future: dateKey(date) > today } })
+  const weeklySessions = training?.sessions?.filter((item) => item.date >= dateKey(start) && item.date <= today) || []
+  const toggle = async (date, slot, checked) => { const key = `${date}-${slot}`; setSaving(key); try { await onToggle(date, slot, checked) } catch (error) { window.alert(error.message) } finally { setSaving('') } }
+  return <section className="weekly-training-card"><div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{weeklySessions.length} pass totalt · endast simpass räknas mot målet</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}</div><button onClick={onOpen}>Mina mål →</button></div><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; return <label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''}`} key={day.date}><input type="checkbox" disabled={day.future || saving === key} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} /><i>{saving === key ? '…' : marked ? '✓' : ''}</i></label> })}</div>)}</div></section>
 }
 
 function RewardCard({ points, onCommunity }) {
@@ -600,7 +621,7 @@ function CheckIn({ hasProfile, onBack, onSubmit }) {
       <Question title="Hur ser din dag ut?" hint="Välj det som stämmer bäst just nu.">
         <div className="choice-stack">
           {DAY_TYPES.map((type) => (
-            <button key={type.value} className="choice-card" onClick={() => { setForm((current) => ({ ...current, type: type.value, registerTraining: hasProfile && type.value === 'after' })); next() }}>
+            <button key={type.value} className="choice-card" onClick={() => { setForm((current) => ({ ...current, type: type.value, registerTraining: hasProfile && type.value === 'after', trainingSlot: type.value === 'after' ? 'afternoon_swim' : undefined })); next() }}>
               <span className="choice-icon">{type.icon}</span>{type.title}<span>›</span>
             </button>
           ))}
@@ -643,7 +664,7 @@ function CheckIn({ hasProfile, onBack, onSubmit }) {
         {question.kind === 'comment' && (
           <div className="comment-box">
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
-            {hasProfile && form.type === 'after' && <label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>Registrera som simpass</strong><small>Läggs i din personliga veckoräknare. Feedbacken kan fortfarande vara anonym.</small></span></label>}
+            {hasProfile && form.type === 'after' && <div className="training-register"><label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>Registrera som simpass</strong><small>Läggs i din personliga veckoräknare. Feedbacken kan fortfarande vara anonym.</small></span></label>{form.registerTraining && <div className="swim-slot"><button type="button" className={form.trainingSlot === 'morning_swim' ? 'active' : ''} onClick={() => update('trainingSlot', 'morning_swim')}>🌅 Morgon</button><button type="button" className={form.trainingSlot === 'afternoon_swim' ? 'active' : ''} onClick={() => update('trainingSlot', 'afternoon_swim')}>🌇 Eftermiddag</button></div>}</div>}
             {submitError && <span className="error-text">{submitError}</span>}
             <div><button className="skip-button" disabled={submitting} onClick={submit}>Hoppa över</button><button className="primary-button small" disabled={submitting} onClick={submit}>{submitting ? 'Skickar…' : 'Skicka →'}</button></div>
           </div>

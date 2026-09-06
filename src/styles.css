@@ -394,6 +394,30 @@ button { cursor: pointer; }
 .training-toggle input { width: 19px; height: 19px; accent-color: var(--teal); }
 .training-toggle span { display: flex; flex-direction: column; }
 .training-toggle small { color: var(--muted); margin-top: 2px; }
+.swim-slot { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 13px; }
+.swim-slot button { border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 10px; font-weight: 700; }
+.swim-slot button.active { border-color: var(--teal); background: #dff0eb; color: var(--teal); }
+.weekly-training-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 24px; margin-top: 14px; }
+.weekly-summary { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+.weekly-summary h3 { margin: 2px 0; }
+.weekly-summary small { color: var(--muted); }
+.weekly-summary small button { border: 0; background: transparent; color: var(--teal); padding: 0; text-decoration: underline; }
+.weekly-summary > button { border: 0; background: transparent; color: var(--teal); font-weight: 700; }
+.week-log { margin-top: 19px; overflow-x: auto; }
+.week-log-head, .week-log-row { min-width: 600px; display: grid; grid-template-columns: 125px repeat(7, 1fr); gap: 5px; align-items: center; }
+.week-log-head { margin-bottom: 5px; }
+.week-log-head > span { color: var(--muted); font-size: 10px; }
+.week-log-head b { display: flex; flex-direction: column; align-items: center; text-transform: capitalize; font-size: 10px; }
+.week-log-head small { color: var(--muted); font-weight: 500; }
+.week-log-row { margin-bottom: 5px; }
+.week-log-row > span { display: flex; align-items: center; gap: 7px; font-size: 19px; }
+.week-log-row > span small { color: var(--muted); font-size: 10px; }
+.week-log-row label { display: grid; place-items: center; min-height: 39px; border-radius: 9px; background: #edf5f2; cursor: pointer; }
+.week-log-row label input { position: absolute; opacity: 0; pointer-events: none; }
+.week-log-row label i { width: 23px; height: 23px; display: grid; place-items: center; border: 1.5px solid #bfd2cd; border-radius: 7px; color: var(--ink); font-style: normal; font-weight: 800; }
+.week-log-row label.marked { background: #eaf4cb; }
+.week-log-row label.marked i { border-color: var(--lime); background: var(--lime); }
+.week-log-row label.future { opacity: .38; cursor: not-allowed; }
 .section-title { display: flex; justify-content: space-between; align-items: end; gap: 15px; }
 .section-title h2, .assigned-programs h2, .development-section h2 { margin: 0 0 16px; }
 .section-title > span { color: var(--teal); font-weight: 700; }
@@ -516,6 +540,7 @@ button { cursor: pointer; }
 .rpe-guide { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 0 0 16px; }
 .rpe-guide span { display: flex; flex-direction: column; background: #edf5f2; border-radius: 9px; padding: 9px; color: var(--muted); font-size: 9px; }
 .rpe-guide b { color: var(--teal); font-size: 12px; }
+.rpe-guide.scale-3 { grid-template-columns: repeat(3, 1fr); }
 .coach-interpretation { background: var(--ink); color: white; border-radius: 18px; padding: 24px; margin-top: 18px; }
 .coach-interpretation h2 { margin-top: 0; }
 .coach-interpretation ul { padding-left: 19px; margin-bottom: 0; }
@@ -591,6 +616,9 @@ button { cursor: pointer; }
   .point-progress.compact { width: 100%; min-width: 0; }
   .analysis-dashboard .period-heading { flex-direction: column; gap: 12px; }
   .rpe-guide { grid-template-columns: 1fr 1fr; }
+  .rpe-guide.scale-3 { grid-template-columns: repeat(3, 1fr); }
+  .weekly-summary { align-items: flex-start; }
+  .weekly-summary > button { white-space: nowrap; }
 }
 
 @media (max-width: 390px) {

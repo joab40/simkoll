@@ -31,18 +31,18 @@ export default async function handler(request, response) {
   if ([start, end, previousStart].some((value) => Number.isNaN(Date.parse(value))) || !(previousStart < start && start < end)) return sendJson(response, 400, { error: 'Ogiltig period.' })
   const profileFilter = profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''
   const timestampRange = `&created_at=gte.${encodeURIComponent(previousStart)}&created_at=lt.${encodeURIComponent(end)}`
-  const sessionRange = `&completed_at=gte.${encodeURIComponent(previousStart)}&completed_at=lt.${encodeURIComponent(end)}`
+  const previousStartDay = stockholmKey(previousStart), endDay = stockholmKey(end)
   try {
     const [responsesResult, sessionsResult, activityResult] = await Promise.all([
       supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
-      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at${profileFilter}${sessionRange}&limit=10000`),
+      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${previousStartDay}&session_date=lt.${endDay}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
     ])
     if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok)) throw new Error('Analytics lookup failed')
     const responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json()
     const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < start)
-    const currentSessions = sessions.filter((item) => item.completed_at >= start), previousSessions = sessions.filter((item) => item.completed_at < start)
     const currentStartDay = stockholmKey(start)
+    const currentSessions = sessions.filter((item) => item.session_date >= currentStartDay), previousSessions = sessions.filter((item) => item.session_date < currentStartDay)
     const currentActivities = activities.filter((item) => item.activity_date >= currentStartDay), previousActivities = activities.filter((item) => item.activity_date < currentStartDay)
     const spanDays = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 86400000))
     const buckets = new Map()

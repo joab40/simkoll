@@ -19,7 +19,7 @@ export default async function handler(request, response) {
       supabaseRequest(`responses?select=feeling,body,rpe,pass_rating,setup_rating,day_type${range}&limit=5000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date&activity_date=gte.${startDay}&activity_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`kudos?select=id${range}&limit=5000`),
-      supabaseRequest(`personal_training_sessions?select=activity_type${range.replaceAll('created_at', 'completed_at')}&limit=5000`),
+      supabaseRequest(`personal_training_sessions?select=activity_type&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`program_goals?select=id,reward_points&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
       supabaseRequest(`goal_updates?select=id,points,feedback_type${range}&author_role=eq.coach&limit=1000`),
     ])

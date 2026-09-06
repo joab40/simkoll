@@ -1,5 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
-import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
+import { awardPoints, getSessionProfile, stockholmDate } from '../server/profile-auth.js'
 
 const mapProgram = (program) => ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active })
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -19,7 +19,7 @@ async function loadTraining(profileId = null) {
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
   return {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
-    sessions: (await sessionsResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, source: item.source, completedAt: item.completed_at })),
+    sessions: (await sessionsResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at })),
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     programGoals: (await programGoalsResult.json()).filter((item) => !profileId || allowedAssignments.has(item.assignment_id)).map((item) => ({ id: item.id, assignmentId: item.assignment_id, title: item.title, description: item.description, rewardPoints: item.reward_points, status: item.status, coachFeedback: item.coach_feedback || '', submittedAt: item.submitted_at, approvedAt: item.approved_at })),
   }
@@ -29,6 +29,12 @@ async function findAssignment(id) {
   const result = await supabaseRequest(`program_assignments?id=eq.${id}&select=*,training_programs(program_type)&limit=1`)
   if (!result.ok) throw new Error('Assignment lookup failed')
   return (await result.json())[0] || null
+}
+
+function currentWeekStart() {
+  const today = new Date(`${stockholmDate()}T12:00:00Z`)
+  today.setUTCDate(today.getUTCDate() - ((today.getUTCDay() + 6) % 7))
+  return today.toISOString().slice(0, 10)
 }
 
 export default async function handler(request, response) {
@@ -65,9 +71,27 @@ export default async function handler(request, response) {
         if (!assignment || assignment.profile_id !== profile.id) return sendJson(response, 403, { error: 'Programmet tillhör inte din profil.' })
         const type = assignment.training_programs?.program_type
         if (!['strength', 'dryland'].includes(type)) return sendJson(response, 400, { error: 'Ogiltig programtyp.' })
-        const result = await supabaseRequest('personal_training_sessions', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, activity_type: type, source: 'program' }) })
-        if (!result.ok) throw new Error(`Program completion failed: ${result.status}`)
+        const result = await supabaseRequest('personal_training_sessions', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, activity_type: type, session_slot: type, session_date: stockholmDate(), source: 'program' }) })
+        if (!result.ok && result.status !== 409) throw new Error(`Program completion failed: ${result.status}`)
         return sendJson(response, 201, { ok: true })
+      }
+      if (action === 'toggle-session') {
+        const date = String(request.body.date || ''), slot = String(request.body.slot || '')
+        const slots = { morning_swim: 'swim', afternoon_swim: 'swim', strength: 'strength', dryland: 'dryland' }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !slots[slot] || date < currentWeekStart() || date > stockholmDate()) return sendJson(response, 400, { error: 'Du kan bara registrera pass under den pågående veckan.' })
+        const filter = `profile_id=eq.${profile.id}&session_date=eq.${date}&session_slot=eq.${slot}`
+        if (request.body.completed === true) {
+          const existing = await supabaseRequest(`personal_training_sessions?${filter}&select=id&limit=1`)
+          if (!existing.ok) throw new Error('Session lookup failed')
+          if (!(await existing.json()).length) {
+            const result = await supabaseRequest('personal_training_sessions', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, activity_type: slots[slot], session_slot: slot, session_date: date, source: 'manual' }) })
+            if (!result.ok && result.status !== 409) throw new Error(`Session insert failed: ${result.status}`)
+          }
+        } else {
+          const result = await supabaseRequest(`personal_training_sessions?${filter}`, { method: 'DELETE' })
+          if (!result.ok) throw new Error(`Session delete failed: ${result.status}`)
+        }
+        return sendJson(response, 200, { ok: true })
       }
       if (action === 'submit-program-goal') {
         const result = await supabaseRequest(`program_goals?id=eq.${request.body.goalId}&status=in.(active,continue)&select=assignment_id&limit=1`)

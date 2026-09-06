@@ -91,10 +91,11 @@ export default async function handler(request, response) {
         })
         if (!unlockResult.ok) console.error(`Workout unlock failed: ${unlockResult.status} ${await unlockResult.text()}`)
         if (request.body.type === 'after' && request.body.registerTraining === true) {
+          const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
           const trainingResult = await supabaseRequest('personal_training_sessions', {
-            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', source: 'checkin' }),
+            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin' }),
           })
-          if (!trainingResult.ok) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
+          if (!trainingResult.ok && trainingResult.status !== 409) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
         }
       }
       return sendJson(response, 201, { response: fromDatabase(created, role === 'coach') })
