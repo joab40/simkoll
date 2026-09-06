@@ -10,6 +10,14 @@ export const KUDOS_TEMPLATES = {
   strong_effort: 'Stark insats! 🔥',
 }
 
+const GROUP_TEMPLATES = {
+  group_energy: 'Bra energi på träningen idag! ⚡',
+  group_fun: 'Kul att simma med er! 🌊',
+  group_great_job: 'Grymt jobbat allihop! 💪',
+  group_thanks: 'Tack för ett bra pass! 🙌',
+  group_spirit: 'Härlig stämning idag! 😊',
+}
+
 async function loadProfiles() {
   const result = await supabaseRequest('profiles?select=id,display_name,emoji&active=eq.true')
   if (!result.ok) throw new Error(`Community profiles failed: ${result.status}`)
@@ -31,18 +39,21 @@ export default async function handler(request, response) {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
       if (profile) await touchProfileActivity(profile.id)
-      const [postsResult, kudosResult, profiles] = await Promise.all([
+      const [postsResult, groupResult, profiles] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at&order=created_at.desc&limit=100'),
-        supabaseRequest('kudos?select=id,sender_profile_id,recipient_profile_id,template_key,created_at&order=created_at.desc&limit=100'),
+        supabaseRequest('group_pep?select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=100'),
         loadProfiles(),
       ])
-      if (!postsResult.ok || !kudosResult.ok) throw new Error('Community feed failed')
+      if (!postsResult.ok || !groupResult.ok) throw new Error('Community feed failed')
       const posts = (await postsResult.json()).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
-      const kudos = (await kudosResult.json()).map((item) => ({
-        id: item.id, type: 'kudos', content: KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at,
-        sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id],
-      })).filter((item) => item.sender && item.recipient)
-      return sendJson(response, 200, { items: [...posts, ...kudos].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) })
+      const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender)
+      let privateKudos = []
+      if (profile) {
+        const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,created_at&order=created_at.desc&limit=100`)
+        if (!privateResult.ok) throw new Error(`Private kudos failed: ${privateResult.status}`)
+        privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient)
+      }
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos })
     }
 
     if (request.method === 'POST' && role === 'coach') {
@@ -58,10 +69,21 @@ export default async function handler(request, response) {
     if (request.method === 'POST') {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att skicka pepp.' })
+      const mode = request.body?.mode === 'group' ? 'group' : 'private'
+      if ((await pointsToday(profile.id, 'kudos_sent')) >= 2) return sendJson(response, 429, { error: 'Du har fått dagens två pepp-poäng. Du kan skicka mer pepp imorgon!' })
+      if (mode === 'group') {
+        const templateKey = String(request.body?.templateKey || '')
+        if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
+        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey }) })
+        if (!result.ok) throw new Error(`Group pep insert failed: ${result.status} ${await result.text()}`)
+        const [pep] = await result.json()
+        await awardPoints(profile.id, 'kudos_sent', 1, `${stockholmDate()}:${pep.id}`)
+        await touchProfileActivity(profile.id)
+        return sendJson(response, 201, { ok: true })
+      }
       const recipientId = String(request.body?.recipientId || '')
       const templateKey = String(request.body?.templateKey || '')
       if (recipientId === profile.id || !KUDOS_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en simmare och en pepphälsning.' })
-      if ((await pointsToday(profile.id, 'kudos_sent')) >= 2) return sendJson(response, 429, { error: 'Du har fått dagens två pepp-poäng. Du kan skicka mer pepp imorgon!' })
       const recipientResult = await supabaseRequest(`profiles?id=eq.${recipientId}&active=eq.true&select=id&limit=1`)
       if (!recipientResult.ok || !(await recipientResult.json()).length) return sendJson(response, 404, { error: 'Simmaren kunde inte hittas.' })
       const result = await supabaseRequest('kudos', {
@@ -90,4 +112,3 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte ladda klubbflödet.' })
   }
 }
-

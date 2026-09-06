@@ -32,6 +32,8 @@ const average = (key, items) => {
   return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
 }
 
+const confirmDestructive = (description) => window.prompt(`${description}\n\nSkriv RADERA för att bekräfta.`) === 'RADERA'
+
 function previousWeekRange() {
   const today = new Date()
   const mondayOffset = (today.getDay() + 6) % 7
@@ -98,7 +100,7 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} onCommunity={() => setScreen('community')} onProfile={() => setScreen('profile')} onLogout={logout}>
+    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onProfile={() => setScreen('profile')} onLogout={logout}>
       {screen === 'account' && <AccountChoice
         onAnonymous={() => { setProfile(null); setScreen('home') }}
         onLogin={() => setScreen('profile-login')}
@@ -146,6 +148,7 @@ function App() {
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} onDone={() => setScreen('home')} />}
       {screen === 'community' && <Community profile={profile} code={auth.code} points={points} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
+      {screen === 'goals' && <MyGoals code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
@@ -232,10 +235,10 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, profile, onCommunity, onProfile, onLogout }) {
+function Shell({ children, profile, onCommunity, onGoals, onProfile, onLogout }) {
   return (
     <main className="app-shell">
-      <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}<button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
+      <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="feed-link" onClick={onGoals}>Mina mål</button>}{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}<button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       {children}
     </main>
   )
@@ -392,10 +395,18 @@ const KUDOS_OPTIONS = [
   ['nice_technique', 'Snygg teknik! 🌊'], ['thanks', 'Tack för peppen! 🙌'],
   ['fun_together', 'Kul att träna med dig! 😊'], ['strong_effort', 'Stark insats! 🔥'],
 ]
+const GROUP_PEP_OPTIONS = [
+  ['group_energy', 'Bra energi på träningen idag! ⚡'], ['group_fun', 'Kul att simma med er! 🌊'],
+  ['group_great_job', 'Grymt jobbat allihop! 💪'], ['group_thanks', 'Tack för ett bra pass! 🙌'],
+  ['group_spirit', 'Härlig stämning idag! 😊'],
+]
 
 function Community({ profile, code, points, onBack, onPointsChange }) {
   const [items, setItems] = useState([])
+  const [privateKudos, setPrivateKudos] = useState([])
   const [profiles, setProfiles] = useState([])
+  const [feedView, setFeedView] = useState('group')
+  const [sendMode, setSendMode] = useState('private')
   const [recipientId, setRecipientId] = useState('')
   const [templateKey, setTemplateKey] = useState('great_job')
   const [status, setStatus] = useState('')
@@ -403,7 +414,7 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
 
   const load = async () => {
     const [feed, directory] = await Promise.all([apiRequest('/api/community', code), apiRequest('/api/profiles?directory=true', code)])
-    setItems(feed.items); setProfiles(directory.profiles); setLoading(false)
+    setItems(feed.items); setPrivateKudos(feed.privateKudos || []); setProfiles(directory.profiles); setLoading(false)
   }
   useEffect(() => { load().catch((error) => { setStatus(error.message); setLoading(false) }) }, [])
 
@@ -411,7 +422,7 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
     event.preventDefault(); setStatus('Skickar…')
     try {
       await apiRequest('/api/community', code, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipientId, templateKey }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: sendMode, recipientId, templateKey }),
       })
       const nextPoints = await apiRequest('/api/points', code)
       onPointsChange(nextPoints); setStatus('Peppen är skickad! +1 poäng'); setRecipientId(''); await load()
@@ -420,10 +431,12 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
 
   return <div className="community-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="community-layout">
     <section className="feed-column"><div className="community-heading"><div><p className="eyebrow">Sundsvalls Simsällskap</p><h1>Peppflödet</h1></div>{points?.current && <span>{points.current.emoji} {points.total} p</span>}</div>
-      {loading ? <p className="empty">Hämtar flödet…</p> : items.length ? <div className="feed-list">{items.map((item) => item.type === 'coach' ? <article className="feed-item coach-post" key={`post-${item.id}`}><span>📣</span><div><strong>Tränarna</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article> : <article className="feed-item kudos-post" key={`kudos-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.displayName} <b>→</b> {item.recipient.emoji} {item.recipient.displayName}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Flödet är tomt än så länge.</p>}
+      <nav className="feed-tabs"><button className={feedView === 'group' ? 'active' : ''} onClick={() => setFeedView('group')}>Öppna kanalen</button><button className={feedView === 'private' ? 'active' : ''} onClick={() => setFeedView('private')}>Min privata pepp</button></nav>
+      {loading ? <p className="empty">Hämtar flödet…</p> : feedView === 'group' ? (items.length ? <div className="feed-list">{items.map((item) => item.type === 'coach' ? <article className="feed-item coach-post" key={`post-${item.id}`}><span>📣</span><div><strong>Tränarna</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article> : <article className="feed-item kudos-post" key={`group-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.displayName} <b>→</b> hela gruppen</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Den öppna kanalen är tom än så länge.</p>) : (privateKudos.length ? <div className="feed-list">{privateKudos.map((item) => <article className="feed-item private-post" key={`private-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.id === profile.id ? `Du → ${item.recipient.emoji} ${item.recipient.displayName}` : `${item.sender.displayName} → dig`}</strong><p>{item.content}</p><small>🔒 Privat · {formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Du har ingen privat pepp ännu.</p>)}
     </section>
-    <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka pepp</h2><p>Välj en kompis och en hälsning. Du kan få poäng för två pepp per dag.</p>
-      <form onSubmit={sendKudos}><label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label><label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{KUDOS_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><button className="primary-button">Skicka pepp →</button>{status && <small className="kudos-status">{status}</small>}</form>
+    <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka pepp</h2><p>Privat till en kompis eller öppet till hela gruppen. Två pepp per dag ger poäng.</p>
+      <div className="send-mode"><button className={sendMode === 'private' ? 'active' : ''} onClick={() => { setSendMode('private'); setTemplateKey('great_job') }}>Privat</button><button className={sendMode === 'group' ? 'active' : ''} onClick={() => { setSendMode('group'); setTemplateKey('group_energy') }}>Hela gruppen</button></div>
+      <form onSubmit={sendKudos}>{sendMode === 'private' && <label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label>}<label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{(sendMode === 'private' ? KUDOS_OPTIONS : GROUP_PEP_OPTIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><button className="primary-button">Skicka pepp →</button>{status && <small className="kudos-status">{status}</small>}</form>
     </aside>
   </div></div>
 }
@@ -432,6 +445,25 @@ function formatFeedDate(value) {
   const date = new Date(value)
   const isToday = dateKey(date) === todayKey()
   return isToday ? `Idag ${date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}` : date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })
+}
+
+const GOAL_STATUS = { planned: 'Planerat', active: 'Pågår', paused: 'Pausat', complete: 'Klart' }
+
+function MyGoals({ code, onBack }) {
+  const [goals, setGoals] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [reflection, setReflection] = useState({})
+  const load = () => apiRequest('/api/goals', code).then((data) => setGoals(data.goals)).finally(() => setLoading(false))
+  useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
+  const addReflection = async (goalId) => {
+    const content = String(reflection[goalId] || '').trim()
+    if (!content) return
+    try {
+      await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goalId, content }) })
+      setReflection({ ...reflection, [goalId]: '' }); await load()
+    } catch (error) { window.alert(error.message) }
+  }
+  return <div className="goals-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="goals-content"><p className="eyebrow">Privat mellan dig och tränarna</p><h1>Mina utvecklingsmål</h1>{loading ? <p className="empty">Hämtar mål…</p> : goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Min reflektion'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Skriv en kort reflektion…" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button onClick={() => addReflection(goal.id)}>Skicka</button></div>}</article>)}</div> : <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</div></div>
 }
 
 function MyProfile({ profile, points, code, onBack, onProfileLogout }) {
@@ -618,9 +650,12 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
           <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare</button>
           <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
           <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}>Klubbflöde</button>
+          <button className={view === 'goals' ? 'active' : ''} onClick={() => setView('goals')}>Utvecklingsmål</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'community' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'goals' ? (
+          <CoachGoals code={code} profiles={profiles} />
+        ) : view === 'community' ? (
           <CoachCommunity code={code} />
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} />
@@ -639,13 +674,51 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
           />
         )}
         <button className="clear-button" onClick={async () => {
-          if (!window.confirm('Vill du radera alla svar permanent?')) return
+          if (!confirmDestructive('Alla incheckningar och all historik kommer att raderas permanent.')) return
           try { await onClear() } catch (error) { window.alert(error.message) }
         }}>Radera alla svar</button>
         <footer className="app-meta"><span>Simkoll v{APP_VERSION}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span><span>Build {COMMIT_SHA}</span></footer>
       </div>
     </main>
   )
+}
+
+const FEEDBACK_OPTIONS = [
+  ['progress', 'Bra framsteg · +5'], ['strong_week', 'Stark träningsvecka · +5'],
+  ['milestone', 'Delmål klart · +10'], ['goal_complete', 'Utvecklingsmål klart · +20'],
+]
+
+function CoachGoals({ code, profiles }) {
+  const [goals, setGoals] = useState([])
+  const [form, setForm] = useState({ profileId: '', title: '', description: '', nextStep: '', startDate: localDateValue(), targetDate: '' })
+  const [feedback, setFeedback] = useState({})
+  const [showCreate, setShowCreate] = useState(false)
+  const load = () => apiRequest('/api/goals', code).then((data) => setGoals(data.goals))
+  useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
+  const create = async (event) => {
+    event.preventDefault()
+    try {
+      await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', ...form }) })
+      setForm({ profileId: '', title: '', description: '', nextStep: '', startDate: localDateValue(), targetDate: '' }); setShowCreate(false); await load()
+    } catch (error) { window.alert(error.message) }
+  }
+  const updateStatus = async (goalId, status) => {
+    try { await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', goalId, status }) }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const sendFeedback = async (goalId) => {
+    const entry = feedback[goalId] || { type: 'progress', content: '' }
+    if (!entry.content?.trim()) return
+    try {
+      await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'feedback', goalId, feedbackType: entry.type || 'progress', content: entry.content }) })
+      setFeedback({ ...feedback, [goalId]: { type: 'progress', content: '' } }); await load()
+    } catch (error) { window.alert(error.message) }
+  }
+  const remove = async (goal) => {
+    if (!confirmDestructive(`Utvecklingsmålet “${goal.title}” och all tillhörande återkoppling raderas permanent.`)) return
+    try { await apiRequest(`/api/goals?id=${goal.id}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const profileFor = (id) => profiles.find((profile) => profile.id === id)
+  return <section className="coach-goals"><div className="period-heading"><div><p className="eyebrow">Privat tränare + simmare</p><h2>Utvecklingsmål</h2></div><button className="primary-button" onClick={() => setShowCreate(!showCreate)}>{showCreate ? 'Stäng' : 'Nytt mål +'}</button></div>{showCreate && <form className="goal-form" onSubmit={create}><label>Simmare<select required value={form.profileId} onChange={(event) => setForm({ ...form, profileId: event.target.value })}><option value="">Välj profil…</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Rubrik<input required maxLength="100" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="wide">Beskrivning<textarea required maxLength="2000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><label className="wide">Nästa steg<input maxLength="500" value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label><label>Startdatum<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label><label>Måldatum<input type="date" value={form.targetDate} onChange={(event) => setForm({ ...form, targetDate: event.target.value })} /></label><button className="primary-button">Skapa mål →</button></form>}{goals.length ? <div className="coach-goal-list">{goals.map((goal) => { const owner = profileFor(goal.profileId); const entry = feedback[goal.id] || { type: 'progress', content: '' }; return <article key={goal.id}><header><div><span>{owner?.emoji}</span><p><strong>{goal.title}</strong><small>{owner?.displayName || 'Okänd profil'}</small></p></div><select value={goal.status} onChange={(event) => updateStatus(goal.id, event.target.value)}>{Object.entries(GOAL_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></header><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<details><summary>Historik och återkoppling ({goal.updates.length})</summary><div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : owner?.displayName} {update.points > 0 && <b>+{update.points} p</b>}</strong><small>{update.content}</small></p></div>)}</div></details><div className="feedback-form"><select value={entry.type} onChange={(event) => setFeedback({ ...feedback, [goal.id]: { ...entry, type: event.target.value } })}>{FEEDBACK_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><input maxLength="1000" placeholder="Skriv privat återkoppling…" value={entry.content} onChange={(event) => setFeedback({ ...feedback, [goal.id]: { ...entry, content: event.target.value } })} /><button onClick={() => sendFeedback(goal.id)}>Skicka</button></div><button className="delete-goal" onClick={() => remove(goal)}>Radera mål</button></article> })}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
 }
 
 function CoachCommunity({ code }) {
@@ -662,10 +735,10 @@ function CoachCommunity({ code }) {
     } catch (error) { window.alert(error.message); setLoading(false) }
   }
   const remove = async (id) => {
-    if (!window.confirm('Vill du ta bort meddelandet från flödet?')) return
+    if (!confirmDestructive('Meddelandet tas bort från alla simmares flöde.')) return
     try { await apiRequest(`/api/community?id=${id}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
   }
-  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div><small>{content.length}/1000</small><button className="primary-button" disabled={loading}>Publicera →</button></div></form><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → ${item.recipient?.displayName}`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
+  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div><small>{content.length}/1000</small><button className="primary-button" disabled={loading}>Publicera →</button></div></form><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → hela gruppen`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
 }
 
 function localDateValue() {
@@ -701,7 +774,7 @@ function WorkoutEditor({ code }) {
   }
 
   const remove = async () => {
-    if (!window.confirm('Vill du ta bort passet för det här datumet?')) return
+    if (!confirmDestructive(`Passet för ${date} försvinner för alla simmare.`)) return
     try {
       await apiRequest(`/api/workouts?date=${date}`, code, { method: 'DELETE' })
       setForm({ title: '', content: '', note: '' })
