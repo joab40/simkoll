@@ -25,9 +25,10 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,active,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,active,approval_status,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { profiles: (await result.json()).map(publicProfile) })
+        const profiles = (await result.json()).map(publicProfile)
+        return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
       }
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 401, { error: 'Inte inloggad.' })
@@ -56,13 +57,11 @@ export default async function handler(request, response) {
       const pinData = await hashPin(pin)
       const result = await supabaseRequest('profiles', {
         method: 'POST', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ username, display_name: displayName, emoji, pin_hash: pinData.hash, pin_salt: pinData.salt }),
+        body: JSON.stringify({ username, display_name: displayName, emoji, pin_hash: pinData.hash, pin_salt: pinData.salt, approval_status: 'pending' }),
       })
       if (!result.ok) throw new Error(`Profile insert failed: ${result.status} ${await result.text()}`)
       const [profile] = await result.json()
-      await createSession(response, profile.id)
-      await touchProfileActivity(profile.id)
-      return sendJson(response, 201, { profile: publicProfile(profile) })
+      return sendJson(response, 202, { pending: true })
     }
 
     if (action === 'login') {
@@ -79,6 +78,8 @@ export default async function handler(request, response) {
         return sendJson(response, 401, genericError)
       }
       await updateProfile(profile.id, { failed_attempts: 0, locked_until: null })
+      if (profile.approval_status === 'pending') return sendJson(response, 403, { error: 'Din profil väntar på godkännande från en tränare.' })
+      if (profile.approval_status === 'rejected') return sendJson(response, 403, { error: 'Profilen har inte godkänts. Prata med en tränare.' })
       await createSession(response, profile.id)
       await touchProfileActivity(profile.id)
       return sendJson(response, 200, { profile: publicProfile(profile) })
@@ -87,6 +88,17 @@ export default async function handler(request, response) {
     if (action === 'logout') {
       await deleteCurrentSession(request)
       clearSessionCookie(response)
+      return sendJson(response, 200, { ok: true })
+    }
+
+    if (action === 'approve-profile' || action === 'reject-profile') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan granska profiler.' })
+      const profileId = String(request.body.profileId || '')
+      const result = await supabaseRequest(`profiles?id=eq.${profileId}&approval_status=eq.pending`, action === 'approve-profile'
+        ? { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ approval_status: 'approved' }) }
+        : { method: 'DELETE', headers: { Prefer: 'return=representation' } })
+      if (!result.ok) throw new Error(`Profile approval failed: ${result.status} ${await result.text()}`)
+      if (!(await result.json()).length) return sendJson(response, 409, { error: 'Profilen är redan granskad.' })
       return sendJson(response, 200, { ok: true })
     }
 

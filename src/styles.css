@@ -248,6 +248,7 @@ button { cursor: pointer; }
 .coach-tabs { display: inline-flex; padding: 4px; gap: 3px; background: #dfeae7; border-radius: 13px; margin-bottom: 28px; }
 .coach-tabs button { min-height: 39px; padding: 0 17px; border: 0; border-radius: 10px; background: transparent; color: #687b7e; font-size: 13px; font-weight: 600; }
 .coach-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
+.tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
 .workout-editor form { display: grid; gap: 18px; }
 .workout-editor label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
@@ -339,6 +340,16 @@ button { cursor: pointer; }
 .swimmer-name > div { display: flex; flex-direction: column; }
 .swimmer-name small { color: var(--muted); }
 .swimmer-level { margin-left: auto; border-radius: 20px; background: #edf5f2; padding: 7px 10px; color: var(--teal); font-size: 11px; white-space: nowrap; }
+.pending-profiles { background: #fff8e7; border: 1px solid #ecd695; border-radius: 18px; padding: 21px; margin-bottom: 14px; }
+.pending-profiles h3 { margin: 0 0 13px; }
+.pending-profiles article { display: grid; grid-template-columns: 38px 1fr auto auto; align-items: center; gap: 9px; border-top: 1px solid #eadfbf; padding: 12px 0; }
+.pending-profiles article > span { font-size: 27px; }
+.pending-profiles article > div { display: flex; flex-direction: column; }
+.pending-profiles article small { color: var(--muted); }
+.pending-profiles article button { border: 0; border-radius: 9px; padding: 9px 11px; background: transparent; color: #9b5555; font-weight: 700; }
+.pending-profiles article .approve-profile { background: var(--lime); color: var(--ink); }
+.pending-profile-message { text-align: center; }
+.pending-profile-message > span { font-size: 48px; }
 .swimmer-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 20px 0; }
 .swimmer-stats > div { background: #edf5f2; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 .swimmer-stats small { color: var(--muted); font-size: 10px; }
@@ -427,6 +438,29 @@ button { cursor: pointer; }
 .meeting-ratings { margin-top: 12px; }
 .meeting-ratings > div { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meeting-ratings .stat { background: #edf5f2; }
+.reward-admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.point-rules > div { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; border-top: 1px solid #e1eae7; padding: 11px 0; }
+.point-rules b { color: var(--teal); }
+.point-rules small { grid-column: 1 / -1; color: var(--muted); }
+.level-distribution { display: flex; justify-content: space-around; gap: 8px; padding: 16px 0; }
+.level-distribution > div { display: flex; flex-direction: column; align-items: center; }
+.level-distribution span { font-size: 28px; }
+.level-distribution strong { font: 800 23px 'Manrope'; }
+.level-distribution small, .reward-note { color: var(--muted); }
+.reward-note { font-size: 11px; line-height: 1.45; }
+.level-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 25px; margin-top: 12px; }
+.level-editor > div:first-child { display: flex; align-items: baseline; justify-content: space-between; }
+.level-editor > div:first-child small { color: var(--muted); }
+.level-editor article, .add-level { display: grid; grid-template-columns: 55px minmax(120px, 1fr) 190px 1fr auto auto; gap: 8px; align-items: center; border-top: 1px solid #e1eae7; padding: 11px 0; }
+.level-editor input { min-width: 0; border: 1.5px solid #d6e2df; border-radius: 9px; padding: 9px; }
+.level-editor .emoji-input { width: 52px; text-align: center; font-size: 20px; }
+.level-editor label { display: flex; align-items: center; gap: 6px; font-size: 11px; white-space: nowrap; }
+.level-editor label input { width: 84px; }
+.level-editor article > span { color: var(--muted); font-size: 10px; }
+.level-editor article > button { border: 0; border-radius: 8px; padding: 9px 10px; font-weight: 700; }
+.level-editor .delete-level { background: transparent; color: #9b5555; }
+.add-level { margin-top: 10px; background: #edf5f2; border-radius: 12px; padding: 12px; }
+.add-level .primary-button { min-height: 40px; }
 
 @media (max-width: 700px) {
   .login-card { padding: 30px 24px 24px; border-radius: 25px; }
@@ -486,6 +520,11 @@ button { cursor: pointer; }
   .new-program-goal, .review-goal { grid-template-columns: 1fr; }
   .meeting-stats, .meeting-ratings > div { grid-template-columns: repeat(2, 1fr); }
   .meeting-columns { grid-template-columns: 1fr; }
+  .reward-admin-grid { grid-template-columns: 1fr; }
+  .level-editor article, .add-level { grid-template-columns: 52px 1fr; }
+  .level-editor article label, .level-editor article > span, .level-editor article > button, .add-level label, .add-level button { grid-column: 1 / -1; }
+  .pending-profiles article { grid-template-columns: 34px 1fr; }
+  .pending-profiles article button { grid-column: span 1; }
 }
 
 @media (max-width: 390px) {

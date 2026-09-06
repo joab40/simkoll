@@ -50,6 +50,7 @@ function App() {
   const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
   const [profiles, setProfiles] = useState([])
+  const [pendingProfiles, setPendingProfiles] = useState([])
   const [workout, setWorkout] = useState(null)
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
@@ -64,10 +65,10 @@ function App() {
     setLoading(true)
     Promise.all([
       fetchResponses(auth.code),
-      auth.role === 'coach' ? apiRequest('/api/profiles', auth.code).then((data) => data.profiles) : Promise.resolve([]),
+      auth.role === 'coach' ? apiRequest('/api/profiles', auth.code) : Promise.resolve({ profiles: [], pendingProfiles: [] }),
       auth.role === 'coach' ? apiRequest('/api/activity', auth.code).then((data) => data.activeProfilesToday) : Promise.resolve(0),
     ])
-      .then(([nextResponses, nextProfiles, activeCount]) => { setResponses(nextResponses); setProfiles(nextProfiles); setActiveProfilesToday(activeCount) })
+      .then(([nextResponses, profileData, activeCount]) => { setResponses(nextResponses); setProfiles(profileData.profiles); setPendingProfiles(profileData.pendingProfiles || []); setActiveProfilesToday(activeCount) })
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [auth])
@@ -98,6 +99,7 @@ function App() {
     setProfile(null)
     setResponses([])
     setProfiles([])
+    setPendingProfiles([])
     setWorkout(null)
     setWorkoutLocked(false)
     setActiveProfilesToday(0)
@@ -107,7 +109,7 @@ function App() {
   }
 
   if (auth.role === 'coach') {
-    return <Coach responses={responses} profiles={profiles} activeProfilesToday={activeProfilesToday} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
+    return <Coach responses={responses} profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={async () => { const data = await apiRequest('/api/profiles', auth.code); setProfiles(data.profiles); setPendingProfiles(data.pendingProfiles || []) }} activeProfilesToday={activeProfilesToday} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
       await apiRequest('/api/responses', auth.code, { method: 'DELETE' })
       setResponses([])
     }} />
@@ -375,6 +377,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
   const [form, setForm] = useState({ emoji: '🏊' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pending, setPending] = useState(false)
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
 
   const submit = async (event) => {
@@ -386,7 +389,8 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
       const data = await apiRequest('/api/profiles', code, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...form }),
       })
-      onSuccess(data.profile || null)
+      if (data.pending) setPending(true)
+      else onSuccess(data.profile || null)
     } catch (submitError) {
       setError(submitError.message)
     } finally {
@@ -395,6 +399,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
   }
 
   const title = mode === 'create' ? 'Skapa din profil' : mode === 'reset' ? 'Välj en ny PIN' : 'Välkommen tillbaka'
+  if (pending) return <div className="profile-access-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><section className="profile-form pending-profile-message"><span>⏳</span><p className="eyebrow">Profilen är skapad</p><h1>Väntar på tränaren</h1><p>En tränare behöver godkänna profilen innan du kan logga in. Din PIN är redan säkert sparad.</p><button className="primary-button" onClick={onBack}>Klart</button></section></div>
   return (
     <div className="profile-access-page">
       <button className="back-button" onClick={onBack}>← Tillbaka</button>
@@ -686,7 +691,7 @@ function Thanks({ responses, profile, identified, workout, onDone }) {
   )
 }
 
-function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogout, onClear }) {
+function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
@@ -708,14 +713,17 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
           <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}>Veckomöte</button>
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
-          <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare</button>
+          <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
           <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
           <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}>Klubbflöde</button>
           <button className={view === 'goals' ? 'active' : ''} onClick={() => setView('goals')}>Utvecklingsmål</button>
           <button className={view === 'programs' ? 'active' : ''} onClick={() => setView('programs')}>Träningsprogram</button>
+          <button className={view === 'rewards' ? 'active' : ''} onClick={() => setView('rewards')}>Poäng & nivåer</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'meeting' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'rewards' ? (
+          <CoachRewards code={code} />
+        ) : view === 'meeting' ? (
           <WeeklyMeeting code={code} />
         ) : view === 'programs' ? (
           <CoachPrograms code={code} profiles={profiles} />
@@ -726,7 +734,7 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} />
         ) : view === 'swimmers' ? (
-          <Swimmers profiles={profiles} responses={responses} code={code} />
+          <Swimmers profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={responses} code={code} />
         ) : view === 'history' ? (
           <History responses={responses} />
         ) : (
@@ -776,6 +784,34 @@ function WeeklyMeeting({ code }) {
     report.signals.lowPass > 0 && `${report.signals.lowPass} svar gav passet lägsta betyg.`,
   ].filter(Boolean)
   return <section className="weekly-meeting"><div className="period-heading"><div><p className="eyebrow">Underlag för söndags- eller måndagsmötet</p><h2>Veckobilden</h2></div><div className="big-count"><strong>{label}</strong><span>senast avslutade vecka</span></div></div><div className="meeting-stats"><Stat title="Aktiva profiler" value={report.activeProfiles} note={`${report.activeDays} aktiva dagar`} /><Stat title="Incheckningar" value={report.checkins} note={`${report.afterSessions} efter simpass`} /><Stat title="Registrerad träning" value={report.swims + report.strength + report.dryland} note={`${report.swims} sim · ${report.strength} styrka · ${report.dryland} land`} /><Stat title="Pepp i gruppen" value={report.kudos} note={`${report.approvedGoals} godkända mål`} /></div><div className="meeting-columns"><section className="coach-card meeting-highlights"><p className="eyebrow">Det här tar vi med oss</p><h2>Veckans positiva</h2>{positives.length ? positives.map((item) => <p key={item}><span>✓</span>{item}</p>) : <p className="empty">Mer data behövs för att skapa positiva highlights.</p>}</section><section className="coach-card meeting-attention"><p className="eyebrow">Följ upp tillsammans</p><h2>Signaler att vara nyfiken på</h2>{attention.length ? attention.map((item) => <p key={item}><span>!</span>{item}</p>) : <p><span>✓</span>Inga tydliga varningssignaler i veckans svar.</p>}<small>Visas endast på gruppnivå. Prata med gruppen och dra inte slutsatser om enskilda simmare från en ensam skattning.</small></section></div><section className="coach-card meeting-ratings"><h2>Träningsupplevelsen</h2><div><Stat title="Känsla" value={report.feeling == null ? '–' : `${report.feeling}/5`} note="Alla incheckningar" /><Stat title="Kroppen" value={report.body == null ? '–' : `${report.body}/5`} note="Självskattning" /><Stat title="Ansträngning" value={report.rpe == null ? '–' : `${report.rpe}/10`} note="Efter pass" /><Stat title="Passet" value={report.passRating == null ? '–' : `${report.passRating}/5`} note="Simmarnas betyg" /></div></section></section>
+}
+
+function CoachRewards({ code }) {
+  const [data, setData] = useState({ levels: [], rules: [], profiles: [] })
+  const [drafts, setDrafts] = useState({})
+  const [newLevel, setNewLevel] = useState({ name: 'Platina', emoji: '🏅', minPoints: 400 })
+  const [status, setStatus] = useState('')
+  const load = () => apiRequest('/api/points', code).then((next) => { setData(next); setDrafts(Object.fromEntries(next.levels.map((level) => [level.id, { ...level }]))); setStatus('') })
+  useEffect(() => { load().catch((error) => setStatus(error.message)) }, [code])
+  const levelFor = (total, levels) => [...levels].sort((a, b) => b.minPoints - a.minPoints).find((level) => total >= level.minPoints) || levels[0]
+  const updateDraft = (id, key, value) => setDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }))
+  const save = async (level) => {
+    const draft = drafts[level.id]
+    const previewLevels = data.levels.map((item) => item.id === level.id ? { ...draft, minPoints: Number(draft.minPoints) } : item)
+    const affected = data.profiles.filter((profile) => levelFor(profile.total, data.levels)?.id !== levelFor(profile.total, previewLevels)?.id).length
+    if (draft.minPoints === 0 && level.minPoints !== 0) return window.alert('Startnivån måste ligga på 0 poäng.')
+    if (!window.confirm(`${affected} profil${affected === 1 ? '' : 'er'} kan få en annan nivå. Vill du spara ändringen?`)) return
+    try { await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-level', ...draft, minPoints: Number(draft.minPoints) }) }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const add = async (event) => {
+    event.preventDefault()
+    try { await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add-level', ...newLevel, minPoints: Number(newLevel.minPoints) }) }); setNewLevel({ name: '', emoji: '🏅', minPoints: '' }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const remove = async (level) => {
+    if (!confirmDestructive(`Nivån “${level.name}” tas bort. Simmarnas poäng behålls och deras nivå räknas om.`)) return
+    try { await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-level', id: level.id }) }); await load() } catch (error) { window.alert(error.message) }
+  }
+  return <section className="coach-rewards"><div className="period-heading"><div><p className="eyebrow">Aktivitet i appen – inte simprestation</p><h2>Poäng & nivåer</h2></div></div>{status ? <p className="form-error">{status}</p> : <><div className="reward-admin-grid"><section className="coach-card"><h3>Så får simmarna poäng</h3><div className="point-rules">{data.rules.map((rule) => <div key={rule.activity}><strong>{rule.activity}</strong><b>+{rule.points} p</b><small>{rule.limit}</small></div>)}</div></section><section className="coach-card"><h3>Fördelning just nu</h3><div className="level-distribution">{data.levels.map((level) => <div key={level.id}><span>{level.emoji}</span><strong>{data.profiles.filter((profile) => profile.level?.name === level.name).length}</strong><small>{level.name}</small></div>)}</div><p className="reward-note">Nivån visar aktivitet och positiva bidrag i Simkoll. Den bedömer inte simmarens prestation eller förmåga.</p></section></div><section className="level-editor"><div><h3>Nivågränser</h3><small>Simmarnas poäng förändras inte när en gräns ändras.</small></div>{data.levels.map((level, index) => { const draft = drafts[level.id] || level; return <article key={level.id}><input className="emoji-input" aria-label="Emoji" maxLength="16" value={draft.emoji} onChange={(event) => updateDraft(level.id, 'emoji', event.target.value)} /><input aria-label="Nivåns namn" maxLength="30" value={draft.name} onChange={(event) => updateDraft(level.id, 'name', event.target.value)} /><label>Från <input type="number" min={index === 0 ? 0 : 1} disabled={index === 0} value={draft.minPoints} onChange={(event) => updateDraft(level.id, 'minPoints', event.target.value)} /> poäng</label><span>{data.profiles.filter((profile) => levelFor(profile.total, Object.values(drafts).map((item) => ({ ...item, minPoints: Number(item.minPoints) })))?.id === level.id).length} profiler i förhandsvisningen</span><button onClick={() => save(level)}>Spara</button>{index > 0 && <button className="delete-level" onClick={() => remove(level)}>Radera</button>}</article> })}<form className="add-level" onSubmit={add}><input className="emoji-input" required maxLength="16" value={newLevel.emoji} onChange={(event) => setNewLevel({ ...newLevel, emoji: event.target.value })} /><input required maxLength="30" placeholder="Ny nivå" value={newLevel.name} onChange={(event) => setNewLevel({ ...newLevel, name: event.target.value })} /><label>Från <input type="number" min="1" required value={newLevel.minPoints} onChange={(event) => setNewLevel({ ...newLevel, minPoints: event.target.value })} /> poäng</label><button className="primary-button">Lägg till nivå +</button></form></section></>}</section>
 }
 
 function CoachPrograms({ code, profiles }) {
@@ -932,10 +968,14 @@ function WorkoutEditor({ code }) {
   )
 }
 
-function Swimmers({ profiles, responses, code }) {
+function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
   const [reset, setReset] = useState(null)
   const [profilePoints, setProfilePoints] = useState({})
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
+  const reviewProfile = async (profile, approved) => {
+    if (!approved && !confirmDestructive(`Profilförfrågan från “${profile.displayName}” tas bort. Användarnamnet blir ledigt igen.`)) return
+    try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: approved ? 'approve-profile' : 'reject-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
+  }
   const createReset = async (profile) => {
     try {
       const data = await apiRequest('/api/profiles', code, {
@@ -949,6 +989,7 @@ function Swimmers({ profiles, responses, code }) {
   return (
     <section className="swimmers-section">
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
+      {pendingProfiles.length > 0 && <section className="pending-profiles"><div><p className="eyebrow">Behöver granskas</p><h3>Nya profilförfrågningar</h3></div>{pendingProfiles.map((profile) => <article key={profile.id}><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username} · skapad {new Date(profile.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div><button className="approve-profile" onClick={() => reviewProfile(profile, true)}>Godkänn</button><button onClick={() => reviewProfile(profile, false)}>Avvisa</button></article>)}</section>}
       {reset && <div className="reset-banner"><span>{reset.profile.emoji}</span><div><small>Engångskod för {reset.profile.displayName} · giltig 30 minuter</small><strong>{reset.code}</strong></div><button onClick={() => setReset(null)}>×</button></div>}
       {profiles.length ? <div className="swimmer-grid">{profiles.map((profile) => {
         const items = responses.filter((item) => item.profileId === profile.id)

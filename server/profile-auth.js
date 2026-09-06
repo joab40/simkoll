@@ -28,6 +28,7 @@ export function publicProfile(profile) {
     username: profile.username,
     displayName: profile.display_name,
     emoji: profile.emoji,
+    approvalStatus: profile.approval_status || 'approved',
     createdAt: profile.created_at,
   }
 }
@@ -85,7 +86,7 @@ export async function getSessionProfile(request) {
   if (!sessionResult.ok) throw new Error(`Session lookup failed: ${sessionResult.status}`)
   const [session] = await sessionResult.json()
   if (!session) return null
-  const profileResult = await supabaseRequest(`profiles?id=eq.${session.profile_id}&active=eq.true&select=*&limit=1`)
+  const profileResult = await supabaseRequest(`profiles?id=eq.${session.profile_id}&active=eq.true&approval_status=eq.approved&select=*&limit=1`)
   if (!profileResult.ok) throw new Error(`Profile lookup failed: ${profileResult.status}`)
   const [profile] = await profileResult.json()
   return profile || null
