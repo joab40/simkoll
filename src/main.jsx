@@ -712,6 +712,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Idag</button>
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
           <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}>Veckomöte</button>
+          <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}>Grupptrend</button>
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
           <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
           <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
@@ -721,7 +722,9 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <button className={view === 'rewards' ? 'active' : ''} onClick={() => setView('rewards')}>Poäng & nivåer</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'rewards' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'trends' ? (
+          <AnalysisDashboard code={code} />
+        ) : view === 'rewards' ? (
           <CoachRewards code={code} />
         ) : view === 'meeting' ? (
           <WeeklyMeeting code={code} />
@@ -784,6 +787,44 @@ function WeeklyMeeting({ code }) {
     report.signals.lowPass > 0 && `${report.signals.lowPass} svar gav passet lägsta betyg.`,
   ].filter(Boolean)
   return <section className="weekly-meeting"><div className="period-heading"><div><p className="eyebrow">Underlag för söndags- eller måndagsmötet</p><h2>Veckobilden</h2></div><div className="big-count"><strong>{label}</strong><span>senast avslutade vecka</span></div></div><div className="meeting-stats"><Stat title="Aktiva profiler" value={report.activeProfiles} note={`${report.activeDays} aktiva dagar`} /><Stat title="Incheckningar" value={report.checkins} note={`${report.afterSessions} efter simpass`} /><Stat title="Registrerad träning" value={report.swims + report.strength + report.dryland} note={`${report.swims} sim · ${report.strength} styrka · ${report.dryland} land`} /><Stat title="Pepp i gruppen" value={report.kudos} note={`${report.approvedGoals} godkända mål`} /></div><div className="meeting-columns"><section className="coach-card meeting-highlights"><p className="eyebrow">Det här tar vi med oss</p><h2>Veckans positiva</h2>{positives.length ? positives.map((item) => <p key={item}><span>✓</span>{item}</p>) : <p className="empty">Mer data behövs för att skapa positiva highlights.</p>}</section><section className="coach-card meeting-attention"><p className="eyebrow">Följ upp tillsammans</p><h2>Signaler att vara nyfiken på</h2>{attention.length ? attention.map((item) => <p key={item}><span>!</span>{item}</p>) : <p><span>✓</span>Inga tydliga varningssignaler i veckans svar.</p>}<small>Visas endast på gruppnivå. Prata med gruppen och dra inte slutsatser om enskilda simmare från en ensam skattning.</small></section></div><section className="coach-card meeting-ratings"><h2>Träningsupplevelsen</h2><div><Stat title="Känsla" value={report.feeling == null ? '–' : `${report.feeling}/5`} note="Alla incheckningar" /><Stat title="Kroppen" value={report.body == null ? '–' : `${report.body}/5`} note="Självskattning" /><Stat title="Ansträngning" value={report.rpe == null ? '–' : `${report.rpe}/10`} note="Efter pass" /><Stat title="Passet" value={report.passRating == null ? '–' : `${report.passRating}/5`} note="Simmarnas betyg" /></div></section></section>
+}
+
+const ANALYSIS_PERIODS = [
+  { key: 'yesterday', label: 'Föregående dag' }, { key: '7', label: '7 dagar' },
+  { key: '30', label: '30 dagar' }, { key: '90', label: '3 månader' },
+]
+
+function analysisRange(period) {
+  const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (period === 'yesterday') {
+    const start = new Date(today); start.setDate(start.getDate() - 1)
+    const previousStart = new Date(start); previousStart.setDate(previousStart.getDate() - 1)
+    return { start, end: today, previousStart }
+  }
+  const days = Number(period)
+  const end = new Date(today); end.setDate(end.getDate() + 1)
+  const start = new Date(end); start.setDate(start.getDate() - days)
+  const previousStart = new Date(start); previousStart.setDate(previousStart.getDate() - days)
+  return { start, end, previousStart }
+}
+
+function AnalysisDashboard({ code, profile, onBack }) {
+  const [period, setPeriod] = useState('7')
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    setData(null); setError('')
+    const range = analysisRange(period)
+    const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), previousStart: range.previousStart.toISOString() })
+    if (profile) query.set('profileId', profile.id)
+    apiRequest(`/api/analytics?${query}`, code).then(setData).catch((nextError) => setError(nextError.message))
+  }, [code, profile?.id, period])
+  const change = (key) => {
+    if (!data?.current || !data?.previous || data.current[key] == null || data.previous[key] == null) return null
+    return Number((data.current[key] - data.previous[key]).toFixed(1))
+  }
+  const Metric = ({ title, metric, suffix = '', note }) => { const delta = change(metric); const value = data.current[metric]; return <article className="analysis-metric"><span>{title}</span><strong>{value == null ? '–' : `${value}${suffix}`}</strong>{delta != null && delta !== 0 ? <small className={delta > 0 ? 'up' : 'down'}>{delta > 0 ? '↑' : '↓'} {Math.abs(delta)} mot förra perioden</small> : <small>{note || 'Oförändrat mot förra perioden'}</small>}</article> }
+  return <section className="analysis-dashboard">{onBack && <button className="back-button inline" onClick={onBack}>← Alla simmare</button>}<div className="period-heading"><div><p className="eyebrow">{profile ? 'Endast svar kopplade till profilen' : 'Anonym sammanställning på gruppnivå'}</p><h2>{profile ? `${profile.emoji} ${profile.displayName}` : 'Gruppens utveckling'}</h2></div></div><nav className="analysis-periods">{ANALYSIS_PERIODS.map((item) => <button className={period === item.key ? 'active' : ''} key={item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}</nav>{error ? <p className="form-error">{error}</p> : !data ? <section className="empty-period"><span>≈</span><h2>Hämtar statistik…</h2></section> : <><div className="analysis-metrics"><Metric title="Incheckningar" metric="checkins" /><Metric title="Aktiva dagar" metric="activeDays" /><Metric title="Känsla" metric="feeling" suffix="/5" /><Metric title="Kroppen" metric="body" suffix="/5" /><Metric title="RPE" metric="rpe" suffix="/10" /><Metric title="Passet" metric="passRating" suffix="/5" /></div>{data.privacyLimited && <p className="privacy-limit">🔒 Minst tre gruppsvar behövs för att visa genomsnitt.</p>}<div className="analysis-columns"><section className="coach-card trend-card"><p className="eyebrow">Över tid</p><h2>Känsla och kropp</h2>{data.trend.length ? <div className="trend-bars">{data.trend.map((item) => <div key={item.date}><div><i style={{ height: `${(item.feeling || 0) * 18}%` }} title={`Känsla ${item.feeling ?? 'dold'}`} /><i className="body-bar" style={{ height: `${(item.body || 0) * 18}%` }} title={`Kropp ${item.body ?? 'dold'}`} /></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small><b>{item.count}</b></div>)}</div> : <p className="empty">Ingen data under perioden.</p>}<div className="chart-legend"><span><i /> Känsla</span><span><i /> Kropp</span></div></section><section className="coach-card training-summary"><p className="eyebrow">Registrerad träning</p><h2>Genomförda pass</h2><div><p><span>🏊</span><strong>{data.current.swimSessions}</strong><small>Simpass</small></p><p><span>🏋️</span><strong>{data.current.strengthSessions}</strong><small>Styrkepass</small></p><p><span>🤸</span><strong>{data.current.drylandSessions}</strong><small>Landpass</small></p></div></section></div>{profile && <section className="coach-card analysis-comments"><p className="eyebrow">Profilsvar</p><h2>Kommentarer under perioden</h2>{data.recent.length ? data.recent.map((item) => <blockquote key={`${item.date}-${item.comment}`}>{FEELINGS[item.feeling - 1]?.emoji} “{item.comment}” <small>{new Date(item.date).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></blockquote>) : <p className="empty">Inga profilkopplade kommentarer under perioden.</p>}</section>}</>}</section>
 }
 
 function CoachRewards({ code }) {
@@ -970,6 +1011,7 @@ function WorkoutEditor({ code }) {
 
 function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
   const [reset, setReset] = useState(null)
+  const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePoints, setProfilePoints] = useState({})
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
   const reviewProfile = async (profile, approved) => {
@@ -986,6 +1028,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     } catch (error) { window.alert(error.message) }
   }
 
+  if (selectedProfile) return <AnalysisDashboard code={code} profile={selectedProfile} onBack={() => setSelectedProfile(null)} />
   return (
     <section className="swimmers-section">
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
@@ -999,7 +1042,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
           <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
           <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
           {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
-          <button onClick={() => createReset(profile)}>Skapa återställningskod</button>
+          <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button><button onClick={() => createReset(profile)}>Återställ PIN</button></div>
         </article>
       })}</div> : <EmptyPeriod title="Inga profiler ännu" periodLabel="Simmare" />}
     </section>
