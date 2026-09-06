@@ -869,7 +869,7 @@ function WeeklyMeeting({ code }) {
 
 const ANALYSIS_PERIODS = [
   { key: 'yesterday', label: 'Föregående dag' }, { key: '7', label: '7 dagar' }, { key: 'previous_week', label: 'Förra veckan' },
-  { key: '30', label: '30 dagar' }, { key: '90', label: '3 månader' },
+  { key: 'this_month', label: 'Den här månaden' }, { key: 'previous_month', label: 'Föregående månad' }, { key: '30', label: '30 dagar' }, { key: '90', label: '3 månader' },
 ]
 
 function analysisRange(period) {
@@ -883,6 +883,18 @@ function analysisRange(period) {
     const thisMonday = weekStart(today), end = new Date(thisMonday)
     const start = new Date(end); start.setDate(start.getDate() - 7)
     const previousStart = new Date(start); previousStart.setDate(previousStart.getDate() - 7)
+    return { start, end, previousStart }
+  }
+  if (period === 'this_month') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1), end = new Date(today); end.setDate(end.getDate() + 1)
+    const previousStart = new Date(start.getFullYear(), start.getMonth() - 1, 1)
+    const previousMonthDays = new Date(start.getFullYear(), start.getMonth(), 0).getDate()
+    const previousEnd = new Date(previousStart.getFullYear(), previousStart.getMonth(), Math.min(today.getDate(), previousMonthDays))
+    return { start, end, previousStart, previousEnd }
+  }
+  if (period === 'previous_month') {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1), end = new Date(today.getFullYear(), today.getMonth(), 1)
+    const previousStart = new Date(today.getFullYear(), today.getMonth() - 2, 1)
     return { start, end, previousStart }
   }
   const days = Number(period)
@@ -899,7 +911,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack }) {
   useEffect(() => {
     setData(null); setError('')
     const range = analysisRange(period)
-    const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), previousStart: range.previousStart.toISOString() })
+    const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), previousStart: range.previousStart.toISOString(), previousEnd: (range.previousEnd || range.start).toISOString() })
     if (profile) query.set('profileId', profile.id)
     apiRequest(`/api/analytics?${query}`, code).then(setData).catch((nextError) => setError(nextError.message))
   }, [code, profile?.id, period])

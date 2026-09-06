@@ -29,9 +29,9 @@ const metrics = (responses, sessions, activities, privateView) => {
 export default async function handler(request, response) {
   if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
   if (getRole(String(request.headers['x-simkoll-code'] || '')) !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se analysen.' })
-  const start = String(request.query?.start || ''), end = String(request.query?.end || ''), previousStart = String(request.query?.previousStart || '')
+  const start = String(request.query?.start || ''), end = String(request.query?.end || ''), previousStart = String(request.query?.previousStart || ''), previousEnd = String(request.query?.previousEnd || start)
   const profileId = request.query?.profileId ? String(request.query.profileId) : null
-  if ([start, end, previousStart].some((value) => Number.isNaN(Date.parse(value))) || !(previousStart < start && start < end)) return sendJson(response, 400, { error: 'Ogiltig period.' })
+  if ([start, end, previousStart, previousEnd].some((value) => Number.isNaN(Date.parse(value))) || !(previousStart < previousEnd && previousEnd <= start && start < end)) return sendJson(response, 400, { error: 'Ogiltig period.' })
   const profileFilter = profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''
   const timestampRange = `&created_at=gte.${encodeURIComponent(previousStart)}&created_at=lt.${encodeURIComponent(end)}`
   const previousStartDay = stockholmKey(previousStart), endDay = stockholmKey(end)
@@ -48,10 +48,10 @@ export default async function handler(request, response) {
     ])
     if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
     const responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json()
-    const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < start)
-    const currentStartDay = stockholmKey(start)
-    const currentSessions = sessions.filter((item) => item.session_date >= currentStartDay && item.session_date < endDay), previousSessions = sessions.filter((item) => item.session_date >= previousStartDay && item.session_date < currentStartDay)
-    const currentActivities = activities.filter((item) => item.activity_date >= currentStartDay), previousActivities = activities.filter((item) => item.activity_date < currentStartDay)
+    const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < previousEnd)
+    const currentStartDay = stockholmKey(start), previousEndDay = stockholmKey(previousEnd)
+    const currentSessions = sessions.filter((item) => item.session_date >= currentStartDay && item.session_date < endDay), previousSessions = sessions.filter((item) => item.session_date >= previousStartDay && item.session_date < previousEndDay)
+    const currentActivities = activities.filter((item) => item.activity_date >= currentStartDay), previousActivities = activities.filter((item) => item.activity_date < previousEndDay)
     const spanDays = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 86400000))
     const buckets = new Map()
     currentResponses.forEach((item) => {
