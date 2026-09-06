@@ -17,12 +17,35 @@ async function loadTraining(profileId = null) {
   const assignments = await assignmentsResult.json()
   const allowedAssignments = new Set(assignments.map((item) => item.id))
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
-  return {
+  const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     sessions: (await sessionsResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at })),
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     programGoals: (await programGoalsResult.json()).filter((item) => !profileId || allowedAssignments.has(item.assignment_id)).map((item) => ({ id: item.id, assignmentId: item.assignment_id, title: item.title, description: item.description, rewardPoints: item.reward_points, status: item.status, coachFeedback: item.coach_feedback || '', submittedAt: item.submitted_at, approvedAt: item.approved_at })),
   }
+  await awardCompletedWeeks(data, profileId)
+  return data
+}
+
+const addDays = (date, days) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10) }
+const mondayOnOrAfter = (date) => { const value = new Date(`${date}T12:00:00Z`); const offset = (value.getUTCDay() + 6) % 7; return offset === 0 ? date : addDays(date, 7 - offset) }
+
+async function awardCompletedWeeks(data, profileId) {
+  const currentMonday = currentWeekStart()
+  const filter = profileId ? `&profile_id=eq.${profileId}` : ''
+  const result = await supabaseRequest(`point_events?event_type=eq.weekly_goal${filter}&select=source_key&limit=10000`)
+  if (!result.ok) throw new Error('Weekly rewards lookup failed')
+  const existing = new Set((await result.json()).map((item) => item.source_key))
+  const awards = []
+  data.seasonGoals.forEach((goal) => {
+    for (let monday = mondayOnOrAfter(goal.startDate); addDays(monday, 6) <= goal.endDate && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
+      const sourceKey = `weekly:${goal.id}:${monday}`
+      const end = addDays(monday, 7)
+      const completed = data.sessions.filter((session) => session.profileId === goal.profileId && session.type === 'swim' && session.date >= monday && session.date < end).length
+      if (completed >= goal.target && !existing.has(sourceKey)) { existing.add(sourceKey); awards.push(awardPoints(goal.profileId, 'weekly_goal', 5, sourceKey)) }
+    }
+  })
+  await Promise.all(awards)
 }
 
 async function findAssignment(id) {

@@ -9,6 +9,7 @@ const POINT_RULES = [
   { activity: 'Delmål klart', points: 10, limit: 'Efter tränarens bedömning' },
   { activity: 'Utvecklingsmål klart', points: 20, limit: 'Efter tränarens bedömning' },
   { activity: 'Programmål klart', points: '5, 10 eller 20', limit: 'Efter tränarens godkännande' },
+  { activity: 'Veckans simmål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
 ]
 
 export default async function handler(request, response) {

@@ -75,9 +75,11 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
-    Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/training', auth.code)])
-      .then(([workoutData, activityData, pointsData, trainingData]) => { setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setTraining(trainingData) })
-      .catch(() => { setWorkout(null); setWorkoutLocked(false) })
+    ;(async () => {
+      const trainingData = await apiRequest('/api/training', auth.code)
+      const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setTraining(trainingData)
+    })().catch(() => { setWorkout(null); setWorkoutLocked(false) })
   }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
@@ -154,7 +156,8 @@ function App() {
             })
             setResponses((current) => [...current, result.response])
             if (profile) {
-              const [workoutData, activityData, pointsData, trainingData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/training', auth.code)])
+              const trainingData = await apiRequest('/api/training', auth.code)
+              const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
               setWorkout(workoutData.workout)
               setWorkoutLocked(workoutData.locked)
               setActiveProfilesToday(activityData.activeProfilesToday)
@@ -167,7 +170,7 @@ function App() {
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} onDone={() => setScreen('home')} />}
       {screen === 'community' && <Community profile={profile} code={auth.code} points={points} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
-      {screen === 'goals' && <MyGoals code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
@@ -379,7 +382,8 @@ function WeeklySwimCard({ training, onOpen, onToggle }) {
   const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(start); date.setDate(date.getDate() + index); return { date: dateKey(date), label: date.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), future: dateKey(date) > today } })
   const weeklySessions = training?.sessions?.filter((item) => item.date >= dateKey(start) && item.date <= today) || []
   const toggle = async (date, slot, checked) => { const key = `${date}-${slot}`; setSaving(key); try { await onToggle(date, slot, checked) } catch (error) { window.alert(error.message) } finally { setSaving('') } }
-  return <section className="weekly-training-card"><div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{weeklySessions.length} pass totalt · endast simpass räknas mot målet</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}</div><button onClick={onOpen}>Mina mål →</button></div><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; return <label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''}`} key={day.date}><input type="checkbox" disabled={day.future || saving === key} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} /><i>{saving === key ? '…' : marked ? '✓' : ''}</i></label> })}</div>)}</div></section>
+  const percentage = goal ? Math.round((completed / goal.target) * 100) : null
+  return <section className="weekly-training-card"><div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}</div><button onClick={onOpen}>Mina mål →</button></div><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; return <label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''}`} key={day.date}><input type="checkbox" disabled={day.future || saving === key} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} /><i>{saving === key ? '…' : marked ? '✓' : ''}</i></label> })}</div>)}</div></section>
 }
 
 function RewardCard({ points, onCommunity }) {
@@ -540,13 +544,13 @@ function formatFeedDate(value) {
 
 const GOAL_STATUS = { planned: 'Planerat', active: 'Pågår', paused: 'Pausat', complete: 'Klart' }
 
-function MyGoals({ code, onBack }) {
+function MyGoals({ code, onTrainingChange, onBack }) {
   const [goals, setGoals] = useState([])
   const [training, setTraining] = useState(null)
   const [loading, setLoading] = useState(true)
   const [reflection, setReflection] = useState({})
   const [seasonForm, setSeasonForm] = useState({ title: 'Mitt höstmål', target: 4, startDate: localDateValue(), endDate: `${new Date().getFullYear()}-12-20`, reflection: '' })
-  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code)]).then(([goalData, trainingData]) => { setGoals(goalData.goals); setTraining(trainingData) }).finally(() => setLoading(false))
+  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code)]).then(([goalData, trainingData]) => { setGoals(goalData.goals); setTraining(trainingData); onTrainingChange(trainingData) }).finally(() => setLoading(false))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const addReflection = async (goalId) => {
     const content = String(reflection[goalId] || '').trim()
@@ -838,7 +842,7 @@ function WeeklyMeeting({ code }) {
 }
 
 const ANALYSIS_PERIODS = [
-  { key: 'yesterday', label: 'Föregående dag' }, { key: '7', label: '7 dagar' },
+  { key: 'yesterday', label: 'Föregående dag' }, { key: '7', label: '7 dagar' }, { key: 'previous_week', label: 'Förra veckan' },
   { key: '30', label: '30 dagar' }, { key: '90', label: '3 månader' },
 ]
 
@@ -848,6 +852,12 @@ function analysisRange(period) {
     const start = new Date(today); start.setDate(start.getDate() - 1)
     const previousStart = new Date(start); previousStart.setDate(previousStart.getDate() - 1)
     return { start, end: today, previousStart }
+  }
+  if (period === 'previous_week') {
+    const thisMonday = weekStart(today), end = new Date(thisMonday)
+    const start = new Date(end); start.setDate(start.getDate() - 7)
+    const previousStart = new Date(start); previousStart.setDate(previousStart.getDate() - 7)
+    return { start, end, previousStart }
   }
   const days = Number(period)
   const end = new Date(today); end.setDate(end.getDate() + 1)
@@ -871,8 +881,13 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack }) {
     if (!data?.current || !data?.previous || data.current[key] == null || data.previous[key] == null) return null
     return Number((data.current[key] - data.previous[key]).toFixed(1))
   }
-  const Metric = ({ title, metric, suffix = '', note }) => { const delta = change(metric); const value = data.current[metric]; return <article className="analysis-metric"><span>{title} <HelpTip term={title} /></span><strong>{value == null ? '–' : `${value}${suffix}`}</strong>{delta != null && delta !== 0 ? <small className={delta > 0 ? 'up' : 'down'}>{delta > 0 ? '↑' : '↓'} {Math.abs(delta)} mot förra perioden</small> : <small>{note || 'Oförändrat mot förra perioden'}</small>}</article> }
+  const Metric = ({ title, metric, suffix = '', note }) => { const delta = change(metric); const value = data.current[metric]; return <><article className="analysis-metric"><span>{title} <HelpTip term={title} /></span><strong>{value == null ? '–' : `${value}${suffix}`}</strong>{delta != null && delta !== 0 ? <small className={delta > 0 ? 'up' : 'down'}>{delta > 0 ? '↑' : '↓'} {Math.abs(delta)} mot förra perioden</small> : <small>{note || 'Oförändrat mot förra perioden'}</small>}</article>{metric === 'checkins' && profile && <GoalCompliance data={data} />}</> }
   return <section className="analysis-dashboard">{onBack && <button className="back-button inline" onClick={onBack}>← Alla simmare</button>}<div className="period-heading"><div><p className="eyebrow">{profile ? 'Endast svar kopplade till profilen' : 'Anonym sammanställning på gruppnivå'}</p><h2>{profile ? `${profile.emoji} ${profile.displayName}` : 'Gruppens utveckling'}</h2></div>{profile && pointInfo && <PointProgress info={pointInfo} compact />}</div><nav className="analysis-periods">{ANALYSIS_PERIODS.map((item) => <button className={period === item.key ? 'active' : ''} key={item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}</nav>{error ? <p className="form-error">{error}</p> : !data ? <section className="empty-period"><span>≈</span><h2>Hämtar statistik…</h2></section> : <><div className="analysis-metrics"><Metric title="Incheckningar" metric="checkins" /><Metric title="Aktiva dagar" metric="activeDays" /><Metric title="Känsla" metric="feeling" suffix="/5" /><Metric title="Kroppen" metric="body" suffix="/5" /><Metric title="RPE" metric="rpe" suffix="/10" /><Metric title="Passet" metric="passRating" suffix="/5" /></div>{data.privacyLimited && <p className="privacy-limit">🔒 Minst tre gruppsvar behövs för att visa genomsnitt.</p>}<div className="analysis-columns"><section className="coach-card trend-card"><p className="eyebrow">Över tid</p><h2>Känsla och kropp</h2>{data.trend.length ? <div className="trend-bars">{data.trend.map((item) => <div key={item.date}><div><i style={{ height: `${(item.feeling || 0) * 18}%` }} title={`Känsla ${item.feeling ?? 'dold'}`} /><i className="body-bar" style={{ height: `${(item.body || 0) * 18}%` }} title={`Kropp ${item.body ?? 'dold'}`} /></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small><b>{item.count}</b></div>)}</div> : <p className="empty">Ingen data under perioden.</p>}<div className="chart-legend"><span><i /> Känsla</span><span><i /> Kropp</span></div></section><section className="coach-card training-summary"><p className="eyebrow">Registrerad träning</p><h2>Genomförda pass</h2><div><p><span>🏊</span><strong>{data.current.swimSessions}</strong><small>Simpass</small></p><p><span>🏋️</span><strong>{data.current.strengthSessions}</strong><small>Styrkepass</small></p><p><span>🤸</span><strong>{data.current.drylandSessions}</strong><small>Landpass</small></p></div></section></div>{profile && <section className="coach-card analysis-comments"><p className="eyebrow">Profilsvar</p><h2>Kommentarer under perioden</h2>{data.recent.length ? data.recent.map((item) => <blockquote key={`${item.date}-${item.comment}`}>{FEELINGS[item.feeling - 1]?.emoji} “{item.comment}” <small>{new Date(item.date).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></blockquote>) : <p className="empty">Inga profilkopplade kommentarer under perioden.</p>}</section>}</>}</section>
+}
+
+function GoalCompliance({ data }) {
+  if (!data.currentWeekGoal && !data.goalProgress) return null
+  return <section className="goal-compliance">{data.currentWeekGoal && <div><p className="eyebrow">Pågående vecka</p><strong>{data.currentWeekGoal.completed} av {data.currentWeekGoal.target} simpass</strong><span><i style={{ width: `${Math.min(100, data.currentWeekGoal.percentage)}%` }} /></span><small>{data.currentWeekGoal.remaining ? `${data.currentWeekGoal.remaining} pass kvar enligt överenskommelsen` : `Veckomålet är uppnått · ${data.currentWeekGoal.percentage}%`}</small></div>}{data.goalProgress && <div><p className="eyebrow">Avslutade veckor i vald period</p><strong>{data.goalProgress.completed} av {data.goalProgress.expected} pass · {data.goalProgress.percentage}%</strong><span><i style={{ width: `${Math.min(100, data.goalProgress.percentage)}%` }} /></span><small>Målet nåddes {data.goalProgress.weeksReached} av {data.goalProgress.weeksCount} veckor</small></div>}</section>
 }
 
 function PointProgress({ info, compact = false }) {

@@ -1,6 +1,9 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 
 const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
+const addDays = (date, days) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10) }
+const mondayOnOrAfter = (date) => { const value = new Date(`${date}T12:00:00Z`), offset = (value.getUTCDay() + 6) % 7; return offset === 0 ? date : addDays(date, 7 - offset) }
+const mondayFor = (date) => { const value = new Date(`${date}T12:00:00Z`), offset = (value.getUTCDay() + 6) % 7; return addDays(date, -offset) }
 const mean = (rows, key) => {
   const values = rows.map((row) => row[key]).filter((value) => typeof value === 'number')
   return values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)) : null
@@ -32,17 +35,21 @@ export default async function handler(request, response) {
   const profileFilter = profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''
   const timestampRange = `&created_at=gte.${encodeURIComponent(previousStart)}&created_at=lt.${encodeURIComponent(end)}`
   const previousStartDay = stockholmKey(previousStart), endDay = stockholmKey(end)
+  const requestToday = stockholmKey(new Date()), requestMonday = mondayFor(requestToday)
+  const sessionQueryStart = profileId && requestMonday < previousStartDay ? requestMonday : previousStartDay
+  const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
-    const [responsesResult, sessionsResult, activityResult] = await Promise.all([
+    const [responsesResult, sessionsResult, activityResult, goalsResult] = await Promise.all([
       supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
-      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${previousStartDay}&session_date=lt.${endDay}&limit=10000`),
+      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
+      profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
     ])
-    if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok)) throw new Error('Analytics lookup failed')
+    if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok)) throw new Error('Analytics lookup failed')
     const responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json()
     const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < start)
     const currentStartDay = stockholmKey(start)
-    const currentSessions = sessions.filter((item) => item.session_date >= currentStartDay), previousSessions = sessions.filter((item) => item.session_date < currentStartDay)
+    const currentSessions = sessions.filter((item) => item.session_date >= currentStartDay && item.session_date < endDay), previousSessions = sessions.filter((item) => item.session_date >= previousStartDay && item.session_date < currentStartDay)
     const currentActivities = activities.filter((item) => item.activity_date >= currentStartDay), previousActivities = activities.filter((item) => item.activity_date < currentStartDay)
     const spanDays = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 86400000))
     const buckets = new Map()
@@ -57,12 +64,33 @@ export default async function handler(request, response) {
       buckets.set(key, [...(buckets.get(key) || []), item])
     })
     const privateView = Boolean(profileId)
+    let goalProgress = null, currentWeekGoal = null
+    if (profileId) {
+      const goals = await goalsResult.json(), today = requestToday, currentMonday = requestMonday
+      const periodStart = stockholmKey(start), periodEnd = stockholmKey(end)
+      let expected = 0, completed = 0, weeksReached = 0, weeksCount = 0
+      goals.forEach((goal) => {
+        for (let monday = mondayOnOrAfter(goal.start_date); addDays(monday, 6) <= goal.end_date && monday < periodEnd && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
+          if (monday < periodStart) continue
+          const actual = sessions.filter((session) => session.activity_type === 'swim' && session.session_date >= monday && session.session_date < addDays(monday, 7)).length
+          expected += goal.target_sessions_per_week; completed += actual; weeksCount += 1
+          if (actual >= goal.target_sessions_per_week) weeksReached += 1
+        }
+      })
+      if (weeksCount) goalProgress = { expected, completed, weeksReached, weeksCount, percentage: Math.round((completed / expected) * 100) }
+      const active = goals.find((goal) => goal.active && goal.start_date <= today && goal.end_date >= today)
+      if (active) {
+        const actual = sessions.filter((session) => session.activity_type === 'swim' && session.session_date >= currentMonday && session.session_date < addDays(currentMonday, 7)).length
+        currentWeekGoal = { target: active.target_sessions_per_week, completed: actual, remaining: Math.max(0, active.target_sessions_per_week - actual), percentage: Math.round((actual / active.target_sessions_per_week) * 100) }
+      }
+    }
     return sendJson(response, 200, {
       current: metrics(currentResponses, currentSessions, currentActivities, privateView),
       previous: metrics(previousResponses, previousSessions, previousActivities, privateView),
       trend: [...buckets.entries()].map(([date, rows]) => ({ date, count: rows.length, feeling: privateView || rows.length >= 3 ? mean(rows, 'feeling') : null, body: privateView || rows.length >= 3 ? mean(rows, 'body') : null, rpe: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'rpe') : null })),
       recent: privateView ? currentResponses.filter((item) => item.comment).slice(-10).reverse().map((item) => ({ date: item.created_at, feeling: item.feeling, comment: item.comment })) : [],
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
+      goalProgress, currentWeekGoal,
     })
   } catch (error) {
     console.error(error)
