@@ -45,6 +45,16 @@ export async function touchProfileActivity(profileId) {
     body: JSON.stringify({ profile_id: profileId, activity_date: stockholmDate(), last_seen_at: new Date().toISOString() }),
   })
   if (!result.ok) throw new Error(`Activity update failed: ${result.status} ${await result.text()}`)
+  await awardPoints(profileId, 'daily_active', 1, stockholmDate())
+}
+
+export async function awardPoints(profileId, eventType, points, sourceKey) {
+  const result = await supabaseRequest('point_events?on_conflict=profile_id,event_type,source_key', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates' },
+    body: JSON.stringify({ profile_id: profileId, event_type: eventType, points, source_key: String(sourceKey) }),
+  })
+  if (!result.ok) throw new Error(`Points insert failed: ${result.status} ${await result.text()}`)
 }
 
 function readCookie(request, name) {

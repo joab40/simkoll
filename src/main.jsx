@@ -51,6 +51,7 @@ function App() {
   const [workout, setWorkout] = useState(null)
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
+  const [points, setPoints] = useState(null)
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
@@ -70,8 +71,8 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
-    Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code)])
-      .then(([workoutData, activityData]) => { setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday) })
+    Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+      .then(([workoutData, activityData, pointsData]) => { setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData) })
       .catch(() => { setWorkout(null); setWorkoutLocked(false) })
   }, [auth, profile])
 
@@ -85,6 +86,7 @@ function App() {
     setWorkout(null)
     setWorkoutLocked(false)
     setActiveProfilesToday(0)
+    setPoints(null)
     setScreen('home')
   }
 
@@ -96,7 +98,7 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} onProfile={() => setScreen('profile')} onLogout={logout}>
+    <Shell profile={profile} onCommunity={() => setScreen('community')} onProfile={() => setScreen('profile')} onLogout={logout}>
       {screen === 'account' && <AccountChoice
         onAnonymous={() => { setProfile(null); setScreen('home') }}
         onLogin={() => setScreen('profile-login')}
@@ -115,7 +117,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -132,19 +134,22 @@ function App() {
             })
             setResponses((current) => [...current, result.response])
             if (profile) {
-              const [workoutData, activityData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code)])
+              const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
               setWorkout(workoutData.workout)
               setWorkoutLocked(workoutData.locked)
               setActiveProfilesToday(activityData.activeProfilesToday)
+              setPoints(pointsData)
             }
             setScreen('thanks')
           }}
         />
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} onDone={() => setScreen('home')} />}
-      {screen === 'profile' && <MyProfile profile={profile} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
+      {screen === 'community' && <Community profile={profile} code={auth.code} points={points} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
+      {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
+        setPoints(null)
         setScreen('account')
       }} />}
     </Shell>
@@ -227,10 +232,10 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, profile, onProfile, onLogout }) {
+function Shell({ children, profile, onCommunity, onProfile, onLogout }) {
   return (
     <main className="app-shell">
-      <header><ClubBrand /><div className="header-actions">{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}<button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
+      <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}<button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       {children}
     </main>
   )
@@ -254,7 +259,7 @@ function Logo({ compact = false }) {
   )
 }
 
-function Home({ responses, profile, workout, workoutLocked, activeProfilesToday, onStart }) {
+function Home({ responses, profile, points, workout, workoutLocked, activeProfilesToday, onCommunity, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -272,6 +277,7 @@ function Home({ responses, profile, workout, workoutLocked, activeProfilesToday,
       </section>
 
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
+      {profile && <RewardCard points={points} onCommunity={onCommunity} />}
 
       <section className="start-card">
         <div>
@@ -283,6 +289,14 @@ function Home({ responses, profile, workout, workoutLocked, activeProfilesToday,
       </section>
     </div>
   )
+}
+
+function RewardCard({ points, onCommunity }) {
+  if (!points?.current) return null
+  const remaining = points.next ? points.next.minPoints - points.total : 0
+  const range = points.next ? points.next.minPoints - points.current.minPoints : 1
+  const progress = points.next ? ((points.total - points.current.minPoints) / range) * 100 : 100
+  return <section className="reward-card"><span>{points.current.emoji}</span><div><p className="eyebrow">Din nivå</p><h3>{points.current.name} · {points.total} poäng</h3><div className="reward-progress"><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div><small>{points.next ? `${remaining} poäng till ${points.next.name}` : 'Du har nått högsta nivån!'}</small></div><button onClick={onCommunity}>Ge pepp →</button></section>
 }
 
 function WorkoutCard({ workout, locked }) {
@@ -373,7 +387,54 @@ function PrivacyChoice({ profile, onBack, onChoose }) {
   )
 }
 
-function MyProfile({ profile, code, onBack, onProfileLogout }) {
+const KUDOS_OPTIONS = [
+  ['great_job', 'Grymt jobbat idag! 💪'], ['great_energy', 'Bra energi! ⚡'],
+  ['nice_technique', 'Snygg teknik! 🌊'], ['thanks', 'Tack för peppen! 🙌'],
+  ['fun_together', 'Kul att träna med dig! 😊'], ['strong_effort', 'Stark insats! 🔥'],
+]
+
+function Community({ profile, code, points, onBack, onPointsChange }) {
+  const [items, setItems] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [recipientId, setRecipientId] = useState('')
+  const [templateKey, setTemplateKey] = useState('great_job')
+  const [status, setStatus] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    const [feed, directory] = await Promise.all([apiRequest('/api/community', code), apiRequest('/api/profiles?directory=true', code)])
+    setItems(feed.items); setProfiles(directory.profiles); setLoading(false)
+  }
+  useEffect(() => { load().catch((error) => { setStatus(error.message); setLoading(false) }) }, [])
+
+  const sendKudos = async (event) => {
+    event.preventDefault(); setStatus('Skickar…')
+    try {
+      await apiRequest('/api/community', code, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipientId, templateKey }),
+      })
+      const nextPoints = await apiRequest('/api/points', code)
+      onPointsChange(nextPoints); setStatus('Peppen är skickad! +1 poäng'); setRecipientId(''); await load()
+    } catch (error) { setStatus(error.message) }
+  }
+
+  return <div className="community-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="community-layout">
+    <section className="feed-column"><div className="community-heading"><div><p className="eyebrow">Sundsvalls Simsällskap</p><h1>Peppflödet</h1></div>{points?.current && <span>{points.current.emoji} {points.total} p</span>}</div>
+      {loading ? <p className="empty">Hämtar flödet…</p> : items.length ? <div className="feed-list">{items.map((item) => item.type === 'coach' ? <article className="feed-item coach-post" key={`post-${item.id}`}><span>📣</span><div><strong>Tränarna</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article> : <article className="feed-item kudos-post" key={`kudos-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.displayName} <b>→</b> {item.recipient.emoji} {item.recipient.displayName}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Flödet är tomt än så länge.</p>}
+    </section>
+    <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka pepp</h2><p>Välj en kompis och en hälsning. Du kan få poäng för två pepp per dag.</p>
+      <form onSubmit={sendKudos}><label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label><label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{KUDOS_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><button className="primary-button">Skicka pepp →</button>{status && <small className="kudos-status">{status}</small>}</form>
+    </aside>
+  </div></div>
+}
+
+function formatFeedDate(value) {
+  const date = new Date(value)
+  const isToday = dateKey(date) === todayKey()
+  return isToday ? `Idag ${date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}` : date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })
+}
+
+function MyProfile({ profile, points, code, onBack, onProfileLogout }) {
   const [responses, setResponses] = useState([])
   const [loading, setLoading] = useState(true)
   useEffect(() => {
@@ -382,7 +443,7 @@ function MyProfile({ profile, code, onBack, onProfileLogout }) {
   return (
     <div className="my-profile-page">
       <button className="back-button" onClick={onBack}>← Tillbaka</button>
-      <section className="profile-summary"><span>{profile.emoji}</span><div><p className="eyebrow">Min profil</p><h1>{profile.displayName}</h1><small>@{profile.username}</small></div></section>
+      <section className="profile-summary"><span>{profile.emoji}</span><div><p className="eyebrow">Min profil</p><h1>{profile.displayName}</h1><small>@{profile.username}</small></div>{points?.current && <div className="profile-level"><b>{points.current.emoji} {points.current.name}</b><span>{points.total} poäng</span></div>}</section>
       <section className="my-history">
         <div><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></div>
         {loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}
@@ -556,9 +617,12 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
           <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare</button>
           <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
+          <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}>Klubbflöde</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'workout' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'community' ? (
+          <CoachCommunity code={code} />
+        ) : view === 'workout' ? (
           <WorkoutEditor code={code} />
         ) : view === 'swimmers' ? (
           <Swimmers profiles={profiles} responses={responses} code={code} />
@@ -582,6 +646,26 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
       </div>
     </main>
   )
+}
+
+function CoachCommunity({ code }) {
+  const [content, setContent] = useState('')
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const load = () => apiRequest('/api/community', code).then((data) => setItems(data.items)).finally(() => setLoading(false))
+  useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
+  const publish = async (event) => {
+    event.preventDefault(); setLoading(true)
+    try {
+      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) })
+      setContent(''); await load()
+    } catch (error) { window.alert(error.message); setLoading(false) }
+  }
+  const remove = async (id) => {
+    if (!window.confirm('Vill du ta bort meddelandet från flödet?')) return
+    try { await apiRequest(`/api/community?id=${id}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
+  }
+  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div><small>{content.length}/1000</small><button className="primary-button" disabled={loading}>Publicera →</button></div></form><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → ${item.recipient?.displayName}`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
 }
 
 function localDateValue() {

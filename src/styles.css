@@ -53,6 +53,7 @@ button { cursor: pointer; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .profile-chip { border: 1px solid #d5e2df; background: white; border-radius: 20px; padding: 5px 11px 5px 6px; font-size: 12px; font-weight: 700; }
 .profile-chip span { font-size: 18px; margin-right: 5px; }
+.feed-link { border: 0; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
@@ -81,6 +82,14 @@ button { cursor: pointer; }
 .locked-workout > span { width: 42px; height: 42px; display: grid; place-items: center; background: #edf5f2; border-radius: 50%; }
 .locked-workout > div { display: flex; flex-direction: column; }
 .locked-workout small { color: var(--muted); margin-top: 3px; }
+.reward-card { margin-top: 12px; background: #e4f2ee; border-radius: 18px; padding: 18px 22px; display: grid; grid-template-columns: 45px 1fr auto; align-items: center; gap: 14px; }
+.reward-card > span { font-size: 31px; }
+.reward-card h3 { margin: 0 0 7px; font: 700 15px 'Manrope'; }
+.reward-card .eyebrow { margin-bottom: 3px; }
+.reward-progress { width: min(100%, 300px); height: 6px; background: #c8ddd7; border-radius: 5px; overflow: hidden; }
+.reward-progress i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
+.reward-card small { color: var(--muted); font-size: 10px; }
+.reward-card > button { border: 1px solid #bdd4ce; background: white; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; }
 .start-card h2 { font-size: 30px; margin-bottom: 6px; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
 .primary-button { border: 0; background: var(--lime); border-radius: 13px; min-height: 52px; padding: 0 22px; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 14px rgba(107,140,26,.12); }
@@ -121,6 +130,9 @@ button { cursor: pointer; }
 .profile-summary > span { width: 86px; height: 86px; display: grid; place-items: center; background: #dff1ed; border-radius: 50%; font-size: 47px; }
 .profile-summary h1 { font-size: 42px; margin: 0 0 2px; }
 .profile-summary small { color: var(--muted); }
+.profile-level { margin-left: auto; background: #e4f2ee; border-radius: 13px; padding: 11px 15px; display: flex; flex-direction: column; }
+.profile-level b { font-size: 13px; }
+.profile-level span { color: var(--muted); font-size: 10px; }
 .my-history { background: white; border: 1px solid #dbe6e3; border-radius: 19px; padding: 26px; }
 .my-history > div:first-child { margin-bottom: 18px; }
 .my-history h2 { margin-bottom: 4px; }
@@ -131,6 +143,29 @@ button { cursor: pointer; }
 .my-history article small { color: var(--muted); font-size: 11px; }
 .my-history article b { font-size: 12px; color: var(--teal); }
 .profile-logout { display: block; margin: 22px auto; border: 0; background: transparent; color: #956262; font-size: 12px; }
+.community-page { min-height: calc(100vh - 72px); position: relative; padding: 75px max(20px, calc((100vw - 1050px) / 2)); background: #eff6f4; }
+.community-page > .back-button { position: absolute; top: 18px; left: max(5px, calc((100vw - 1120px) / 2)); }
+.community-layout { display: grid; grid-template-columns: 1.45fr .75fr; gap: 16px; align-items: start; }
+.feed-column, .kudos-panel { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 27px; }
+.community-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 24px; }
+.community-heading h1 { font-size: 38px; margin: 0; }
+.community-heading > span { background: #e1efeb; border-radius: 20px; padding: 7px 11px; font-size: 12px; font-weight: 700; }
+.feed-list { display: grid; gap: 8px; }
+.feed-item { border: 1px solid #e0e9e7; border-radius: 14px; padding: 15px; display: grid; grid-template-columns: 39px 1fr; gap: 10px; }
+.feed-item > span { font-size: 27px; }
+.feed-item strong { font-size: 13px; }
+.feed-item strong b { color: var(--muted); padding: 0 4px; }
+.feed-item p { margin: 4px 0 5px; line-height: 1.45; white-space: pre-wrap; }
+.feed-item small { color: var(--muted); font-size: 10px; }
+.coach-post { background: #edf6f3; border-color: #d3e6e1; }
+.kudos-panel { position: sticky; top: 20px; }
+.kudos-panel h2 { font-size: 27px; margin-bottom: 8px; }
+.kudos-panel > p:not(.eyebrow) { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.kudos-panel form, .kudos-panel label { display: flex; flex-direction: column; }
+.kudos-panel form { gap: 14px; }
+.kudos-panel label { gap: 6px; font-size: 11px; font-weight: 700; }
+.kudos-panel select { width: 100%; min-height: 45px; border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 0 10px; }
+.kudos-status { color: var(--teal); line-height: 1.4; }
 .primary-button.small { min-height: 46px; }
 
 .checkin-page { min-height: calc(100vh - 72px); background: var(--paper); position: relative; }
@@ -197,6 +232,17 @@ button { cursor: pointer; }
 .editor-actions { display: flex; justify-content: flex-end; align-items: center; gap: 15px; }
 .editor-actions > span { color: var(--teal); font-size: 12px; margin-left: auto; }
 .delete-workout { border: 0; background: transparent; color: #9b5555; font-size: 12px; }
+.coach-community { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 28px; }
+.coach-community > form textarea { width: 100%; min-height: 120px; resize: vertical; border: 1.5px solid #d6e2df; border-radius: 12px; padding: 14px; outline: 0; }
+.coach-community > form textarea:focus { border-color: var(--teal); }
+.coach-community > form > div { display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-top: 8px; }
+.coach-community > form small { color: var(--muted); }
+.coach-feed { margin-top: 25px; display: grid; gap: 7px; }
+.coach-feed article { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; border-top: 1px solid #e1eae7; padding: 13px 0; }
+.coach-feed article > span { font-size: 26px; }
+.coach-feed article p { margin: 4px 0; white-space: pre-wrap; }
+.coach-feed article small { color: var(--muted); font-size: 10px; }
+.coach-feed article > button { border: 0; background: transparent; color: #9b5555; font-size: 11px; }
 .period-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 20px; }
 .period-heading h2 { font-size: 30px; margin: 0; text-transform: capitalize; }
 .big-count { display: flex; flex-direction: column; align-items: flex-end; }
@@ -279,6 +325,11 @@ button { cursor: pointer; }
   .workout-card { grid-template-columns: 1fr; padding: 23px; gap: 20px; }
   .workout-body { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }
   .locked-workout { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }
+  .reward-card { grid-template-columns: 40px 1fr; }
+  .reward-card > button { grid-column: 1 / -1; }
+  .community-layout { grid-template-columns: 1fr; }
+  .kudos-panel { position: static; grid-row: 1; }
+  .profile-level { margin-left: 0; }
   .question-wrap { align-items: start; padding-top: 70px; }
   .feeling-grid { gap: 4px; }
   .feeling-grid button { padding: 14px 2px 11px; border-radius: 12px; }
@@ -317,4 +368,5 @@ button { cursor: pointer; }
   .club-brand { gap: 9px; }
   .club-brand > span { padding-left: 9px; font-size: 10px; max-width: 82px; line-height: 1.15; }
   .profile-chip { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-link { display: none; }
 }

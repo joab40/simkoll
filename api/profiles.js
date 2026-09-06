@@ -31,6 +31,11 @@ export default async function handler(request, response) {
       }
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 401, { error: 'Inte inloggad.' })
+      if (request.query?.directory === 'true') {
+        const result = await supabaseRequest(`profiles?id=neq.${profile.id}&active=eq.true&select=id,display_name,emoji&order=display_name.asc`)
+        if (!result.ok) throw new Error(`Directory GET failed: ${result.status}`)
+        return sendJson(response, 200, { profiles: (await result.json()).map((item) => ({ id: item.id, displayName: item.display_name, emoji: item.emoji })) })
+      }
       return sendJson(response, 200, { profile: publicProfile(profile) })
     }
 
