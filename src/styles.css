@@ -338,6 +338,7 @@ button { cursor: pointer; }
 .swimmer-name > span { width: 48px; height: 48px; display: grid; place-items: center; background: #e3f2ee; border-radius: 50%; font-size: 28px; }
 .swimmer-name > div { display: flex; flex-direction: column; }
 .swimmer-name small { color: var(--muted); }
+.swimmer-level { margin-left: auto; border-radius: 20px; background: #edf5f2; padding: 7px 10px; color: var(--teal); font-size: 11px; white-space: nowrap; }
 .swimmer-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 20px 0; }
 .swimmer-stats > div { background: #edf5f2; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 .swimmer-stats small { color: var(--muted); font-size: 10px; }
@@ -417,6 +418,15 @@ button { cursor: pointer; }
 .new-program-goal button, .review-goal button { border: 0; border-radius: 9px; padding: 9px 11px; font-weight: 700; }
 .review-goal { grid-template-columns: 1fr auto auto; }
 .review-goal .approve { background: var(--lime); }
+.meeting-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+.meeting-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.meeting-highlights > p, .meeting-attention > p { display: grid; grid-template-columns: 25px 1fr; gap: 9px; align-items: start; border-top: 1px solid #e2ebe8; margin: 0; padding: 13px 0; line-height: 1.45; }
+.meeting-highlights > p > span, .meeting-attention > p > span { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; background: var(--lime); font-weight: 800; }
+.meeting-attention > p > span { background: #ffe5a8; }
+.meeting-attention > small { display: block; color: var(--muted); line-height: 1.45; margin-top: 12px; }
+.meeting-ratings { margin-top: 12px; }
+.meeting-ratings > div { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.meeting-ratings .stat { background: #edf5f2; }
 
 @media (max-width: 700px) {
   .login-card { padding: 30px 24px 24px; border-radius: 25px; }
@@ -474,6 +484,8 @@ button { cursor: pointer; }
   .season-form, .program-form-grid, .season-overview > div, .coach-program-list { grid-template-columns: 1fr; }
   .season-form .wide, .program-form-grid .wide, .season-form button { grid-column: 1; }
   .new-program-goal, .review-goal { grid-template-columns: 1fr; }
+  .meeting-stats, .meeting-ratings > div { grid-template-columns: repeat(2, 1fr); }
+  .meeting-columns { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 390px) {

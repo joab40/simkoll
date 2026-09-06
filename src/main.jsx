@@ -706,6 +706,7 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
         <nav className="coach-tabs" aria-label="Välj tidsperiod">
           <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Idag</button>
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
+          <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}>Veckomöte</button>
           <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>Historik</button>
           <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}>Simmare</button>
           <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
@@ -714,7 +715,9 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
           <button className={view === 'programs' ? 'active' : ''} onClick={() => setView('programs')}>Träningsprogram</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'programs' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'meeting' ? (
+          <WeeklyMeeting code={code} />
+        ) : view === 'programs' ? (
           <CoachPrograms code={code} profiles={profiles} />
         ) : view === 'goals' ? (
           <CoachGoals code={code} profiles={profiles} />
@@ -744,6 +747,35 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
       </div>
     </main>
   )
+}
+
+function WeeklyMeeting({ code }) {
+  const [report, setReport] = useState(null)
+  const [error, setError] = useState('')
+  const range = useMemo(() => {
+    const previous = previousWeekRange()
+    return { start: previous.start, end: new Date(previous.end.getTime() + 1) }
+  }, [])
+  useEffect(() => {
+    const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), startDay: dateKey(range.start), endDay: dateKey(range.end) })
+    apiRequest(`/api/weekly-report?${query}`, code).then(setReport).catch((nextError) => setError(nextError.message))
+  }, [code])
+  const label = `${range.start.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${new Date(range.end.getTime() - 1).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
+  if (error) return <EmptyPeriod title={error} periodLabel="Veckomöte" />
+  if (!report) return <section className="empty-period"><span>≈</span><h2>Skapar veckobilden…</h2></section>
+  const positives = [
+    report.checkins > 0 && `${report.checkins} incheckningar gav tränarna bättre underlag.`,
+    report.activeProfiles > 0 && `${report.activeProfiles} profiler var aktiva under ${report.activeDays} dagar.`,
+    report.kudos > 0 && `${report.kudos} pepphälsningar stärkte gruppen.`,
+    report.approvedGoals > 0 && `${report.approvedGoals} mål blev godkända.`,
+    report.passRating >= 4 && `Passen fick ett starkt snittbetyg på ${report.passRating} av 5.`,
+  ].filter(Boolean)
+  const attention = [
+    report.signals.lowBody > 0 && `${report.signals.lowBody} svar visade tung eller öm kropp.`,
+    report.signals.highRpe > 0 && `${report.signals.highRpe} pass skattades som mycket ansträngande (RPE 9–10).`,
+    report.signals.lowPass > 0 && `${report.signals.lowPass} svar gav passet lägsta betyg.`,
+  ].filter(Boolean)
+  return <section className="weekly-meeting"><div className="period-heading"><div><p className="eyebrow">Underlag för söndags- eller måndagsmötet</p><h2>Veckobilden</h2></div><div className="big-count"><strong>{label}</strong><span>senast avslutade vecka</span></div></div><div className="meeting-stats"><Stat title="Aktiva profiler" value={report.activeProfiles} note={`${report.activeDays} aktiva dagar`} /><Stat title="Incheckningar" value={report.checkins} note={`${report.afterSessions} efter simpass`} /><Stat title="Registrerad träning" value={report.swims + report.strength + report.dryland} note={`${report.swims} sim · ${report.strength} styrka · ${report.dryland} land`} /><Stat title="Pepp i gruppen" value={report.kudos} note={`${report.approvedGoals} godkända mål`} /></div><div className="meeting-columns"><section className="coach-card meeting-highlights"><p className="eyebrow">Det här tar vi med oss</p><h2>Veckans positiva</h2>{positives.length ? positives.map((item) => <p key={item}><span>✓</span>{item}</p>) : <p className="empty">Mer data behövs för att skapa positiva highlights.</p>}</section><section className="coach-card meeting-attention"><p className="eyebrow">Följ upp tillsammans</p><h2>Signaler att vara nyfiken på</h2>{attention.length ? attention.map((item) => <p key={item}><span>!</span>{item}</p>) : <p><span>✓</span>Inga tydliga varningssignaler i veckans svar.</p>}<small>Visas endast på gruppnivå. Prata med gruppen och dra inte slutsatser om enskilda simmare från en ensam skattning.</small></section></div><section className="coach-card meeting-ratings"><h2>Träningsupplevelsen</h2><div><Stat title="Känsla" value={report.feeling == null ? '–' : `${report.feeling}/5`} note="Alla incheckningar" /><Stat title="Kroppen" value={report.body == null ? '–' : `${report.body}/5`} note="Självskattning" /><Stat title="Ansträngning" value={report.rpe == null ? '–' : `${report.rpe}/10`} note="Efter pass" /><Stat title="Passet" value={report.passRating == null ? '–' : `${report.passRating}/5`} note="Simmarnas betyg" /></div></section></section>
 }
 
 function CoachPrograms({ code, profiles }) {
@@ -902,6 +934,8 @@ function WorkoutEditor({ code }) {
 
 function Swimmers({ profiles, responses, code }) {
   const [reset, setReset] = useState(null)
+  const [profilePoints, setProfilePoints] = useState({})
+  useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
   const createReset = async (profile) => {
     try {
       const data = await apiRequest('/api/profiles', code, {
@@ -919,8 +953,9 @@ function Swimmers({ profiles, responses, code }) {
       {profiles.length ? <div className="swimmer-grid">{profiles.map((profile) => {
         const items = responses.filter((item) => item.profileId === profile.id)
         const after = items.filter((item) => item.type === 'after')
+        const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
         return <article key={profile.id} className="swimmer-card">
-          <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div></div>
+          <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
           <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
           {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
           <button onClick={() => createReset(profile)}>Skapa återställningskod</button>

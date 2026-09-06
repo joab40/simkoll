@@ -5,6 +5,19 @@ export default async function handler(request, response) {
   if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
+    if (role === 'coach') {
+      const [pointsResult, levelsResult] = await Promise.all([
+        supabaseRequest('point_events?select=profile_id,points&limit=10000'),
+        supabaseRequest('reward_levels?select=name,emoji,min_points,sort_order&order=sort_order.asc'),
+      ])
+      if (!pointsResult.ok || !levelsResult.ok) throw new Error('Coach points lookup failed')
+      const totals = (await pointsResult.json()).reduce((result, event) => ({ ...result, [event.profile_id]: (result[event.profile_id] || 0) + event.points }), {})
+      const levels = await levelsResult.json()
+      return sendJson(response, 200, { profiles: Object.entries(totals).map(([profileId, total]) => {
+        const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
+        return { profileId, total, level: current ? { name: current.name, emoji: current.emoji } : null }
+      }) })
+    }
     const profile = await getSessionProfile(request)
     if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Poäng visas bara på din egen profil.' })
     const [pointsResult, levelsResult] = await Promise.all([
