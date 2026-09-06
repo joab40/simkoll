@@ -60,7 +60,8 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { rules: POINT_RULES, levels: levels.map((level) => ({ id: level.id, name: level.name, emoji: level.emoji, minPoints: level.min_points })), profiles: (await profilesResult.json()).map(({ id: profileId }) => {
         const total = totals[profileId] || 0
         const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
-        return { profileId, total, level: current ? { name: current.name, emoji: current.emoji } : null }
+        const next = levels.find((level) => level.min_points > total) || null
+        return { profileId, total, level: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null, next: next ? { name: next.name, emoji: next.emoji, minPoints: next.min_points, remaining: next.min_points - total } : null }
       }) })
     }
     const profile = await getSessionProfile(request)

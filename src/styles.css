@@ -53,6 +53,7 @@ button { cursor: pointer; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .profile-chip { border: 1px solid #d5e2df; background: white; border-radius: 20px; padding: 5px 11px 5px 6px; font-size: 12px; font-weight: 700; }
 .profile-chip span { font-size: 18px; margin-right: 5px; }
+.help-tip { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 3px; padding: 0; border: 1px solid #9eb5b1; border-radius: 50%; background: transparent; color: var(--teal); font: 800 10px 'Manrope'; vertical-align: middle; cursor: help; }
 .feed-link { border: 0; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
@@ -340,6 +341,13 @@ button { cursor: pointer; }
 .swimmer-name > div { display: flex; flex-direction: column; }
 .swimmer-name small { color: var(--muted); }
 .swimmer-level { margin-left: auto; border-radius: 20px; background: #edf5f2; padding: 7px 10px; color: var(--teal); font-size: 11px; white-space: nowrap; }
+.point-progress { margin: 14px 0; padding: 13px; background: #edf5f2; border-radius: 12px; }
+.point-progress > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.point-progress > div > b { color: var(--teal); }
+.point-progress > span { display: block; height: 7px; margin: 9px 0 6px; border-radius: 5px; background: #d4e2de; overflow: hidden; }
+.point-progress > span > i { display: block; height: 100%; background: var(--lime); border-radius: inherit; }
+.point-progress > small { color: var(--muted); font-size: 10px; }
+.point-progress.compact { min-width: 220px; margin: 0; }
 .pending-profiles { background: #fff8e7; border: 1px solid #ecd695; border-radius: 18px; padding: 21px; margin-bottom: 14px; }
 .pending-profiles h3 { margin: 0 0 13px; }
 .pending-profiles article { display: grid; grid-template-columns: 38px 1fr auto auto; align-items: center; gap: 9px; border-top: 1px solid #eadfbf; padding: 12px 0; }
@@ -495,6 +503,23 @@ button { cursor: pointer; }
 .analysis-comments { margin-top: 12px; }
 .analysis-comments blockquote { display: flex; gap: 8px; margin: 0; border-top: 1px solid #e2ebe8; padding: 12px 0; line-height: 1.45; }
 .analysis-comments blockquote small { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.faq-page { min-height: calc(100vh - 75px); padding: 55px 20px; }
+.faq-content { width: min(760px, 100%); margin: auto; }
+.faq-content > h1 { font-size: clamp(38px, 6vw, 58px); margin: 0 0 12px; }
+.faq-intro { color: var(--muted); line-height: 1.65; max-width: 650px; margin-bottom: 28px; }
+.faq-list { display: grid; gap: 7px; }
+.faq-list details { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 13px; padding: 0 17px; }
+.faq-list summary { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; cursor: pointer; font-weight: 800; }
+.faq-list summary span { color: var(--teal); font-size: 20px; }
+.faq-list details[open] summary span { transform: rotate(45deg); }
+.faq-list details > p { color: #506367; line-height: 1.55; margin: 0 0 16px; }
+.rpe-guide { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 0 0 16px; }
+.rpe-guide span { display: flex; flex-direction: column; background: #edf5f2; border-radius: 9px; padding: 9px; color: var(--muted); font-size: 9px; }
+.rpe-guide b { color: var(--teal); font-size: 12px; }
+.coach-interpretation { background: var(--ink); color: white; border-radius: 18px; padding: 24px; margin-top: 18px; }
+.coach-interpretation h2 { margin-top: 0; }
+.coach-interpretation ul { padding-left: 19px; margin-bottom: 0; }
+.coach-interpretation li { margin: 9px 0; color: #d6e3e2; line-height: 1.45; }
 
 @media (max-width: 700px) {
   .login-card { padding: 30px 24px 24px; border-radius: 25px; }
@@ -563,6 +588,9 @@ button { cursor: pointer; }
   .analysis-periods button { flex: 0 0 auto; }
   .analysis-metrics { grid-template-columns: repeat(2, 1fr); }
   .analysis-columns { grid-template-columns: 1fr; }
+  .point-progress.compact { width: 100%; min-width: 0; }
+  .analysis-dashboard .period-heading { flex-direction: column; gap: 12px; }
+  .rpe-guide { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 390px) {
