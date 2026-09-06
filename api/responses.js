@@ -1,5 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
-import { getSessionProfile } from '../server/profile-auth.js'
+import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 const numberFields = {
   feeling: [1, 5], energy: [1, 5], body: [1, 5], motivation: [1, 5],
@@ -72,8 +72,9 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST') {
       if (!validate(request.body || {})) return sendJson(response, 400, { error: 'Svaret innehåller ogiltiga värden.' })
-      const profile = request.body?.identified ? await getSessionProfile(request) : null
-      if (request.body?.identified && !profile) return sendJson(response, 401, { error: 'Logga in på profilen igen eller svara anonymt.' })
+      const sessionProfile = await getSessionProfile(request)
+      const profile = request.body?.identified ? sessionProfile : null
+      if (request.body?.identified && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på profilen igen eller svara anonymt.' })
       const result = await supabaseRequest('responses', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
@@ -81,6 +82,14 @@ export default async function handler(request, response) {
       })
       if (!result.ok) throw new Error(`Supabase POST failed: ${result.status} ${await result.text()}`)
       const [created] = await result.json()
+      if (sessionProfile) {
+        await touchProfileActivity(sessionProfile.id)
+        const unlockResult = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
+          method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
+          body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: stockholmDate() }),
+        })
+        if (!unlockResult.ok) console.error(`Workout unlock failed: ${unlockResult.status} ${await unlockResult.text()}`)
+      }
       return sendJson(response, 201, { response: fromDatabase(created, role === 'coach') })
     }
 

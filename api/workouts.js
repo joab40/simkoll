@@ -1,11 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
-import { getSessionProfile } from '../server/profile-auth.js'
-
-function stockholmDate() {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date())
-}
+import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 function publicWorkout(item) {
   if (!item) return null
@@ -23,7 +17,15 @@ export default async function handler(request, response) {
       const requestedDate = role === 'coach' && /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&limit=1`)
       if (!result.ok) throw new Error(`Workout GET failed: ${result.status} ${await result.text()}`)
-      return sendJson(response, 200, { workout: publicWorkout((await result.json())[0]) })
+      const workout = (await result.json())[0] || null
+      if (profile) {
+        await touchProfileActivity(profile.id)
+        const unlockResult = await supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${stockholmDate()}&select=profile_id&limit=1`)
+        if (!unlockResult.ok) throw new Error(`Unlock GET failed: ${unlockResult.status} ${await unlockResult.text()}`)
+        const unlocked = (await unlockResult.json()).length > 0
+        if (workout && !unlocked) return sendJson(response, 200, { workout: null, locked: true })
+      }
+      return sendJson(response, 200, { workout: publicWorkout(workout), locked: false })
     }
 
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })

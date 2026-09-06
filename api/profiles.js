@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
-  hashToken, normalizeUsername, publicProfile, validPin, validUsername, verifyPin,
+  hashToken, normalizeUsername, publicProfile, touchProfileActivity, validPin, validUsername, verifyPin,
 } from '../server/profile-auth.js'
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
@@ -56,6 +56,7 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error(`Profile insert failed: ${result.status} ${await result.text()}`)
       const [profile] = await result.json()
       await createSession(response, profile.id)
+      await touchProfileActivity(profile.id)
       return sendJson(response, 201, { profile: publicProfile(profile) })
     }
 
@@ -74,6 +75,7 @@ export default async function handler(request, response) {
       }
       await updateProfile(profile.id, { failed_attempts: 0, locked_until: null })
       await createSession(response, profile.id)
+      await touchProfileActivity(profile.id)
       return sendJson(response, 200, { profile: publicProfile(profile) })
     }
 

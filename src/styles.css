@@ -62,8 +62,10 @@ button { cursor: pointer; }
 .emoji-cloud span { font-size: clamp(38px, 6vw, 60px); filter: drop-shadow(0 8px 10px rgba(0,0,0,.2)); animation: pop .35s both; animation-delay: var(--delay); }
 .emoji-cloud p { color: #b9cacb; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.8); } }
-.response-count { border-top: 1px solid rgba(255,255,255,.13); padding-top: 22px; margin-top: 24px; color: #b9cacb; font-size: 13px; }
+.response-count { border-top: 1px solid rgba(255,255,255,.13); padding-top: 22px; margin-top: 24px; color: #b9cacb; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .response-count strong { color: var(--lime); font-size: 18px; margin-right: 3px; }
+.active-count { color: #d7e5e4; }
+.active-count::first-letter { color: var(--aqua); }
 .start-card { background: var(--paper); margin: 18px 0 0; border: 1px solid #dbe6e3; border-radius: 24px; padding: 30px 34px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .workout-card { background: var(--paper); margin-top: 18px; border: 1px solid #dbe6e3; border-radius: 24px; padding: 30px 34px; display: grid; grid-template-columns: minmax(190px, .65fr) 1.35fr; gap: 35px; }
 .workout-label { display: flex; align-items: flex-start; gap: 12px; }
@@ -75,6 +77,10 @@ button { cursor: pointer; }
 .workout-body aside { background: #edf6f3; border-radius: 11px; padding: 13px 15px; color: #52676b; font-size: 13px; }
 .workout-body aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .workout-empty > p { color: var(--muted); align-self: center; }
+.locked-workout { border-left: 1px solid #dce7e4; padding-left: 35px; display: flex; align-items: center; gap: 14px; }
+.locked-workout > span { width: 42px; height: 42px; display: grid; place-items: center; background: #edf5f2; border-radius: 50%; }
+.locked-workout > div { display: flex; flex-direction: column; }
+.locked-workout small { color: var(--muted); margin-top: 3px; }
 .start-card h2 { font-size: 30px; margin-bottom: 6px; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
 .primary-button { border: 0; background: var(--lime); border-radius: 13px; min-height: 52px; padding: 0 22px; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 14px rgba(107,140,26,.12); }
@@ -163,6 +169,7 @@ button { cursor: pointer; }
 .success-mark { width: 74px; height: 74px; display: grid; place-items: center; border-radius: 50%; background: var(--lime); font-size: 33px; margin-bottom: 28px; }
 .thanks-page h1 { font-size: clamp(36px, 7vw, 55px); margin-bottom: 14px; }
 .thanks-page > p:not(.eyebrow) { color: var(--muted); max-width: 450px; line-height: 1.6; }
+.thanks-page .unlock-message { color: var(--teal) !important; background: #e4f3ef; border-radius: 20px; padding: 7px 14px; font-weight: 700; font-size: 13px; }
 .mini-moods { display: flex; font-size: 30px; margin: 20px 0 30px; }
 .mini-moods span { margin-left: -3px; }
 
@@ -171,6 +178,10 @@ button { cursor: pointer; }
 .coach-content { width: min(100% - 36px, 1120px); margin: 0 auto; padding: 48px 0 70px; }
 .coach-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
 .coach-heading h1 { font-size: clamp(38px, 6vw, 55px); margin: 0; }
+.usage-summary { display: grid; grid-template-columns: auto auto 8px auto auto; align-items: baseline; gap: 7px; background: #e0eeea; border-radius: 13px; padding: 12px 15px; }
+.usage-summary strong { font: 800 21px 'Manrope'; color: var(--teal); }
+.usage-summary span { color: var(--muted); font-size: 11px; }
+.usage-summary b { color: #9eb0ae; }
 .coach-tabs { display: inline-flex; padding: 4px; gap: 3px; background: #dfeae7; border-radius: 13px; margin-bottom: 28px; }
 .coach-tabs button { min-height: 39px; padding: 0 17px; border: 0; border-radius: 10px; background: transparent; color: #687b7e; font-size: 13px; font-weight: 600; }
 .coach-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
@@ -254,6 +265,7 @@ button { cursor: pointer; }
 .reset-banner strong { color: var(--lime); font: 800 25px 'Manrope'; letter-spacing: .12em; }
 .reset-banner button { border: 0; background: transparent; color: white; font-size: 22px; }
 .clear-button { display: block; margin: 25px auto 0; border: 0; background: transparent; color: #9b6868; font-size: 12px; }
+.app-meta { border-top: 1px solid #d9e5e2; margin-top: 25px; padding-top: 18px; display: flex; justify-content: center; gap: 17px; color: #899997; font-size: 10px; }
 
 @media (max-width: 700px) {
   .login-card { padding: 30px 24px 24px; border-radius: 25px; }
@@ -266,6 +278,7 @@ button { cursor: pointer; }
   .start-card .primary-button { width: 100%; margin-top: 22px; }
   .workout-card { grid-template-columns: 1fr; padding: 23px; gap: 20px; }
   .workout-body { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }
+  .locked-workout { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }
   .question-wrap { align-items: start; padding-top: 70px; }
   .feeling-grid { gap: 4px; }
   .feeling-grid button { padding: 14px 2px 11px; border-radius: 12px; }
@@ -273,7 +286,8 @@ button { cursor: pointer; }
   .scale-10 { grid-template-columns: repeat(5, 1fr); }
   .scale-grid button { aspect-ratio: auto; min-height: 51px; }
   .coach-content { padding-top: 28px; }
-  .coach-heading { align-items: start; }
+  .coach-heading { align-items: start; flex-direction: column; gap: 18px; }
+  .usage-summary { width: 100%; grid-template-columns: auto 1fr 8px auto 1fr; }
   .coach-tabs { display: flex; width: 100%; overflow-x: auto; }
   .coach-tabs button { flex: 0 0 auto; padding: 0 12px; }
   .period-heading { align-items: start; }
@@ -294,6 +308,7 @@ button { cursor: pointer; }
   .history-mood { align-items: flex-start; flex-direction: column; gap: 2px; }
   .workout-editor { padding: 22px 17px; }
   .editor-actions { flex-wrap: wrap; }
+  .app-meta { flex-wrap: wrap; gap: 7px 14px; }
 }
 
 @media (max-width: 390px) {

@@ -32,6 +32,21 @@ export function publicProfile(profile) {
   }
 }
 
+export function stockholmDate() {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
+}
+
+export async function touchProfileActivity(profileId) {
+  const result = await supabaseRequest('profile_daily_activity?on_conflict=profile_id,activity_date', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ profile_id: profileId, activity_date: stockholmDate(), last_seen_at: new Date().toISOString() }),
+  })
+  if (!result.ok) throw new Error(`Activity update failed: ${result.status} ${await result.text()}`)
+}
+
 function readCookie(request, name) {
   const cookies = String(request.headers.cookie || '').split(';')
   const cookie = cookies.map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))

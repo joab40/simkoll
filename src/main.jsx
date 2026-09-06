@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
+const APP_VERSION = __APP_VERSION__
+const BUILD_TIME = __BUILD_TIME__
+const COMMIT_SHA = __COMMIT_SHA__
+
 const FEELINGS = [
   { value: 1, emoji: '😣', label: 'Tungt' },
   { value: 2, emoji: '😕', label: 'Segt' },
@@ -45,6 +49,8 @@ function App() {
   const [responses, setResponses] = useState([])
   const [profiles, setProfiles] = useState([])
   const [workout, setWorkout] = useState(null)
+  const [workoutLocked, setWorkoutLocked] = useState(false)
+  const [activeProfilesToday, setActiveProfilesToday] = useState(0)
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
@@ -55,15 +61,18 @@ function App() {
     Promise.all([
       fetchResponses(auth.code),
       auth.role === 'coach' ? apiRequest('/api/profiles', auth.code).then((data) => data.profiles) : Promise.resolve([]),
+      auth.role === 'coach' ? apiRequest('/api/activity', auth.code).then((data) => data.activeProfilesToday) : Promise.resolve(0),
     ])
-      .then(([nextResponses, nextProfiles]) => { setResponses(nextResponses); setProfiles(nextProfiles) })
+      .then(([nextResponses, nextProfiles, activeCount]) => { setResponses(nextResponses); setProfiles(nextProfiles); setActiveProfilesToday(activeCount) })
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [auth])
 
   useEffect(() => {
-    if (!auth || !profile) { setWorkout(null); return }
-    apiRequest('/api/workouts', auth.code).then((data) => setWorkout(data.workout)).catch(() => setWorkout(null))
+    if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
+    Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code)])
+      .then(([workoutData, activityData]) => { setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday) })
+      .catch(() => { setWorkout(null); setWorkoutLocked(false) })
   }, [auth, profile])
 
   if (!auth) return <Login onLogin={(nextAuth) => { setAuth(nextAuth); setScreen(nextAuth.role === 'swimmer' ? 'account' : 'home') }} />
@@ -74,11 +83,13 @@ function App() {
     setResponses([])
     setProfiles([])
     setWorkout(null)
+    setWorkoutLocked(false)
+    setActiveProfilesToday(0)
     setScreen('home')
   }
 
   if (auth.role === 'coach') {
-    return <Coach responses={responses} profiles={profiles} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
+    return <Coach responses={responses} profiles={profiles} activeProfilesToday={activeProfilesToday} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
       await apiRequest('/api/responses', auth.code, { method: 'DELETE' })
       setResponses([])
     }} />
@@ -104,7 +115,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} workout={workout} onStart={() => {
+        <Home responses={responses} profile={profile} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -120,11 +131,17 @@ function App() {
               body: JSON.stringify({ ...response, identified }),
             })
             setResponses((current) => [...current, result.response])
+            if (profile) {
+              const [workoutData, activityData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code)])
+              setWorkout(workoutData.workout)
+              setWorkoutLocked(workoutData.locked)
+              setActiveProfilesToday(activityData.activeProfilesToday)
+            }
             setScreen('thanks')
           }}
         />
       )}
-      {screen === 'thanks' && <Thanks responses={responses} onDone={() => setScreen('home')} />}
+      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} onDone={() => setScreen('home')} />}
       {screen === 'profile' && <MyProfile profile={profile} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
@@ -237,7 +254,7 @@ function Logo({ compact = false }) {
   )
 }
 
-function Home({ responses, profile, workout, onStart }) {
+function Home({ responses, profile, workout, workoutLocked, activeProfilesToday, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -251,10 +268,10 @@ function Home({ responses, profile, workout, onStart }) {
             </span>
           )) : <p>Inga svar ännu – bli först!</p>}
         </div>
-        <div className="response-count"><strong>{todayResponses.length}</strong> anonyma svar idag</div>
+        <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count">● {activeProfilesToday} profiler inne idag</span>}</div>
       </section>
 
-      {profile && <WorkoutCard workout={workout} />}
+      {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
 
       <section className="start-card">
         <div>
@@ -268,11 +285,11 @@ function Home({ responses, profile, workout, onStart }) {
   )
 }
 
-function WorkoutCard({ workout }) {
+function WorkoutCard({ workout, locked }) {
   return (
     <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
       <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div></div>
-      {workout ? <div className="workout-body"><h3>{workout.title}</h3><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
 }
@@ -501,21 +518,22 @@ function getQuestions(type) {
   ]
 }
 
-function Thanks({ responses, onDone }) {
+function Thanks({ responses, profile, identified, workout, onDone }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="thanks-page">
       <div className="success-mark">✓</div>
       <p className="eyebrow">Klart</p>
       <h1>Tack för din check-in!</h1>
-      <p>Svaret är anonymt och hjälper tränaren att göra passen bättre.</p>
+      <p>{identified ? 'Svaret har sparats i din profil.' : 'Svaret är anonymt och hjälper tränaren att göra passen bättre.'}</p>
+      {profile && workout && <p className="unlock-message">🔓 Dagens pass är upplåst!</p>}
       <div className="mini-moods">{todayResponses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
-      <button className="primary-button" onClick={onDone}>Till dagens läge →</button>
+      <button className="primary-button" onClick={onDone}>{profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
     </div>
   )
 }
 
-function Coach({ responses, profiles, code, loading, onLogout, onClear }) {
+function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
@@ -531,7 +549,7 @@ function Coach({ responses, profiles, code, loading, onLogout, onClear }) {
     <main className="coach-shell">
       <header><ClubBrand /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       <div className="coach-content">
-        <div className="coach-heading"><div><p className="eyebrow">Tränaröversikt</p><h1>Gruppens läge</h1></div></div>
+        <div className="coach-heading"><div><p className="eyebrow">Tränaröversikt</p><h1>Gruppens läge</h1></div><div className="usage-summary"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span><b>·</b><strong>{todayResponses.length}</strong><span>incheckningar</span></div></div>
         <nav className="coach-tabs" aria-label="Välj tidsperiod">
           <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Idag</button>
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
@@ -560,6 +578,7 @@ function Coach({ responses, profiles, code, loading, onLogout, onClear }) {
           if (!window.confirm('Vill du radera alla svar permanent?')) return
           try { await onClear() } catch (error) { window.alert(error.message) }
         }}>Radera alla svar</button>
+        <footer className="app-meta"><span>Simkoll v{APP_VERSION}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span><span>Build {COMMIT_SHA}</span></footer>
       </div>
     </main>
   )
