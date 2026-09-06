@@ -54,6 +54,7 @@ function App() {
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
   const [points, setPoints] = useState(null)
+  const [training, setTraining] = useState(null)
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
@@ -73,8 +74,8 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
-    Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
-      .then(([workoutData, activityData, pointsData]) => { setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData) })
+    Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/training', auth.code)])
+      .then(([workoutData, activityData, pointsData, trainingData]) => { setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setTraining(trainingData) })
       .catch(() => { setWorkout(null); setWorkoutLocked(false) })
   }, [auth, profile])
 
@@ -89,6 +90,7 @@ function App() {
     setWorkoutLocked(false)
     setActiveProfilesToday(0)
     setPoints(null)
+    setTraining(null)
     setScreen('home')
   }
 
@@ -119,7 +121,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -127,6 +129,7 @@ function App() {
       {screen === 'privacy-choice' && <PrivacyChoice profile={profile} onBack={() => setScreen('home')} onChoose={(value) => { setIdentified(value); setScreen('checkin') }} />}
       {screen === 'checkin' && (
         <CheckIn
+          hasProfile={Boolean(profile)}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
             const result = await apiRequest('/api/responses', auth.code, {
@@ -136,11 +139,12 @@ function App() {
             })
             setResponses((current) => [...current, result.response])
             if (profile) {
-              const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+              const [workoutData, activityData, pointsData, trainingData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/training', auth.code)])
               setWorkout(workoutData.workout)
               setWorkoutLocked(workoutData.locked)
               setActiveProfilesToday(activityData.activeProfilesToday)
               setPoints(pointsData)
+              setTraining(trainingData)
             }
             setScreen('thanks')
           }}
@@ -153,6 +157,7 @@ function App() {
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
         setPoints(null)
+        setTraining(null)
         setScreen('account')
       }} />}
     </Shell>
@@ -262,7 +267,7 @@ function Logo({ compact = false }) {
   )
 }
 
-function Home({ responses, profile, points, workout, workoutLocked, activeProfilesToday, onCommunity, onStart }) {
+function Home({ responses, profile, points, training, workout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -281,6 +286,7 @@ function Home({ responses, profile, points, workout, workoutLocked, activeProfil
 
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
+      {profile && <WeeklySwimCard training={training} onOpen={onGoals} />}
 
       <section className="start-card">
         <div>
@@ -292,6 +298,31 @@ function Home({ responses, profile, points, workout, workoutLocked, activeProfil
       </section>
     </div>
   )
+}
+
+function weekStart(date = new Date()) {
+  const value = new Date(date)
+  value.setHours(0, 0, 0, 0)
+  value.setDate(value.getDate() - ((value.getDay() + 6) % 7))
+  return value
+}
+
+function currentSeasonGoal(training) {
+  const today = todayKey()
+  return training?.seasonGoals?.find((goal) => goal.active && goal.startDate <= today && goal.endDate >= today) || training?.seasonGoals?.find((goal) => goal.active)
+}
+
+function currentWeekSwims(training) {
+  const start = weekStart()
+  const end = new Date(start); end.setDate(end.getDate() + 7)
+  return training?.sessions?.filter((item) => item.type === 'swim' && new Date(item.completedAt) >= start && new Date(item.completedAt) < end).length || 0
+}
+
+function WeeklySwimCard({ training, onOpen }) {
+  const goal = currentSeasonGoal(training)
+  if (!goal) return <section className="weekly-card empty-weekly"><span>🎯</span><div><strong>Sätt ditt eget simmål</strong><small>Hur många pass vill du simma per vecka?</small></div><button onClick={onOpen}>Skapa mål →</button></section>
+  const completed = currentWeekSwims(training)
+  return <section className="weekly-card"><div><p className="eyebrow">Mitt simmål den här veckan</p><h3>{completed} av {goal.target} simpass</h3><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>Du har själv valt {goal.target} pass per vecka</small></div><button onClick={onOpen}>Följ upp →</button></section>
 }
 
 function RewardCard({ points, onCommunity }) {
@@ -451,9 +482,11 @@ const GOAL_STATUS = { planned: 'Planerat', active: 'Pågår', paused: 'Pausat', 
 
 function MyGoals({ code, onBack }) {
   const [goals, setGoals] = useState([])
+  const [training, setTraining] = useState(null)
   const [loading, setLoading] = useState(true)
   const [reflection, setReflection] = useState({})
-  const load = () => apiRequest('/api/goals', code).then((data) => setGoals(data.goals)).finally(() => setLoading(false))
+  const [seasonForm, setSeasonForm] = useState({ title: 'Mitt höstmål', target: 4, startDate: localDateValue(), endDate: `${new Date().getFullYear()}-12-20`, reflection: '' })
+  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code)]).then(([goalData, trainingData]) => { setGoals(goalData.goals); setTraining(trainingData) }).finally(() => setLoading(false))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const addReflection = async (goalId) => {
     const content = String(reflection[goalId] || '').trim()
@@ -463,7 +496,23 @@ function MyGoals({ code, onBack }) {
       setReflection({ ...reflection, [goalId]: '' }); await load()
     } catch (error) { window.alert(error.message) }
   }
-  return <div className="goals-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="goals-content"><p className="eyebrow">Privat mellan dig och tränarna</p><h1>Mina utvecklingsmål</h1>{loading ? <p className="empty">Hämtar mål…</p> : goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Min reflektion'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Skriv en kort reflektion…" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button onClick={() => addReflection(goal.id)}>Skicka</button></div>}</article>)}</div> : <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</div></div>
+  const saveSeasonGoal = async (event) => {
+    event.preventDefault()
+    try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'season-goal', ...seasonForm, target: Number(seasonForm.target) }) }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const completeProgram = async (assignment) => {
+    try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'complete-program', assignmentId: assignment.id, programType: assignment.program.type }) }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const submitProgramGoal = async (goalId) => {
+    try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-program-goal', goalId }) }); await load() } catch (error) { window.alert(error.message) }
+  }
+  const activeSeason = currentSeasonGoal(training)
+  const weekCount = currentWeekSwims(training)
+  return <div className="goals-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="goals-content"><p className="eyebrow">Ditt ansvar · din utveckling</p><h1>Min träning och mina mål</h1>{loading ? <p className="empty">Hämtar mål…</p> : <>
+    <section className="season-goal-section"><div className="section-title"><div><p className="eyebrow">Simmål per vecka</p><h2>Mitt terminsmål</h2></div>{activeSeason && <span>{weekCount} / {activeSeason.target} den här veckan</span>}</div>{activeSeason ? <div className="season-active"><div className="big-session-count"><strong>{weekCount}</strong><span>av {activeSeason.target} simpass</span></div><div><h3>{activeSeason.title}</h3><p>Du har själv valt {activeSeason.target} pass per vecka.</p><div className="session-dots">{Array.from({ length: activeSeason.target }, (_, index) => <i className={index < weekCount ? 'done' : ''} key={index} />)}</div><small>{activeSeason.startDate} – {activeSeason.endDate}</small></div></div> : <form className="season-form" onSubmit={saveSeasonGoal}><label>Vad kallar du målet?<input required value={seasonForm.title} onChange={(event) => setSeasonForm({ ...seasonForm, title: event.target.value })} /></label><label>Antal simpass per vecka<input type="number" min="1" max="14" required value={seasonForm.target} onChange={(event) => setSeasonForm({ ...seasonForm, target: event.target.value })} /></label><label>Från<input type="date" required value={seasonForm.startDate} onChange={(event) => setSeasonForm({ ...seasonForm, startDate: event.target.value })} /></label><label>Till<input type="date" required value={seasonForm.endDate} onChange={(event) => setSeasonForm({ ...seasonForm, endDate: event.target.value })} /></label><label className="wide">Min tanke efter utvecklingssamtalet<textarea maxLength="1000" value={seasonForm.reflection} onChange={(event) => setSeasonForm({ ...seasonForm, reflection: event.target.value })} /></label><button className="primary-button">Spara mitt mål →</button></form>}</section>
+    <section className="assigned-programs"><p className="eyebrow">Från tränarna</p><h2>Mina program</h2>{training?.assignments?.length ? training.assignments.map((assignment) => { const programGoals = training.programGoals.filter((goal) => goal.assignmentId === assignment.id); return <article key={assignment.id}><header><span>{assignment.program.type === 'strength' ? '🏋️' : '🤸'}</span><div><strong>{assignment.program.title}</strong><small>{assignment.program.type === 'strength' ? 'Styrketräning' : 'Landträning'}</small></div></header><p>{assignment.program.description}</p><pre>{assignment.program.content}</pre><button onClick={() => completeProgram(assignment)}>✓ Markera ett pass genomfört</button>{programGoals.map((goal) => <div className="program-goal" key={goal.id}><strong>🎯 {goal.title} · {goal.rewardPoints} poäng</strong><p>{goal.description}</p><span>{goal.status === 'approved' ? `Godkänt! ${goal.coachFeedback}` : goal.status === 'submitted' ? 'Väntar på tränaren' : goal.status === 'continue' ? `Fortsätt jobba · ${goal.coachFeedback}` : ''}</span>{['active', 'continue'].includes(goal.status) && <button onClick={() => submitProgramGoal(goal.id)}>Redo för godkännande →</button>}</div>)}</article> }) : <p className="empty">Inga styrke- eller landträningsprogram ännu.</p>}</section>
+    <section className="development-section"><p className="eyebrow">Privat mellan dig och tränarna</p><h2>Mina utvecklingsmål</h2>{goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Min reflektion'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Skriv en kort reflektion…" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button onClick={() => addReflection(goal.id)}>Skicka</button></div>}</article>)}</div> : <p className="empty">Inga utvecklingsmål ännu.</p>}</section>
+  </>}</div></div>
 }
 
 function MyProfile({ profile, points, code, onBack, onProfileLogout }) {
@@ -485,7 +534,7 @@ function MyProfile({ profile, points, code, onBack, onProfileLogout }) {
   )
 }
 
-function CheckIn({ onBack, onSubmit }) {
+function CheckIn({ hasProfile, onBack, onSubmit }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({})
   const [submitting, setSubmitting] = useState(false)
@@ -512,7 +561,7 @@ function CheckIn({ onBack, onSubmit }) {
       <Question title="Hur ser din dag ut?" hint="Välj det som stämmer bäst just nu.">
         <div className="choice-stack">
           {DAY_TYPES.map((type) => (
-            <button key={type.value} className="choice-card" onClick={() => { update('type', type.value); next() }}>
+            <button key={type.value} className="choice-card" onClick={() => { setForm((current) => ({ ...current, type: type.value, registerTraining: hasProfile && type.value === 'after' })); next() }}>
               <span className="choice-icon">{type.icon}</span>{type.title}<span>›</span>
             </button>
           ))}
@@ -555,6 +604,7 @@ function CheckIn({ onBack, onSubmit }) {
         {question.kind === 'comment' && (
           <div className="comment-box">
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
+            {hasProfile && form.type === 'after' && <label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>Registrera som simpass</strong><small>Läggs i din personliga veckoräknare. Feedbacken kan fortfarande vara anonym.</small></span></label>}
             {submitError && <span className="error-text">{submitError}</span>}
             <div><button className="skip-button" disabled={submitting} onClick={submit}>Hoppa över</button><button className="primary-button small" disabled={submitting} onClick={submit}>{submitting ? 'Skickar…' : 'Skicka →'}</button></div>
           </div>
@@ -651,9 +701,12 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
           <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}>Dagens pass</button>
           <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}>Klubbflöde</button>
           <button className={view === 'goals' ? 'active' : ''} onClick={() => setView('goals')}>Utvecklingsmål</button>
+          <button className={view === 'programs' ? 'active' : ''} onClick={() => setView('programs')}>Träningsprogram</button>
         </nav>
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'goals' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'programs' ? (
+          <CoachPrograms code={code} profiles={profiles} />
+        ) : view === 'goals' ? (
           <CoachGoals code={code} profiles={profiles} />
         ) : view === 'community' ? (
           <CoachCommunity code={code} />
@@ -681,6 +734,47 @@ function Coach({ responses, profiles, activeProfilesToday, code, loading, onLogo
       </div>
     </main>
   )
+}
+
+function CoachPrograms({ code, profiles }) {
+  const [training, setTraining] = useState(null)
+  const [programForm, setProgramForm] = useState({ type: 'strength', title: '', description: '', content: '', startDate: localDateValue(), endDate: '', profileIds: [] })
+  const [goalForm, setGoalForm] = useState({})
+  const [reviews, setReviews] = useState({})
+  const [status, setStatus] = useState('')
+  const load = () => apiRequest('/api/training', code).then(setTraining)
+  useEffect(() => { load().catch((error) => setStatus(error.message)) }, [])
+  const createProgram = async (event) => {
+    event.preventDefault(); setStatus('Sparar…')
+    try {
+      await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create-program', ...programForm }) })
+      setProgramForm({ type: 'strength', title: '', description: '', content: '', startDate: localDateValue(), endDate: '', profileIds: [] }); setStatus('Programmet är publicerat.'); await load()
+    } catch (error) { setStatus(error.message) }
+  }
+  const addGoal = async (assignmentId) => {
+    const form = goalForm[assignmentId] || { rewardPoints: 5 }
+    if (!form.title?.trim() || !form.description?.trim()) return
+    try {
+      await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'program-goal', assignmentId, ...form, rewardPoints: Number(form.rewardPoints || 5) }) })
+      setGoalForm({ ...goalForm, [assignmentId]: { rewardPoints: 5, title: '', description: '' } }); await load()
+    } catch (error) { window.alert(error.message) }
+  }
+  const review = async (goalId, approved) => {
+    try {
+      await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'review-program-goal', goalId, approved, feedback: reviews[goalId] || '' }) })
+      setReviews({ ...reviews, [goalId]: '' }); await load()
+    } catch (error) { window.alert(error.message) }
+  }
+  const toggleProfile = (profileId) => setProgramForm((current) => ({ ...current, profileIds: current.profileIds.includes(profileId) ? current.profileIds.filter((id) => id !== profileId) : [...current.profileIds, profileId] }))
+  const profileFor = (id) => profiles.find((profile) => profile.id === id)
+  const weekSessions = (profileId) => currentWeekSwims({ sessions: training?.sessions?.filter((item) => item.profileId === profileId) || [] })
+  const activeGoalFor = (profileId) => (training?.seasonGoals || []).find((goal) => goal.profileId === profileId && goal.active && localDateValue() >= goal.startDate && localDateValue() <= goal.endDate)
+  return <section className="coach-programs">
+    <div className="period-heading"><div><p className="eyebrow">Styrka · landträning · eget ansvar</p><h2>Träningsprogram</h2></div></div>
+    <section className="coach-card season-overview"><h3>Veckans simmål</h3><div>{profiles.map((profile) => { const goal = activeGoalFor(profile.id); const count = weekSessions(profile.id); return <article key={profile.id}><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>{goal ? `${count} av ${goal.target} simpass` : 'Inget terminsmål'}</small></div>{goal && <b className={count >= goal.target ? 'reached' : ''}>{count}/{goal.target}</b>}</article> })}</div></section>
+    <form className="program-form" onSubmit={createProgram}><h3>Skapa nytt program</h3><div className="program-form-grid"><label>Typ<select value={programForm.type} onChange={(event) => setProgramForm({ ...programForm, type: event.target.value })}><option value="strength">Styrketräning</option><option value="dryland">Landträning</option></select></label><label>Titel<input required maxLength="100" value={programForm.title} onChange={(event) => setProgramForm({ ...programForm, title: event.target.value })} /></label><label>Start<input type="date" required value={programForm.startDate} onChange={(event) => setProgramForm({ ...programForm, startDate: event.target.value })} /></label><label>Slut (valfritt)<input type="date" min={programForm.startDate} value={programForm.endDate} onChange={(event) => setProgramForm({ ...programForm, endDate: event.target.value })} /></label><label className="wide">Kort beskrivning<textarea required maxLength="1000" value={programForm.description} onChange={(event) => setProgramForm({ ...programForm, description: event.target.value })} /></label><label className="wide">Program / övningar<textarea required className="program-content-input" maxLength="5000" value={programForm.content} onChange={(event) => setProgramForm({ ...programForm, content: event.target.value })} /></label></div><fieldset><legend>Tilldela simmare</legend><div className="profile-checks">{profiles.map((profile) => <label key={profile.id}><input type="checkbox" checked={programForm.profileIds.includes(profile.id)} onChange={() => toggleProfile(profile.id)} /> {profile.emoji} {profile.displayName}</label>)}</div></fieldset><button className="primary-button">Publicera program →</button>{status && <small>{status}</small>}</form>
+    <div className="coach-program-list">{training?.assignments?.map((assignment) => { const profile = profileFor(assignment.profileId); const goals = training.programGoals.filter((goal) => goal.assignmentId === assignment.id); const form = goalForm[assignment.id] || { rewardPoints: 5 }; return <article key={assignment.id}><header><span>{assignment.program.type === 'strength' ? '🏋️' : '🤸'}</span><div><strong>{assignment.program.title}</strong><small>{profile ? `${profile.emoji} ${profile.displayName}` : 'Okänd profil'}</small></div></header><p>{assignment.program.description}</p><details><summary>Visa programmet</summary><pre>{assignment.program.content}</pre></details><div className="coach-program-goals">{goals.map((goal) => <div key={goal.id}><strong>🎯 {goal.title} · {goal.rewardPoints} p</strong><p>{goal.description}</p><small>{goal.status === 'submitted' ? 'Väntar på godkännande' : goal.status === 'approved' ? 'Godkänt' : goal.status === 'continue' ? 'Simmaren fortsätter jobba' : 'Pågår'}</small>{goal.status === 'submitted' && <div className="review-goal"><input maxLength="500" placeholder="Återkoppling till simmaren…" value={reviews[goal.id] || ''} onChange={(event) => setReviews({ ...reviews, [goal.id]: event.target.value })} /><button onClick={() => review(goal.id, false)}>Fortsätt jobba</button><button className="approve" onClick={() => review(goal.id, true)}>Godkänn +{goal.rewardPoints} p</button></div>}</div>)}</div><div className="new-program-goal"><input placeholder="Nytt mål" value={form.title || ''} onChange={(event) => setGoalForm({ ...goalForm, [assignment.id]: { ...form, title: event.target.value } })} /><input placeholder="Vad ska simmaren klara?" value={form.description || ''} onChange={(event) => setGoalForm({ ...goalForm, [assignment.id]: { ...form, description: event.target.value } })} /><select value={form.rewardPoints || 5} onChange={(event) => setGoalForm({ ...goalForm, [assignment.id]: { ...form, rewardPoints: Number(event.target.value) } })}><option value="5">5 poäng</option><option value="10">10 poäng</option><option value="20">20 poäng</option></select><button onClick={() => addGoal(assignment.id)}>Lägg till mål</button></div></article> })}</div>
+  </section>
 }
 
 const FEEDBACK_OPTIONS = [
