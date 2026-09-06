@@ -91,6 +91,11 @@ button { cursor: pointer; }
 .reward-progress i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
 .reward-card small { color: var(--muted); font-size: 10px; }
 .reward-card > button { border: 1px solid #bdd4ce; background: white; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; }
+.reward-celebration { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 11px; background: linear-gradient(120deg, #eaf5c9, #dff3eb); border: 1px solid #cadd92; border-radius: 17px; padding: 16px 18px; margin-top: 14px; }
+.reward-celebration > span { font-size: 30px; }
+.reward-celebration > div { display: flex; flex-direction: column; }
+.reward-celebration small { color: var(--muted); }
+.reward-celebration button { border: 0; background: transparent; font-size: 20px; color: var(--muted); }
 .start-card h2 { font-size: 30px; margin-bottom: 6px; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
 .primary-button { border: 0; background: var(--lime); border-radius: 13px; min-height: 52px; padding: 0 22px; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 14px rgba(107,140,26,.12); }
@@ -418,6 +423,15 @@ button { cursor: pointer; }
 .week-log-row label.marked { background: #eaf4cb; }
 .week-log-row label.marked i { border-color: var(--lime); background: var(--lime); }
 .week-log-row label.future { opacity: .38; cursor: not-allowed; }
+.cross-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.cross-progress > div { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: center; background: #edf5f2; border-radius: 11px; padding: 11px; }
+.cross-progress > div > span { font-size: 23px; }
+.cross-progress p { display: flex; flex-direction: column; margin: 0; }
+.cross-progress p > i { height: 6px; background: #d3e1dd; border-radius: 5px; margin: 6px 0 4px; overflow: hidden; }
+.cross-progress p > i b { display: block; height: 100%; background: var(--lime); }
+.cross-progress small { color: var(--muted); }
+.cheer-message { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; background: #f5f8dc; border-radius: 11px; padding: 12px; margin-top: 9px; }
+.cheer-message button { border: 0; background: transparent; font-size: 18px; }
 .section-title { display: flex; justify-content: space-between; align-items: end; gap: 15px; }
 .section-title h2, .assigned-programs h2, .development-section h2 { margin: 0 0 16px; }
 .section-title > span { color: var(--teal); font-weight: 700; }
@@ -507,6 +521,11 @@ button { cursor: pointer; }
 .goal-compliance > div > span { display: block; height: 8px; background: #d4e2de; border-radius: 6px; margin: 10px 0 7px; overflow: hidden; }
 .goal-compliance > div > span i { display: block; height: 100%; background: var(--lime); border-radius: inherit; }
 .goal-compliance small { color: var(--muted); }
+.goal-compliance > form { background: var(--paper); border: 1px dashed #b9cfca; border-radius: 14px; padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.goal-compliance > form .eyebrow, .goal-compliance > form > small { grid-column: 1 / -1; }
+.goal-compliance > form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 10px; }
+.goal-compliance > form input { border: 1px solid #cadbd7; border-radius: 8px; padding: 8px; }
+.goal-compliance > form button { grid-column: 1 / -1; border: 0; border-radius: 9px; padding: 9px; background: var(--teal); color: white; font-weight: 700; }
 .analysis-metric { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 15px; padding: 16px; display: flex; flex-direction: column; }
 .analysis-metric > span { color: var(--muted); font-size: 11px; }
 .analysis-metric strong { font: 800 25px 'Manrope'; margin: 12px 0 4px; }
@@ -619,6 +638,7 @@ button { cursor: pointer; }
   .analysis-periods button { flex: 0 0 auto; }
   .analysis-metrics { grid-template-columns: repeat(2, 1fr); }
   .goal-compliance { grid-template-columns: 1fr; }
+  .cross-progress { grid-template-columns: 1fr; }
   .analysis-columns { grid-template-columns: 1fr; }
   .point-progress.compact { width: 100%; min-width: 0; }
   .analysis-dashboard .period-heading { flex-direction: column; gap: 12px; }

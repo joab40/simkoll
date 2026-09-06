@@ -39,13 +39,14 @@ export default async function handler(request, response) {
   const sessionQueryStart = profileId && requestMonday < previousStartDay ? requestMonday : previousStartDay
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
-    const [responsesResult, sessionsResult, activityResult, goalsResult] = await Promise.all([
+    const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult] = await Promise.all([
       supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
+      profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
     ])
-    if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok)) throw new Error('Analytics lookup failed')
+    if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
     const responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json()
     const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < start)
     const currentStartDay = stockholmKey(start)
@@ -64,7 +65,7 @@ export default async function handler(request, response) {
       buckets.set(key, [...(buckets.get(key) || []), item])
     })
     const privateView = Boolean(profileId)
-    let goalProgress = null, currentWeekGoal = null
+    let goalProgress = null, currentWeekGoal = null, crossProgress = null, currentCrossGoals = null
     if (profileId) {
       const goals = await goalsResult.json(), today = requestToday, currentMonday = requestMonday
       const periodStart = stockholmKey(start), periodEnd = stockholmKey(end)
@@ -83,6 +84,23 @@ export default async function handler(request, response) {
         const actual = sessions.filter((session) => session.activity_type === 'swim' && session.session_date >= currentMonday && session.session_date < addDays(currentMonday, 7)).length
         currentWeekGoal = { target: active.target_sessions_per_week, completed: actual, remaining: Math.max(0, active.target_sessions_per_week - actual), percentage: Math.round((actual / active.target_sessions_per_week) * 100) }
       }
+      const crossGoals = await crossGoalsResult.json()
+      const totals = { strength: { expected: 0, completed: 0, weeksReached: 0, weeksCount: 0 }, dryland: { expected: 0, completed: 0, weeksReached: 0, weeksCount: 0 } }
+      crossGoals.forEach((goal) => {
+        const goalEnd = goal.end_date || addDays(currentMonday, -1)
+        for (let monday = mondayOnOrAfter(goal.start_date); addDays(monday, 6) <= goalEnd && monday < periodEnd && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
+          if (monday < periodStart) continue
+          ;[['strength', goal.strength_sessions_per_week], ['dryland', goal.dryland_sessions_per_week]].forEach(([type, target]) => {
+            if (!target) return
+            const actual = sessions.filter((session) => session.activity_type === type && session.session_date >= monday && session.session_date < addDays(monday, 7)).length
+            totals[type].expected += target; totals[type].completed += actual; totals[type].weeksCount += 1
+            if (actual >= target) totals[type].weeksReached += 1
+          })
+        }
+      })
+      crossProgress = Object.fromEntries(Object.entries(totals).map(([type, item]) => [type, item.weeksCount ? { ...item, percentage: Math.round((item.completed / item.expected) * 100) } : null]))
+      const activeCross = crossGoals.find((goal) => goal.start_date <= today && (!goal.end_date || goal.end_date >= today))
+      if (activeCross) currentCrossGoals = Object.fromEntries([['strength', activeCross.strength_sessions_per_week], ['dryland', activeCross.dryland_sessions_per_week]].map(([type, target]) => { const completed = sessions.filter((session) => session.activity_type === type && session.session_date >= currentMonday && session.session_date < addDays(currentMonday, 7)).length; return [type, { target, completed, remaining: Math.max(0, target - completed), percentage: target ? Math.round((completed / target) * 100) : 0 }] }))
     }
     return sendJson(response, 200, {
       current: metrics(currentResponses, currentSessions, currentActivities, privateView),
@@ -90,7 +108,7 @@ export default async function handler(request, response) {
       trend: [...buckets.entries()].map(([date, rows]) => ({ date, count: rows.length, feeling: privateView || rows.length >= 3 ? mean(rows, 'feeling') : null, body: privateView || rows.length >= 3 ? mean(rows, 'body') : null, rpe: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'rpe') : null })),
       recent: privateView ? currentResponses.filter((item) => item.comment).slice(-10).reverse().map((item) => ({ date: item.created_at, feeling: item.feeling, comment: item.comment })) : [],
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
-      goalProgress, currentWeekGoal,
+      goalProgress, currentWeekGoal, crossProgress, currentCrossGoals,
     })
   } catch (error) {
     console.error(error)

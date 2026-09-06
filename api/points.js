@@ -10,6 +10,8 @@ const POINT_RULES = [
   { activity: 'Utvecklingsmål klart', points: 20, limit: 'Efter tränarens bedömning' },
   { activity: 'Programmål klart', points: '5, 10 eller 20', limit: 'Efter tränarens godkännande' },
   { activity: 'Veckans simmål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
+  { activity: 'Veckans styrkemål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
+  { activity: 'Veckans landträningsmål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
 ]
 
 export default async function handler(request, response) {
@@ -77,9 +79,12 @@ export default async function handler(request, response) {
     const total = events.reduce((sum, event) => sum + event.points, 0)
     const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
     const next = levels.find((level) => level.min_points > total) || null
+    const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸' }
+    const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
       total, current: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null,
       next: next ? { name: next.name, emoji: next.emoji, minPoints: next.min_points } : null,
+      recentRewards,
     })
   } catch (error) {
     console.error(error)

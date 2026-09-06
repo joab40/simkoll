@@ -6,19 +6,21 @@ const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, titl
 
 async function loadTraining(profileId = null) {
   const profileFilter = profileId ? `&profile_id=eq.${profileId}` : ''
-  const [goalsResult, sessionsResult, assignmentsResult, programsResult, programGoalsResult] = await Promise.all([
+  const [goalsResult, crossGoalsResult, sessionsResult, assignmentsResult, programsResult, programGoalsResult] = await Promise.all([
     supabaseRequest(`season_swim_goals?select=*${profileFilter}&order=start_date.desc`),
+    supabaseRequest(`cross_training_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
     supabaseRequest(`program_assignments?select=*${profileFilter}`),
     supabaseRequest('training_programs?select=*&order=created_at.desc'),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
   ])
-  if (![goalsResult, sessionsResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')
+  if (![goalsResult, crossGoalsResult, sessionsResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')
   const assignments = await assignmentsResult.json()
   const allowedAssignments = new Set(assignments.map((item) => item.id))
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
+    crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
     sessions: (await sessionsResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at })),
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     programGoals: (await programGoalsResult.json()).filter((item) => !profileId || allowedAssignments.has(item.assignment_id)).map((item) => ({ id: item.id, assignmentId: item.assignment_id, title: item.title, description: item.description, rewardPoints: item.reward_points, status: item.status, coachFeedback: item.coach_feedback || '', submittedAt: item.submitted_at, approvedAt: item.approved_at })),
@@ -33,7 +35,7 @@ const mondayOnOrAfter = (date) => { const value = new Date(`${date}T12:00:00Z`);
 async function awardCompletedWeeks(data, profileId) {
   const currentMonday = currentWeekStart()
   const filter = profileId ? `&profile_id=eq.${profileId}` : ''
-  const result = await supabaseRequest(`point_events?event_type=eq.weekly_goal${filter}&select=source_key&limit=10000`)
+  const result = await supabaseRequest(`point_events?event_type=in.(weekly_goal,strength_weekly_goal,dryland_weekly_goal)${filter}&select=source_key&limit=10000`)
   if (!result.ok) throw new Error('Weekly rewards lookup failed')
   const existing = new Set((await result.json()).map((item) => item.source_key))
   const awards = []
@@ -43,6 +45,17 @@ async function awardCompletedWeeks(data, profileId) {
       const end = addDays(monday, 7)
       const completed = data.sessions.filter((session) => session.profileId === goal.profileId && session.type === 'swim' && session.date >= monday && session.date < end).length
       if (completed >= goal.target && !existing.has(sourceKey)) { existing.add(sourceKey); awards.push(awardPoints(goal.profileId, 'weekly_goal', 5, sourceKey)) }
+    }
+  })
+  data.crossGoals.forEach((goal) => {
+    const goalEnd = goal.endDate || addDays(currentMonday, -1)
+    for (let monday = mondayOnOrAfter(goal.startDate); addDays(monday, 6) <= goalEnd && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
+      ;[['strength', goal.strengthTarget, 'strength_weekly_goal'], ['dryland', goal.drylandTarget, 'dryland_weekly_goal']].forEach(([type, target, eventType]) => {
+        if (!target) return
+        const sourceKey = `${eventType}:${goal.id}:${monday}`, end = addDays(monday, 7)
+        const completed = data.sessions.filter((session) => session.profileId === goal.profileId && session.type === type && session.date >= monday && session.date < end).length
+        if (completed >= target && !existing.has(sourceKey)) { existing.add(sourceKey); awards.push(awardPoints(goal.profileId, eventType, 5, sourceKey)) }
+      })
     }
   })
   await Promise.all(awards)
@@ -58,6 +71,23 @@ function currentWeekStart() {
   const today = new Date(`${stockholmDate()}T12:00:00Z`)
   today.setUTCDate(today.getUTCDate() - ((today.getUTCDay() + 6) % 7))
   return today.toISOString().slice(0, 10)
+}
+
+async function trainingCheer(profileId, slot) {
+  const type = slot.includes('swim') ? 'swim' : slot
+  const targetResult = type === 'swim'
+    ? await supabaseRequest(`season_swim_goals?profile_id=eq.${profileId}&active=eq.true&start_date=lte.${stockholmDate()}&end_date=gte.${stockholmDate()}&select=target_sessions_per_week&limit=1`)
+    : await supabaseRequest(`cross_training_goals?profile_id=eq.${profileId}&start_date=lte.${stockholmDate()}&or=(end_date.is.null,end_date.gte.${stockholmDate()})&select=strength_sessions_per_week,dryland_sessions_per_week&order=start_date.desc&limit=1`)
+  if (!targetResult.ok) return null
+  const [goal] = await targetResult.json()
+  const target = type === 'swim' ? goal?.target_sessions_per_week : type === 'strength' ? goal?.strength_sessions_per_week : goal?.dryland_sessions_per_week
+  const sessionsResult = await supabaseRequest(`personal_training_sessions?profile_id=eq.${profileId}&activity_type=eq.${type}&session_date=gte.${currentWeekStart()}&session_date=lt.${addDays(currentWeekStart(), 7)}&select=id`)
+  if (!sessionsResult.ok) return null
+  const count = (await sessionsResult.json()).length
+  const label = type === 'swim' ? 'simpass' : type === 'strength' ? 'styrkepass' : 'landträningar'
+  if (target && count >= target) return `Grymt jobbat! Veckans mål är klart: ${count} av ${target} ${label}. 🎉`
+  if (target) return `Bra jobbat! ${count} av ${target} ${label} klara den här veckan. ${target - count} kvar. 💪`
+  return `Passet är registrerat. Bra att du håller koll på din träning! ✓`
 }
 
 export default async function handler(request, response) {
@@ -114,7 +144,7 @@ export default async function handler(request, response) {
           const result = await supabaseRequest(`personal_training_sessions?${filter}`, { method: 'DELETE' })
           if (!result.ok) throw new Error(`Session delete failed: ${result.status}`)
         }
-        return sendJson(response, 200, { ok: true })
+        return sendJson(response, 200, { ok: true, message: request.body.completed === true ? await trainingCheer(profile.id, slot) : null })
       }
       if (action === 'submit-program-goal') {
         const result = await supabaseRequest(`program_goals?id=eq.${request.body.goalId}&status=in.(active,continue)&select=assignment_id&limit=1`)
@@ -142,6 +172,16 @@ export default async function handler(request, response) {
         if (!assignmentResult.ok) throw new Error(`Program assignment failed: ${assignmentResult.status}`)
       }
       return sendJson(response, 201, { program: mapProgram(program) })
+    }
+    if (action === 'cross-goals') {
+      const profileId = String(request.body.profileId || ''), strength = Number(request.body.strengthTarget), dryland = Number(request.body.drylandTarget)
+      if (!profileId || !Number.isInteger(strength) || strength < 0 || strength > 7 || !Number.isInteger(dryland) || dryland < 0 || dryland > 7) return sendJson(response, 400, { error: 'Målen ska vara mellan 0 och 7 pass per vecka.' })
+      const startDate = addDays(currentWeekStart(), 7), previousEnd = addDays(startDate, -1)
+      const closeResult = await supabaseRequest(`cross_training_goals?profile_id=eq.${profileId}&start_date=lt.${startDate}&end_date=is.null`, { method: 'PATCH', body: JSON.stringify({ end_date: previousEnd }) })
+      if (!closeResult.ok) throw new Error('Cross goal close failed')
+      const result = await supabaseRequest('cross_training_goals?on_conflict=profile_id,start_date', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ profile_id: profileId, strength_sessions_per_week: strength, dryland_sessions_per_week: dryland, start_date: startDate, end_date: null }) })
+      if (!result.ok) throw new Error(`Cross goal insert failed: ${result.status}`)
+      return sendJson(response, 201, { ok: true, startDate })
     }
     if (action === 'assign') {
       const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ program_id: request.body.programId, profile_id: request.body.profileId }) })
