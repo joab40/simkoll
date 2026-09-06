@@ -79,7 +79,19 @@ function App() {
       .catch(() => { setWorkout(null); setWorkoutLocked(false) })
   }, [auth, profile])
 
-  if (!auth) return <Login onLogin={(nextAuth) => { setAuth(nextAuth); setScreen(nextAuth.role === 'swimmer' ? 'account' : 'home') }} />
+  if (!auth) return <Login onLogin={async (nextAuth) => {
+    setAuth(nextAuth)
+    if (nextAuth.role !== 'swimmer') { setScreen('home'); return }
+    setScreen('restoring-profile')
+    try {
+      const data = await apiRequest('/api/profiles', nextAuth.code)
+      setProfile(data.profile)
+      setScreen('home')
+    } catch {
+      setProfile(null)
+      setScreen('account')
+    }
+  }} />
 
   const logout = () => {
     setAuth(null)
@@ -103,6 +115,7 @@ function App() {
 
   return (
     <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onProfile={() => setScreen('profile')} onLogout={logout}>
+      {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
       {screen === 'account' && <AccountChoice
         onAnonymous={() => { setProfile(null); setScreen('home') }}
         onLogin={() => setScreen('profile-login')}
@@ -196,7 +209,7 @@ function Login({ onLogin }) {
       })
       const data = await result.json()
       if (!result.ok) throw new Error(data.error)
-      onLogin({ role: data.role, code })
+      await onLogin({ role: data.role, code })
     } catch (loginError) {
       setError(loginError.message || 'Kunde inte logga in.')
     } finally {
@@ -284,20 +297,17 @@ function Home({ responses, profile, points, training, workout, workoutLocked, ac
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count">● {activeProfilesToday} profiler inne idag</span>}</div>
       </section>
 
+      {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} onOpen={onGoals} />}
-
-      <section className="start-card">
-        <div>
-          <p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p>
-          <h2>Hur är läget?</h2>
-          <p>Det tar mindre än 20 sekunder.</p>
-        </div>
-        <button className="primary-button" onClick={onStart}>Checka in <span>→</span></button>
-      </section>
+      {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
+}
+
+function StartCard({ profile, onStart }) {
+  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>Hur är läget?</h2><p>Det tar mindre än 20 sekunder.</p></div><button className="primary-button" onClick={onStart}>Checka in <span>→</span></button></section>
 }
 
 function weekStart(date = new Date()) {
