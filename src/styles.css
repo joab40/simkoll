@@ -598,7 +598,7 @@ button { cursor: pointer; }
 .analysis-periods { display: inline-flex; padding: 4px; gap: 3px; background: #dfeae7; border-radius: 13px; margin-bottom: 15px; }
 .analysis-periods button { min-height: 38px; padding: 0 15px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; }
 .analysis-periods button.active { background: white; color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
-.analysis-metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; margin-bottom: 12px; }
+.analysis-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 9px; margin-bottom: 12px; }
 .goal-compliance { order: 2; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
 .goal-compliance > div { background: #edf5f2; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; }
 .goal-compliance strong { font: 800 21px 'Manrope'; }

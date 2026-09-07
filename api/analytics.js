@@ -15,6 +15,8 @@ const metrics = (responses, sessions, activities, privateView) => {
   return {
     checkins: responses.length,
     activeDays: new Set(activities.map((item) => item.activity_date)).size,
+    sickDays: new Set(responses.filter((item) => item.day_type === 'sick').map((item) => stockholmKey(item.created_at))).size,
+    restDays: new Set(responses.filter((item) => item.day_type === 'rest').map((item) => stockholmKey(item.created_at))).size,
     swimSessions: sessions.filter((item) => item.activity_type === 'swim').length,
     strengthSessions: sessions.filter((item) => item.activity_type === 'strength').length,
     drylandSessions: sessions.filter((item) => item.activity_type === 'dryland').length,
