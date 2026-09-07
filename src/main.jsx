@@ -52,6 +52,7 @@ function App() {
   const [profiles, setProfiles] = useState([])
   const [pendingProfiles, setPendingProfiles] = useState([])
   const [workout, setWorkout] = useState(null)
+  const [tomorrowWorkout, setTomorrowWorkout] = useState(null)
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
   const [points, setPoints] = useState(null)
@@ -74,11 +75,12 @@ function App() {
   }, [auth])
 
   useEffect(() => {
-    if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
+    if (!auth || !profile) { setWorkout(null); setTomorrowWorkout(null); setWorkoutLocked(false); return }
     ;(async () => {
       const trainingData = await apiRequest('/api/training', auth.code)
-      const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
-      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setTraining(trainingData)
+      const tomorrow = dateKey(new Date(Date.now() + 86400000))
+      const [workoutData, tomorrowData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setTraining(trainingData)
     })().catch(() => { setWorkout(null); setWorkoutLocked(false) })
   }, [auth, profile])
 
@@ -103,6 +105,7 @@ function App() {
     setProfiles([])
     setPendingProfiles([])
     setWorkout(null)
+    setTomorrowWorkout(null)
     setWorkoutLocked(false)
     setActiveProfilesToday(0)
     setPoints(null)
@@ -138,7 +141,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -157,9 +160,11 @@ function App() {
             setResponses((current) => [...current, result.response])
             if (profile) {
               const trainingData = await apiRequest('/api/training', auth.code)
-              const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+              const tomorrow = dateKey(new Date(Date.now() + 86400000))
+              const [workoutData, tomorrowData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
               setWorkout(workoutData.workout)
               setWorkoutLocked(workoutData.locked)
+              setTomorrowWorkout(tomorrowData.workout)
               setActiveProfilesToday(activityData.activeProfilesToday)
               setPoints(pointsData)
               setTraining(trainingData)
@@ -168,7 +173,7 @@ function App() {
           }}
         />
       )}
-      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} onDone={() => setScreen('home')} />}
+      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} tomorrowWorkout={tomorrowWorkout} onDone={() => setScreen('home')} />}
       {screen === 'community' && <Community profile={profile} code={auth.code} points={points} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onBack={() => setScreen('home')} onProfileLogout={async () => {
@@ -320,7 +325,7 @@ function Faq({ role, onBack }) {
   return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
 }
 
-function Home({ responses, profile, points, training, workout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onTogglePlan, onStart }) {
+function Home({ responses, profile, points, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -339,6 +344,7 @@ function Home({ responses, profile, points, training, workout, workoutLocked, ac
 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
+      {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
@@ -427,6 +433,10 @@ function WorkoutCard({ workout, locked }) {
       {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
+}
+
+function TomorrowWorkoutCard({ workout }) {
+  return <section className="tomorrow-card"><div><p className="eyebrow">Imorgon</p><h2>{workout.title}</h2><p>{workout.content}</p></div><span>🔓</span></section>
 }
 
 function AccountChoice({ onAnonymous, onLogin, onCreate }) {
@@ -751,7 +761,7 @@ function getQuestions(type) {
   ]
 }
 
-function Thanks({ responses, profile, identified, workout, onDone }) {
+function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDone }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="thanks-page">
@@ -760,6 +770,7 @@ function Thanks({ responses, profile, identified, workout, onDone }) {
       <h1>Tack för din check-in!</h1>
       <p>{identified ? 'Svaret har sparats i din profil.' : 'Svaret är anonymt och hjälper tränaren att göra passen bättre.'}</p>
       {profile && workout && <p className="unlock-message">🔓 Dagens pass är upplåst!</p>}
+      {profile && tomorrowWorkout && <div className="tomorrow-thanks"><strong>🔓 Morgondagens pass är också upplåst!</strong><h3>{tomorrowWorkout.title}</h3><p>{tomorrowWorkout.content}</p></div>}
       <div className="mini-moods">{todayResponses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
       <button className="primary-button" onClick={onDone}>{profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
     </div>

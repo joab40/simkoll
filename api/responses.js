@@ -50,6 +50,12 @@ function fromDatabase(response, includeDetails) {
   }
 }
 
+function tomorrowDate() {
+  const now = new Date()
+  now.setDate(now.getDate() + 1)
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(now)
+}
+
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
@@ -90,6 +96,13 @@ export default async function handler(request, response) {
           body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: stockholmDate() }),
         })
         if (!unlockResult.ok) console.error(`Workout unlock failed: ${unlockResult.status} ${await unlockResult.text()}`)
+        if (request.body.type === 'after') {
+          const tomorrowUnlock = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
+            method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
+            body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: tomorrowDate() }),
+          })
+          if (!tomorrowUnlock.ok) console.error(`Tomorrow workout unlock failed: ${tomorrowUnlock.status} ${await tomorrowUnlock.text()}`)
+        }
         if (request.body.type === 'after' && request.body.registerTraining === true) {
           const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
           const trainingResult = await supabaseRequest('personal_training_sessions', {

@@ -79,6 +79,13 @@ button { cursor: pointer; }
 .workout-body aside { background: #edf6f3; border-radius: 11px; padding: 13px 15px; color: #52676b; font-size: 13px; }
 .workout-body aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .workout-empty > p { color: var(--muted); align-self: center; }
+.tomorrow-card { margin-top: 12px; background: linear-gradient(120deg, #e5f4ef, #f2f7d9); border: 1px solid #cbded5; border-radius: 20px; padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.tomorrow-card h2 { margin: 0 0 8px; font-size: 23px; }
+.tomorrow-card p:last-child { color: #506469; white-space: pre-wrap; margin: 0; line-height: 1.5; }
+.tomorrow-card > span { font-size: 30px; }
+.tomorrow-thanks { background: #eaf5db; border-radius: 15px; padding: 16px; margin: 20px 0; text-align: left; }
+.tomorrow-thanks h3 { margin: 7px 0; }
+.tomorrow-thanks p { white-space: pre-wrap; color: var(--muted); margin: 0; line-height: 1.5; }
 .locked-workout { border-left: 1px solid #dce7e4; padding-left: 35px; display: flex; align-items: center; gap: 14px; }
 .locked-workout > span { width: 42px; height: 42px; display: grid; place-items: center; background: #edf5f2; border-radius: 50%; }
 .locked-workout > div { display: flex; flex-direction: column; }
