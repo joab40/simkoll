@@ -64,10 +64,12 @@ export async function awardArtifact(profileId, artifactKey) {
   const [artifact] = await catalog.json()
   if (!artifact) return
   const result = await supabaseRequest('profile_artifacts?on_conflict=profile_id,artifact_id', {
-    method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
+    method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
     body: JSON.stringify({ profile_id: profileId, artifact_id: artifact.id, source: 'automatic' }),
   })
   if (!result.ok) throw new Error(`Artifact insert failed: ${result.status}`)
+  const inserted = await result.json()
+  if (inserted.length) await awardPoints(profileId, 'artifact', 1, artifact.id)
 }
 
 function readCookie(request, name) {

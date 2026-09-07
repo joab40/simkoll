@@ -1,5 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
-import { getSessionProfile } from '../server/profile-auth.js'
+import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 
 const POINT_RULES = [
   { activity: 'Daglig aktivitet', points: 1, limit: 'En gång per dag' },
@@ -13,6 +13,7 @@ const POINT_RULES = [
   { activity: 'Veckans styrkemål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
   { activity: 'Veckans landträningsmål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
   { activity: 'Veckoplanering', points: 2, limit: 'Minst tre planerade träningsdagar · en gång per vecka' },
+  { activity: 'Ny artefakt', points: 1, limit: 'En gång per unik artefakt' },
 ]
 
 export default async function handler(request, response) {
@@ -32,7 +33,9 @@ export default async function handler(request, response) {
         if (!artifact || !(await profileResult.json()).length) return sendJson(response, 404, { error: 'Artefakten eller profilen kunde inte hittas.' })
         const result = await supabaseRequest('profile_artifacts?on_conflict=profile_id,artifact_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, artifact_id: artifact.id, source: 'coach' }) })
         if (!result.ok) throw new Error(`Artifact grant failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 201, { ok: true, alreadyAssigned: !(await result.json()).length })
+        const inserted = await result.json()
+        if (inserted.length) await awardPoints(profileId, 'artifact', 1, artifact.id)
+        return sendJson(response, 201, { ok: true, alreadyAssigned: !inserted.length })
       }
       if (action === 'add-level') {
         const name = String(request.body.name || '').trim(), emoji = String(request.body.emoji || '').trim(), minPoints = Number(request.body.minPoints)
@@ -65,6 +68,13 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
+    if (role === 'swimmer' && request.query?.artifacts === 'true') {
+      const profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 403, { error: 'Logga in för att se dina artefakter.' })
+      const result = await supabaseRequest(`profile_artifacts?profile_id=eq.${profile.id}&select=id,source,created_at,artifact_catalog(id,artifact_key,name,emoji,description)&order=created_at.desc`)
+      if (!result.ok) throw new Error(`Swimmer artifacts lookup failed: ${result.status}`)
+      return sendJson(response, 200, { artifacts: (await result.json()).map((item) => ({ id: item.id, key: item.artifact_catalog?.artifact_key, name: item.artifact_catalog?.name, emoji: item.artifact_catalog?.emoji, description: item.artifact_catalog?.description, awardedAt: item.created_at, source: item.source })).filter((item) => item.key) })
+    }
     if (role === 'coach' && request.query?.artifacts === 'true') {
       const [catalogResult, assignmentsResult] = await Promise.all([
         supabaseRequest('artifact_catalog?select=id,artifact_key,name,emoji,description&order=created_at.asc'),

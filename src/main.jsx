@@ -655,15 +655,18 @@ function MyGoals({ code, onTrainingChange, onBack }) {
 
 function MyProfile({ profile, points, code, onBack, onProfileLogout }) {
   const [responses, setResponses] = useState([])
+  const [artifacts, setArtifacts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAnalytics, setShowAnalytics] = useState(false)
   useEffect(() => {
     apiRequest('/api/responses?mine=true', code).then((data) => setResponses(data.responses)).finally(() => setLoading(false))
+    apiRequest('/api/points?artifacts=true', code).then((data) => setArtifacts(data.artifacts || [])).catch(() => {})
   }, [code])
   return (
     <div className="my-profile-page">
       <button className="back-button" onClick={onBack}>← Tillbaka</button>
       <section className="profile-summary"><span>{profile.emoji}</span><div><p className="eyebrow">Min profil</p><h1>{profile.displayName}</h1><small>@{profile.username}</small></div>{points?.current && <div className="profile-level"><b>{points.current.emoji} {points.current.name}</b><span>{points.total} poäng</span></div>}</section>
+      <section className="artifact-collection"><div><p className="eyebrow">Min samling</p><h2>Artefakter</h2><small>Små bevis på vanor, utveckling och lagkänsla.</small></div>{artifacts.length ? <div className="artifact-grid">{artifacts.map((artifact) => <article key={artifact.id} title={artifact.description}><span>{artifact.emoji}</span><strong>{artifact.name}</strong><small>{new Date(artifact.awardedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></article>)}</div> : <p className="empty">Din samling är tom än så länge.</p>}</section>
       <section className="my-history">
         <div><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></div>
         {loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}
