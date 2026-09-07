@@ -287,7 +287,7 @@ function Login({ onLogin }) {
 function Shell({ children, profile, onCommunity, onGoals, onHelp, onProfile, onLogout }) {
   return (
     <main className="app-shell">
-      <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="feed-link" onClick={onGoals}>Mina mål</button>}<button className="feed-link" onClick={onHelp}>FAQ</button>{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}<button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
+      <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="feed-link" onClick={onGoals}>Mina mål</button>}<button className="feed-link" onClick={onHelp}>FAQ</button>{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={onLogout}>Logga ut</button>}</div></header>
       {children}
     </main>
   )
