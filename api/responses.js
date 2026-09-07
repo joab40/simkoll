@@ -7,7 +7,7 @@ const numberFields = {
 }
 
 function validate(body) {
-  if (!['before', 'after', 'rest'].includes(body.type)) return false
+  if (!['before', 'after', 'rest', 'sick'].includes(body.type)) return false
   if (!Number.isInteger(body.feeling) || body.feeling < 1 || body.feeling > 5) return false
   if (body.pass != null && ![1, 3, 5].includes(body.pass)) return false
   if (body.setup != null && ![1, 3, 5].includes(body.setup)) return false
