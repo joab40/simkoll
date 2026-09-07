@@ -656,6 +656,9 @@ button { cursor: pointer; }
   .app-shell > header .header-actions { flex: 1 0 100%; justify-content: flex-start; flex-wrap: wrap; gap: 6px 11px; }
   .app-shell > header .feed-link { padding: 5px 0; }
   .page-content { padding-top: 16px; }
+  .coach-private-message form { grid-template-columns: 1fr; }
+  .coach-private-message form .primary-button { width: 100%; }
+  .coach-private-message textarea { min-height: 90px; }
   .mood-hero { padding: 31px 23px 25px; border-radius: 23px; }
   .emoji-cloud { gap: 3px; }
   .start-card { padding: 24px; display: block; }
