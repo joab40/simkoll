@@ -445,9 +445,15 @@ button { cursor: pointer; }
 .swimmer-details p strong { font-size: 12px; }
 .swimmer-details p small { color: var(--muted); font-size: 10px; line-height: 1.35; }
 .swimmer-card > button { width: 100%; min-height: 39px; border: 1px solid #cddcd8; border-radius: 10px; background: white; font-size: 12px; }
-.swimmer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.swimmer-actions { display: grid; grid-template-columns: 1fr; gap: 7px; }
 .swimmer-actions button { min-height: 39px; border: 1px solid #cddcd8; border-radius: 10px; background: white; font-size: 12px; }
 .swimmer-actions .view-stats { background: var(--teal); color: white; border-color: var(--teal); font-weight: 700; }
+.profile-tools { margin-top: 9px; border-top: 1px solid #e0eae7; padding-top: 10px; }
+.profile-tools summary { cursor: pointer; color: var(--muted); font-size: 11px; font-weight: 700; list-style-position: inside; }
+.profile-tools[open] summary { color: var(--teal); margin-bottom: 8px; }
+.profile-tools > div { display: grid; gap: 7px; }
+.profile-tools > div > button { width: 100%; min-height: 36px; border: 1px solid #cddcd8; border-radius: 9px; background: white; font-size: 11px; }
+.profile-tools .test-profile-toggle, .profile-tools .delete-profile-button { margin-top: 0; }
 .reset-banner { background: var(--ink); color: white; border-radius: 16px; padding: 16px 18px; margin-bottom: 13px; display: grid; grid-template-columns: 42px 1fr auto; align-items: center; }
 .reset-banner > span { font-size: 30px; }
 .reset-banner > div { display: flex; flex-direction: column; }
