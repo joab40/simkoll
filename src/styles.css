@@ -14,7 +14,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; }
 button, input, textarea { font: inherit; }
 button { color: inherit; }
 h1, h2, p { margin-top: 0; }
@@ -581,6 +581,10 @@ button { cursor: pointer; }
   .login-card { padding: 30px 24px 24px; border-radius: 25px; }
   .login-copy { margin: 50px 0 34px; }
   .app-shell > header, .coach-shell > header { padding: 0 18px; }
+  .app-shell > header { height: auto; min-height: 72px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+  .app-shell > header .club-brand { flex: 1 1 auto; min-width: 0; }
+  .app-shell > header .header-actions { flex: 1 0 100%; justify-content: flex-end; flex-wrap: wrap; gap: 6px 11px; }
+  .app-shell > header .feed-link { padding: 5px 0; }
   .page-content { padding-top: 16px; }
   .mood-hero { padding: 31px 23px 25px; border-radius: 23px; }
   .emoji-cloud { gap: 3px; }
