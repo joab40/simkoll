@@ -377,7 +377,7 @@ function NotificationCard({ profile, notifications, onChange, onCommunity, onGoa
     window.localStorage.setItem(storageKey, JSON.stringify([...next].slice(-100)))
     onChange(notifications.filter((entry) => entry.id !== item.id))
   }
-  const open = (item) => { dismiss(item); if (item.type === 'goal') onGoals(); else onCommunity() }
+  const open = (item) => { dismiss(item); if (item.type === 'goal') onGoals(); else if (item.type !== 'artifact') onCommunity() }
   return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => dismiss(item)}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => unread.forEach(dismiss)}>Markera alla som lästa</button>}</section>
 }
 
@@ -1182,6 +1182,10 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [reset, setReset] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePoints, setProfilePoints] = useState({})
+  const [artifactCatalog, setArtifactCatalog] = useState([])
+  const [artifactAssignments, setArtifactAssignments] = useState([])
+  const [artifactStatus, setArtifactStatus] = useState({})
+  useEffect(() => { apiRequest('/api/artifacts', code).then((data) => { setArtifactCatalog(data.catalog || []); setArtifactAssignments(data.assignments || []) }).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
   const reviewProfile = async (profile, approved) => {
     if (!approved && !confirmDestructive(`Profilförfrågan från “${profile.displayName}” tas bort. Användarnamnet blir ledigt igen.`)) return
@@ -1196,6 +1200,14 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       setReset({ profile, code: data.resetCode })
     } catch (error) { window.alert(error.message) }
   }
+  const grantArtifact = async (profile, artifact) => {
+    setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: 'Sparar…' }))
+    try {
+      const result = await apiRequest('/api/artifacts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileId: profile.id, artifactKey: artifact.artifact_key }) })
+      if (!result.alreadyAssigned) setArtifactAssignments((current) => [...current, { profile_id: profile.id, artifact_id: artifact.id }])
+      setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: result.alreadyAssigned ? 'Redan tilldelad' : 'Tilldelad ✓' }))
+    } catch (error) { setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: error.message })) }
+  }
 
   if (selectedProfile) return <AnalysisDashboard code={code} profile={selectedProfile} pointInfo={profilePoints[selectedProfile.id]} onBack={() => setSelectedProfile(null)} />
   return (
@@ -1209,12 +1221,15 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const after = items.filter((item) => item.type === 'after')
         const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
         const status = todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: ['before', '→ Ska träna idag'], after: ['after', '✓ Har tränat idag'] }[todayItem.type])
+        const earnedArtifacts = artifactAssignments.filter((item) => item.profile_id === profile.id).map((item) => artifactCatalog.find((artifact) => artifact.id === item.artifact_id)).filter(Boolean)
         return <article key={profile.id} className="swimmer-card">
           <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
           {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
+          {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
           {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
           <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
           {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
+          {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>Ge artefakt</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); return <button key={artifact.id} disabled={assigned || artifactStatus[key] === 'Sparar…'} className={assigned ? 'assigned' : ''} onClick={() => grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{artifact.name}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
           <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button><button onClick={() => createReset(profile)}>Återställ PIN</button></div>
         </article>
       })}</div> : <EmptyPeriod title="Inga profiler ännu" periodLabel="Simmare" />}

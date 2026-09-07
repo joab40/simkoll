@@ -373,6 +373,15 @@ button { cursor: pointer; }
 .swimmer-status.rest { background: #f1f2ed; color: #737b70; }
 .swimmer-status.before { background: #edf3ff; color: #496ba1; }
 .swimmer-status.after { background: #eaf4cf; color: #637c22; }
+.swimmer-artifacts { display: flex; gap: 5px; margin: 10px 0 2px; }
+.swimmer-artifacts span { display: grid; place-items: center; width: 29px; height: 29px; background: #fff4c9; border-radius: 50%; font-size: 17px; }
+.artifact-picker { margin: 13px 0; border-top: 1px solid #e0eae7; padding-top: 11px; }
+.artifact-picker summary { cursor: pointer; color: var(--teal); font-weight: 700; font-size: 11px; }
+.artifact-picker > div { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+.artifact-picker button { display: grid; grid-template-columns: 22px 1fr; gap: 3px; align-items: center; border: 1px solid #d6e2df; border-radius: 8px; background: white; padding: 7px; text-align: left; font-size: 16px; cursor: pointer; }
+.artifact-picker button span { font-size: 10px; font-weight: 700; }
+.artifact-picker button small { grid-column: 2; color: var(--teal); font-size: 9px; }
+.artifact-picker button.assigned { background: #fff4c9; opacity: .7; cursor: not-allowed; }
 .swimmer-level { margin-left: auto; border-radius: 20px; background: #edf5f2; padding: 7px 10px; color: var(--teal); font-size: 11px; white-space: nowrap; }
 .point-progress { margin: 14px 0; padding: 13px; background: #edf5f2; border-radius: 12px; }
 .point-progress > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
