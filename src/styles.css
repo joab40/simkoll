@@ -368,6 +368,11 @@ button { cursor: pointer; }
 .swimmer-name > span { width: 48px; height: 48px; display: grid; place-items: center; background: #e3f2ee; border-radius: 50%; font-size: 28px; }
 .swimmer-name > div { display: flex; flex-direction: column; }
 .swimmer-name small { color: var(--muted); }
+.swimmer-status { margin: 14px 0 4px; padding: 9px 11px; border-radius: 10px; font-size: 12px; font-weight: 800; background: #eaf4f1; color: var(--teal); }
+.swimmer-status.sick { background: #fff0ed; color: #a95454; }
+.swimmer-status.rest { background: #f1f2ed; color: #737b70; }
+.swimmer-status.before { background: #edf3ff; color: #496ba1; }
+.swimmer-status.after { background: #eaf4cf; color: #637c22; }
 .swimmer-level { margin-left: auto; border-radius: 20px; background: #edf5f2; padding: 7px 10px; color: var(--teal); font-size: 11px; white-space: nowrap; }
 .point-progress { margin: 14px 0; padding: 13px; background: #edf5f2; border-radius: 12px; }
 .point-progress > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
