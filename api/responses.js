@@ -1,5 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
-import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
+import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 const numberFields = {
   feeling: [1, 5], energy: [1, 5], body: [1, 5], motivation: [1, 5],
@@ -91,6 +91,7 @@ export default async function handler(request, response) {
       if (sessionProfile) {
         await touchProfileActivity(sessionProfile.id)
         await awardPoints(sessionProfile.id, 'checkin', 3, stockholmDate())
+        await awardArtifact(sessionProfile.id, 'first_step')
         const unlockResult = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
           method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
           body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: stockholmDate() }),

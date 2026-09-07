@@ -1,5 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
-import { awardPoints, getSessionProfile, stockholmDate } from '../server/profile-auth.js'
+import { awardArtifact, awardPoints, getSessionProfile, stockholmDate } from '../server/profile-auth.js'
 
 const mapProgram = (program) => ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active })
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -46,7 +46,7 @@ async function awardCompletedWeeks(data, profileId) {
       const sourceKey = `weekly:${goal.id}:${monday}`
       const end = addDays(monday, 7)
       const completed = data.sessions.filter((session) => session.profileId === goal.profileId && session.type === 'swim' && session.date >= monday && session.date < end).length
-      if (completed >= goal.target && !existing.has(sourceKey)) { existing.add(sourceKey); awards.push(awardPoints(goal.profileId, 'weekly_goal', 5, sourceKey)) }
+      if (completed >= goal.target && !existing.has(sourceKey)) { existing.add(sourceKey); awards.push(awardPoints(goal.profileId, 'weekly_goal', 5, sourceKey)); awards.push(awardArtifact(goal.profileId, 'goal_minded')) }
     }
   })
   data.crossGoals.forEach((goal) => {
@@ -166,7 +166,7 @@ export default async function handler(request, response) {
         if (plannedDays >= 3) {
           const sourceKey = `planning:${profile.id}:${weekStart}`
           const existing = await supabaseRequest(`point_events?profile_id=eq.${profile.id}&event_type=eq.planning_weekly_goal&source_key=eq.${sourceKey}&select=id&limit=1`)
-          if (existing.ok && !(await existing.json()).length) { await awardPoints(profile.id, 'planning_weekly_goal', 2, sourceKey); message = `${message} +2 poäng för proaktiv planering! ✨` }
+          if (existing.ok && !(await existing.json()).length) { await awardPoints(profile.id, 'planning_weekly_goal', 2, sourceKey); await awardArtifact(profile.id, 'proactive'); message = `${message} +2 poäng för proaktiv planering! ✨` }
         }
         return sendJson(response, 200, { ok: true, message })
       }

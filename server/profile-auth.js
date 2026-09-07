@@ -58,6 +58,18 @@ export async function awardPoints(profileId, eventType, points, sourceKey) {
   if (!result.ok) throw new Error(`Points insert failed: ${result.status} ${await result.text()}`)
 }
 
+export async function awardArtifact(profileId, artifactKey) {
+  const catalog = await supabaseRequest(`artifact_catalog?artifact_key=eq.${artifactKey}&select=id&limit=1`)
+  if (!catalog.ok) throw new Error(`Artifact lookup failed: ${catalog.status}`)
+  const [artifact] = await catalog.json()
+  if (!artifact) return
+  const result = await supabaseRequest('profile_artifacts?on_conflict=profile_id,artifact_id', {
+    method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
+    body: JSON.stringify({ profile_id: profileId, artifact_id: artifact.id, source: 'automatic' }),
+  })
+  if (!result.ok) throw new Error(`Artifact insert failed: ${result.status}`)
+}
+
 function readCookie(request, name) {
   const cookies = String(request.headers.cookie || '').split(';')
   const cookie = cookies.map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))
