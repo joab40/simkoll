@@ -170,6 +170,7 @@ button { cursor: pointer; }
 .my-history article > div { display: flex; flex-direction: column; text-transform: capitalize; }
 .my-history article small { color: var(--muted); font-size: 11px; }
 .my-history article b { font-size: 12px; color: var(--teal); }
+.profile-stats-button { display: block; margin: 18px auto 0; }
 .profile-logout { display: block; margin: 22px auto; border: 0; background: transparent; color: #956262; font-size: 12px; }
 .community-page { min-height: calc(100vh - 72px); position: relative; padding: 75px max(20px, calc((100vw - 1050px) / 2)); background: #eff6f4; }
 .community-page > .back-button { position: absolute; top: 18px; left: max(5px, calc((100vw - 1120px) / 2)); }

@@ -1,4 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getSessionProfile } from '../server/profile-auth.js'
 
 const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 const addDays = (date, days) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10) }
@@ -28,9 +29,12 @@ const metrics = (responses, sessions, activities, privateView) => {
 
 export default async function handler(request, response) {
   if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
-  if (getRole(String(request.headers['x-simkoll-code'] || '')) !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se analysen.' })
+  const role = getRole(String(request.headers['x-simkoll-code'] || ''))
+  const sessionProfile = role === 'swimmer' ? await getSessionProfile(request) : null
+  if (role !== 'coach' && role !== 'swimmer') return sendJson(response, 403, { error: 'Du behöver logga in igen.' })
   const start = String(request.query?.start || ''), end = String(request.query?.end || ''), previousStart = String(request.query?.previousStart || ''), previousEnd = String(request.query?.previousEnd || start)
   const profileId = request.query?.profileId ? String(request.query.profileId) : null
+  if (role === 'swimmer' && (!sessionProfile || profileId !== sessionProfile.id)) return sendJson(response, 403, { error: 'Du kan bara se din egen statistik.' })
   if ([start, end, previousStart, previousEnd].some((value) => Number.isNaN(Date.parse(value))) || !(previousStart < previousEnd && previousEnd <= start && start < end)) return sendJson(response, 400, { error: 'Ogiltig period.' })
   const profileFilter = profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''
   const timestampRange = `&created_at=gte.${encodeURIComponent(previousStart)}&created_at=lt.${encodeURIComponent(end)}`
