@@ -583,7 +583,7 @@ button { cursor: pointer; }
   .app-shell > header, .coach-shell > header { padding: 0 18px; }
   .app-shell > header { height: auto; min-height: 72px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; gap: 10px; }
   .app-shell > header .club-brand { flex: 1 1 auto; min-width: 0; }
-  .app-shell > header .header-actions { flex: 1 0 100%; justify-content: flex-end; flex-wrap: wrap; gap: 6px 11px; }
+  .app-shell > header .header-actions { flex: 1 0 100%; justify-content: flex-start; flex-wrap: wrap; gap: 6px 11px; }
   .app-shell > header .feed-link { padding: 5px 0; }
   .page-content { padding-top: 16px; }
   .mood-hero { padding: 31px 23px 25px; border-radius: 23px; }
