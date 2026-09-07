@@ -160,6 +160,16 @@ button { cursor: pointer; }
 .profile-summary > span { width: 86px; height: 86px; display: grid; place-items: center; background: #dff1ed; border-radius: 50%; font-size: 47px; }
 .profile-summary h1 { font-size: 42px; margin: 0 0 2px; }
 .profile-summary small { color: var(--muted); }
+.profile-edit-button { border: 1px solid #cddcd8; background: white; color: var(--teal); border-radius: 10px; padding: 10px 13px; font-weight: 700; margin-bottom: 14px; }
+.profile-edit-form { background: #eef6f3; border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+.profile-edit-form label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 700; }
+.profile-edit-form input { border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 11px; font-size: 15px; }
+.profile-edit-form fieldset { border: 0; padding: 0; margin: 14px 0; }
+.profile-edit-form legend { font-size: 11px; font-weight: 700; margin-bottom: 7px; }
+.profile-edit-form .custom-emoji-input { margin-top: 9px; }
+.profile-edit-form > div:last-child { display: flex; justify-content: flex-end; gap: 8px; }
+.profile-edit-form .primary-button, .profile-edit-form .secondary-button { margin: 0; }
+.secondary-button { border: 1px solid #cddcd8; background: white; border-radius: 10px; padding: 10px 13px; font-weight: 700; }
 .profile-level { margin-left: auto; background: #e4f2ee; border-radius: 13px; padding: 11px 15px; display: flex; flex-direction: column; }
 .profile-level b { font-size: 13px; }
 .profile-level span { color: var(--muted); font-size: 10px; }

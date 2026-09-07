@@ -91,6 +91,18 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { ok: true })
     }
 
+    if (action === 'update-profile') {
+      if (groupRole(request) !== 'swimmer') return sendJson(response, 403, { error: 'Endast simmaren kan ändra sin profil.' })
+      const sessionProfile = await getSessionProfile(request)
+      const displayName = String(request.body.displayName || '').trim()
+      const emoji = String(request.body.emoji || '').trim().slice(0, 16)
+      if (!sessionProfile) return sendJson(response, 401, { error: 'Profilen är inte längre inloggad.' })
+      if (!displayName || displayName.length > 40) return sendJson(response, 400, { error: 'Välj ett namn med högst 40 tecken.' })
+      if (!emoji || emoji.length > 16) return sendJson(response, 400, { error: 'Välj en emoji.' })
+      const updated = await updateProfile(sessionProfile.id, { display_name: displayName, emoji })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
     if (action === 'approve-profile' || action === 'reject-profile') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan granska profiler.' })
       const profileId = String(request.body.profileId || '')
