@@ -9,7 +9,7 @@ const COMMIT_SHA = __COMMIT_SHA__
 const FEELINGS = [
   { value: 1, emoji: '😣', label: 'Tungt' },
   { value: 2, emoji: '😕', label: 'Segt' },
-  { value: 3, emoji: '😐', label: 'Okej' },
+  { value: 3, emoji: '😌', label: 'Okej' },
   { value: 4, emoji: '🙂', label: 'Bra' },
   { value: 5, emoji: '🤩', label: 'Toppen' },
 ]
