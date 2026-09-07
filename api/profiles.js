@@ -111,6 +111,15 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 
+    if (action === 'delete-profile') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ta bort profiler.' })
+      const profileId = String(request.body.profileId || '')
+      if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
+      const result = await supabaseRequest(`profiles?id=eq.${profileId}`, { method: 'DELETE' })
+      if (!result.ok) throw new Error(`Profile delete failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { ok: true })
+    }
+
     if (action === 'approve-profile' || action === 'reject-profile') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan granska profiler.' })
       const profileId = String(request.body.profileId || '')

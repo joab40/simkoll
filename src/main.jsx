@@ -33,7 +33,7 @@ const average = (key, items) => {
   return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
 }
 
-const confirmDestructive = (description) => window.prompt(`${description}\n\nSkriv RADERA för att bekräfta.`) === 'RADERA'
+const confirmDestructive = (description, phrase = 'RADERA') => window.prompt(`${description}\n\nSkriv ${phrase} för att bekräfta.`) === phrase
 
 function previousWeekRange() {
   const today = new Date()
@@ -573,28 +573,29 @@ const GROUP_PEP_OPTIONS = [
 function Community({ profile, code, points, onBack, onPointsChange }) {
   const [items, setItems] = useState([])
   const [privateKudos, setPrivateKudos] = useState([])
+  const [messages, setMessages] = useState([])
   const [profiles, setProfiles] = useState([])
   const [feedView, setFeedView] = useState('group')
   const [sendMode, setSendMode] = useState('private')
   const [recipientId, setRecipientId] = useState('')
+  const [content, setContent] = useState('')
   const [templateKey, setTemplateKey] = useState('great_job')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     const [feed, directory] = await Promise.all([apiRequest('/api/community', code), apiRequest('/api/profiles?directory=true', code)])
-    setItems(feed.items); setPrivateKudos(feed.privateKudos || []); setProfiles(directory.profiles); setLoading(false)
+    setItems(feed.items); setPrivateKudos(feed.privateKudos || []); setMessages(feed.messages || []); setProfiles(directory.profiles); setLoading(false)
   }
   useEffect(() => { load().catch((error) => { setStatus(error.message); setLoading(false) }) }, [])
 
   const sendKudos = async (event) => {
     event.preventDefault(); setStatus('Skickar…')
     try {
-      await apiRequest('/api/community', code, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: sendMode, recipientId, templateKey }),
-      })
+      const body = sendMode === 'coach' ? { mode: 'coach', content } : { mode: sendMode, recipientId, templateKey }
+      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const nextPoints = await apiRequest('/api/points', code)
-      onPointsChange(nextPoints); setStatus('Peppen är skickad! +1 poäng'); setRecipientId(''); await load()
+      onPointsChange(nextPoints); setStatus(sendMode === 'coach' ? 'Meddelandet är skickat till tränarna!' : 'Peppen är skickad! +1 poäng'); setRecipientId(''); setContent(''); await load()
     } catch (error) { setStatus(error.message) }
   }
 
@@ -602,10 +603,11 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
     <section className="feed-column"><div className="community-heading"><div><p className="eyebrow">Sundsvalls Simsällskap</p><h1>Peppflödet</h1></div>{points?.current && <span>{points.current.emoji} {points.total} p</span>}</div>
       <nav className="feed-tabs"><button className={feedView === 'group' ? 'active' : ''} onClick={() => setFeedView('group')}>Öppna kanalen</button><button className={feedView === 'private' ? 'active' : ''} onClick={() => setFeedView('private')}>Min privata pepp</button></nav>
       {loading ? <p className="empty">Hämtar flödet…</p> : feedView === 'group' ? (items.length ? <div className="feed-list">{items.map((item) => item.type === 'coach' ? <article className="feed-item coach-post" key={`post-${item.id}`}><span>📣</span><div><strong>Tränarna</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article> : <article className="feed-item kudos-post" key={`group-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.displayName} <b>→</b> hela gruppen</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Den öppna kanalen är tom än så länge.</p>) : (privateKudos.length ? <div className="feed-list">{privateKudos.map((item) => <article className="feed-item private-post" key={`private-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.id === profile.id ? `Du → ${item.recipient.emoji} ${item.recipient.displayName}` : `${item.sender.displayName} → dig`}</strong><p>{item.content}</p><small>🔒 Privat · {formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Du har ingen privat pepp ännu.</p>)}
+      {feedView === 'private' && messages.length > 0 && <section className="private-messages"><p className="eyebrow">Privata meddelanden</p>{messages.map((item) => <article key={item.id}><span>✉️</span><div><strong>{item.fromCoach ? 'Tränarna → dig' : 'Du → tränarna'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</section>}
     </section>
-    <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka pepp</h2><p>Privat till en kompis eller öppet till hela gruppen. Två pepp per dag ger poäng.</p>
-      <div className="send-mode"><button className={sendMode === 'private' ? 'active' : ''} onClick={() => { setSendMode('private'); setTemplateKey('great_job') }}>Privat</button><button className={sendMode === 'group' ? 'active' : ''} onClick={() => { setSendMode('group'); setTemplateKey('group_energy') }}>Hela gruppen</button></div>
-      <form onSubmit={sendKudos}>{sendMode === 'private' && <label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label>}<label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{(sendMode === 'private' ? KUDOS_OPTIONS : GROUP_PEP_OPTIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><button className="primary-button">Skicka pepp →</button>{status && <small className="kudos-status">{status}</small>}</form>
+    <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka pepp</h2><p>Privat till en kompis, tränarna eller öppet till hela gruppen.</p>
+      <div className="send-mode"><button className={sendMode === 'private' ? 'active' : ''} onClick={() => { setSendMode('private'); setTemplateKey('great_job') }}>Simmare</button><button className={sendMode === 'group' ? 'active' : ''} onClick={() => { setSendMode('group'); setTemplateKey('group_energy') }}>Hela gruppen</button><button className={sendMode === 'coach' ? 'active' : ''} onClick={() => setSendMode('coach')}>Tränarna</button></div>
+      <form onSubmit={sendKudos}>{sendMode === 'private' && <label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label>}{sendMode === 'coach' ? <label>Meddelande<textarea required maxLength="1000" placeholder="Skriv till tränarna…" value={content} onChange={(event) => setContent(event.target.value)} /></label> : <label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{(sendMode === 'private' ? KUDOS_OPTIONS : GROUP_PEP_OPTIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>}<button className="primary-button">{sendMode === 'coach' ? 'Skicka till tränarna →' : 'Skicka pepp →'}</button>{status && <small className="kudos-status">{status}</small>}</form>
     </aside>
   </div></div>
 }
@@ -873,7 +875,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'goals' ? (
           <CoachGoals code={code} profiles={profiles} />
         ) : view === 'community' ? (
-          <CoachCommunity code={code} />
+          <CoachCommunity code={code} profiles={profiles} />
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} />
         ) : view === 'swimmers' ? (
@@ -1119,11 +1121,14 @@ function CoachGoals({ code, profiles }) {
   return <section className="coach-goals"><div className="period-heading"><div><p className="eyebrow">Privat tränare + simmare</p><h2>Utvecklingsmål</h2></div><button className="primary-button" onClick={() => setShowCreate(!showCreate)}>{showCreate ? 'Stäng' : 'Nytt mål +'}</button></div>{showCreate && <form className="goal-form" onSubmit={create}><label>Simmare<select required value={form.profileId} onChange={(event) => setForm({ ...form, profileId: event.target.value })}><option value="">Välj profil…</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Rubrik<input required maxLength="100" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="wide">Beskrivning<textarea required maxLength="2000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><label className="wide">Nästa steg<input maxLength="500" value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label><label>Startdatum<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label><label>Måldatum<input type="date" value={form.targetDate} onChange={(event) => setForm({ ...form, targetDate: event.target.value })} /></label><button className="primary-button">Skapa mål →</button></form>}{goals.length ? <div className="coach-goal-list">{goals.map((goal) => { const owner = profileFor(goal.profileId); const entry = feedback[goal.id] || { type: 'progress', content: '' }; return <article key={goal.id}><header><div><span>{owner?.emoji}</span><p><strong>{goal.title}</strong><small>{owner?.displayName || 'Okänd profil'}</small></p></div><select value={goal.status} onChange={(event) => updateStatus(goal.id, event.target.value)}>{Object.entries(GOAL_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></header><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<details><summary>Historik och återkoppling ({goal.updates.length})</summary><div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : owner?.displayName} {update.points > 0 && <b>+{update.points} p</b>}</strong><small>{update.content}</small></p></div>)}</div></details><div className="feedback-form"><select value={entry.type} onChange={(event) => setFeedback({ ...feedback, [goal.id]: { ...entry, type: event.target.value } })}>{FEEDBACK_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><input maxLength="1000" placeholder="Skriv privat återkoppling…" value={entry.content} onChange={(event) => setFeedback({ ...feedback, [goal.id]: { ...entry, content: event.target.value } })} /><button onClick={() => sendFeedback(goal.id)}>Skicka</button></div><button className="delete-goal" onClick={() => remove(goal)}>Radera mål</button></article> })}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
 }
 
-function CoachCommunity({ code }) {
+function CoachCommunity({ code, profiles }) {
   const [content, setContent] = useState('')
+  const [message, setMessage] = useState('')
+  const [recipientId, setRecipientId] = useState('')
   const [items, setItems] = useState([])
+  const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
-  const load = () => apiRequest('/api/community', code).then((data) => setItems(data.items)).finally(() => setLoading(false))
+  const load = () => apiRequest('/api/community', code).then((data) => { setItems(data.items); setMessages(data.messages || []) }).finally(() => setLoading(false))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const publish = async (event) => {
     event.preventDefault(); setLoading(true)
@@ -1136,7 +1141,8 @@ function CoachCommunity({ code }) {
     if (!confirmDestructive('Meddelandet tas bort från alla simmares flöde.')) return
     try { await apiRequest(`/api/community?id=${id}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
   }
-  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div><small>{content.length}/1000</small><button className="primary-button" disabled={loading}>Publicera →</button></div></form><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → hela gruppen`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
+  const sendMessage = async (event) => { event.preventDefault(); try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'message', recipientId, content: message }) }); setMessage(''); setRecipientId(''); await load() } catch (error) { window.alert(error.message) } }
+  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div><small>{content.length}/1000</small><button className="primary-button" disabled={loading}>Publicera →</button></div></form><section className="coach-private-message"><h3>Skicka privat till simmare</h3><form onSubmit={sendMessage}><select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.filter((profile) => !profile.isTestProfile).map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select><textarea required maxLength="1000" placeholder="Skriv ett privat meddelande…" value={message} onChange={(event) => setMessage(event.target.value)} /><button className="primary-button">Skicka privat →</button></form></section><section className="coach-messages"><h3>Privata meddelanden till tränarna</h3>{messages.filter((item) => item.toCoach).length ? messages.filter((item) => item.toCoach).map((item) => <article key={item.id}><span>{item.sender?.emoji || '👤'}</span><div><strong>{item.sender?.displayName || 'Simmare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>) : <p className="empty">Inga privata meddelanden ännu.</p>}</section><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → hela gruppen`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
 }
 
 function localDateValue() {
@@ -1223,6 +1229,10 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       await onProfilesChange()
     } catch (error) { window.alert(error.message) }
   }
+  const removeProfile = async (profile) => {
+    if (!confirmDestructive(`Profilen “${profile.displayName}” och all kopplad historik tas bort permanent. Detta går inte att ångra.`, 'RADERA PROFIL')) return
+    try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
+  }
   const grantArtifact = async (profile, artifact) => {
     setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: 'Sparar…' }))
     try {
@@ -1255,7 +1265,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
           <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
           {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
           {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Ge artefakt till {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); return <button key={artifact.id} disabled={assigned || artifactStatus[key] === 'Sparar…'} className={assigned ? 'assigned' : ''} onClick={() => grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{artifact.name}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
-          <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button><button onClick={() => createReset(profile)}>Återställ PIN</button></div><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button>
+          <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button><button onClick={() => createReset(profile)}>Återställ PIN</button></div><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button>
         </article>
       })}</div> : <EmptyPeriod title="Inga profiler ännu" periodLabel="Simmare" />}
     </section>

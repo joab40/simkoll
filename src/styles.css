@@ -395,6 +395,16 @@ button { cursor: pointer; }
 .swimmer-status.after { background: #eaf4cf; color: #637c22; }
 .test-profile-badge { margin: 10px 0 4px; padding: 8px 10px; border-radius: 9px; background: #f1eaff; color: #674c9a; font-size: 10px; font-weight: 800; }
 .test-profile-toggle { width: 100%; min-height: 34px; margin-top: 7px; border: 1px dashed #b8a4d8; border-radius: 9px; background: #faf7ff; color: #674c9a; font-size: 11px; font-weight: 700; }
+.delete-profile-button { width: 100%; min-height: 34px; margin-top: 7px; border: 0; border-radius: 9px; background: #fff1f1; color: #a05a5a; font-size: 11px; font-weight: 700; }
+.private-messages, .coach-private-message, .coach-messages { margin-top: 14px; padding: 18px; background: #eef6f3; border-radius: 16px; }
+.private-messages article, .coach-messages article { display: grid; grid-template-columns: 28px 1fr; gap: 8px; border-top: 1px solid #d7e6e1; padding: 10px 0; }
+.private-messages article > span, .coach-messages article > span { font-size: 20px; }
+.private-messages p, .coach-messages p { margin: 3px 0; font-size: 12px; }
+.private-messages small, .coach-messages small { color: var(--muted); font-size: 10px; }
+.coach-private-message h3, .coach-messages h3 { margin: 0 0 12px; }
+.coach-private-message form { display: grid; grid-template-columns: 1fr 1.5fr auto; gap: 8px; }
+.coach-private-message select, .coach-private-message textarea { border: 1px solid #d0e0dc; border-radius: 9px; padding: 10px; background: white; }
+.coach-private-message textarea { min-height: 42px; resize: vertical; }
 .swimmer-artifacts { display: flex; gap: 5px; margin: 10px 0 2px; }
 .swimmer-artifacts span { display: grid; place-items: center; width: 29px; height: 29px; background: #fff4c9; border-radius: 50%; font-size: 17px; }
 .artifact-picker { margin: 13px 0; border-top: 1px solid #e0eae7; padding-top: 11px; }

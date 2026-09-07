@@ -39,12 +39,15 @@ export default async function handler(request, response) {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
       if (profile) await touchProfileActivity(profile.id)
-      const [postsResult, groupResult, profiles] = await Promise.all([
+      const [postsResult, groupResult, profiles, messagesResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=100'),
         loadProfiles(),
+        role === 'coach'
+          ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
+          : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
       ])
-      if (!postsResult.ok || !groupResult.ok) throw new Error('Community feed failed')
+      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok) throw new Error('Community feed failed')
       const posts = (await postsResult.json()).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
       const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender)
       let privateKudos = []
@@ -53,10 +56,20 @@ export default async function handler(request, response) {
         if (!privateResult.ok) throw new Error(`Private kudos failed: ${privateResult.status}`)
         privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient)
       }
-      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos })
+      const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages })
     }
 
     if (request.method === 'POST' && role === 'coach') {
+      if (request.body?.action === 'message') {
+        const recipientId = String(request.body?.recipientId || ''), content = String(request.body?.content || '').trim()
+        if (!recipientId || !content || content.length > 1000) return sendJson(response, 400, { error: 'Välj simmare och skriv ett meddelande på högst 1000 tecken.' })
+        const recipient = await supabaseRequest(`profiles?id=eq.${recipientId}&active=eq.true&approval_status=eq.approved&select=id&limit=1`)
+        if (!recipient.ok || !(await recipient.json()).length) return sendJson(response, 404, { error: 'Simmaren kunde inte hittas.' })
+        const result = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', recipient_profile_id: recipientId, recipient_role: 'swimmer', content }) })
+        if (!result.ok) throw new Error(`Coach message failed: ${result.status}`)
+        return sendJson(response, 201, { ok: true })
+      }
       const content = String(request.body?.content || '').trim()
       if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
       const result = await supabaseRequest('community_posts', {
@@ -69,6 +82,14 @@ export default async function handler(request, response) {
     if (request.method === 'POST') {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att skicka pepp.' })
+      if (request.body?.mode === 'coach') {
+        const content = String(request.body?.content || '').trim()
+        if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på högst 1000 tecken.' })
+        const result = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, sender_role: 'swimmer', recipient_role: 'coach', content }) })
+        if (!result.ok) throw new Error(`Swimmer message failed: ${result.status}`)
+        await touchProfileActivity(profile.id)
+        return sendJson(response, 201, { ok: true })
+      }
       const mode = request.body?.mode === 'group' ? 'group' : 'private'
       if ((await pointsToday(profile.id, 'kudos_sent')) >= 2) return sendJson(response, 429, { error: 'Du har fått dagens två pepp-poäng. Du kan skicka mer pepp imorgon!' })
       if (mode === 'group') {
