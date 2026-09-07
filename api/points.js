@@ -21,6 +21,19 @@ export default async function handler(request, response) {
     if (request.method === 'POST') {
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
       const action = request.body?.action
+      if (action === 'grant-artifact') {
+        const profileId = String(request.body?.profileId || ''), artifactKey = String(request.body?.artifactKey || '')
+        if (!profileId || !artifactKey) return sendJson(response, 400, { error: 'Välj simmare och artefakt.' })
+        const [artifactResult, profileResult] = await Promise.all([
+          supabaseRequest(`artifact_catalog?artifact_key=eq.${artifactKey}&select=id&limit=1`),
+          supabaseRequest(`profiles?id=eq.${profileId}&active=eq.true&approval_status=eq.approved&select=id&limit=1`),
+        ])
+        const artifact = (await artifactResult.json())[0]
+        if (!artifact || !(await profileResult.json()).length) return sendJson(response, 404, { error: 'Artefakten eller profilen kunde inte hittas.' })
+        const result = await supabaseRequest('profile_artifacts?on_conflict=profile_id,artifact_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, artifact_id: artifact.id, source: 'coach' }) })
+        if (!result.ok) throw new Error(`Artifact grant failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 201, { ok: true, alreadyAssigned: !(await result.json()).length })
+      }
       if (action === 'add-level') {
         const name = String(request.body.name || '').trim(), emoji = String(request.body.emoji || '').trim(), minPoints = Number(request.body.minPoints)
         if (!name || name.length > 30 || !emoji || emoji.length > 16 || !Number.isInteger(minPoints) || minPoints < 1 || minPoints > 100000) return sendJson(response, 400, { error: 'Kontrollera den nya nivån.' })
@@ -52,6 +65,14 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
+    if (role === 'coach' && request.query?.artifacts === 'true') {
+      const [catalogResult, assignmentsResult] = await Promise.all([
+        supabaseRequest('artifact_catalog?select=id,artifact_key,name,emoji,description&order=created_at.asc'),
+        supabaseRequest('profile_artifacts?select=id,profile_id,artifact_id,source,created_at&order=created_at.desc&limit=10000'),
+      ])
+      if (!catalogResult.ok || !assignmentsResult.ok) throw new Error('Coach artifacts lookup failed')
+      return sendJson(response, 200, { catalog: await catalogResult.json(), assignments: await assignmentsResult.json() })
+    }
     if (role === 'coach') {
       const [pointsResult, levelsResult, profilesResult] = await Promise.all([
         supabaseRequest('point_events?select=profile_id,points&limit=10000'),
