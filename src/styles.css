@@ -21,7 +21,7 @@ h1, h2, p { margin-top: 0; }
 h1, h2 { font-family: 'Manrope', sans-serif; letter-spacing: -.045em; }
 button { cursor: pointer; }
 
-.login-page { min-height: 100vh; background: #0d3039; display: grid; place-items: center; padding: 28px; overflow: hidden; position: relative; }
+.login-page { min-height: 100vh; min-height: 100svh; background: #0d3039; display: grid; place-items: center; padding: 28px; overflow: hidden; position: relative; }
 .login-page::before, .login-page::after { content: ''; position: absolute; border: 1px solid rgba(102, 223, 210, .22); border-radius: 50%; width: 700px; height: 700px; }
 .login-page::before { left: -390px; top: -160px; }
 .login-page::after { right: -410px; bottom: -300px; }
@@ -650,13 +650,16 @@ button { cursor: pointer; }
 .coach-interpretation li { margin: 9px 0; color: #d6e3e2; line-height: 1.45; }
 
 @media (max-width: 700px) {
+  .login-page { padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
   .login-card { padding: 30px 24px 24px; border-radius: 25px; }
   .login-copy { margin: 50px 0 34px; }
   .app-shell > header, .coach-shell > header { padding: 0 18px; }
   .app-shell > header { height: auto; min-height: 72px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; gap: 10px; }
-  .app-shell > header .club-brand { flex: 1 1 auto; min-width: 0; }
-  .app-shell > header .header-actions { flex: 1 0 100%; justify-content: flex-start; flex-wrap: wrap; gap: 6px 11px; }
-  .app-shell > header .feed-link { padding: 5px 0; }
+  .app-shell > header .club-brand { flex: 1 1 100%; min-width: 0; }
+  .app-shell > header .header-actions { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); align-items: stretch; gap: 6px; }
+  .app-shell > header .header-actions > button { min-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell > header .feed-link { padding: 7px 3px; }
+  .app-shell > header .profile-chip { padding: 5px 6px; }
   .page-content { padding-top: 16px; }
   .coach-private-message form { grid-template-columns: 1fr; }
   .coach-private-message form .primary-button { width: 100%; }
