@@ -1202,6 +1202,7 @@ function WorkoutEditor({ code }) {
 
 function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
   const [reset, setReset] = useState(null)
+  const [search, setSearch] = useState('')
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePoints, setProfilePoints] = useState({})
   const [artifactCatalog, setArtifactCatalog] = useState([])
@@ -1233,6 +1234,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     if (!confirmDestructive(`Profilen “${profile.displayName}” och all kopplad historik tas bort permanent. Detta går inte att ångra.`, 'RADERA PROFIL')) return
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
   }
+  const visibleProfiles = profiles.filter((profile) => `${profile.displayName} ${profile.username}`.toLowerCase().includes(search.trim().toLowerCase()))
   const grantArtifact = async (profile, artifact) => {
     setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: 'Sparar…' }))
     try {
@@ -1246,10 +1248,11 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   return (
     <section className="swimmers-section">
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
+      <label className="swimmer-search"><span>🔎</span><input type="search" placeholder="Sök namn eller användarnamn…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       {artifactError && <p className="form-error">Artefakter kunde inte laddas. Kontrollera att migration 013 är körd i Supabase.</p>}
       {pendingProfiles.length > 0 && <section className="pending-profiles"><div><p className="eyebrow">Behöver granskas</p><h3>Nya profilförfrågningar</h3></div>{pendingProfiles.map((profile) => <article key={profile.id}><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username} · skapad {new Date(profile.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div><button className="approve-profile" onClick={() => reviewProfile(profile, true)}>Godkänn</button><button onClick={() => reviewProfile(profile, false)}>Avvisa</button></article>)}</section>}
       {reset && <div className="reset-banner"><span>{reset.profile.emoji}</span><div><small>Engångskod för {reset.profile.displayName} · giltig 30 minuter</small><strong>{reset.code}</strong></div><button onClick={() => setReset(null)}>×</button></div>}
-      {profiles.length ? <div className="swimmer-grid">{profiles.map((profile) => {
+      {visibleProfiles.length ? <div className="swimmer-grid">{visibleProfiles.map((profile) => {
         const items = responses.filter((item) => item.profileId === profile.id)
         const todayItem = items.filter((item) => dateKey(responseDate(item)) === todayKey()).sort((a, b) => responseDate(b) - responseDate(a))[0]
         const after = items.filter((item) => item.type === 'after')
@@ -1267,7 +1270,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
           {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Ge artefakt till {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); return <button key={artifact.id} disabled={assigned || artifactStatus[key] === 'Sparar…'} className={assigned ? 'assigned' : ''} onClick={() => grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{artifact.name}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
           <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button><button onClick={() => createReset(profile)}>Återställ PIN</button></div><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button>
         </article>
-      })}</div> : <EmptyPeriod title="Inga profiler ännu" periodLabel="Simmare" />}
+      })}</div> : <EmptyPeriod title={profiles.length ? 'Ingen simmare matchar sökningen' : 'Inga profiler ännu'} periodLabel="Simmare" />}
     </section>
   )
 }

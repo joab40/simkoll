@@ -384,6 +384,8 @@ button { cursor: pointer; }
 .history-mood > span { font-size: 28px; }
 .swimmer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 22px; }
+.swimmer-search { display: flex; align-items: center; gap: 9px; max-width: 420px; margin: 0 0 14px; border: 1px solid #d6e2df; border-radius: 11px; background: white; padding: 0 12px; }
+.swimmer-search input { width: 100%; min-height: 42px; border: 0; outline: 0; font-size: 14px; background: transparent; }
 .swimmer-name { display: flex; align-items: center; gap: 12px; }
 .swimmer-name > span { width: 48px; height: 48px; display: grid; place-items: center; background: #e3f2ee; border-radius: 50%; font-size: 28px; }
 .swimmer-name > div { display: flex; flex-direction: column; }
