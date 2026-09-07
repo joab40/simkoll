@@ -98,6 +98,21 @@ button { cursor: pointer; }
 .reward-progress i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
 .reward-card small { color: var(--muted); font-size: 10px; }
 .reward-card > button { border: 1px solid #bdd4ce; background: white; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; }
+.notification-card { margin-top: 14px; background: #fff8e7; border: 1px solid #ead79a; border-radius: 20px; padding: 20px 22px; }
+.notification-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.notification-heading h2 { margin: 0; font-size: 20px; }
+.notification-heading .eyebrow { margin-bottom: 3px; color: #987b24; }
+.notification-heading > span { display: grid; place-items: center; min-width: 27px; height: 27px; border-radius: 50%; background: var(--lime); color: var(--ink); font-weight: 800; }
+.notification-list { display: grid; gap: 8px; margin-top: 14px; }
+.notification-list article { display: grid; grid-template-columns: 35px 1fr 25px; align-items: center; gap: 8px; background: white; border: 1px solid #efe4bd; border-radius: 13px; padding: 10px; }
+.notification-icon { font-size: 24px; text-align: center; }
+.notification-content { border: 0; background: transparent; color: var(--ink); padding: 0; text-align: left; cursor: pointer; }
+.notification-content strong, .notification-content p, .notification-content small { display: block; }
+.notification-content strong { font-size: 12px; }
+.notification-content p { margin: 3px 0; font-size: 12px; }
+.notification-content small { color: var(--muted); font-size: 10px; }
+.notification-dismiss { border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; }
+.notification-more { border: 0; background: transparent; color: var(--teal); font-weight: 700; padding: 10px 0 0; }
 .reward-celebration { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 11px; background: linear-gradient(120deg, #eaf5c9, #dff3eb); border: 1px solid #cadd92; border-radius: 17px; padding: 16px 18px; margin-top: 14px; }
 .reward-celebration > span { font-size: 30px; }
 .reward-celebration > div { display: flex; flex-direction: column; }
@@ -602,6 +617,7 @@ button { cursor: pointer; }
   .locked-workout { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }
   .reward-card { grid-template-columns: 40px 1fr; }
   .reward-card > button { grid-column: 1 / -1; }
+  .notification-card { padding: 18px 15px; }
   .community-layout { grid-template-columns: 1fr; }
   .kudos-panel { position: static; grid-row: 1; }
   .profile-level { margin-left: 0; }

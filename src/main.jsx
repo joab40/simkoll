@@ -56,6 +56,7 @@ function App() {
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
   const [points, setPoints] = useState(null)
+  const [notifications, setNotifications] = useState([])
   const [training, setTraining] = useState(null)
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -79,9 +80,17 @@ function App() {
     ;(async () => {
       const trainingData = await apiRequest('/api/training', auth.code)
       const tomorrow = dateKey(new Date(Date.now() + 86400000))
-      const [workoutData, tomorrowData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
-      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setTraining(trainingData)
+      const [workoutData, tomorrowData, activityData, pointsData, notificationData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] }))])
+      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setNotifications(notificationData.notifications || []); setTraining(trainingData)
     })().catch(() => { setWorkout(null); setWorkoutLocked(false) })
+  }, [auth, profile])
+
+  useEffect(() => {
+    if (!auth || !profile) return undefined
+    const refresh = () => apiRequest('/api/notifications', auth.code).then((data) => setNotifications(data.notifications || [])).catch(() => {})
+    refresh()
+    const timer = window.setInterval(refresh, 30000)
+    return () => window.clearInterval(timer)
   }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
@@ -109,6 +118,7 @@ function App() {
     setWorkoutLocked(false)
     setActiveProfilesToday(0)
     setPoints(null)
+    setNotifications([])
     setTraining(null)
     setScreen('home')
   }
@@ -141,7 +151,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} notifications={notifications} onNotificationsChange={setNotifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -325,7 +335,7 @@ function Faq({ role, onBack }) {
   return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
 }
 
-function Home({ responses, profile, points, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onTogglePlan, onStart }) {
+function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -345,11 +355,29 @@ function Home({ responses, profile, points, training, workout, tomorrowWorkout, 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
+      {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
+}
+
+function NotificationCard({ profile, notifications, onChange, onCommunity, onGoals }) {
+  const storageKey = `simkoll-notifications-seen-${profile.id}`
+  const [seen, setSeen] = useState(() => {
+    try { return new Set(JSON.parse(window.localStorage.getItem(storageKey) || '[]')) } catch { return new Set() }
+  })
+  const unread = notifications.filter((item) => !seen.has(item.id))
+  if (!unread.length) return null
+  const dismiss = (item) => {
+    const next = new Set(seen).add(item.id)
+    setSeen(next)
+    window.localStorage.setItem(storageKey, JSON.stringify([...next].slice(-100)))
+    onChange(notifications.filter((entry) => entry.id !== item.id))
+  }
+  const open = (item) => { dismiss(item); if (item.type === 'goal') onGoals(); else onCommunity() }
+  return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => dismiss(item)}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => unread.forEach(dismiss)}>Markera alla som lästa</button>}</section>
 }
 
 function StartCard({ profile, onStart }) {
