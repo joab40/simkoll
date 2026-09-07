@@ -16,19 +16,25 @@ export default async function handler(request, response) {
   const range = `&created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}`
   try {
     const [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult] = await Promise.all([
-      supabaseRequest(`responses?select=feeling,body,rpe,pass_rating,setup_rating,day_type${range}&limit=5000`),
+      supabaseRequest(`responses?select=profile_id,feeling,body,rpe,pass_rating,setup_rating,day_type${range}&limit=5000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date&activity_date=gte.${startDay}&activity_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`kudos?select=id${range}&limit=5000`),
-      supabaseRequest(`personal_training_sessions?select=activity_type&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
+      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`program_goals?select=id,reward_points&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
       supabaseRequest(`goal_updates?select=id,points,feedback_type${range}&author_role=eq.coach&limit=1000`),
     ])
     const results = [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult]
     if (!results.every((result) => result.ok)) throw new Error('Weekly report lookup failed')
-    const checkins = await responsesResult.json()
-    const activities = await activityResult.json()
+    let checkins = await responsesResult.json()
+    let activities = await activityResult.json()
     const kudos = await kudosResult.json()
-    const sessions = await sessionsResult.json()
+    let sessions = await sessionsResult.json()
+    const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
+    if (!testProfiles.ok) throw new Error('Test profile lookup failed')
+    const testIds = new Set((await testProfiles.json()).map((item) => item.id))
+    checkins = checkins.filter((item) => !testIds.has(item.profile_id))
+    activities = activities.filter((item) => !testIds.has(item.profile_id))
+    sessions = sessions.filter((item) => !testIds.has(item.profile_id))
     const programGoals = await programGoalsResult.json()
     const goalUpdates = await goalUpdatesResult.json()
     const after = checkins.filter((item) => item.day_type === 'after')

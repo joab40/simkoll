@@ -87,7 +87,7 @@ export default async function handler(request, response) {
       const [pointsResult, levelsResult, profilesResult] = await Promise.all([
         supabaseRequest('point_events?select=profile_id,points&limit=10000'),
         supabaseRequest('reward_levels?select=id,name,emoji,min_points,sort_order&order=min_points.asc'),
-        supabaseRequest('profiles?select=id&active=eq.true&approval_status=eq.approved'),
+        supabaseRequest('profiles?select=id&active=eq.true&approval_status=eq.approved&is_test_profile=eq.false'),
       ])
       if (!pointsResult.ok || !levelsResult.ok || !profilesResult.ok) throw new Error('Coach points lookup failed')
       const totals = (await pointsResult.json()).reduce((result, event) => ({ ...result, [event.profile_id]: (result[event.profile_id] || 0) + event.points }), {})

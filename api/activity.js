@@ -16,7 +16,14 @@ export default async function handler(request, response) {
     }
     const result = await supabaseRequest(`profile_daily_activity?activity_date=eq.${stockholmDate()}&select=profile_id`)
     if (!result.ok) throw new Error(`Activity GET failed: ${result.status} ${await result.text()}`)
-    return sendJson(response, 200, { activeProfilesToday: (await result.json()).length })
+    let activity = await result.json()
+    if (role === 'coach') {
+      const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
+      if (!testProfiles.ok) throw new Error('Test profile lookup failed')
+      const testIds = new Set((await testProfiles.json()).map((item) => item.id))
+      activity = activity.filter((item) => !testIds.has(item.profile_id))
+    }
+    return sendJson(response, 200, { activeProfilesToday: activity.length })
   } catch (error) {
     console.error(error)
     return sendJson(response, 500, { error: 'Kunde inte hämta dagens aktivitet.' })

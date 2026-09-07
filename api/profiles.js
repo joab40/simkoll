@@ -25,7 +25,7 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,active,approval_status,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
         return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
@@ -100,6 +100,14 @@ export default async function handler(request, response) {
       if (!displayName || displayName.length > 40) return sendJson(response, 400, { error: 'Välj ett namn med högst 40 tecken.' })
       if (!emoji || emoji.length > 16) return sendJson(response, 400, { error: 'Välj en emoji.' })
       const updated = await updateProfile(sessionProfile.id, { display_name: displayName, emoji })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
+    if (action === 'set-test-profile') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra testprofilstatus.' })
+      const profileId = String(request.body.profileId || '')
+      if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
+      const updated = await updateProfile(profileId, { is_test_profile: request.body.isTestProfile === true })
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 

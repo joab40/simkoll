@@ -51,7 +51,15 @@ export default async function handler(request, response) {
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
     ])
     if (![responsesResult, sessionsResult, activityResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
-    const responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json()
+    let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json()
+    if (!profileId) {
+      const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
+      if (!testProfiles.ok) throw new Error('Test profile lookup failed')
+      const testIds = new Set((await testProfiles.json()).map((item) => item.id))
+      responses = responses.filter((item) => !testIds.has(item.profile_id))
+      sessions = sessions.filter((item) => !testIds.has(item.profile_id))
+      activities = activities.filter((item) => !testIds.has(item.profile_id))
+    }
     const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < previousEnd)
     const currentStartDay = stockholmKey(start), previousEndDay = stockholmKey(previousEnd)
     const currentSessions = sessions.filter((item) => item.session_date >= currentStartDay && item.session_date < endDay), previousSessions = sessions.filter((item) => item.session_date >= previousStartDay && item.session_date < previousEndDay)

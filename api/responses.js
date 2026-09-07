@@ -72,7 +72,13 @@ export default async function handler(request, response) {
       const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? '' : `&created_at=gte.${encodeURIComponent(recent)}`
       const result = await supabaseRequest(`responses?select=${select}${filter}&order=created_at.desc&limit=2000`)
       if (!result.ok) throw new Error(`Supabase GET failed: ${result.status} ${await result.text()}`)
-      const rows = await result.json()
+      let rows = await result.json()
+      if (role === 'coach') {
+        const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
+        if (!testProfiles.ok) throw new Error('Test profile lookup failed')
+        const testIds = new Set((await testProfiles.json()).map((item) => item.id))
+        rows = rows.filter((item) => !testIds.has(item.profile_id))
+      }
       return sendJson(response, 200, { responses: rows.map((item) => fromDatabase(item, isDetailed)) })
     }
 

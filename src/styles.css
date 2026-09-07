@@ -393,6 +393,8 @@ button { cursor: pointer; }
 .swimmer-status.rest { background: #f1f2ed; color: #737b70; }
 .swimmer-status.before { background: #edf3ff; color: #496ba1; }
 .swimmer-status.after { background: #eaf4cf; color: #637c22; }
+.test-profile-badge { margin: 10px 0 4px; padding: 8px 10px; border-radius: 9px; background: #f1eaff; color: #674c9a; font-size: 10px; font-weight: 800; }
+.test-profile-toggle { width: 100%; min-height: 34px; margin-top: 7px; border: 1px dashed #b8a4d8; border-radius: 9px; background: #faf7ff; color: #674c9a; font-size: 11px; font-weight: 700; }
 .swimmer-artifacts { display: flex; gap: 5px; margin: 10px 0 2px; }
 .swimmer-artifacts span { display: grid; place-items: center; width: 29px; height: 29px; background: #fff4c9; border-radius: 50%; font-size: 17px; }
 .artifact-picker { margin: 13px 0; border-top: 1px solid #e0eae7; padding-top: 11px; }
