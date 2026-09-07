@@ -61,9 +61,11 @@ button { cursor: pointer; }
 .mood-hero::after { content: '≈'; position: absolute; right: -20px; top: -115px; font-size: 300px; color: rgba(82,209,196,.06); transform: rotate(-12deg); }
 .mood-hero h1 { font-size: clamp(33px, 6vw, 52px); margin-bottom: 34px; }
 .emoji-cloud { min-height: 100px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; position: relative; z-index: 1; }
-.emoji-cloud span { font-size: clamp(38px, 6vw, 60px); filter: drop-shadow(0 8px 10px rgba(0,0,0,.2)); animation: pop .35s both; animation-delay: var(--delay); }
+.emoji-cloud span { font-size: clamp(38px, 6vw, 60px); filter: drop-shadow(0 8px 10px rgba(0,0,0,.2)); animation: pop .35s both, float-emoji 4s ease-in-out infinite; animation-delay: var(--delay), calc(var(--delay) + 350ms); }
 .emoji-cloud p { color: #b9cacb; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.8); } }
+@keyframes float-emoji { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(1.5deg); } }
+@media (prefers-reduced-motion: reduce) { .emoji-cloud span { animation: none; } }
 .response-count { border-top: 1px solid rgba(255,255,255,.13); padding-top: 22px; margin-top: 24px; color: #b9cacb; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .response-count strong { color: var(--lime); font-size: 18px; margin-right: 3px; }
 .active-count { color: #d7e5e4; }
