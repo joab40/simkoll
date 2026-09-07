@@ -13,7 +13,7 @@ const POINT_RULES = [
   { activity: 'Veckans styrkemål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
   { activity: 'Veckans landträningsmål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
   { activity: 'Veckoplanering', points: 2, limit: 'Minst tre planerade träningsdagar · en gång per vecka' },
-  { activity: 'Ny artefakt', points: 1, limit: 'En gång per unik artefakt' },
+  { activity: 'Ny artefakt', points: 5, limit: 'En gång per unik artefakt' },
 ]
 
 export default async function handler(request, response) {
@@ -34,7 +34,7 @@ export default async function handler(request, response) {
         const result = await supabaseRequest('profile_artifacts?on_conflict=profile_id,artifact_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, artifact_id: artifact.id, source: 'coach' }) })
         if (!result.ok) throw new Error(`Artifact grant failed: ${result.status} ${await result.text()}`)
         const inserted = await result.json()
-        if (inserted.length) await awardPoints(profileId, 'artifact', 1, artifact.id)
+        if (inserted.length) await awardPoints(profileId, 'artifact', 5, artifact.id)
         return sendJson(response, 201, { ok: true, alreadyAssigned: !inserted.length })
       }
       if (action === 'add-level') {
