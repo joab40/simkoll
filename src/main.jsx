@@ -200,13 +200,22 @@ function App() {
 }
 
 async function apiRequest(url, code, options = {}) {
-  const result = await fetch(url, {
-    ...options,
-    headers: { ...options.headers, 'x-simkoll-code': code },
-  })
-  const data = await result.json().catch(() => ({}))
-  if (!result.ok) throw new Error(data.error || 'Något gick fel. Försök igen.')
-  return data
+  const canRetry = !options.method || options.method.toUpperCase() === 'GET'
+  let lastError
+  for (let attempt = 0; attempt < (canRetry ? 3 : 1); attempt += 1) {
+    try {
+      const result = await fetch(url, { ...options, headers: { ...options.headers, 'x-simkoll-code': code } })
+      const data = await result.json().catch(() => ({}))
+      if (result.ok) return data
+      lastError = new Error(data.error || 'Något gick fel. Försök igen.')
+      if (!canRetry || result.status < 500) throw lastError
+    } catch (error) {
+      lastError = error
+      if (!canRetry || attempt === 2) throw error
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)))
+  }
+  throw lastError || new Error('Något gick fel. Försök igen.')
 }
 
 async function fetchResponses(code) {
