@@ -1358,15 +1358,27 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const profileSessions = training?.sessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
         const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
         const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
+        const recentItems = items.filter((item) => { const date = responseDate(item); const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 6); return date >= cutoff })
+        const lowBody = recentItems.filter((item) => Number(item.body) <= 2).length, lowFeeling = recentItems.filter((item) => Number(item.feeling) <= 2).length, sickDays = new Set(recentItems.filter((item) => item.type === 'sick').map((item) => dateKey(responseDate(item)))).size
+        const plannedRecent = training?.plannedSessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
+        const missedPlanned = plannedRecent.filter((item) => !profileSessions.some((session) => session.date === item.date && session.slot === item.slot)).length
+        const signalReasons = []
+        if (sickDays) signalReasons.push(`${sickDays} sjukdag${sickDays > 1 ? 'ar' : ''}`)
+        if (lowBody) signalReasons.push(`tung kropp ${lowBody} gång${lowBody > 1 ? 'er' : ''}`)
+        if (lowFeeling) signalReasons.push(`låg känsla ${lowFeeling} gång${lowFeeling > 1 ? 'er' : ''}`)
+        if (missedPlanned) signalReasons.push(`${missedPlanned} missat planerat pass`)
+        const hasActivityData = recentItems.length > 0 || profileSessions.length > 0 || plannedRecent.length > 0
+        const traffic = !hasActivityData ? { color: 'unknown', label: 'För lite data', icon: '⚪' } : (sickDays >= 2 || missedPlanned >= 3 || (lowBody >= 2 && lowFeeling >= 2)) ? { color: 'red', label: 'Följ upp', icon: '🔴' } : signalReasons.length ? { color: 'yellow', label: 'Var uppmärksam', icon: '🟡' } : { color: 'green', label: 'Ser stabilt ut', icon: '🟢' }
         const trainingGoals = [{ icon: '🏊', label: 'Simning', completed: profileSessions.filter((item) => item.type === 'swim').length, target: swimGoal?.target }, { icon: '🤸', label: 'Landträning', completed: profileSessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget ?? 3 }, { icon: '🏋️', label: 'Styrka', completed: profileSessions.filter((item) => item.type === 'strength').length, target: crossGoal?.strengthTarget ?? 3 }].filter((item) => item.target > 0)
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
           <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
             <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
-            <div className="swimmer-card-meta"><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
+            <div className="swimmer-card-meta"><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
           </button>
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
+            {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} Att följa upp</strong><span>{signalReasons.join(' · ')}</span></div>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
             {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
