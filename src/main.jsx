@@ -21,6 +21,10 @@ const DAY_TYPES = [
   { value: 'sick', title: 'Jag känner mig sjuk', icon: '🤒' },
 ]
 
+const WORKOUT_FOCUSES = [
+  ['kondition_frisim', 'Kondition frisim'], ['kondition_special', 'Kondition special'], ['fart', 'Fart'], ['troskel', 'Tröskel'], ['syra', 'Syra'], ['f2_frisim', 'F2 Frisim'], ['f2_spec', 'F2 Spec'], ['distans', 'Distans'], ['teknik', 'Teknik'], ['aterhamtning', 'Återhämtning'],
+]
+
 const dateKey = (date) => {
   const value = new Date(date)
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -527,13 +531,19 @@ function WorkoutCard({ workout, locked }) {
   return (
     <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
       <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div></div>
-      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><WorkoutMeta workout={workout} /><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
 }
 
 function TomorrowWorkoutCard({ workout }) {
-  return <section className="tomorrow-card"><div><p className="eyebrow">Imorgon</p><h2>{workout.title}</h2><p>{workout.content}</p></div><span>🔓</span></section>
+  return <section className="tomorrow-card"><div><p className="eyebrow">Imorgon</p><h2>{workout.title}</h2><WorkoutMeta workout={workout} /><p>{workout.content}</p></div><span>🔓</span></section>
+}
+
+function WorkoutMeta({ workout }) {
+  const focus = WORKOUT_FOCUSES.find(([value]) => value === workout.focus)?.[1]
+  if (!focus && !workout.distanceMeters && !workout.durationMinutes) return null
+  return <div className="workout-meta"><span>{focus || 'Pass'}</span>{workout.distanceMeters && <span>{Number(workout.distanceMeters).toLocaleString('sv-SE')} m</span>}{workout.durationMinutes && <span>{workout.durationMinutes} min</span>}</div>
 }
 
 function AccountChoice({ onAnonymous, onLogin, onCreate }) {
@@ -1220,14 +1230,14 @@ function localDateValue() {
 
 function WorkoutEditor({ code }) {
   const [date, setDate] = useState(localDateValue)
-  const [form, setForm] = useState({ title: '', content: '', note: '' })
+  const [form, setForm] = useState({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '' })
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     apiRequest(`/api/workouts?date=${date}`, code)
-      .then((data) => setForm(data.workout || { title: '', content: '', note: '' }))
+      .then((data) => setForm(data.workout || { title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '' }))
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [code, date])
@@ -1249,7 +1259,7 @@ function WorkoutEditor({ code }) {
     if (!confirmDestructive(`Passet för ${date} försvinner för alla simmare.`)) return
     try {
       await apiRequest(`/api/workouts?date=${date}`, code, { method: 'DELETE' })
-      setForm({ title: '', content: '', note: '' })
+      setForm({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '' })
       setSaved(false)
     } catch (error) { window.alert(error.message) }
   }
@@ -1260,7 +1270,8 @@ function WorkoutEditor({ code }) {
       <form onSubmit={save}>
         <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setDate(event.target.value) }} /></label>
         <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
-        <label>Passet<textarea required maxLength="5000" placeholder={'Insim 800 m\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /></label>
+        <div className="workout-meta-fields"><label>Huvudinriktning<select value={form.focus || ''} onChange={(event) => { setSaved(false); setForm({ ...form, focus: event.target.value }) }}><option value="">Välj inriktning…</option>{WORKOUT_FOCUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Längd (meter)<input type="number" min="1" max="50000" placeholder="t.ex. 4000" value={form.distanceMeters ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, distanceMeters: event.target.value }) }} /></label><label>Tidsåtgång (minuter)<input type="number" min="1" max="600" placeholder="t.ex. 75" value={form.durationMinutes ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, durationMinutes: event.target.value }) }} /></label></div>
+        <label>Huvudserie<textarea required maxLength="5000" placeholder={'Till exempel:\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /></label>
         <label>Meddelande till simmarna <small>Frivilligt</small><textarea className="short" maxLength="500" placeholder="Fokus för dagen eller något att tänka på…" value={form.note || ''} onChange={(event) => { setSaved(false); setForm({ ...form, note: event.target.value }) }} /></label>
         <div className="editor-actions">{form.id && <button type="button" className="delete-workout" onClick={remove}>Ta bort passet</button>}<span>{saved ? '✓ Sparat och publicerat' : ''}</span><button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : 'Publicera passet →'}</button></div>
       </form>

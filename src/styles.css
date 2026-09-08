@@ -340,6 +340,11 @@ button { cursor: pointer; }
 .workout-editor form { display: grid; gap: 18px; }
 .workout-editor label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
 .workout-editor label > small { color: var(--muted); font-weight: 400; }
+.workout-meta-fields { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 10px; }
+.workout-meta-fields label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.workout-meta-fields input, .workout-meta-fields select { width: 100%; border: 1.5px solid #d6e2df; background: white; border-radius: 12px; padding: 13px 14px; outline: 0; }
+.workout-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 13px; }
+.workout-meta span { padding: 5px 9px; border-radius: 999px; background: #e6f2ee; color: var(--teal); font-size: 10px; font-weight: 800; }
 .workout-editor input, .workout-editor textarea { width: 100%; border: 1.5px solid #d6e2df; background: white; border-radius: 12px; padding: 13px 14px; outline: 0; }
 .workout-editor input:focus, .workout-editor textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 4px rgba(15,110,112,.07); }
 .workout-editor input[type="date"] { max-width: 220px; }
@@ -824,6 +829,7 @@ button { cursor: pointer; }
   .history-date { grid-column: 1 / -1; border-bottom: 1px solid #e2ebe8; padding-bottom: 11px; }
   .history-mood { align-items: flex-start; flex-direction: column; gap: 2px; }
   .workout-editor { padding: 22px 17px; }
+  .workout-meta-fields { grid-template-columns: 1fr; }
   .editor-actions { flex-wrap: wrap; }
   .app-meta { flex-wrap: wrap; gap: 7px 14px; }
   .season-active { grid-template-columns: 1fr; }

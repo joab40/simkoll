@@ -3,7 +3,7 @@ import { getSessionProfile, stockholmDate, touchProfileActivity } from '../serve
 
 function publicWorkout(item) {
   if (!item) return null
-  return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', updatedAt: item.updated_at }
+  return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, updatedAt: item.updated_at }
 }
 
 export default async function handler(request, response) {
@@ -35,13 +35,17 @@ export default async function handler(request, response) {
       const title = String(request.body?.title || '').trim()
       const content = String(request.body?.content || '').trim()
       const note = String(request.body?.note || '').trim()
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500) {
+      const focus = String(request.body?.focus || '').trim()
+      const distanceMeters = request.body?.distanceMeters === '' || request.body?.distanceMeters == null ? null : Number(request.body.distanceMeters)
+      const durationMinutes = request.body?.durationMinutes === '' || request.body?.durationMinutes == null ? null : Number(request.body.durationMinutes)
+      const validFocus = ['', 'fart', 'troskel', 'syra', 'f2_frisim', 'f2_spec', 'distans', 'teknik', 'aterhamtning', 'kondition_frisim', 'kondition_special'].includes(focus)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !validFocus || (distanceMeters !== null && (!Number.isInteger(distanceMeters) || distanceMeters < 1 || distanceMeters > 50000)) || (durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600))) {
         return sendJson(response, 400, { error: 'Kontrollera datum, rubrik och passbeskrivning.' })
       }
       const result = await supabaseRequest('daily_workouts?on_conflict=workout_date', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify({ workout_date: date, title, content, note: note || null, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, updated_at: new Date().toISOString() }),
       })
       if (!result.ok) throw new Error(`Workout POST failed: ${result.status} ${await result.text()}`)
       return sendJson(response, 200, { workout: publicWorkout((await result.json())[0]) })
