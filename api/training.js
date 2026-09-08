@@ -146,7 +146,7 @@ export default async function handler(request, response) {
           const result = await supabaseRequest(`personal_training_sessions?${filter}`, { method: 'DELETE' })
           if (!result.ok) throw new Error(`Session delete failed: ${result.status}`)
         }
-        return sendJson(response, 200, { ok: true, message: request.body.completed === true ? await trainingCheer(profile.id, slot) : null })
+        return sendJson(response, 200, { ok: true, message: request.body.completed === true && request.body.skipCheer !== true ? await trainingCheer(profile.id, slot) : null })
       }
       if (action === 'toggle-plan') {
         const date = String(request.body.date || ''), slot = String(request.body.slot || ''), weekStart = currentWeekStart()
