@@ -428,6 +428,17 @@ button { cursor: pointer; }
 .history-mood { display: flex; align-items: center; gap: 9px; }
 .history-mood > span { font-size: 28px; }
 .swimmer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.swimmer-group-signal { margin: 0 0 14px; padding: 18px 20px; }
+.swimmer-group-signal .section-heading { margin-bottom: 13px; }
+.swimmer-group-signal h3 { margin: 0; font-size: 20px; }
+.group-signal-average { color: var(--teal); font-weight: 800; font-size: 16px; }
+.group-signal-emojis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+.group-signal-emojis > div { display: grid; justify-items: center; gap: 2px; padding: 8px 3px; border-radius: 12px; background: #f2f6f4; opacity: .55; }
+.group-signal-emojis > div.has-responses { opacity: 1; background: #eaf4f1; }
+.group-signal-emojis span { font-size: 27px; }
+.group-signal-emojis strong { color: var(--ink); font-size: 14px; }
+.group-signal-emojis small { color: var(--muted); font-size: 9px; }
+.group-signal-note { display: block; margin-top: 11px; color: var(--muted); font-size: 10px; }
 .swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 0; overflow: hidden; }
 .swimmer-card-toggle { display: block; width: 100%; min-height: 0; padding: 16px 18px; border: 0; border-radius: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .swimmer-card-toggle:hover { background: #f7fbf9; }
