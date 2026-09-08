@@ -328,8 +328,11 @@ button { cursor: pointer; }
 .usage-summary strong { font: 800 21px 'Manrope'; color: var(--teal); }
 .usage-summary span { color: var(--muted); font-size: 11px; }
 .usage-summary b { color: #9eb0ae; }
-.coach-tabs { display: inline-flex; padding: 4px; gap: 3px; background: #dfeae7; border-radius: 13px; margin-bottom: 28px; }
-.coach-tabs button { min-height: 39px; padding: 0 17px; border: 0; border-radius: 10px; background: transparent; color: #687b7e; font-size: 13px; font-weight: 600; }
+.coach-tabs { display: grid; gap: 8px; width: 100%; margin-bottom: 28px; }
+.coach-tab-group { padding: 5px; background: #dfeae7; border-radius: 13px; }
+.coach-tab-label { display: block; padding: 2px 10px 5px; color: #687b7e; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.coach-tab-buttons { display: flex; gap: 3px; flex-wrap: wrap; }
+.coach-tabs button { flex: 1 1 auto; min-height: 39px; padding: 0 15px; border: 0; border-radius: 10px; background: transparent; color: #687b7e; font-size: 13px; font-weight: 600; }
 .coach-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
@@ -764,8 +767,10 @@ button { cursor: pointer; }
   .coach-content { padding-top: 28px; }
   .coach-heading { align-items: start; flex-direction: column; gap: 18px; }
   .usage-summary { width: 100%; gap: 7px 10px; }
-  .coach-tabs { display: flex; width: 100%; overflow-x: auto; }
-  .coach-tabs button { flex: 0 0 auto; padding: 0 12px; }
+  .coach-tabs { display: grid; width: 100%; overflow: visible; }
+  .coach-tab-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .coach-tab-group:first-child .coach-tab-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .coach-tabs button { min-width: 0; padding: 0 5px; font-size: 11px; }
   .period-heading { align-items: start; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .stat { padding: 18px; }
