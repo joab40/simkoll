@@ -85,7 +85,7 @@ export default async function handler(request, response) {
       const periodStart = stockholmKey(start), periodEnd = stockholmKey(end)
       let expected = 0, completed = 0, weeksReached = 0, weeksCount = 0
       goals.forEach((goal) => {
-        for (let monday = mondayOnOrAfter(goal.start_date); addDays(monday, 6) <= goal.end_date && monday < periodEnd && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
+        for (let monday = mondayOnOrAfter(goal.start_date); addDays(monday, 6) <= goal.end_date && monday < periodEnd; monday = addDays(monday, 7)) {
           if (monday < periodStart) continue
           const actual = sessions.filter((session) => session.activity_type === 'swim' && session.session_date >= monday && session.session_date < addDays(monday, 7)).length
           expected += goal.target_sessions_per_week; completed += actual; weeksCount += 1
@@ -102,7 +102,7 @@ export default async function handler(request, response) {
       const totals = { strength: { expected: 0, completed: 0, weeksReached: 0, weeksCount: 0 }, dryland: { expected: 0, completed: 0, weeksReached: 0, weeksCount: 0 } }
       crossGoals.forEach((goal) => {
         const goalEnd = goal.end_date || addDays(currentMonday, -1)
-        for (let monday = mondayOnOrAfter(goal.start_date); addDays(monday, 6) <= goalEnd && monday < periodEnd && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
+        for (let monday = mondayOnOrAfter(goal.start_date); addDays(monday, 6) <= goalEnd && monday < periodEnd; monday = addDays(monday, 7)) {
           if (monday < periodStart) continue
           ;[['strength', goal.strength_sessions_per_week], ['dryland', goal.dryland_sessions_per_week]].forEach(([type, target]) => {
             if (!target) return
