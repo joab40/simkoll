@@ -350,14 +350,16 @@ function Faq({ role, onBack }) {
 
 function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
+  const energized = todayResponses.length >= 3 && groupFeeling >= 4
   return (
     <div className="page-content home">
-      <section className="mood-hero">
+      <section className={`mood-hero ${energized ? 'energized' : ''}`}>
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
         <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`}>
           {todayResponses.length ? todayResponses.map((response, index) => (
-            <span key={response.id} style={{ '--delay': `${index * 40}ms` }}>
+            <span className={response.feeling === 5 ? 'top-mood' : response.feeling === 4 ? 'good-mood' : ''} key={response.id} style={{ '--delay': `${index * 40}ms` }}>
               {FEELINGS.find((item) => item.value === response.feeling)?.emoji}
             </span>
           )) : <p>Inga svar ännu – bli först!</p>}

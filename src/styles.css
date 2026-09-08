@@ -67,6 +67,11 @@ button { cursor: pointer; }
 .emoji-cloud p { color: #b9cacb; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.8); } }
 @keyframes float-emoji { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(1.5deg); } }
+@keyframes energized-float { 0%, 100% { transform: translateY(0) rotate(0deg) scale(1); } 35% { transform: translateY(-9px) rotate(-2deg) scale(1.04); } 70% { transform: translateY(3px) rotate(2deg) scale(1.01); } }
+@keyframes top-mood-pop { 0%, 100% { transform: translateY(0) rotate(0) scale(1); } 45% { transform: translateY(-12px) rotate(3deg) scale(1.16); } 70% { transform: translateY(1px) rotate(-2deg) scale(1.04); } }
+.mood-hero.energized .emoji-cloud span { animation-name: pop, energized-float; animation-duration: .35s, 2.3s; }
+.mood-hero.energized .emoji-cloud span.good-mood { animation-duration: .35s, 2s; }
+.mood-hero.energized .emoji-cloud span.top-mood { animation-name: pop, top-mood-pop; animation-duration: .35s, 1.8s; filter: drop-shadow(0 8px 10px rgba(0,0,0,.2)) drop-shadow(0 0 8px rgba(201,240,90,.55)); z-index: 2; }
 @media (prefers-reduced-motion: reduce) { .emoji-cloud span { animation: none; } }
 .response-count { border-top: 1px solid rgba(255,255,255,.13); padding-top: 22px; margin-top: 24px; color: #b9cacb; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .response-count strong { color: var(--lime); font-size: 18px; margin-right: 3px; }
