@@ -352,11 +352,22 @@ button { cursor: pointer; }
 .coach-card { padding: 27px 30px; }
 .coach-card h2 { font-size: 24px; margin-bottom: 22px; }
 .distribution { height: 230px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; border-top: 1px solid #e4ece9; padding-top: 22px; }
-.distribution > div { display: grid; grid-template-rows: 40px 1fr 24px 18px; justify-items: center; height: 100%; }
+.distribution-item { display: grid; grid-template-rows: 40px 1fr 24px 18px; justify-items: center; height: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; border-radius: 10px; }
+.distribution-item:hover, .distribution-item.selected { background: #edf6f3; }
 .dist-emoji { font-size: 31px; }
 .bar-track { height: 100%; width: min(44px, 60%); background: #e5efec; border-radius: 8px 8px 3px 3px; display: flex; align-items: flex-end; overflow: hidden; }
 .bar-track span { display: block; width: 100%; background: var(--aqua); border-radius: 8px 8px 3px 3px; transition: height .5s; }
 .distribution small { color: var(--muted); }
+.feeling-followup { margin-top: 18px; padding: 16px; border: 1px solid #cfe2dc; border-radius: 14px; background: #f4faf8; position: relative; }
+.feeling-followup h3 { margin: 0 0 12px; font: 700 18px 'Manrope'; }
+.feeling-followup > button { position: absolute; top: 14px; right: 14px; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
+.feeling-profile-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.feeling-profile-list article { display: flex; align-items: center; gap: 9px; padding: 9px; background: white; border: 1px solid #dfebe7; border-radius: 10px; }
+.feeling-profile-list article > span { font-size: 24px; }
+.feeling-profile-list article > div { display: flex; flex-direction: column; min-width: 0; }
+.feeling-profile-list strong { font-size: 12px; }
+.feeling-profile-list small, .feeling-anonymous { color: var(--muted); font-size: 10px; }
+.feeling-anonymous { display: block; margin-top: 11px; }
 .week-card { margin-bottom: 12px; }
 .week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .week-days > div { min-height: 112px; border-radius: 13px; background: #edf5f2; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -705,6 +716,7 @@ button { cursor: pointer; }
   .coach-card { padding: 23px 18px; }
   .distribution { gap: 6px; }
   .distribution small { font-size: 10px; }
+  .feeling-profile-list { grid-template-columns: 1fr; }
   .week-days { gap: 3px; }
   .week-days > div { min-height: 91px; }
   .week-days strong { font-size: 23px; }

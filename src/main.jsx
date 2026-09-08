@@ -886,6 +886,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <PeriodOverview
             responses={scopedResponses}
             title={view === 'today' ? 'Idag' : 'Förra veckan'}
+            profiles={profiles}
             periodLabel={view === 'today'
               ? new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
               : previousWeekLabel}
@@ -1276,12 +1277,21 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, title, periodLabel, showDays }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
+  const [selectedFeeling, setSelectedFeeling] = useState(null)
   const after = responses.filter((item) => item.type === 'after')
+  const profileById = useMemo(() => new Map((profiles || []).map((profile) => [profile.id, profile])), [profiles])
   const distribution = useMemo(() => FEELINGS.map((feeling) => ({
     ...feeling,
     count: responses.filter((item) => item.feeling === feeling.value).length,
   })), [responses])
+  const selectedItems = selectedFeeling ? responses.filter((item) => item.feeling === selectedFeeling) : []
+  const identifiedItems = selectedItems.filter((item) => item.profileId && profileById.has(item.profileId))
+  const latestByProfile = [...identifiedItems].sort((a, b) => responseDate(b) - responseDate(a)).reduce((result, item) => {
+    if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
+    return result
+  }, [])
+  const signalFor = (item) => item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
 
   if (!responses.length) {
     return <EmptyPeriod title={title} periodLabel={periodLabel} />
@@ -1303,9 +1313,10 @@ function PeriodOverview({ responses, title, periodLabel, showDays }) {
         <div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>
         <div className="distribution">
           {distribution.map((item) => (
-            <div key={item.value}><span className="dist-emoji">{item.emoji}</span><div className="bar-track"><span style={{ height: `${Math.max(8, (item.count / responses.length) * 100)}%` }} /></div><strong>{item.count}</strong><small>{item.label}</small></div>
+            <button type="button" className={`distribution-item ${selectedFeeling === item.value ? 'selected' : ''}`} key={item.value} onClick={() => setSelectedFeeling(selectedFeeling === item.value ? null : item.value)}><span className="dist-emoji">{item.emoji}</span><span className="bar-track"><span style={{ height: `${Math.max(8, (item.count / responses.length) * 100)}%` }} /></span><strong>{item.count}</strong><small>{item.label}</small></button>
           ))}
         </div>
+        {selectedFeeling && <section className="feeling-followup"><div><p className="eyebrow">Profilerade svar · {FEELINGS[selectedFeeling - 1].label}</p><h3>Vilka valde detta?</h3></div><button type="button" onClick={() => setSelectedFeeling(null)}>Stäng</button>{latestByProfile.length ? <div className="feeling-profile-list">{latestByProfile.map((item) => { const owner = profileById.get(item.profileId); return <article key={item.profileId}><span>{owner.emoji}</span><div><strong>{owner.displayName}</strong><small>{signalFor(item) || 'Svarade på känslan'} · {new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div></article> })}</div> : <p className="empty">Inga profilerade svar på denna nivå.</p>}<small className="feeling-anonymous">{selectedItems.length - identifiedItems.length} anonyma svar visas inte individuellt.</small></section>}
       </section>
 
       <div className="coach-columns">
