@@ -682,11 +682,14 @@ button { cursor: pointer; }
 .analysis-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 9px; margin-bottom: 12px; }
 .goal-compliance { order: 2; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
 .goal-compliance > div { background: #edf5f2; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; }
+.goal-compliance > .goal-compliance-title { grid-column: 1 / -1; background: transparent; padding: 0 2px 3px; }
+.goal-compliance-title strong { font-size: 16px; }
+.goal-compliance-title small { display: block; margin-top: 3px; font-size: 11px; }
 .goal-compliance strong { font: 800 21px 'Manrope'; }
 .goal-compliance > div > span { display: block; height: 8px; background: #d4e2de; border-radius: 6px; margin: 10px 0 7px; overflow: hidden; }
 .goal-compliance > div > span i { display: block; height: 100%; background: var(--lime); border-radius: inherit; }
 .goal-compliance small { color: var(--muted); }
-.goal-compliance > form { background: var(--paper); border: 1px dashed #b9cfca; border-radius: 14px; padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.goal-compliance > form { display: none !important; }
 .goal-compliance > form .eyebrow, .goal-compliance > form > small { grid-column: 1 / -1; }
 .goal-compliance > form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 10px; }
 .goal-compliance > form input { border: 1px solid #cadbd7; border-radius: 8px; padding: 8px; }
