@@ -1304,8 +1304,6 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       const activityRank = (item) => item?.type === 'after' ? 2 : item ? 1 : 0
       return activityRank(latestToday(b)) - activityRank(latestToday(a)) || a.displayName.localeCompare(b.displayName, 'sv')
     })
-  const todayFeelingResponses = responses.filter((item) => dateKey(responseDate(item)) === todayKey() && Number(item.feeling) >= 1 && Number(item.feeling) <= 5)
-  const groupFeelingCounts = FEELINGS.map((feeling) => ({ ...feeling, count: todayFeelingResponses.filter((item) => Number(item.feeling) === feeling.value).length }))
   const grantArtifact = async (profile, artifact) => {
     setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: 'Sparar…' }))
     try {
@@ -1319,7 +1317,6 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   return (
     <section className="swimmers-section">
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
-      {todayFeelingResponses.length >= 3 && <section className="coach-card swimmer-group-signal"><div className="section-heading"><div><p className="eyebrow">Anonym och profilerad gruppsignal</p><h3>Dagens samlade känsla</h3></div><span className="group-signal-average">{average('feeling', todayFeelingResponses)} / 5</span></div><div className="group-signal-emojis">{groupFeelingCounts.map((feeling) => <div key={feeling.value} className={feeling.count ? 'has-responses' : ''}><span>{feeling.emoji}</span><strong>{feeling.count}</strong><small>{feeling.label}</small></div>)}</div><small className="group-signal-note">{todayFeelingResponses.length} svar ligger till grund. Anonyma svar visas bara samlat och kan inte kopplas till en profil.</small></section>}
       <label className="swimmer-search"><span>🔎</span><input type="search" placeholder="Sök namn eller användarnamn…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       {artifactError && <p className="form-error">Artefakter kunde inte laddas. Kontrollera att migration 013 är körd i Supabase.</p>}
       {pendingProfiles.length > 0 && <section className="pending-profiles"><div><p className="eyebrow">Behöver granskas</p><h3>Nya profilförfrågningar</h3></div>{pendingProfiles.map((profile) => <article key={profile.id}><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username} · skapad {new Date(profile.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div><button className="approve-profile" onClick={() => reviewProfile(profile, true)}>Godkänn</button><button onClick={() => reviewProfile(profile, false)}>Avvisa</button></article>)}</section>}
@@ -1336,7 +1333,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
           <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
             <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
-            <div className="swimmer-card-meta"><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
+            <div className="swimmer-card-meta"><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
           </button>
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
