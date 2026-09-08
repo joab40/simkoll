@@ -717,6 +717,7 @@ button { cursor: pointer; }
 .training-summary p > span { grid-row: span 2; font-size: 24px; }
 .training-summary p > strong { font: 800 20px 'Manrope'; }
 .training-summary p > small { color: var(--muted); }
+.training-summary p > em { display: block; grid-column: 2; margin-top: 4px; color: var(--teal); font-size: 10px; font-style: normal; font-weight: 700; }
 .analysis-comments { margin-top: 12px; }
 .analysis-comments blockquote { display: flex; gap: 8px; margin: 0; border-top: 1px solid #e2ebe8; padding: 12px 0; line-height: 1.45; }
 .analysis-comments blockquote small { margin-left: auto; color: var(--muted); white-space: nowrap; }
