@@ -110,6 +110,8 @@ export default async function handler(request, response) {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil.' })
       if (action === 'season-goal') {
+        return sendJson(response, 403, { error: 'Tränaren sätter simmålet i dialog med simmaren.' })
+        /* Kept below as documentation of the original validation contract. */
         const target = Number(request.body.target)
         const title = String(request.body.title || 'Mitt simmål').trim()
         const startDate = String(request.body.startDate || '')

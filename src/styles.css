@@ -512,6 +512,9 @@ button { cursor: pointer; }
 .swimmer-goal-edit input { width: 100%; min-height: 34px; border: 1px solid #cdded9; border-radius: 8px; padding: 6px 8px; background: white; }
 .swimmer-goal-edit button { min-height: 34px; border: 0; border-radius: 8px; padding: 0 10px; background: var(--teal); color: white; font-size: 10px; font-weight: 800; }
 .swimmer-goal-edit form > small { grid-column: 1 / -1; color: var(--muted); font-size: 10px; }
+.goal-compliance > form { display: none; }
+.season-goal-section .season-form { display: none; }
+.season-goal-section:has(.season-form)::after { content: 'Tränaren sätter simmålet i dialog med dig.'; display: block; margin-top: 12px; color: var(--muted); font-size: 12px; }
 .swimmer-stats > div { background: #edf5f2; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 .swimmer-stats small { color: var(--muted); font-size: 10px; }
 .swimmer-details { border-top: 1px solid #e0eae7; margin: 0 0 15px; padding-top: 12px; }
