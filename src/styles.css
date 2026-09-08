@@ -495,6 +495,16 @@ button { cursor: pointer; }
 .pending-profile-message { text-align: center; }
 .pending-profile-message > span { font-size: 48px; }
 .swimmer-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 20px 0; }
+.swimmer-training-goals { margin: 14px 0 17px; padding: 13px; border-radius: 12px; background: #eef5f3; }
+.swimmer-training-goals > .eyebrow { margin-bottom: 9px; }
+.swimmer-training-goals > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.swimmer-training-goals > div > div { display: grid; grid-template-columns: 23px 1fr; gap: 5px; align-items: center; }
+.swimmer-training-goals > div > div > span { font-size: 18px; }
+.swimmer-training-goals p { margin: 0; min-width: 0; }
+.swimmer-training-goals p strong { display: block; font-size: 10px; white-space: nowrap; }
+.swimmer-training-goals i { display: block; height: 5px; margin-top: 5px; border-radius: 4px; background: #d2e1dd; overflow: hidden; }
+.swimmer-training-goals i b { display: block; height: 100%; border-radius: inherit; background: var(--teal); }
+.swimmer-training-goals > small { color: var(--muted); font-size: 10px; }
 .swimmer-stats > div { background: #edf5f2; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 .swimmer-stats small { color: var(--muted); font-size: 10px; }
 .swimmer-details { border-top: 1px solid #e0eae7; margin: 0 0 15px; padding-top: 12px; }
