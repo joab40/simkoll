@@ -793,6 +793,14 @@ button { cursor: pointer; }
   .rpe-guide.scale-3 { grid-template-columns: repeat(3, 1fr); }
   .weekly-summary { align-items: flex-start; }
   .weekly-summary > button { white-space: nowrap; }
+  .week-log { overflow-x: hidden; }
+  .week-log-head, .week-log-row { min-width: 0; grid-template-columns: 54px repeat(7, minmax(0, 1fr)); gap: 2px; }
+  .week-log-head b { font-size: 8px; }
+  .week-log-row > span { justify-content: center; gap: 0; font-size: 16px; }
+  .week-log-row > span small { display: none; }
+  .week-cell { gap: 1px; padding: 2px; }
+  .week-cell .plan-toggle { padding: 0; font-size: 8px; }
+  .week-log-row label i { width: 17px; height: 17px; border-radius: 5px; font-size: 10px; }
 }
 
 @media (max-width: 390px) {
