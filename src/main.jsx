@@ -1263,6 +1263,7 @@ function WorkoutEditor({ code }) {
 function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
   const [reset, setReset] = useState(null)
   const [search, setSearch] = useState('')
+  const [expandedProfile, setExpandedProfile] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePoints, setProfilePoints] = useState({})
   const [artifactCatalog, setArtifactCatalog] = useState([])
@@ -1318,18 +1319,25 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const after = items.filter((item) => item.type === 'after')
         const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
         const status = todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: ['before', '→ Ska träna idag'], after: ['after', '✓ Har tränat idag'] }[todayItem.type])
+        const attention = todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
         const earnedArtifacts = artifactAssignments.filter((item) => item.profile_id === profile.id).map((item) => artifactCatalog.find((artifact) => artifact.id === item.artifact_id)).filter(Boolean)
-        return <article key={profile.id} className="swimmer-card">
-          <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
-          {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
-          {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
-          {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
-          {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
-          <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
-          {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
-          {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Ge artefakt till {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); return <button key={artifact.id} disabled={assigned || artifactStatus[key] === 'Sparar…'} className={assigned ? 'assigned' : ''} onClick={() => grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{artifact.name}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
-          <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button></div>
-          <details className="profile-tools"><summary>⚙️ Profilverktyg</summary><div><button onClick={() => createReset(profile)}>Återställ PIN</button><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button></div></details>
+        const isExpanded = expandedProfile === profile.id
+        return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
+          <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
+            <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
+            <div className="swimmer-card-meta"><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
+          </button>
+          {isExpanded && <div className="swimmer-card-details">
+            {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
+            {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
+            {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
+            {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
+            <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
+            {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
+            {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Ge artefakt till {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); return <button key={artifact.id} disabled={assigned || artifactStatus[key] === 'Sparar…'} className={assigned ? 'assigned' : ''} onClick={() => grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{artifact.name}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
+            <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button></div>
+            <details className="profile-tools"><summary>⚙️ Profilverktyg</summary><div><button onClick={() => createReset(profile)}>Återställ PIN</button><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button></div></details>
+          </div>}
         </article>
       })}</div> : <EmptyPeriod title={profiles.length ? 'Ingen simmare matchar sökningen' : 'Inga profiler ännu'} periodLabel="Simmare" />}
     </section>

@@ -428,7 +428,17 @@ button { cursor: pointer; }
 .history-mood { display: flex; align-items: center; gap: 9px; }
 .history-mood > span { font-size: 28px; }
 .swimmer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 22px; }
+.swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 0; overflow: hidden; }
+.swimmer-card-toggle { display: block; width: 100%; min-height: 0; padding: 16px 18px; border: 0; border-radius: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.swimmer-card-toggle:hover { background: #f7fbf9; }
+.swimmer-card-toggle:focus-visible { outline: 3px solid rgba(45, 126, 115, .25); outline-offset: -3px; }
+.swimmer-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; padding-left: 60px; }
+.swimmer-attention { color: var(--muted); font-size: 11px; font-weight: 700; }
+.swimmer-attention.needs-attention { color: #a95454; }
+.swimmer-expand-hint { color: var(--teal); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.swimmer-card-details { padding: 0 22px 22px; }
+.swimmer-card.compact .swimmer-name > span { width: 42px; height: 42px; font-size: 25px; }
+.swimmer-card.compact .swimmer-level { padding: 5px 8px; }
 .swimmer-search { display: flex; align-items: center; gap: 9px; max-width: 420px; margin: 0 0 14px; border: 1px solid #d6e2df; border-radius: 11px; background: white; padding: 0 12px; }
 .swimmer-search input { width: 100%; min-height: 42px; border: 0; outline: 0; font-size: 14px; background: transparent; }
 .swimmer-name { display: flex; align-items: center; gap: 12px; }
@@ -490,6 +500,7 @@ button { cursor: pointer; }
 .swimmer-details p strong { font-size: 12px; }
 .swimmer-details p small { color: var(--muted); font-size: 10px; line-height: 1.35; }
 .swimmer-card > button { width: 100%; min-height: 39px; border: 1px solid #cddcd8; border-radius: 10px; background: white; font-size: 12px; }
+.swimmer-card > .swimmer-card-toggle { min-height: 0; border: 0; border-radius: 0; background: transparent; font-size: inherit; }
 .swimmer-actions { display: grid; grid-template-columns: 1fr; gap: 7px; }
 .swimmer-actions button { min-height: 39px; border: 1px solid #cddcd8; border-radius: 10px; background: white; font-size: 12px; }
 .swimmer-actions .view-stats { background: var(--teal); color: white; border-color: var(--teal); font-weight: 700; }
