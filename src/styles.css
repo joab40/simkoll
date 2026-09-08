@@ -694,6 +694,23 @@ button { cursor: pointer; }
 .analysis-periods button { min-height: 38px; padding: 0 15px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; }
 .analysis-periods button.active { background: white; color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
 .analysis-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 9px; margin-bottom: 12px; }
+.workout-trend-analysis { grid-column: 1 / -1; background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 21px; }
+.workout-trend-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+.workout-trend-heading h2 { margin: 0; font-size: 21px; }
+.workout-trend-heading > small { color: var(--muted); font-size: 10px; }
+.workout-focus-list { display: grid; gap: 7px; }
+.workout-focus-list article { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 11px; background: #edf5f2; }
+.workout-focus-list article > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.workout-focus-list article strong { font-size: 12px; }
+.workout-focus-list article small { color: var(--muted); font-size: 10px; }
+.workout-focus-metrics { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.workout-focus-metrics span { color: var(--teal); font-size: 10px; font-weight: 800; }
+.workload-trend { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 16px; }
+.workload-trend > .eyebrow { grid-column: 1 / -1; margin-bottom: 0; }
+.workload-trend > div { display: flex; flex-direction: column; gap: 2px; padding: 9px; border: 1px solid #e0eae7; border-radius: 10px; }
+.workload-trend > div span { color: var(--muted); font-size: 10px; }
+.workload-trend > div b { font-size: 13px; }
+.workload-trend > div small { color: var(--muted); font-size: 9px; }
 .goal-compliance { order: 2; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
 .goal-compliance > div { background: #edf5f2; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; }
 .goal-compliance > .goal-compliance-title { grid-column: 1 / -1; background: transparent; padding: 0 2px 3px; }
@@ -847,6 +864,12 @@ button { cursor: pointer; }
   .analysis-periods { display: flex; width: 100%; overflow-x: auto; }
   .analysis-periods button { flex: 0 0 auto; }
   .analysis-metrics { grid-template-columns: repeat(2, 1fr); }
+  .workout-trend-analysis { padding: 18px; }
+  .workout-trend-heading { display: block; }
+  .workout-trend-heading > small { display: block; margin-top: 5px; }
+  .workout-focus-list article { align-items: flex-start; flex-direction: column; }
+  .workout-focus-metrics { justify-content: flex-start; }
+  .workload-trend { grid-template-columns: repeat(2, 1fr); }
   .goal-compliance { grid-template-columns: 1fr; }
   .cross-progress { grid-template-columns: 1fr; }
   .analysis-columns { grid-template-columns: 1fr; }
