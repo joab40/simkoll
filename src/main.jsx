@@ -132,7 +132,8 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onHelp={() => setScreen('faq')} onProfile={() => setScreen('profile')} onLogout={logout}>
+    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onHelp={() => setScreen('faq')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
+      {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
       {screen === 'account' && <AccountChoice
         onAnonymous={() => { setProfile(null); setScreen('home') }}
@@ -152,7 +153,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} notifications={notifications} onNotificationsChange={setNotifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} notifications={notifications} onNotificationsChange={setNotifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onToggleSession={async (date, slot, completed) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onTogglePlan={async (date, slot, planned) => { const result = await apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) }); setTraining(await apiRequest('/api/training', auth.code)); return result }} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -284,7 +285,7 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, profile, onCommunity, onGoals, onHelp, onProfile, onLogout }) {
+function Shell({ children, profile, onCommunity, onGoals, onHelp, onProfile, onGame, onLogout }) {
   return (
     <main className="app-shell">
       <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="feed-link" onClick={onGoals}>Mina mål</button>}<button className="feed-link" onClick={onHelp}>FAQ</button>{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={onLogout}>Logga ut</button>}</div></header>
@@ -345,7 +346,7 @@ function Faq({ role, onBack }) {
   return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
 }
 
-function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onToggleSession, onTogglePlan, onStart }) {
+function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   return (
     <div className="page-content home">
@@ -368,6 +369,7 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
+      {profile && <GameCard onOpen={onGame} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
@@ -392,6 +394,56 @@ function NotificationCard({ profile, notifications, onChange, onCommunity, onGoa
 
 function StartCard({ profile, onStart }) {
   return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>Hur är läget?</h2><p>Det tar mindre än 20 sekunder.</p></div><button className="primary-button" onClick={onStart}>Checka in <span>→</span></button></section>
+}
+
+function GameCard({ onOpen }) {
+  return <section className="game-card"><div><p className="eyebrow">En liten paus</p><h2>Simpaus 🐬</h2><p>Testa hur länge du kan hålla dig mellan vågorna.</p></div><button className="primary-button" onClick={onOpen}>Spela →</button></section>
+}
+
+function Simpaus({ code, onBack }) {
+  const canvasRef = useRef(null)
+  const gameRef = useRef({ running: false })
+  const [status, setStatus] = useState('ready')
+  const [score, setScore] = useState(0)
+  const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
+
+  useEffect(() => { apiRequest('/api/points?game=simpaus', code).then(setGameData).catch(() => {}) }, [code])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return undefined
+    const ctx = canvas.getContext('2d')
+    const width = canvas.width, height = canvas.height
+    const draw = () => {
+      const game = gameRef.current
+      const gradient = ctx.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, '#123e52'); gradient.addColorStop(1, '#0b293d'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height)
+      ctx.fillStyle = 'rgba(82,209,196,.12)'; for (let i = 0; i < 8; i += 1) { const x = (i * 53 + (game.time || 0) * 12) % width; const y = 50 + ((i * 71) % 320); ctx.beginPath(); ctx.arc(x, y, 3 + (i % 3), 0, Math.PI * 2); ctx.fill() }
+      game.obstacles?.forEach((obstacle) => { ctx.fillStyle = '#c9f05a'; ctx.fillRect(obstacle.x, 0, obstacle.width, obstacle.gap - obstacle.size); ctx.fillRect(obstacle.x, obstacle.gap + obstacle.size, obstacle.width, height); ctx.fillStyle = '#a9d33e'; ctx.fillRect(obstacle.x - 4, obstacle.gap - obstacle.size - 9, obstacle.width + 8, 9); ctx.fillRect(obstacle.x - 4, obstacle.gap + obstacle.size, obstacle.width + 8, 9) })
+      const y = game.y ?? height / 2; ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🏊', 56, y + 11)
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '800 24px Manrope, sans-serif'; ctx.fillText(String(game.score || 0), width / 2, 38)
+    }
+    let frame
+    const loop = (time) => {
+      const game = gameRef.current
+      if (!game.running) { draw(); return }
+      const delta = Math.min(.035, (time - (game.last || time)) / 1000); game.last = time; game.time = time / 1000; game.velocity += 920 * delta; game.y += game.velocity * delta; game.spawn = (game.spawn || 0) - delta
+      if (game.spawn <= 0) { game.obstacles.push({ x: width + 10, width: 42, gap: 110 + Math.random() * 190, size: 66 }); game.spawn = 1.45 }
+      game.obstacles.forEach((obstacle) => { obstacle.x -= 145 * delta; if (!obstacle.passed && obstacle.x + obstacle.width < 56) { obstacle.passed = true; game.score += 1; setScore(game.score) } })
+      game.obstacles = game.obstacles.filter((obstacle) => obstacle.x + obstacle.width > -10)
+      const hit = game.y < 14 || game.y > height - 8 || game.obstacles.some((obstacle) => obstacle.x < 68 && obstacle.x + obstacle.width > 40 && (game.y < obstacle.gap - obstacle.size || game.y > obstacle.gap + obstacle.size))
+      draw()
+      if (hit) { game.running = false; setStatus('over'); apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', score: game.score }) }).then(setGameData).catch(() => {}) ; return }
+      frame = requestAnimationFrame(loop)
+    }
+    gameRef.current.loop = loop
+    const flap = () => { if (gameRef.current.running) gameRef.current.velocity = -330 }
+    const keydown = (event) => { if (event.code === 'Space') { event.preventDefault(); flap() } }
+    window.addEventListener('keydown', keydown); canvas.addEventListener('pointerdown', flap); draw()
+    return () => { window.removeEventListener('keydown', keydown); canvas.removeEventListener('pointerdown', flap); if (frame) cancelAnimationFrame(frame) }
+  }, [code])
+
+  const start = () => { gameRef.current = { ...gameRef.current, running: true, y: 210, velocity: 0, obstacles: [], score: 0, spawn: .5, time: 0, last: performance.now() }; setScore(0); setStatus('running'); gameRef.current.loop?.(gameRef.current.last) }
+  return <section className="game-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Simpaus</p><h1>Håll dig mellan vågorna</h1><p className="game-intro">Tryck på skärmen eller mellanslag för att simma uppåt. Hur långt kommer du?</p><div className="game-board"><canvas ref={canvasRef} width="320" height="420" aria-label="Simpaus-spelet" />{status !== 'running' && <div className="game-overlay"><span>{status === 'over' ? '🌊' : '🏊'}</span><strong>{status === 'over' ? `Du fick ${score} poäng` : 'Redo?'}</strong><small>{status === 'over' ? 'Försök slå ditt rekord!' : 'Tryck på start och klicka sedan för att simma.'}</small><button className="primary-button" onClick={start}>{status === 'over' ? 'Spela igen' : 'Starta spelet'}</button></div>}</div></div><section className="game-scoreboard"><p className="eyebrow">Veckans highscore</p><h2>Topplistan</h2><p className="game-best">Ditt rekord: <strong>{gameData.ownBest || 0}</strong></p>{gameData.leaderboard.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}<small>Spelpoäng påverkar inte din träningspoäng eller nivå.</small></section></div></section>
 }
 
 function weekStart(date = new Date()) {

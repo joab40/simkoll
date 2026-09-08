@@ -1,6 +1,25 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 
+const stockholmDate = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
+const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7)); return value.toISOString().slice(0, 10) }
+const gameKey = 'simpaus'
+const gameSelect = 'score,profile_id,created_at,profiles(display_name,emoji)'
+
+async function gameLeaderboard(profileId, week = weekStart()) {
+  const result = await supabaseRequest(`game_scores?game_key=eq.${gameKey}&week_start=eq.${week}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10`)
+  if (!result.ok) throw new Error(`Game leaderboard lookup failed: ${result.status}`)
+  const rows = await result.json()
+  const own = rows.find((item) => item.profile_id === profileId)
+  let ownBest = own ? own.score : 0
+  if (!own && profileId) {
+    const ownResult = await supabaseRequest(`game_scores?profile_id=eq.${profileId}&game_key=eq.${gameKey}&week_start=eq.${week}&select=score&limit=1`)
+    if (!ownResult.ok) throw new Error('Own game score lookup failed')
+    ownBest = (await ownResult.json())[0]?.score || 0
+  }
+  return { weekStart: week, leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest }
+}
+
 const POINT_RULES = [
   { activity: 'Daglig aktivitet', points: 1, limit: 'En gång per dag' },
   { activity: 'Lämna feedback', points: 3, limit: 'En gång per dag' },
@@ -20,8 +39,26 @@ export default async function handler(request, response) {
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
     if (request.method === 'POST') {
-      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
       const action = request.body?.action
+      if (role === 'swimmer' && action === 'submit-game-score') {
+        const profile = await getSessionProfile(request)
+        const score = Number(request.body?.score)
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
+        if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
+        const week = weekStart()
+        const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${gameKey}&week_start=eq.${week}&select=id,score&limit=1`)
+        if (!existingResult.ok) throw new Error('Game score lookup failed')
+        const existing = (await existingResult.json())[0]
+        if (!existing) {
+          const insert = await supabaseRequest('game_scores', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, game_key: gameKey, week_start: week, score }) })
+          if (!insert.ok) throw new Error(`Game score insert failed: ${insert.status}`)
+        } else if (score > existing.score) {
+          const update = await supabaseRequest(`game_scores?id=eq.${existing.id}`, { method: 'PATCH', body: JSON.stringify({ score, created_at: new Date().toISOString() }) })
+          if (!update.ok) throw new Error(`Game score update failed: ${update.status}`)
+        }
+        return sendJson(response, 200, await gameLeaderboard(profile.id, week))
+      }
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
       if (action === 'grant-artifact') {
         const profileId = String(request.body?.profileId || ''), artifactKey = String(request.body?.artifactKey || '')
         if (!profileId || !artifactKey) return sendJson(response, 400, { error: 'Välj simmare och artefakt.' })
@@ -68,6 +105,11 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
+    if (request.query?.game === gameKey) {
+      const profile = await getSessionProfile(request)
+      if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
+      return sendJson(response, 200, await gameLeaderboard(profile.id))
+    }
     if (role === 'swimmer' && request.query?.artifacts === 'true') {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in för att se dina artefakter.' })

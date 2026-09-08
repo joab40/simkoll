@@ -122,6 +122,30 @@ button { cursor: pointer; }
 .reward-celebration button { border: 0; background: transparent; font-size: 20px; color: var(--muted); }
 .start-card h2 { font-size: 30px; margin-bottom: 6px; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
+.game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.game-card h2 { margin: 0 0 5px; font-size: 24px; }
+.game-card p:last-child { color: #506469; margin: 0; }
+.game-page { min-height: calc(100vh - 72px); background: #eff6f4; padding: 40px max(20px, calc((100vw - 920px) / 2)) 65px; position: relative; }
+.game-page > .back-button { margin-bottom: 20px; }
+.game-layout { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(250px, .7fr); gap: 32px; align-items: start; }
+.game-layout h1 { font-size: clamp(36px, 6vw, 54px); margin: 0 0 12px; }
+.game-intro { color: var(--muted); line-height: 1.55; max-width: 460px; }
+.game-board { width: min(100%, 320px); aspect-ratio: 320 / 420; position: relative; margin-top: 22px; border-radius: 21px; overflow: hidden; box-shadow: 0 16px 34px rgba(16,45,55,.2); }
+.game-board canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+.game-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; text-align: center; background: rgba(8,35,51,.7); color: white; }
+.game-overlay > span { font-size: 43px; margin-bottom: 10px; }
+.game-overlay strong { font: 800 25px 'Manrope'; }
+.game-overlay small { color: #d6e5e4; line-height: 1.45; margin: 8px 0 18px; }
+.game-scoreboard { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 24px; }
+.game-scoreboard h2 { margin: 0 0 6px; }
+.game-best { color: var(--muted); margin-bottom: 18px; }
+.game-best strong { color: var(--teal); font-size: 20px; }
+.game-scoreboard article { display: grid; grid-template-columns: 22px 28px 1fr auto; align-items: center; gap: 7px; border-top: 1px solid #e2ebe8; padding: 10px 0; }
+.game-scoreboard article > span { font-size: 22px; }
+.game-scoreboard article strong { font-size: 12px; }
+.game-scoreboard article b { color: var(--muted); font-size: 11px; }
+.game-scoreboard article em { color: var(--teal); font: 800 16px 'Manrope'; font-style: normal; }
+.game-scoreboard > small { display: block; color: var(--muted); font-size: 10px; line-height: 1.4; margin-top: 18px; }
 .primary-button { border: 0; background: var(--lime); border-radius: 13px; min-height: 52px; padding: 0 22px; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 14px rgba(107,140,26,.12); }
 .primary-button:hover { background: #d5f877; transform: translateY(-1px); }
 .primary-button span { margin-left: 20px; font-size: 20px; }
@@ -678,6 +702,11 @@ button { cursor: pointer; }
   .app-shell > header .feed-link { padding: 7px 3px; }
   .app-shell > header .profile-chip { padding: 5px 6px; }
   .page-content { padding-top: 16px; }
+  .game-card { display: block; padding: 21px 22px; }
+  .game-card .primary-button { width: 100%; margin-top: 17px; }
+  .game-page { padding-top: 24px; }
+  .game-layout { grid-template-columns: 1fr; gap: 23px; }
+  .game-board { margin-left: auto; margin-right: auto; }
   .coach-private-message form { grid-template-columns: 1fr; }
   .coach-private-message form .primary-button { width: 100%; }
   .coach-private-message textarea { min-height: 90px; }
