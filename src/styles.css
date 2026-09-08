@@ -314,7 +314,9 @@ button { cursor: pointer; }
 .coach-content { width: min(100% - 36px, 1120px); margin: 0 auto; padding: 48px 0 70px; }
 .coach-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
 .coach-heading h1 { font-size: clamp(38px, 6vw, 55px); margin: 0; }
-.usage-summary { display: grid; grid-template-columns: auto auto 8px auto auto; align-items: baseline; gap: 7px; background: #e0eeea; border-radius: 13px; padding: 12px 15px; }
+.usage-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 10px; background: #e0eeea; border-radius: 13px; padding: 12px 15px; }
+.usage-stat { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.usage-divider { flex: 0 0 auto; }
 .usage-summary strong { font: 800 21px 'Manrope'; color: var(--teal); }
 .usage-summary span { color: var(--muted); font-size: 11px; }
 .usage-summary b { color: #9eb0ae; }
@@ -735,7 +737,7 @@ button { cursor: pointer; }
   .scale-grid button { aspect-ratio: auto; min-height: 51px; }
   .coach-content { padding-top: 28px; }
   .coach-heading { align-items: start; flex-direction: column; gap: 18px; }
-  .usage-summary { width: 100%; grid-template-columns: auto 1fr 8px auto 1fr; }
+  .usage-summary { width: 100%; gap: 7px 10px; }
   .coach-tabs { display: flex; width: 100%; overflow-x: auto; }
   .coach-tabs button { flex: 0 0 auto; padding: 0 12px; }
   .period-heading { align-items: start; }

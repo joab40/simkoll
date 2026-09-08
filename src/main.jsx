@@ -898,7 +898,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
     <main className="coach-shell">
       <header><ClubBrand /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       <div className="coach-content">
-        <div className="coach-heading"><div><p className="eyebrow">Tränaröversikt</p><h1>Gruppens läge</h1></div><div className="usage-summary"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span><b>·</b><strong>{todayResponses.length}</strong><span>incheckningar</span>{todayResponses.some((item) => item.type === 'sick') && <><b>·</b><strong className="sick-count">{todayResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka idag</span></>}</div></div>
+        <div className="coach-heading"><div><p className="eyebrow">Tränaröversikt</p><h1>Gruppens läge</h1></div><div className="usage-summary"><div className="usage-stat"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{todayResponses.length}</strong><span>incheckningar</span></div>{todayResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{todayResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka idag</span></div></>}</div></div>
         <nav className="coach-tabs" aria-label="Välj tidsperiod">
           <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Idag</button>
           <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Förra veckan</button>
