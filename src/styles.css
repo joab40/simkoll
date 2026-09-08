@@ -238,6 +238,7 @@ button { cursor: pointer; }
 .kudos-panel { position: sticky; top: 20px; }
 .kudos-panel h2 { font-size: 27px; margin-bottom: 8px; }
 .kudos-panel > p:not(.eyebrow) { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.kudos-limit { display: block; margin: -5px 0 14px; color: var(--teal); font-size: 10px; font-weight: 700; line-height: 1.4; }
 .kudos-panel form, .kudos-panel label { display: flex; flex-direction: column; }
 .kudos-panel form { gap: 14px; }
 .kudos-panel label { gap: 6px; font-size: 11px; font-weight: 700; }

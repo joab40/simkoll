@@ -23,7 +23,8 @@ async function gameLeaderboard(profileId, week = weekStart()) {
 const POINT_RULES = [
   { activity: 'Daglig aktivitet', points: 1, limit: 'En gång per dag' },
   { activity: 'Lämna feedback', points: 3, limit: 'En gång per dag' },
-  { activity: 'Skicka eller få pepp', points: 1, limit: 'Högst två av varje per dag' },
+  { activity: 'Skicka pepp', points: 1, limit: 'Tre privata + en till hela gruppen per dag' },
+  { activity: 'Testa Simpaus', points: 1, limit: 'En gång per dag' },
   { activity: 'Bra framsteg / stark vecka', points: 5, limit: 'Efter tränarens bedömning' },
   { activity: 'Delmål klart', points: 10, limit: 'Efter tränarens bedömning' },
   { activity: 'Utvecklingsmål klart', points: 20, limit: 'Efter tränarens bedömning' },
@@ -56,6 +57,7 @@ export default async function handler(request, response) {
           const update = await supabaseRequest(`game_scores?id=eq.${existing.id}`, { method: 'PATCH', body: JSON.stringify({ score, created_at: new Date().toISOString() }) })
           if (!update.ok) throw new Error(`Game score update failed: ${update.status}`)
         }
+        await awardPoints(profile.id, 'game_played', 1, `simpaus:${stockholmDate()}`)
         return sendJson(response, 200, await gameLeaderboard(profile.id, week))
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
@@ -153,7 +155,7 @@ export default async function handler(request, response) {
     const total = events.reduce((sum, event) => sum + event.points, 0)
     const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
     const next = levels.find((level) => level.min_points > total) || null
-    const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅' }
+    const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade Simpaus! 🎮' }
     const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
       total, current: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null,

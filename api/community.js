@@ -1,6 +1,8 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
+const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
+
 export const KUDOS_TEMPLATES = {
   great_job: 'Grymt jobbat idag! 💪',
   great_energy: 'Bra energi! ⚡',
@@ -28,6 +30,13 @@ async function pointsToday(profileId, eventType) {
   const result = await supabaseRequest(`point_events?profile_id=eq.${profileId}&event_type=eq.${eventType}&source_key=like.${stockholmDate()}:*&select=id`)
   if (!result.ok) throw new Error(`Point count failed: ${result.status}`)
   return (await result.json()).length
+}
+
+async function messagesSentToday(table, profileId) {
+  const column = table === 'kudos' ? 'sender_profile_id' : 'sender_profile_id'
+  const result = await supabaseRequest(`${table}?${column}=eq.${profileId}&select=created_at&order=created_at.desc&limit=100`)
+  if (!result.ok) throw new Error(`Daily ${table} count failed: ${result.status}`)
+  return (await result.json()).filter((item) => stockholmDay(item.created_at) === stockholmDay()).length
 }
 
 export default async function handler(request, response) {
@@ -91,8 +100,8 @@ export default async function handler(request, response) {
         return sendJson(response, 201, { ok: true })
       }
       const mode = request.body?.mode === 'group' ? 'group' : 'private'
-      if ((await pointsToday(profile.id, 'kudos_sent')) >= 2) return sendJson(response, 429, { error: 'Du har fått dagens två pepp-poäng. Du kan skicka mer pepp imorgon!' })
       if (mode === 'group') {
+        if ((await messagesSentToday('group_pep', profile.id)) >= 1) return sendJson(response, 429, { error: 'Du har redan skickat dagens grupp-pepp. Du kan skicka en ny imorgon!' })
         const templateKey = String(request.body?.templateKey || '')
         if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
         const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey }) })
@@ -102,6 +111,7 @@ export default async function handler(request, response) {
         await touchProfileActivity(profile.id)
         return sendJson(response, 201, { ok: true })
       }
+      if ((await messagesSentToday('kudos', profile.id)) >= 3) return sendJson(response, 429, { error: 'Du har skickat tre privata pepp idag. Du kan skicka mer imorgon!' })
       const recipientId = String(request.body?.recipientId || '')
       const templateKey = String(request.body?.templateKey || '')
       if (recipientId === profile.id || !KUDOS_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en simmare och en pepphälsning.' })
