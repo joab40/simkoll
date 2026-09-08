@@ -286,9 +286,11 @@ function Login({ onLogin }) {
 }
 
 function Shell({ children, profile, onCommunity, onGoals, onHelp, onProfile, onGame, onLogout }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
-      <header><ClubBrand /><div className="header-actions">{profile && <button className="feed-link" onClick={onCommunity}>Peppflödet</button>}{profile && <button className="feed-link" onClick={onGoals}>Mina mål</button>}<button className="feed-link" onClick={onHelp}>FAQ</button>{profile && <button className="profile-chip" onClick={onProfile}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={onLogout}>Logga ut</button>}</div></header>
+      <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && <button className="feed-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="feed-link" onClick={go(onGoals)}>Mina mål</button>}<button className="feed-link" onClick={go(onHelp)}>FAQ</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
       {children}
     </main>
   )

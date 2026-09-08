@@ -51,6 +51,7 @@ button { cursor: pointer; }
 .app-shell, .coach-shell { width: 100%; max-width: 100%; min-height: 100vh; background: #eff6f4; overflow-x: clip; }
 .app-shell > header, .coach-shell > header { height: 72px; padding: 0 max(24px, calc((100vw - 1120px) / 2)); display: flex; align-items: center; justify-content: space-between; background: rgba(251,253,248,.88); border-bottom: 1px solid #dae6e2; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
+.mobile-menu-toggle { display: none; }
 .profile-chip { border: 1px solid #d5e2df; background: white; border-radius: 20px; padding: 5px 11px 5px 6px; font-size: 12px; font-weight: 700; }
 .profile-chip span { font-size: 18px; margin-right: 5px; }
 .help-tip { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 3px; padding: 0; border: 1px solid #9eb5b1; border-radius: 50%; background: transparent; color: var(--teal); font: 800 10px 'Manrope'; vertical-align: middle; cursor: help; }
@@ -701,9 +702,12 @@ button { cursor: pointer; }
   .login-copy { margin: 50px 0 34px; }
   .app-shell > header, .coach-shell > header { padding: 0 18px; }
   .app-shell > header { width: 100%; max-width: 100%; height: auto; min-height: 72px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; gap: 10px; overflow: hidden; }
-  .app-shell > header .club-brand { flex: 1 1 100%; min-width: 0; overflow: hidden; }
+  .app-shell > header .club-brand { flex: 1 1 auto; min-width: 0; overflow: hidden; }
   .app-shell > header .club-brand > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .app-shell > header .header-actions { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; gap: 6px; overflow: hidden; }
+  .app-shell > header .mobile-menu-toggle { display: inline-flex; align-items: center; gap: 7px; justify-self: end; border: 1px solid #cdded9; border-radius: 10px; background: white; color: var(--teal); padding: 8px 11px; font-size: 12px; font-weight: 700; }
+  .app-shell > header .mobile-menu-toggle span { font-size: 17px; line-height: 1; }
+  .app-shell > header .header-actions { display: none; flex: 0 0 100%; width: 100%; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 6px; overflow: hidden; }
+  .app-shell > header .header-actions.open { display: grid; }
   .app-shell > header .header-actions > button { min-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app-shell > header .feed-link { padding: 7px 3px; }
   .app-shell > header .profile-chip { padding: 5px 6px; }
