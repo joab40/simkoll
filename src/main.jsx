@@ -1295,7 +1295,15 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     if (!confirmDestructive(`Profilen “${profile.displayName}” och all kopplad historik tas bort permanent. Detta går inte att ångra.`, 'RADERA PROFIL')) return
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
   }
-  const visibleProfiles = profiles.filter((profile) => `${profile.displayName} ${profile.username}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const visibleProfiles = profiles
+    .filter((profile) => `${profile.displayName} ${profile.username}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => {
+      const latestToday = (profile) => responses
+        .filter((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey())
+        .sort((first, second) => responseDate(second) - responseDate(first))[0]
+      const activityRank = (item) => item?.type === 'after' ? 2 : item ? 1 : 0
+      return activityRank(latestToday(b)) - activityRank(latestToday(a)) || a.displayName.localeCompare(b.displayName, 'sv')
+    })
   const grantArtifact = async (profile, artifact) => {
     setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: 'Sparar…' }))
     try {
@@ -1319,7 +1327,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const after = items.filter((item) => item.type === 'after')
         const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
         const status = todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: ['before', '→ Ska träna idag'], after: ['after', '✓ Har tränat idag'] }[todayItem.type])
-        const attention = todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
+        const attention = todayItem?.type === 'after' ? '🏊 Tränat idag' : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
         const earnedArtifacts = artifactAssignments.filter((item) => item.profile_id === profile.id).map((item) => artifactCatalog.find((artifact) => artifact.id === item.artifact_id)).filter(Boolean)
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
