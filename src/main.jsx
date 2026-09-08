@@ -1275,9 +1275,12 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [artifactStatus, setArtifactStatus] = useState({})
   const [artifactError, setArtifactError] = useState('')
   const [training, setTraining] = useState(null)
+  const [swimGoalDrafts, setSwimGoalDrafts] = useState({})
+  const [swimGoalStatus, setSwimGoalStatus] = useState({})
   useEffect(() => { apiRequest('/api/points?artifacts=true', code).then((data) => { setArtifactCatalog(data.catalog || []); setArtifactAssignments(data.assignments || []); setArtifactError('') }).catch((error) => setArtifactError(error.message || 'Kunde inte hämta artefakterna.')) }, [code])
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
-  useEffect(() => { apiRequest('/api/training', code).then(setTraining).catch(() => {}) }, [code])
+  const loadTraining = () => apiRequest('/api/training', code).then(setTraining)
+  useEffect(() => { loadTraining().catch(() => {}) }, [code])
   const reviewProfile = async (profile, approved) => {
     if (!approved && !confirmDestructive(`Profilförfrågan från “${profile.displayName}” tas bort. Användarnamnet blir ledigt igen.`)) return
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: approved ? 'approve-profile' : 'reject-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
@@ -1318,6 +1321,16 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: result.alreadyAssigned ? 'Redan tilldelad' : 'Tilldelad ✓' }))
     } catch (error) { setArtifactStatus((current) => ({ ...current, [`${profile.id}-${artifact.artifact_key}`]: error.message })) }
   }
+  const saveSwimGoal = async (profile, swimGoal) => {
+    const target = Number(swimGoalDrafts[profile.id] ?? swimGoal?.target)
+    if (!Number.isInteger(target) || target < 1 || target > 14) { setSwimGoalStatus((current) => ({ ...current, [profile.id]: 'Ange 1–14 simpass.' })); return }
+    setSwimGoalStatus((current) => ({ ...current, [profile.id]: 'Sparar…' }))
+    try {
+      await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-season-goal', profileId: profile.id, target, title: swimGoal?.title || 'Mitt simmål', startDate: localDateValue(), endDate: `${new Date().getFullYear()}-12-20`, reflection: swimGoal?.reflection || '' }) })
+      await loadTraining()
+      setSwimGoalStatus((current) => ({ ...current, [profile.id]: 'Sparat ✓' }))
+    } catch (error) { setSwimGoalStatus((current) => ({ ...current, [profile.id]: error.message })) }
+  }
 
   if (selectedProfile) return <AnalysisDashboard code={code} profile={selectedProfile} pointInfo={profilePoints[selectedProfile.id]} onBack={() => setSelectedProfile(null)} />
   return (
@@ -1351,7 +1364,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
             {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
-            <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}</section>
+            <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra simmål i dialog med simmaren</summary><form onSubmit={(event) => { event.preventDefault(); saveSwimGoal(profile, swimGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={swimGoalDrafts[profile.id] ?? swimGoal?.target ?? ''} onChange={(event) => setSwimGoalDrafts((current) => ({ ...current, [profile.id]: event.target.value }))} /></label><button type="submit">Spara simmål</button>{swimGoalStatus[profile.id] && <small>{swimGoalStatus[profile.id]}</small>}</form></details></section>
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
             {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
             {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Ge artefakt till {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); return <button key={artifact.id} disabled={assigned || artifactStatus[key] === 'Sparar…'} className={assigned ? 'assigned' : ''} onClick={() => grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{artifact.name}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}

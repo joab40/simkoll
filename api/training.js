@@ -207,6 +207,16 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error(`Cross goal insert failed: ${result.status}`)
       return sendJson(response, 201, { ok: true, startDate })
     }
+    if (action === 'coach-season-goal') {
+      const profileId = String(request.body.profileId || ''), target = Number(request.body.target)
+      const title = String(request.body.title || 'Mitt simmål').trim(), startDate = String(request.body.startDate || stockholmDate()), endDate = String(request.body.endDate || `${new Date().getFullYear()}-12-20`), reflection = String(request.body.reflection || '').trim()
+      if (!profileId || !Number.isInteger(target) || target < 1 || target > 14 || !title || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate || reflection.length > 1000) return sendJson(response, 400, { error: 'Kontrollera simmålet.' })
+      const closeResult = await supabaseRequest(`season_swim_goals?profile_id=eq.${profileId}&active=eq.true`, { method: 'PATCH', body: JSON.stringify({ active: false }) })
+      if (!closeResult.ok) throw new Error('Season goal close failed')
+      const result = await supabaseRequest('season_swim_goals', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ profile_id: profileId, title, target_sessions_per_week: target, start_date: startDate, end_date: endDate, reflection: reflection || null }) })
+      if (!result.ok) throw new Error(`Season goal insert failed: ${result.status}`)
+      return sendJson(response, 201, { goal: mapSeasonGoal((await result.json())[0]) })
+    }
     if (action === 'assign') {
       const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ program_id: request.body.programId, profile_id: request.body.profileId }) })
       if (!result.ok) throw new Error(`Assignment failed: ${result.status}`)
