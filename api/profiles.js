@@ -177,7 +177,7 @@ export default async function handler(request, response) {
       const requested = request.body.profileId ? [String(request.body.profileId)] : null
       const profilesResult = await supabaseRequest(`profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id${requested ? `&id=in.(${requested.join(',')})` : ''}`)
       if (!profilesResult.ok) throw new Error(`Tempus profiles lookup failed: ${profilesResult.status}`)
-      let synced = 0
+      let synced = 0, attempted = 0, failures = []
       for (const profile of await profilesResult.json()) {
         const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming`)
         if (!page.ok) continue
@@ -188,9 +188,10 @@ export default async function handler(request, response) {
         const all = [...(pageData.props?.results_short?.data || []), ...(pageData.props?.results_long?.data || [])]
         const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 3)
         const rows = all.filter((item) => item.event_name && item.result_date && item.swim_time && new Date(`${item.result_date}T12:00:00`) >= cutoff).map((item) => ({ profile_id: profile.id, event: item.event_name, pool: item.pool_type_name || null, result_date: item.result_date, swim_time: item.swim_time, result_time: Number.isFinite(Number(item.result_time)) ? Number(item.result_time) : null, aqua_points: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, synced_at: new Date().toISOString() }))
-        if (rows.length) { const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(rows) }); if (upsert.ok) synced += rows.length }
+        attempted += rows.length
+        if (rows.length) { const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) synced += rows.length; else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`) }
       }
-      return sendJson(response, 200, { synced })
+      return sendJson(response, 200, { synced, attempted, failures })
     }
 
     if (action === 'delete-profile') {
