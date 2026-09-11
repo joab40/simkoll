@@ -206,8 +206,11 @@ export default async function handler(request, response) {
       const profileId = String(request.body.profileId || '')
       if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
       const result = await supabaseRequest(`profiles?id=eq.${profileId}`, { method: 'DELETE' })
-      if (!result.ok) throw new Error(`Profile delete failed: ${result.status} ${await result.text()}`)
-      return sendJson(response, 200, { ok: true })
+      if (result.ok) return sendJson(response, 200, { ok: true })
+      // Äldre profiler kan ha svar, poäng eller meddelanden som hindrar fysisk radering.
+      // Inaktivering ger samma synliga resultat utan att förlora historiken.
+      const archived = await updateProfile(profileId, { active: false, approval_status: 'rejected' })
+      return sendJson(response, 200, { ok: true, archived: Boolean(archived) })
     }
 
     if (action === 'approve-profile' || action === 'reject-profile') {
