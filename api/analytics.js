@@ -31,6 +31,22 @@ const metrics = (responses, sessions, activities, privateView) => {
 }
 
 const cleanNumber = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
+const fallbackInsight = (data) => {
+  const current = data.current || {}
+  const parts = []
+  if (current.checkins != null) parts.push(`${current.checkins} incheckningar`)
+  if (current.feeling != null) parts.push(`allmän känsla ${current.feeling}/5`)
+  if (current.body != null) parts.push(`kropp ${current.body}/5`)
+  if (current.rpe != null) parts.push(`upplevd ansträngning ${current.rpe}/10`)
+  const summary = parts.length ? `Under perioden syns ${parts.join(', ')}.` : 'Det finns ännu för lite data för en tydlig sammanfattning.'
+  const positives = []
+  if (current.swimSessions) positives.push(`${current.swimSessions} registrerade simpass`)
+  if (current.activeDays) positives.push(`Aktivitet registrerad ${current.activeDays} dagar`)
+  const attention = []
+  if (current.body != null && current.body <= 2) attention.push('Kroppskänslan är låg och kan vara värd att följa upp.')
+  if (current.rpe != null && current.rpe >= 8) attention.push('Den upplevda ansträngningen är hög.')
+  return { summary, positives: positives.slice(0, 3), attention: attention.slice(0, 3), limitations: ['Automatisk reservsammanfattning – kontrollera trenden mot tidigare perioder.'] }
+}
 
 async function createAiInsight(request, response) {
   const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
@@ -62,12 +78,7 @@ async function createAiInsight(request, response) {
       // Keep the endpoint useful if a free model returns malformed JSON.
       // The raw response is still shown as a short summary, never as an error page.
       console.warn('AI returned invalid JSON:', String(rawText).slice(0, 500), parseError.message)
-      parsed = {
-        summary: text.replace(/^['"]|['"]$/g, '').slice(0, 280),
-        positives: [],
-        attention: [],
-        limitations: ['AI-svaret kunde inte strukturtolkas helt.'],
-      }
+      parsed = fallbackInsight(safe)
     }
     return sendJson(response, 200, { insight: { summary: String(parsed.summary || ''), positives: Array.isArray(parsed.positives) ? parsed.positives.slice(0, 3).map(String) : [], attention: Array.isArray(parsed.attention) ? parsed.attention.slice(0, 3).map(String) : [], limitations: Array.isArray(parsed.limitations) ? parsed.limitations.slice(0, 2).map(String) : [] } })
   } catch (error) { console.error(error); return sendJson(response, 502, { error: 'AI-sammanfattningen kunde inte skapas just nu.' }) }
