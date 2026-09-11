@@ -13,11 +13,13 @@ export const KUDOS_TEMPLATES = {
 }
 
 const GROUP_TEMPLATES = {
-  group_energy: 'Bra energi på träningen idag! ⚡',
-  group_fun: 'Kul att simma med er! 🌊',
-  group_great_job: 'Grymt jobbat allihop! 💪',
-  group_thanks: 'Tack för ett bra pass! 🙌',
-  group_spirit: 'Härlig stämning idag! 😊',
+  group_start: 'Nu kör vi! 🔥',
+  group_energy: 'Bra energi i gruppen idag ⚡',
+  group_great_job: 'Det blir ett grymt pass idag 💪',
+  group_build: 'Idag bygger vi vidare 🌊',
+  group_focus: 'Håll ihop hela vägen 🎯',
+  group_next: 'Ser fram emot nästa pass 🙌',
+  group_fun: 'Kul att simma med er! 😊',
 }
 
 async function loadProfiles() {
