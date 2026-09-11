@@ -14,6 +14,11 @@ export default async function handler(request, response) {
     if (request.method === 'GET') {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })
+      if (role === 'coach' && request.query?.history === 'true') {
+        const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
+        if (!result.ok) throw new Error(`Workout history GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { workouts: (await result.json()).map(publicWorkout) })
+      }
       const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&limit=1`)
       if (!result.ok) throw new Error(`Workout GET failed: ${result.status} ${await result.text()}`)

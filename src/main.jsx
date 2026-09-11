@@ -932,6 +932,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <div className="coach-tab-group"><span className="coach-tab-label">Verktyg</span><div className="coach-tab-buttons">
             <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
             <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Dagens pass</span><span className="mobile-tab-label">Pass</span></button>
+            <button className={view === 'workout-library' ? 'active' : ''} onClick={() => setView('workout-library')}><span className="desktop-tab-label">Passbibliotek</span><span className="mobile-tab-label">Bibliotek</span></button>
             <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}><span className="desktop-tab-label">Meddelanden</span><span className="mobile-tab-label">Meddelanden</span></button>
             <button className={view === 'goals' ? 'active' : ''} onClick={() => setView('goals')}><span className="desktop-tab-label">Utvecklingsmål</span><span className="mobile-tab-label">Mål</span></button>
             <button className={view === 'programs' ? 'active' : ''} onClick={() => setView('programs')}><span className="desktop-tab-label">Träningsprogram</span><span className="mobile-tab-label">Program</span></button>
@@ -956,6 +957,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <CoachCommunity code={code} profiles={profiles} />
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} />
+        ) : view === 'workout-library' ? (
+          <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
           <Swimmers profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={responses} code={code} />
         ) : view === 'history' ? (
@@ -1084,6 +1087,21 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
 
 function AiInsightCard({ title = 'Veckans tränarsammanfattning', insight, loading, error, onGenerate }) {
   return <section className="ai-insight-card"><div className="ai-insight-header"><div><p className="eyebrow">AI-stöd för tränaren</p><h2>{title}</h2></div><button className="secondary-button" onClick={onGenerate} disabled={loading}>{loading ? 'Analyserar…' : insight ? 'Skapa ny analys' : 'Skapa analys'}</button></div>{error && <p className="form-error">{error}</p>}{insight ? <div className="ai-insight-body"><p>{insight.summary}</p>{insight.positives?.length > 0 && <div><strong>Det ser bra ut</strong>{insight.positives.map((item) => <span key={item}>✓ {item}</span>)}</div>}{insight.attention?.length > 0 && <div><strong>Följ upp</strong>{insight.attention.map((item) => <span key={item}>! {item}</span>)}</div>}{insight.limitations?.length > 0 && <small>Begränsningar: {insight.limitations.join(' · ')}</small>}</div> : <p className="ai-insight-empty">Skapa en kort sammanfattning av vald period när det finns tillräckligt med data.</p>}</section>
+}
+
+function WorkoutLibrary({ code, responses }) {
+  const [workouts, setWorkouts] = useState([])
+  const [filter, setFilter] = useState('all')
+  const [sort, setSort] = useState('date')
+  const focusLabels = { fart: 'Fart', troskel: 'Tröskel', syra: 'Syra', f2_frisim: 'F2 Frisim', f2_spec: 'F2 Spec', distans: 'Distans', teknik: 'Teknik', aterhamtning: 'Återhämtning', kondition_frisim: 'Kondition frisim', kondition_special: 'Kondition special' }
+  useEffect(() => { apiRequest('/api/workouts?history=true', code).then((data) => setWorkouts(data.workouts || [])).catch(() => {}) }, [code])
+  const today = todayKey()
+  const visible = workouts.filter((workout) => filter === 'all' || (filter === 'upcoming' ? workout.date >= today : workout.date < today)).map((workout) => {
+    const after = responses.filter((item) => item.type === 'after' && dateKey(responseDate(item)) === workout.date)
+    const avg = (key) => { const values = after.map((item) => Number(item[key])).filter(Number.isFinite); return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : null }
+    return { ...workout, focusLabel: focusLabels[workout.focus] || workout.focus || 'Ingen inriktning', responses: after.length, rpe: avg('rpe'), pass: avg('pass'), setup: avg('setup') }
+  }).sort((a, b) => sort === 'date' ? b.date.localeCompare(a.date) : sort === 'distance' ? (b.distanceMeters || 0) - (a.distanceMeters || 0) : sort === 'duration' ? (b.durationMinutes || 0) - (a.durationMinutes || 0) : sort === 'rpe' ? (Number(b.rpe) || -1) - (Number(a.rpe) || -1) : sort === 'pass' ? (Number(b.pass) || -1) - (Number(a.pass) || -1) : (Number(b.setup) || -1) - (Number(a.setup) || -1))
+  return <section className="workout-library"><div className="period-heading"><div><p className="eyebrow">Träningspass</p><h1>Passbibliotek</h1></div><div className="big-count"><strong>{visible.length}</strong><span>pass</span></div></div><div className="library-controls"><label>Visa<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Alla pass</option><option value="upcoming">Kommande</option><option value="past">Tidigare</option></select></label><label>Sortera efter<select value={sort} onChange={(event) => setSort(event.target.value)}><option value="date">Datum</option><option value="distance">Distans</option><option value="duration">Tid</option><option value="rpe">RPE</option><option value="pass">Passbetyg</option><option value="setup">Upplägg</option></select></label></div>{visible.length ? <div className="workout-library-list">{visible.map((workout) => <article key={workout.id} className={workout.date >= today ? 'upcoming' : ''}><div><p className="eyebrow">{new Date(`${workout.date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>{workout.title}</h2><span className="workout-focus-pill">{workout.focusLabel}</span></div><p className="workout-content-preview">{workout.content}</p><div className="workout-library-stats"><span>{workout.distanceMeters ? `${workout.distanceMeters.toLocaleString('sv-SE')} m` : '– m'}</span><span>{workout.durationMinutes ? `${workout.durationMinutes} min` : '– min'}</span><span>{workout.responses ? `${workout.responses} svar` : 'Inga svar'}</span><span>{workout.pass ? `Pass ${workout.pass}/5` : 'Pass –'}</span><span>{workout.rpe ? `RPE ${workout.rpe}/10` : 'RPE –'}</span></div></article>)}</div> : <p className="empty">Inga pass matchar urvalet ännu.</p>}</section>
 }
 
 function WorkoutTrendAnalysis({ analysis }) {

@@ -913,3 +913,14 @@ button { cursor: pointer; }
   .profile-chip { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .feed-link { display: none; }
 }
+
+.library-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+.library-controls label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.library-controls select { min-width: 150px; }
+.workout-library-list { display: grid; gap: 14px; }
+.workout-library-list article { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; padding: 18px; }
+.workout-library-list article.upcoming { border-color: var(--accent); }
+.workout-library-list h2 { margin: 4px 0 10px; }
+.workout-focus-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e4f3f0; font-size: 12px; }
+.workout-content-preview { color: var(--muted); white-space: pre-line; max-height: 4.5em; overflow: hidden; }
+.workout-library-stats { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
