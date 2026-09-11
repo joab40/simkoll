@@ -906,6 +906,9 @@ button { cursor: pointer; }
 }
 
 @media (max-width: 390px) {
+  .competition-profile-card > summary { align-items: flex-start; gap: 8px; }
+  .competition-profile-card > summary > span:last-child { align-items: flex-end; flex-direction: column; gap: 5px; }
+  .competition-profile-card > summary .secondary-button { padding: 8px 10px; }
   .thumb-grid button span { font-size: 35px; }
   .coach-badge { display: none; }
   .club-brand { gap: 9px; }
@@ -938,10 +941,14 @@ button { cursor: pointer; }
 .competition-profile-list { display: grid; gap: 12px; }
 .competition-profile-card, .competition-profile-card > summary + div { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .competition-profile-card > summary { display: flex; justify-content: space-between; padding: 16px; font-weight: 700; cursor: pointer; }
+.competition-profile-card > summary > span { min-width: 0; }
+.competition-profile-card > summary > span:last-child { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .competition-profile-card > summary small { color: var(--muted); font-weight: 400; }
 .competition-event-list { display: grid; gap: 8px; padding: 0 12px 12px; }
 .competition-event-list > details { border-top: 1px solid #e5efed; padding-top: 8px; }
 .competition-event-list > details > summary { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 4px; cursor: pointer; }
 .competition-event-list summary small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; margin-top: 2px; }
 .competition-history { display: grid; gap: 5px; padding: 6px 4px 10px; color: var(--muted); font-size: 13px; }
+.competition-history > div { display: grid; gap: 4px; }
+.competition-history > div + div { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5efed; }
 .swimmer-card-details .tempus-results, .swimmer-card-details .tempus-history { display: none; }
