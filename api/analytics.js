@@ -49,8 +49,13 @@ async function createAiInsight(request, response) {
     // Free model on Vercel AI Gateway, suitable for Hobby projects without paid credits.
     const result = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gatewayKey}` }, body: JSON.stringify({ model: 'inclusionai/ling-3.0-flash-fin-free', temperature: 0.2, max_tokens: 700, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
     if (!result.ok) { const detail = (await result.text()).slice(0, 300); throw new Error(`AI Gateway request failed: ${result.status} ${detail}`) }
-    const payload = await result.json(), text = payload.choices?.[0]?.message?.content || ''
-    const parsed = JSON.parse(text.replace(/^```json\s*/i, '').replace(/\s*```$/, ''))
+    const payload = await result.json(), rawText = payload.choices?.[0]?.message?.content || ''
+    // Models occasionally wrap JSON in markdown or a short explanation. Extract
+    // the first complete object before parsing instead of failing the whole insight.
+    const text = String(rawText).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    const firstBrace = text.indexOf('{'), lastBrace = text.lastIndexOf('}')
+    const jsonText = firstBrace >= 0 && lastBrace > firstBrace ? text.slice(firstBrace, lastBrace + 1) : text
+    const parsed = JSON.parse(jsonText)
     return sendJson(response, 200, { insight: { summary: String(parsed.summary || ''), positives: Array.isArray(parsed.positives) ? parsed.positives.slice(0, 3).map(String) : [], attention: Array.isArray(parsed.attention) ? parsed.attention.slice(0, 3).map(String) : [], limitations: Array.isArray(parsed.limitations) ? parsed.limitations.slice(0, 2).map(String) : [] } })
   } catch (error) { console.error(error); return sendJson(response, 502, { error: 'AI-sammanfattningen kunde inte skapas just nu.' }) }
 }
