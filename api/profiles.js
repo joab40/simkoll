@@ -139,7 +139,10 @@ export default async function handler(request, response) {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan hämta Tempus-resultat.' })
       const tempusId = String(request.body.tempusId || '').trim()
       if (!/^\d{1,12}$/.test(tempusId)) return sendJson(response, 400, { error: 'Ogiltigt Tempus-ID.' })
-      const page = await fetch(`https://www.tempusopen.se/swimmers/${tempusId}/swimming`)
+      const from = new Date(); from.setFullYear(from.getFullYear() - 3)
+      const to = new Date()
+      const params = new URLSearchParams({ best_time_only: '0', from_date: from.toISOString().slice(0, 10), to_date: to.toISOString().slice(0, 10) })
+      const page = await fetch(`https://www.tempusopen.se/swimmers/${tempusId}/swimming?${params}`)
       if (!page.ok) return sendJson(response, 502, { error: 'Tempus Open kunde inte hämtas just nu.' })
       const html = await page.text()
       const match = html.match(/data-page="([^\"]+)"/)
@@ -179,7 +182,10 @@ export default async function handler(request, response) {
       if (!profilesResult.ok) throw new Error(`Tempus profiles lookup failed: ${profilesResult.status}`)
       let synced = 0, attempted = 0, failures = []
       for (const profile of await profilesResult.json()) {
-        const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming`)
+        const from = new Date(); from.setFullYear(from.getFullYear() - 3)
+        const to = new Date()
+        const params = new URLSearchParams({ best_time_only: '0', from_date: from.toISOString().slice(0, 10), to_date: to.toISOString().slice(0, 10) })
+        const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming?${params}`)
         if (!page.ok) continue
         const html = await page.text(), match = html.match(/data-page="([^\"]+)"/)
         if (!match) continue
@@ -189,7 +195,7 @@ export default async function handler(request, response) {
         const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 3)
         const rows = all.filter((item) => item.event_name && item.result_date && item.swim_time && new Date(`${item.result_date}T12:00:00`) >= cutoff).sort((a, b) => String(b.result_date).localeCompare(String(a.result_date))).slice(0, 500).map((item) => ({ profile_id: profile.id, event: item.event_name, competition_name: item.competition_name || null, pool: item.pool_type_name || null, result_date: item.result_date, swim_time: item.swim_time, result_time: Number.isFinite(Number(item.result_time)) ? Number(item.result_time) : null, aqua_points: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, synced_at: new Date().toISOString() }))
         attempted += rows.length
-        if (rows.length) { const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) synced += rows.length; else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`) }
+        if (rows.length) { const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) synced += rows.length; else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`) }
       }
       return sendJson(response, 200, { synced, attempted, failures })
     }
