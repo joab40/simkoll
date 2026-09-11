@@ -28,6 +28,7 @@ export function publicProfile(profile) {
     username: profile.username,
     displayName: profile.display_name,
     emoji: profile.emoji,
+    trainingGroup: profile.training_group || null,
     approvalStatus: profile.approval_status || 'approved',
     isTestProfile: Boolean(profile.is_test_profile),
     createdAt: profile.created_at,

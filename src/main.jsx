@@ -1314,6 +1314,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [training, setTraining] = useState(null)
   const [trainingGoalDrafts, setTrainingGoalDrafts] = useState({})
   const [trainingGoalStatus, setTrainingGoalStatus] = useState({})
+  const [groupStatus, setGroupStatus] = useState({})
   useEffect(() => { apiRequest('/api/points?artifacts=true', code).then((data) => { setArtifactCatalog(data.catalog || []); setArtifactAssignments(data.assignments || []); setArtifactError('') }).catch((error) => setArtifactError(error.message || 'Kunde inte hämta artefakterna.')) }, [code])
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
   const loadTraining = () => apiRequest('/api/training', code).then(setTraining)
@@ -1370,6 +1371,10 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       setTrainingGoalStatus((current) => ({ ...current, [profile.id]: 'Sparat ✓' }))
     } catch (error) { setTrainingGoalStatus((current) => ({ ...current, [profile.id]: error.message })) }
   }
+  const saveGroup = async (profile, trainingGroup) => {
+    setGroupStatus((current) => ({ ...current, [profile.id]: 'Sparar…' }))
+    try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-training-group', profileId: profile.id, trainingGroup: trainingGroup || null }) }); await onProfilesChange(); setGroupStatus((current) => ({ ...current, [profile.id]: 'Sparat ✓' })) } catch (error) { setGroupStatus((current) => ({ ...current, [profile.id]: error.message })) }
+  }
 
   if (selectedProfile) return <AnalysisDashboard code={code} profile={selectedProfile} pointInfo={profilePoints[selectedProfile.id]} onBack={() => setSelectedProfile(null)} />
   return (
@@ -1413,6 +1418,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
             {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} Att följa upp</strong><span>{signalReasons.join(' · ')}</span></div>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
+            <div className="swimmer-group-edit"><label>Träningsgrupp<select value={profile.trainingGroup || ''} onChange={(event) => saveGroup(profile, event.target.value)}><option value="">Ingen grupp</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label>{groupStatus[profile.id] && <small>{groupStatus[profile.id]}</small>}</div>
             {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
             {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
             <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra överenskomna mål</summary><form onSubmit={(event) => { event.preventDefault(); saveTrainingGoals(profile, swimGoal, crossGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={trainingGoalDrafts[profile.id]?.swim ?? swimGoal?.target ?? ''} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), swim: event.target.value } }))} /></label><label>Land / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.dryland ?? crossGoal?.drylandTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), dryland: event.target.value } }))} /></label><label>Styrka / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.strength ?? crossGoal?.strengthTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), strength: event.target.value } }))} /></label><button type="submit">Spara mål</button>{trainingGoalStatus[profile.id] && <small>{trainingGoalStatus[profile.id]}</small>}</form><small>Ändras efter dialog med simmaren.</small></details></section>

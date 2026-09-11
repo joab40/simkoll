@@ -25,7 +25,7 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
         return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
@@ -108,6 +108,16 @@ export default async function handler(request, response) {
       const profileId = String(request.body.profileId || '')
       if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
       const updated = await updateProfile(profileId, { is_test_profile: request.body.isTestProfile === true })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
+    if (action === 'set-training-group') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra träningsgrupp.' })
+      const profileId = String(request.body.profileId || '')
+      const allowed = ['ungdom_orange', 'ungdom_svart', 'junior']
+      const trainingGroup = request.body.trainingGroup ? String(request.body.trainingGroup) : null
+      if (!profileId || (trainingGroup && !allowed.includes(trainingGroup))) return sendJson(response, 400, { error: 'Ogiltig träningsgrupp.' })
+      const updated = await updateProfile(profileId, { training_group: trainingGroup })
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 
