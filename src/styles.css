@@ -951,6 +951,12 @@ button { cursor: pointer; }
 .competition-history { display: grid; gap: 5px; padding: 6px 4px 10px; color: var(--muted); font-size: 13px; }
 .competition-history > div { display: grid; gap: 4px; }
 .competition-history > div + div { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5efed; }
+.tempus-edit { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 12px 0; padding: 12px 14px; background: #f3f8f6; border: 1px solid #dbe8e5; border-radius: 12px; }
+.tempus-edit > div { display: grid; gap: 2px; }
+.tempus-edit > div small { color: var(--muted); font-size: 12px; }
+.tempus-edit form { display: flex; align-items: center; gap: 8px; margin: 0; }
+.tempus-edit input { width: 120px; }
+@media (max-width: 520px) { .tempus-edit { align-items: stretch; flex-direction: column; } .tempus-edit form { width: 100%; } .tempus-edit form label { flex: 1; } .tempus-edit input { width: 100%; } }
 .my-competition-results { display: grid; gap: 8px; padding: 20px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .my-competition-results h2 { margin: 0; }
 .my-competition-results > small { color: var(--muted); }
