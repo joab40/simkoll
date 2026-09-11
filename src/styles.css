@@ -951,4 +951,7 @@ button { cursor: pointer; }
 .competition-history { display: grid; gap: 5px; padding: 6px 4px 10px; color: var(--muted); font-size: 13px; }
 .competition-history > div { display: grid; gap: 4px; }
 .competition-history > div + div { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5efed; }
+.my-competition-results { display: grid; gap: 8px; padding: 20px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
+.my-competition-results h2 { margin: 0; }
+.my-competition-results > small { color: var(--muted); }
 .swimmer-card-details .tempus-results, .swimmer-card-details .tempus-history { display: none; }

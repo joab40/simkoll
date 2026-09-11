@@ -37,6 +37,11 @@ export default async function handler(request, response) {
       }
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 401, { error: 'Inte inloggad.' })
+      if (request.query?.competitionResults === 'true') {
+        const result = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&select=*&order=result_date.desc&limit=1000`)
+        if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { results: await result.json() })
+      }
       if (request.query?.directory === 'true') {
         const result = await supabaseRequest(`profiles?id=neq.${profile.id}&active=eq.true&select=id,display_name,emoji&order=display_name.asc`)
         if (!result.ok) throw new Error(`Directory GET failed: ${result.status}`)
