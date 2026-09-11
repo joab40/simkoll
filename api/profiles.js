@@ -144,13 +144,16 @@ export default async function handler(request, response) {
       try { pageData = JSON.parse(decoded) } catch { return sendJson(response, 502, { error: 'Tempus-resultaten hade ett oväntat format.' }) }
       const swimmer = pageData.props?.swimmer || {}
       const byEvent = new Map()
-      for (const item of (pageData.props?.results_short?.data || [])) {
-        const result = { event: item.event_name || '', date: item.result_date || '', time: item.swim_time || '', timeValue: Number(item.result_time) }
+      const allResults = [...(pageData.props?.results_short?.data || []), ...(pageData.props?.results_long?.data || [])]
+      for (const item of allResults) {
+        const pool = item.pool_type_name || ''
+        const result = { event: item.event_name || '', date: item.result_date || '', time: item.swim_time || '', pool, timeValue: Number(item.result_time) }
         if (!result.event || !result.date || !result.time) continue
-        const previous = byEvent.get(result.event)
-        if (!previous || (Number.isFinite(result.timeValue) && result.timeValue < previous.timeValue)) byEvent.set(result.event, result)
+        const key = `${result.event}|${result.pool}`
+        const previous = byEvent.get(key)
+        if (!previous || (Number.isFinite(result.timeValue) && result.timeValue < previous.timeValue)) byEvent.set(key, result)
       }
-      const results = [...byEvent.values()].sort((a, b) => a.event.localeCompare(b.event, 'sv')).map(({ timeValue, ...result }) => result).slice(0, 100)
+      const results = [...byEvent.values()].sort((a, b) => a.event.localeCompare(b.event, 'sv') || a.pool.localeCompare(b.pool, 'sv')).map(({ timeValue, ...result }) => result).slice(0, 100)
       return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results })
     }
 
