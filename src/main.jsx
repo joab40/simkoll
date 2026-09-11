@@ -174,18 +174,22 @@ function App() {
               body: JSON.stringify({ ...response, identified }),
             })
             setResponses((current) => [...current, result.response])
-            if (profile) {
-              const trainingData = await apiRequest('/api/training', auth.code)
-              const tomorrow = dateKey(new Date(Date.now() + 86400000))
-              const [workoutData, tomorrowData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
-              setWorkout(workoutData.workout)
-              setWorkoutLocked(workoutData.locked)
-              setTomorrowWorkout(tomorrowData.workout)
-              setActiveProfilesToday(activityData.activeProfilesToday)
-              setPoints(pointsData)
-              setTraining(trainingData)
-            }
+            // Show confirmation as soon as the response is persisted. The
+            // surrounding dashboard data can refresh without blocking the UI.
             setScreen('thanks')
+            if (profile) {
+              void (async () => {
+                const trainingData = await apiRequest('/api/training', auth.code)
+                const tomorrow = dateKey(new Date(Date.now() + 86400000))
+                const [workoutData, tomorrowData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+                setWorkout(workoutData.workout)
+                setWorkoutLocked(workoutData.locked)
+                setTomorrowWorkout(tomorrowData.workout)
+                setActiveProfilesToday(activityData.activeProfilesToday)
+                setPoints(pointsData)
+                setTraining(trainingData)
+              })().catch(() => {})
+            }
           }}
         />
       )}
