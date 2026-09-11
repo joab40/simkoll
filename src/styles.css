@@ -935,4 +935,13 @@ button { cursor: pointer; }
 .competition-sync-list > div { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 12px; }
 .competition-sync-list small { color: var(--muted); margin-right: auto; }
 .competition-table { margin-top: 18px; }
+.competition-profile-list { display: grid; gap: 12px; }
+.competition-profile-card, .competition-profile-card > summary + div { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
+.competition-profile-card > summary { display: flex; justify-content: space-between; padding: 16px; font-weight: 700; cursor: pointer; }
+.competition-profile-card > summary small { color: var(--muted); font-weight: 400; }
+.competition-event-list { display: grid; gap: 8px; padding: 0 12px 12px; }
+.competition-event-list > details { border-top: 1px solid #e5efed; padding-top: 8px; }
+.competition-event-list > details > summary { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 4px; cursor: pointer; }
+.competition-event-list summary small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; margin-top: 2px; }
+.competition-history { display: grid; gap: 5px; padding: 6px 4px 10px; color: var(--muted); font-size: 13px; }
 .swimmer-card-details .tempus-results, .swimmer-card-details .tempus-history { display: none; }
