@@ -25,6 +25,7 @@ const metrics = (responses, sessions, activities, privateView) => {
     body: enough ? mean(responses, 'body') : null,
     energy: enough ? mean(responses, 'energy') : null,
     rpe: enough ? mean(after, 'rpe') : null,
+    speedFeeling: enough ? mean(after, 'speed_feeling') : null,
     passRating: enough ? mean(after, 'pass_rating') : null,
     setupRating: enough ? mean(after, 'setup_rating') : null,
   }
@@ -55,7 +56,7 @@ async function createAiInsight(request, response) {
   const current = input.current || {}, previous = input.previous || {}, analysis = input.workoutAnalysis || {}
   const safe = {
     period: periodLabel,
-    current: { checkins: cleanNumber(current.checkins), activeDays: cleanNumber(current.activeDays), sickDays: cleanNumber(current.sickDays), restDays: cleanNumber(current.restDays), feeling: cleanNumber(current.feeling), body: cleanNumber(current.body), rpe: cleanNumber(current.rpe), passRating: cleanNumber(current.passRating), swimSessions: cleanNumber(current.swimSessions), strengthSessions: cleanNumber(current.strengthSessions), drylandSessions: cleanNumber(current.drylandSessions) },
+    current: { checkins: cleanNumber(current.checkins), activeDays: cleanNumber(current.activeDays), sickDays: cleanNumber(current.sickDays), restDays: cleanNumber(current.restDays), feeling: cleanNumber(current.feeling), body: cleanNumber(current.body), rpe: cleanNumber(current.rpe), speedFeeling: cleanNumber(current.speedFeeling), passRating: cleanNumber(current.passRating), swimSessions: cleanNumber(current.swimSessions), strengthSessions: cleanNumber(current.strengthSessions), drylandSessions: cleanNumber(current.drylandSessions) },
     previous: { feeling: cleanNumber(previous.feeling), body: cleanNumber(previous.body), rpe: cleanNumber(previous.rpe), passRating: cleanNumber(previous.passRating), swimSessions: cleanNumber(previous.swimSessions), strengthSessions: cleanNumber(previous.strengthSessions), drylandSessions: cleanNumber(previous.drylandSessions) },
     workouts: (analysis.focuses || []).slice(0, 20).map((item) => ({ label: String(item.label || '').slice(0, 40), workouts: cleanNumber(item.workouts), distance: cleanNumber(item.distance), duration: cleanNumber(item.duration), feeling: cleanNumber(item.feeling), body: cleanNumber(item.body), rpe: cleanNumber(item.rpe), passRating: cleanNumber(item.passRating), responseCount: cleanNumber(item.responseCount) })),
     workload: (analysis.workload || []).slice(-12).map((item) => ({ weekStart: String(item.weekStart || '').slice(0, 10), workouts: cleanNumber(item.workouts), distance: cleanNumber(item.distance), duration: cleanNumber(item.duration) })),
@@ -105,7 +106,7 @@ export default async function handler(request, response) {
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
     const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult] = await Promise.all([
-      supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
+      supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),

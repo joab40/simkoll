@@ -3,7 +3,7 @@ import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProf
 
 const numberFields = {
   feeling: [1, 5], energy: [1, 5], body: [1, 5], motivation: [1, 5],
-  sleep: [1, 5], rpe: [1, 10], pass: [1, 5], setup: [1, 5],
+  sleep: [1, 5], rpe: [1, 10], speedFeeling: [1, 5], pass: [1, 5], setup: [1, 5],
 }
 
 function validate(body) {
@@ -25,6 +25,7 @@ function toDatabase(response, profileId) {
     motivation: response.motivation ?? null,
     sleep: response.sleep ?? null,
     rpe: response.rpe ?? null,
+    speed_feeling: response.speedFeeling ?? null,
     pass_rating: response.pass ?? null,
     setup_rating: response.setup ?? null,
     comment: response.comment?.trim().slice(0, 300) || null,
@@ -43,6 +44,7 @@ function fromDatabase(response, includeDetails) {
     motivation: response.motivation,
     sleep: response.sleep,
     rpe: response.rpe,
+    speedFeeling: response.speed_feeling,
     pass: response.pass_rating,
     setup: response.setup_rating,
     comment: response.comment || '',
