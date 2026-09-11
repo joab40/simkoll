@@ -551,8 +551,9 @@ function TomorrowWorkoutCard({ workout }) {
 
 function WorkoutMeta({ workout }) {
   const focus = WORKOUT_FOCUSES.find(([value]) => value === workout.focus)?.[1]
-  if (!focus && !workout.distanceMeters && !workout.durationMinutes) return null
-  return <div className="workout-meta"><span>{focus || 'Pass'}</span>{workout.distanceMeters && <span>{Number(workout.distanceMeters).toLocaleString('sv-SE')} m</span>}{workout.durationMinutes && <span>{workout.durationMinutes} min</span>}</div>
+  const groupLabels = { ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }
+  if (!focus && !workout.distanceMeters && !workout.durationMinutes && !workout.targetGroups?.length) return null
+  return <div className="workout-meta"><span>{focus || 'Pass'}</span>{workout.distanceMeters && <span>{Number(workout.distanceMeters).toLocaleString('sv-SE')} m</span>}{workout.durationMinutes && <span>{workout.durationMinutes} min</span>}{workout.targetGroups?.length && <span>{workout.targetGroups.map((group) => groupLabels[group] || group).join(' · ')}</span>}</div>
 }
 
 function AccountChoice({ onAnonymous, onLogin, onCreate }) {
@@ -1309,14 +1310,14 @@ function localDateValue() {
 
 function WorkoutEditor({ code }) {
   const [date, setDate] = useState(localDateValue)
-  const [form, setForm] = useState({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '' })
+  const [form, setForm] = useState({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     apiRequest(`/api/workouts?date=${date}`, code)
-      .then((data) => setForm(data.workout || { title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '' }))
+      .then((data) => setForm(data.workout || { title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] }))
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [code, date])
@@ -1338,7 +1339,7 @@ function WorkoutEditor({ code }) {
     if (!confirmDestructive(`Passet för ${date} försvinner för alla simmare.`)) return
     try {
       await apiRequest(`/api/workouts?date=${date}`, code, { method: 'DELETE' })
-      setForm({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '' })
+      setForm({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
       setSaved(false)
     } catch (error) { window.alert(error.message) }
   }
@@ -1350,6 +1351,7 @@ function WorkoutEditor({ code }) {
         <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setDate(event.target.value) }} /></label>
         <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
         <div className="workout-meta-fields"><label>Huvudinriktning<select value={form.focus || ''} onChange={(event) => { setSaved(false); setForm({ ...form, focus: event.target.value }) }}><option value="">Välj inriktning…</option>{WORKOUT_FOCUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Längd (meter)<input type="number" min="1" max="50000" placeholder="t.ex. 4000" value={form.distanceMeters ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, distanceMeters: event.target.value }) }} /></label><label>Tidsåtgång (minuter)<input type="number" min="1" max="600" placeholder="t.ex. 75" value={form.durationMinutes ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, durationMinutes: event.target.value }) }} /></label></div>
+        <fieldset className="workout-groups"><legend>Passet gäller för</legend><div>{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, label]) => <label key={value}><input type="checkbox" checked={(form.targetGroups || []).includes(value)} onChange={(event) => { setSaved(false); const groups = new Set(form.targetGroups || []); event.target.checked ? groups.add(value) : groups.delete(value); setForm({ ...form, targetGroups: [...groups] }) }} />{label}</label>)}</div><small>Välj en eller flera grupper. Passet visas bara för valda grupper.</small></fieldset>
         <label>Huvudserie<textarea required maxLength="5000" placeholder={'Till exempel:\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /></label>
         <label>Meddelande till simmarna <small>Frivilligt</small><textarea className="short" maxLength="500" placeholder="Fokus för dagen eller något att tänka på…" value={form.note || ''} onChange={(event) => { setSaved(false); setForm({ ...form, note: event.target.value }) }} /></label>
         <div className="editor-actions">{form.id && <button type="button" className="delete-workout" onClick={remove}>Ta bort passet</button>}<span>{saved ? '✓ Sparat och publicerat' : ''}</span><button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : 'Publicera passet →'}</button></div>
