@@ -924,3 +924,7 @@ button { cursor: pointer; }
 .workout-focus-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e4f3f0; font-size: 12px; }
 .workout-content-preview { color: var(--muted); white-space: pre-line; max-height: 4.5em; overflow: hidden; }
 .workout-library-stats { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.tempus-results { display: grid; gap: 7px; margin-top: 12px; }
+.tempus-results > strong { font-size: 13px; }
+.tempus-results > div { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 13px; }
+.tempus-results small { color: var(--muted); }

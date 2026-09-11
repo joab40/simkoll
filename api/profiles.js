@@ -130,6 +130,30 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 
+    if (action === 'get-tempus-results') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan hämta Tempus-resultat.' })
+      const tempusId = String(request.body.tempusId || '').trim()
+      if (!/^\d{1,12}$/.test(tempusId)) return sendJson(response, 400, { error: 'Ogiltigt Tempus-ID.' })
+      const page = await fetch(`https://www.tempusopen.se/swimmers/${tempusId}/swimming`)
+      if (!page.ok) return sendJson(response, 502, { error: 'Tempus Open kunde inte hämtas just nu.' })
+      const html = await page.text()
+      const match = html.match(/data-page="([^\"]+)"/)
+      if (!match) return sendJson(response, 502, { error: 'Tempus-resultaten kunde inte läsas.' })
+      const decoded = match[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&').replace(/\\\//g, '/')
+      let pageData
+      try { pageData = JSON.parse(decoded) } catch { return sendJson(response, 502, { error: 'Tempus-resultaten hade ett oväntat format.' }) }
+      const swimmer = pageData.props?.swimmer || {}
+      const byEvent = new Map()
+      for (const item of (pageData.props?.results_short?.data || [])) {
+        const result = { event: item.event_name || '', date: item.result_date || '', time: item.swim_time || '', timeValue: Number(item.result_time) }
+        if (!result.event || !result.date || !result.time) continue
+        const previous = byEvent.get(result.event)
+        if (!previous || (Number.isFinite(result.timeValue) && result.timeValue < previous.timeValue)) byEvent.set(result.event, result)
+      }
+      const results = [...byEvent.values()].sort((a, b) => a.event.localeCompare(b.event, 'sv')).map(({ timeValue, ...result }) => result).slice(0, 100)
+      return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results })
+    }
+
     if (action === 'delete-profile') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ta bort profiler.' })
       const profileId = String(request.body.profileId || '')
