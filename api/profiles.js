@@ -154,7 +154,17 @@ export default async function handler(request, response) {
         if (!previous || (Number.isFinite(result.timeValue) && result.timeValue < previous.timeValue)) byEvent.set(key, result)
       }
       const results = [...byEvent.values()].sort((a, b) => a.event.localeCompare(b.event, 'sv') || a.pool.localeCompare(b.pool, 'sv')).map(({ timeValue, ...result }) => result).slice(0, 100)
-      return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results })
+      const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 3)
+      const historyMap = new Map()
+      for (const item of allResults) {
+        const date = String(item.result_date || '')
+        if (!item.event_name || !item.swim_time || !/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(`${date}T12:00:00`) < cutoff) continue
+        const key = `${item.event_name}|${item.pool_type_name || ''}`
+        if (!historyMap.has(key)) historyMap.set(key, { event: item.event_name, pool: item.pool_type_name || '', items: [] })
+        historyMap.get(key).items.push({ date, time: item.swim_time, aquaPoints: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null })
+      }
+      const history = [...historyMap.values()].map((group) => ({ ...group, items: group.items.sort((a, b) => b.date.localeCompare(a.date)) })).sort((a, b) => a.event.localeCompare(b.event, 'sv') || a.pool.localeCompare(b.pool, 'sv'))
+      return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results, history })
     }
 
     if (action === 'delete-profile') {

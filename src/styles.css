@@ -928,3 +928,6 @@ button { cursor: pointer; }
 .tempus-results > strong { font-size: 13px; }
 .tempus-results > div { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 13px; }
 .tempus-results small { color: var(--muted); }
+.tempus-history { margin-top: 12px; }
+.tempus-history > div { display: grid; gap: 4px; margin-top: 10px; font-size: 13px; }
+.tempus-history > div span { color: var(--muted); }
