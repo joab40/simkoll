@@ -26,6 +26,7 @@ const metrics = (responses, sessions, activities, privateView) => {
     energy: enough ? mean(responses, 'energy') : null,
     rpe: enough ? mean(after, 'rpe') : null,
     speedFeeling: enough ? mean(after, 'speed_feeling') : null,
+    temperature: enough ? mean(after, 'temperature') : null,
     passRating: enough ? mean(after, 'pass_rating') : null,
     setupRating: enough ? mean(after, 'setup_rating') : null,
   }
@@ -106,7 +107,7 @@ export default async function handler(request, response) {
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
     const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult] = await Promise.all([
-      supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
+      supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
