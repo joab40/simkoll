@@ -136,7 +136,7 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onHelp={() => setScreen('faq')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
+    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
       {screen === 'account' && <AccountChoice
@@ -204,6 +204,7 @@ function App() {
         setScreen('account')
       }} />}
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
+      {screen === 'legal' && <LegalPage onBack={() => setScreen('home')} />}
     </Shell>
   )
 }
@@ -293,12 +294,12 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, profile, onCommunity, onGoals, onHelp, onProfile, onGame, onLogout }) {
+function Shell({ children, profile, onCommunity, onGoals, onHelp, onLegal, onProfile, onGame, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
-      <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && <button className="feed-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="feed-link" onClick={go(onGoals)}>Mina mål</button>}<button className="feed-link" onClick={go(onHelp)}>FAQ</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
+      <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && <button className="feed-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="feed-link" onClick={go(onGoals)}>Mina mål</button>}<button className="feed-link" onClick={go(onHelp)}>FAQ</button><button className="feed-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
       {children}
     </main>
   )
@@ -354,6 +355,10 @@ function HelpTip({ term }) {
 
 function Faq({ role, onBack }) {
   return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
+}
+
+function LegalPage({ onBack }) {
+  return <div className="faq-page legal-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkoll</p><h1>Info & villkor</h1><p className="faq-intro">Här beskriver vi hur Simkoll används och hur information hanteras. Klubbens juridiska uppgifter och kontaktväg kompletteras innan skarp lansering.</p><div className="faq-list"><details open><summary>Integritet och data<span>−</span></summary><p>Simkoll samlar in svar om exempelvis energi, kroppskänsla, motivation, RPE, fartkänsla, temperatur och träningsupplevelse. Du väljer själv om ett svar ska vara anonymt eller kopplas till din profil.</p><p>Anonyma svar visas som gruppsammanställningar. Profilkopplade svar kan ses av behöriga tränare och av dig själv. Du kan be om information, rättelse eller radering av uppgifter via klubben.</p></details><details><summary>AI-analys<span>+</span></summary><p>För tränarens analys kan sammanställda träningsvärden skickas till en språkmodell. Namn, användarnamn och privata kommentarer skickas inte till AI-analysen. AI-resultatet är ett stöd och ska inte användas för medicinska beslut eller automatiska bedömningar av simmare.</p></details><details><summary>Användarvillkor<span>+</span></summary><p>Simkoll är ett frivilligt stöd för träningsfeedback och ersätter inte kontakt med tränare, vårdnadshavare eller vårdpersonal. Skriv inte diagnoser, personnummer eller andra känsliga uppgifter i fritextfält.</p><p>Pepp och meddelanden ska vara respektfulla. Olämpligt innehåll kan tas bort av tränare.</p></details><details><summary>Klubbens uppgifter<span>+</span></summary><p>Personuppgiftsansvarig, kontaktadress, lagringstid och information för minderåriga fylls i här innan appen används skarpt.</p></details></div><small className="legal-disclaimer">Detta är ett informationsutkast och bör granskas innan skarp användning.</small></section></div>
 }
 
 function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onToggleSession, onTogglePlan, onStart }) {
@@ -939,11 +944,14 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'programs' ? 'active' : ''} onClick={() => setView('programs')}><span className="desktop-tab-label">Träningsprogram</span><span className="mobile-tab-label">Program</span></button>
             <button className={view === 'rewards' ? 'active' : ''} onClick={() => setView('rewards')}><span className="desktop-tab-label">Poäng & nivåer</span><span className="mobile-tab-label">Poäng</span></button>
             <button className={view === 'faq' ? 'active' : ''} onClick={() => setView('faq')}><span className="desktop-tab-label">FAQ</span><span className="mobile-tab-label">FAQ</span></button>
+            <button className={view === 'legal' ? 'active' : ''} onClick={() => setView('legal')}><span className="desktop-tab-label">Info & villkor</span><span className="mobile-tab-label">Info</span></button>
           </div></div>
         </nav>
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'faq' ? (
           <Faq role="coach" />
+        ) : view === 'legal' ? (
+          <LegalPage />
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} />
         ) : view === 'rewards' ? (
