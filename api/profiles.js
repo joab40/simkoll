@@ -147,7 +147,7 @@ export default async function handler(request, response) {
       const allResults = [...(pageData.props?.results_short?.data || []), ...(pageData.props?.results_long?.data || [])]
       for (const item of allResults) {
         const pool = item.pool_type_name || ''
-        const result = { event: item.event_name || '', date: item.result_date || '', time: item.swim_time || '', pool, timeValue: Number(item.result_time) }
+        const result = { event: item.event_name || '', date: item.result_date || '', time: item.swim_time || '', aquaPoints: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, pool, timeValue: Number(item.result_time) }
         if (!result.event || !result.date || !result.time) continue
         const key = `${result.event}|${result.pool}`
         const previous = byEvent.get(key)
