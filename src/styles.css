@@ -695,6 +695,19 @@ button { cursor: pointer; }
 .analysis-periods button.active { background: white; color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
 .analysis-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 9px; margin-bottom: 12px; }
 .workout-trend-analysis { grid-column: 1 / -1; background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 21px; }
+.ai-insight-card { grid-column: 1 / -1; background: var(--ink); color: white; border-radius: 18px; padding: 21px; }
+.ai-insight-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.ai-insight-header h2 { margin: 0; font-size: 21px; }
+.ai-insight-header .eyebrow { color: #b8d0cc; }
+.ai-insight-header .secondary-button { background: white; color: var(--ink); border-color: white; }
+.ai-insight-body { display: grid; gap: 12px; margin-top: 15px; }
+.ai-insight-body > p { margin: 0; color: #f4fbf8; line-height: 1.5; }
+.ai-insight-body > div { display: grid; gap: 5px; }
+.ai-insight-body strong { color: #d5ed9b; font-size: 11px; }
+.ai-insight-body > div:last-of-type strong { color: #ffd39a; }
+.ai-insight-body span { color: #d5e4e1; font-size: 11px; }
+.ai-insight-body > small { color: #b8c9c9; font-size: 10px; }
+.ai-insight-empty { margin: 14px 0 0; color: #c2d3d0; font-size: 12px; }
 .workout-trend-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; margin-bottom: 14px; }
 .workout-trend-heading h2 { margin: 0; font-size: 21px; }
 .workout-trend-heading > small { color: var(--muted); font-size: 10px; }
@@ -865,6 +878,9 @@ button { cursor: pointer; }
   .analysis-periods button { flex: 0 0 auto; }
   .analysis-metrics { grid-template-columns: repeat(2, 1fr); }
   .workout-trend-analysis { padding: 18px; }
+  .ai-insight-card { padding: 18px; }
+  .ai-insight-header { align-items: flex-start; flex-direction: column; }
+  .ai-insight-header .secondary-button { width: 100%; }
   .workout-trend-heading { display: block; }
   .workout-trend-heading > small { display: block; margin-top: 5px; }
   .workout-focus-list article { align-items: flex-start; flex-direction: column; }

@@ -1046,6 +1046,9 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
   const [period, setPeriod] = useState('7')
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const [aiInsight, setAiInsight] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
   useEffect(() => {
     setData(null); setError('')
     const range = analysisRange(period)
@@ -1057,12 +1060,25 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
     if (!data?.current || !data?.previous || data.current[key] == null || data.previous[key] == null) return null
     return Number((data.current[key] - data.previous[key]).toFixed(1))
   }
-  const Metric = ({ title, metric, suffix = '', note }) => { const delta = change(metric); const value = data.current[metric]; return <><article className="analysis-metric"><span>{title} <HelpTip term={title} /></span><strong>{value == null ? '–' : `${value}${suffix}`}</strong>{delta != null && delta !== 0 ? <small className={delta > 0 ? 'up' : 'down'}>{delta > 0 ? '↑' : '↓'} {Math.abs(delta)} mot förra perioden</small> : <small>{note || 'Oförändrat mot förra perioden'}</small>}</article>{metric === 'checkins' && <><WorkoutTrendAnalysis analysis={data.workoutAnalysis} />{profile && !selfView && <GoalCompliance data={data} code={code} profile={profile} />}</>}</> }
+  const createAiInsight = async () => {
+    if (!data || aiLoading) return
+    setAiLoading(true); setAiError('')
+    try {
+      const label = ANALYSIS_PERIODS.find((item) => item.key === period)?.label || 'vald period'
+      const result = await apiRequest('/api/ai-insights', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ periodLabel: label, data }) })
+      setAiInsight(result.insight)
+    } catch (nextError) { setAiError(nextError.message) } finally { setAiLoading(false) }
+  }
+  const Metric = ({ title, metric, suffix = '', note }) => { const delta = change(metric); const value = data.current[metric]; return <><article className="analysis-metric"><span>{title} <HelpTip term={title} /></span><strong>{value == null ? '–' : `${value}${suffix}`}</strong>{delta != null && delta !== 0 ? <small className={delta > 0 ? 'up' : 'down'}>{delta > 0 ? '↑' : '↓'} {Math.abs(delta)} mot förra perioden</small> : <small>{note || 'Oförändrat mot förra perioden'}</small>}</article>{metric === 'checkins' && <><WorkoutTrendAnalysis analysis={data.workoutAnalysis} />{!selfView && <AiInsightCard insight={aiInsight} loading={aiLoading} error={aiError} onGenerate={createAiInsight} />}{profile && !selfView && <GoalCompliance data={data} code={code} profile={profile} />}</>}</> }
   const swimGoal = data?.goalProgress || data?.currentWeekGoal
   const strengthGoal = data?.crossProgress?.strength || data?.currentCrossGoals?.strength
   const drylandGoal = data?.crossProgress?.dryland || data?.currentCrossGoals?.dryland
   const goalNote = (goal) => goal ? `Mål ${goal.expected ?? goal.target} · ${goal.percentage}%` : 'Inget mål för perioden'
   return <section className="analysis-dashboard">{onBack && <button className="back-button inline" onClick={onBack}>← Alla simmare</button>}<div className="period-heading"><div><p className="eyebrow">{profile ? 'Endast svar kopplade till profilen' : 'Anonym sammanställning på gruppnivå'}</p><h2>{profile ? `${profile.emoji} ${profile.displayName}` : 'Gruppens utveckling'}</h2></div>{profile && pointInfo && <PointProgress info={pointInfo} compact />}</div><nav className="analysis-periods">{ANALYSIS_PERIODS.map((item) => <button className={period === item.key ? 'active' : ''} key={item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}</nav>{error ? <p className="form-error">{error}</p> : !data ? <section className="empty-period"><span>≈</span><h2>Hämtar statistik…</h2></section> : <><div className="analysis-metrics"><Metric title="Incheckningar" metric="checkins" /><Metric title="Aktiva dagar" metric="activeDays" /><Metric title="Sjukdagar" metric="sickDays" /><Metric title="Vilodagar" metric="restDays" /><Metric title="Känsla" metric="feeling" suffix="/5" /><Metric title="Kroppen" metric="body" suffix="/5" /><Metric title="RPE" metric="rpe" suffix="/10" /><Metric title="Passet" metric="passRating" suffix="/5" /></div>{data.privacyLimited && <p className="privacy-limit">🔒 Minst tre gruppsvar behövs för att visa genomsnitt.</p>}<div className="analysis-columns"><section className="coach-card trend-card"><p className="eyebrow">Över tid</p><h2>Känsla och kropp</h2>{data.trend.length ? <div className="trend-bars">{data.trend.map((item) => <div key={item.date}><div><i style={{ height: `${(item.feeling || 0) * 18}%` }} title={`Känsla ${item.feeling ?? 'dold'}`} /><i className="body-bar" style={{ height: `${(item.body || 0) * 18}%` }} title={`Kropp ${item.body ?? 'dold'}`} /></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small><b>{item.count}</b></div>)}</div> : <p className="empty">Ingen data under perioden.</p>}<div className="chart-legend"><span><i /> Känsla</span><span><i /> Kropp</span></div></section><section className="coach-card training-summary"><p className="eyebrow">Registrerad träning</p><h2>Genomförda pass</h2><div><p><span>🏊</span><strong>{data.current.swimSessions}</strong><small>Simpass</small><em>{goalNote(swimGoal)}</em></p><p><span>🏋️</span><strong>{data.current.strengthSessions}</strong><small>Styrkepass</small><em>{goalNote(strengthGoal)}</em></p><p><span>🤸</span><strong>{data.current.drylandSessions}</strong><small>Landpass</small><em>{goalNote(drylandGoal)}</em></p></div></section></div>{profile && <section className="coach-card analysis-comments"><p className="eyebrow">Profilsvar</p><h2>Kommentarer under perioden</h2>{data.recent.length ? data.recent.map((item) => <blockquote key={`${item.date}-${item.comment}`}>{FEELINGS[item.feeling - 1]?.emoji} “{item.comment}” <small>{new Date(item.date).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></blockquote>) : <p className="empty">Inga profilkopplade kommentarer under perioden.</p>}</section>}</>}</section>
+}
+
+function AiInsightCard({ insight, loading, error, onGenerate }) {
+  return <section className="ai-insight-card"><div className="ai-insight-header"><div><p className="eyebrow">AI-stöd för tränaren</p><h2>Veckans tränarsammanfattning</h2></div><button className="secondary-button" onClick={onGenerate} disabled={loading}>{loading ? 'Analyserar…' : insight ? 'Skapa ny analys' : 'Skapa analys'}</button></div>{error && <p className="form-error">{error}</p>}{insight ? <div className="ai-insight-body"><p>{insight.summary}</p>{insight.positives?.length > 0 && <div><strong>Det ser bra ut</strong>{insight.positives.map((item) => <span key={item}>✓ {item}</span>)}</div>}{insight.attention?.length > 0 && <div><strong>Följ upp</strong>{insight.attention.map((item) => <span key={item}>! {item}</span>)}</div>}{insight.limitations?.length > 0 && <small>Begränsningar: {insight.limitations.join(' · ')}</small>}</div> : <p className="ai-insight-empty">Skapa en kort sammanfattning av vald period när det finns tillräckligt med data.</p>}</section>
 }
 
 function WorkoutTrendAnalysis({ analysis }) {
