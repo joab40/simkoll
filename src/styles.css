@@ -931,3 +931,8 @@ button { cursor: pointer; }
 .tempus-history { margin-top: 12px; }
 .tempus-history > div { display: grid; gap: 4px; margin-top: 10px; font-size: 13px; }
 .tempus-history > div span { color: var(--muted); }
+.competition-sync-list { display: grid; gap: 8px; margin: 16px 0; }
+.competition-sync-list > div { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 12px; }
+.competition-sync-list small { color: var(--muted); margin-right: auto; }
+.competition-table { margin-top: 18px; }
+.swimmer-card-details .tempus-results, .swimmer-card-details .tempus-history { display: none; }

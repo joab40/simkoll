@@ -37,6 +37,11 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Directory GET failed: ${result.status}`)
         return sendJson(response, 200, { profiles: (await result.json()).map((item) => ({ id: item.id, displayName: item.display_name, emoji: item.emoji })) })
       }
+      if (groupRole(request) === 'coach' && request.query?.tempusResults === 'true') {
+        const result = await supabaseRequest('competition_results?select=*&order=result_date.desc&limit=10000')
+        if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { results: await result.json() })
+      }
       return sendJson(response, 200, { profile: publicProfile(profile) })
     }
 
@@ -165,6 +170,27 @@ export default async function handler(request, response) {
       }
       const history = [...historyMap.values()].map((group) => ({ ...group, items: group.items.sort((a, b) => b.date.localeCompare(a.date)) })).sort((a, b) => a.event.localeCompare(b.event, 'sv') || a.pool.localeCompare(b.pool, 'sv'))
       return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results, history })
+    }
+
+    if (action === 'sync-tempus-results') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan synka Tempus-resultat.' })
+      const requested = request.body.profileId ? [String(request.body.profileId)] : null
+      const profilesResult = await supabaseRequest(`profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id${requested ? `&id=in.(${requested.join(',')})` : ''}`)
+      if (!profilesResult.ok) throw new Error(`Tempus profiles lookup failed: ${profilesResult.status}`)
+      let synced = 0
+      for (const profile of await profilesResult.json()) {
+        const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming`)
+        if (!page.ok) continue
+        const html = await page.text(), match = html.match(/data-page="([^\"]+)"/)
+        if (!match) continue
+        let pageData
+        try { pageData = JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&').replace(/\\\//g, '/')) } catch { continue }
+        const all = [...(pageData.props?.results_short?.data || []), ...(pageData.props?.results_long?.data || [])]
+        const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 3)
+        const rows = all.filter((item) => item.event_name && item.result_date && item.swim_time && new Date(`${item.result_date}T12:00:00`) >= cutoff).map((item) => ({ profile_id: profile.id, event: item.event_name, pool: item.pool_type_name || null, result_date: item.result_date, swim_time: item.swim_time, result_time: Number.isFinite(Number(item.result_time)) ? Number(item.result_time) : null, aqua_points: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, synced_at: new Date().toISOString() }))
+        if (rows.length) { const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(rows) }); if (upsert.ok) synced += rows.length }
+      }
+      return sendJson(response, 200, { synced })
     }
 
     if (action === 'delete-profile') {

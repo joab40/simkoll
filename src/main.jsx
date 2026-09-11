@@ -913,6 +913,9 @@ function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDo
 
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
+  const [competitionResults, setCompetitionResults] = useState([])
+  const [competitionLoading, setCompetitionLoading] = useState(false)
+  const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const previousWeekResponses = responses.filter((response) => {
@@ -938,6 +941,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           </div></div>
           <div className="coach-tab-group"><span className="coach-tab-label">Verktyg</span><div className="coach-tab-buttons">
             <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
+            <button className={view === 'competition' ? 'active' : ''} onClick={() => { setView('competition'); loadCompetitionResults() }}><span className="desktop-tab-label">Tävlingsresultat</span><span className="mobile-tab-label">Resultat</span></button>
             <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Dagens pass</span><span className="mobile-tab-label">Pass</span></button>
             <button className={view === 'workout-library' ? 'active' : ''} onClick={() => setView('workout-library')}><span className="desktop-tab-label">Passbibliotek</span><span className="mobile-tab-label">Bibliotek</span></button>
             <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}><span className="desktop-tab-label">Meddelanden</span><span className="mobile-tab-label">Meddelanden</span></button>
@@ -971,6 +975,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
           <Swimmers profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={responses} code={code} />
+        ) : view === 'competition' ? (
+          <CompetitionResults profiles={profiles} results={competitionResults} loading={competitionLoading} code={code} onSync={() => { setCompetitionLoading(true); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results' }) }).then(loadCompetitionResults).finally(() => setCompetitionLoading(false)) }} onSyncProfile={(profileId) => { setCompetitionLoading(true); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results', profileId }) }).then(loadCompetitionResults).finally(() => setCompetitionLoading(false)) }} />
         ) : view === 'history' ? (
           <History responses={responses} />
         ) : (
@@ -1112,6 +1118,12 @@ function WorkoutLibrary({ code, responses }) {
     return { ...workout, focusLabel: focusLabels[workout.focus] || workout.focus || 'Ingen inriktning', responses: after.length, rpe: avg('rpe'), pass: avg('pass'), setup: avg('setup') }
   }).sort((a, b) => sort === 'date' ? b.date.localeCompare(a.date) : sort === 'distance' ? (b.distanceMeters || 0) - (a.distanceMeters || 0) : sort === 'duration' ? (b.durationMinutes || 0) - (a.durationMinutes || 0) : sort === 'rpe' ? (Number(b.rpe) || -1) - (Number(a.rpe) || -1) : sort === 'pass' ? (Number(b.pass) || -1) - (Number(a.pass) || -1) : (Number(b.setup) || -1) - (Number(a.setup) || -1))
   return <section className="workout-library"><div className="period-heading"><div><p className="eyebrow">Träningspass</p><h1>Passbibliotek</h1></div><div className="big-count"><strong>{visible.length}</strong><span>pass</span></div></div><div className="library-controls"><label>Visa<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Alla pass</option><option value="upcoming">Kommande</option><option value="past">Tidigare</option></select></label><label>Sortera efter<select value={sort} onChange={(event) => setSort(event.target.value)}><option value="date">Datum</option><option value="distance">Distans</option><option value="duration">Tid</option><option value="rpe">RPE</option><option value="pass">Passbetyg</option><option value="setup">Upplägg</option></select></label></div>{visible.length ? <div className="workout-library-list">{visible.map((workout) => <article key={workout.id} className={workout.date >= today ? 'upcoming' : ''}><div><p className="eyebrow">{new Date(`${workout.date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>{workout.title}</h2><span className="workout-focus-pill">{workout.focusLabel}</span></div><p className="workout-content-preview">{workout.content}</p><div className="workout-library-stats"><span>{workout.distanceMeters ? `${workout.distanceMeters.toLocaleString('sv-SE')} m` : '– m'}</span><span>{workout.durationMinutes ? `${workout.durationMinutes} min` : '– min'}</span><span>{workout.responses ? `${workout.responses} svar` : 'Inga svar'}</span><span>{workout.pass ? `Pass ${workout.pass}/5` : 'Pass –'}</span><span>{workout.rpe ? `RPE ${workout.rpe}/10` : 'RPE –'}</span></div></article>)}</div> : <p className="empty">Inga pass matchar urvalet ännu.</p>}</section>
+}
+
+function CompetitionResults({ profiles, results, loading, onSync, onSyncProfile }) {
+  const [profileFilter, setProfileFilter] = useState('all')
+  const visible = results.filter((item) => profileFilter === 'all' || item.profile_id === profileFilter)
+  return <section className="competition-results"><div className="period-heading"><div><p className="eyebrow">Tempus Open</p><h1>Tävlingsresultat</h1></div><button className="primary-button" disabled={loading} onClick={onSync}>{loading ? 'Hämtar…' : 'Hämta Tempus-data för alla'}</button></div><div className="library-controls"><label>Simmare<select value={profileFilter} onChange={(event) => setProfileFilter(event.target.value)}><option value="all">Alla simmare</option>{profiles.filter((profile) => profile.tempusId).map((profile) => <option key={profile.id} value={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label></div><div className="competition-sync-list">{profiles.filter((profile) => profile.tempusId).map((profile) => <div key={profile.id}><span>{profile.emoji} {profile.displayName}</span><small>Tempus-ID {profile.tempusId}</small><button className="secondary-button" disabled={loading} onClick={() => onSyncProfile(profile.id)}>Hämta</button></div>)}</div>{visible.length ? <div className="tempus-results competition-table">{visible.map((item) => <div key={item.id}><span>{item.event}<small>{item.pool || 'Bassäng saknas'}</small></span><b>{item.swim_time}</b><small>{item.aqua_points != null ? `${item.aqua_points} Aqua · ` : ''}{new Date(item.result_date).toLocaleDateString('sv-SE')}</small></div>)}</div> : <p className="empty">Inga sparade resultat ännu. Hämta Tempus-data för en simmare eller hela gruppen.</p>}</section>
 }
 
 function WorkoutTrendAnalysis({ analysis }) {
