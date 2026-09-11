@@ -55,7 +55,20 @@ async function createAiInsight(request, response) {
     const text = String(rawText).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     const firstBrace = text.indexOf('{'), lastBrace = text.lastIndexOf('}')
     const jsonText = firstBrace >= 0 && lastBrace > firstBrace ? text.slice(firstBrace, lastBrace + 1) : text
-    const parsed = JSON.parse(jsonText)
+    let parsed
+    try {
+      parsed = JSON.parse(jsonText)
+    } catch (parseError) {
+      // Keep the endpoint useful if a free model returns malformed JSON.
+      // The raw response is still shown as a short summary, never as an error page.
+      console.warn('AI returned invalid JSON:', String(rawText).slice(0, 500), parseError.message)
+      parsed = {
+        summary: text.replace(/^['"]|['"]$/g, '').slice(0, 280),
+        positives: [],
+        attention: [],
+        limitations: ['AI-svaret kunde inte strukturtolkas helt.'],
+      }
+    }
     return sendJson(response, 200, { insight: { summary: String(parsed.summary || ''), positives: Array.isArray(parsed.positives) ? parsed.positives.slice(0, 3).map(String) : [], attention: Array.isArray(parsed.attention) ? parsed.attention.slice(0, 3).map(String) : [], limitations: Array.isArray(parsed.limitations) ? parsed.limitations.slice(0, 2).map(String) : [] } })
   } catch (error) { console.error(error); return sendJson(response, 502, { error: 'AI-sammanfattningen kunde inte skapas just nu.' }) }
 }
