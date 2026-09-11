@@ -25,7 +25,7 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
         return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
@@ -118,6 +118,15 @@ export default async function handler(request, response) {
       const trainingGroup = request.body.trainingGroup ? String(request.body.trainingGroup) : null
       if (!profileId || (trainingGroup && !allowed.includes(trainingGroup))) return sendJson(response, 400, { error: 'Ogiltig träningsgrupp.' })
       const updated = await updateProfile(profileId, { training_group: trainingGroup })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
+    if (action === 'set-tempus-id') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra Tempus-ID.' })
+      const profileId = String(request.body.profileId || '')
+      const rawId = String(request.body.tempusId || '').trim()
+      if (!profileId || (rawId && !/^\d{1,12}$/.test(rawId))) return sendJson(response, 400, { error: 'Tempus-ID ska vara ett numeriskt ID.' })
+      const updated = await updateProfile(profileId, { tempus_id: rawId || null })
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 
