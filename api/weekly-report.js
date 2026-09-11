@@ -15,15 +15,16 @@ export default async function handler(request, response) {
   if (!start || !end || Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(end)) || end <= start || !/^\d{4}-\d{2}-\d{2}$/.test(startDay) || !/^\d{4}-\d{2}-\d{2}$/.test(endDay)) return sendJson(response, 400, { error: 'Ogiltig vecka.' })
   const range = `&created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}`
   try {
-    const [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult] = await Promise.all([
+    const [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult] = await Promise.all([
       supabaseRequest(`responses?select=profile_id,feeling,body,rpe,pass_rating,setup_rating,day_type${range}&limit=5000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date&activity_date=gte.${startDay}&activity_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`kudos?select=id${range}&limit=5000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`program_goals?select=id,reward_points&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
       supabaseRequest(`goal_updates?select=id,points,feedback_type${range}&author_role=eq.coach&limit=1000`),
+      supabaseRequest(`point_events?event_type=eq.personal_best&select=profile_id,points,source_key,created_at${range}&limit=1000`),
     ])
-    const results = [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult]
+    const results = [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult]
     if (!results.every((result) => result.ok)) throw new Error('Weekly report lookup failed')
     let checkins = await responsesResult.json()
     let activities = await activityResult.json()
@@ -37,6 +38,7 @@ export default async function handler(request, response) {
     sessions = sessions.filter((item) => !testIds.has(item.profile_id))
     const programGoals = await programGoalsResult.json()
     const goalUpdates = await goalUpdatesResult.json()
+    const personalBests = await personalBestResult.json()
     const after = checkins.filter((item) => item.day_type === 'after')
     const activeProfiles = new Set(activities.map((item) => item.profile_id)).size
     const activeDays = new Set(activities.map((item) => item.activity_date)).size
@@ -49,7 +51,7 @@ export default async function handler(request, response) {
       swims: sessions.filter((item) => item.activity_type === 'swim').length,
       strength: sessions.filter((item) => item.activity_type === 'strength').length,
       dryland: sessions.filter((item) => item.activity_type === 'dryland').length,
-      approvedGoals, feeling: average(checkins, 'feeling'), body: average(checkins, 'body'), rpe: average(after, 'rpe'), passRating: average(after, 'pass_rating'), setupRating: average(after, 'setup_rating'),
+      approvedGoals, personalBests: personalBests.length, feeling: average(checkins, 'feeling'), body: average(checkins, 'body'), rpe: average(after, 'rpe'), passRating: average(after, 'pass_rating'), setupRating: average(after, 'setup_rating'),
       signals: { lowBody, highRpe, lowPass },
     })
   } catch (error) {
