@@ -33,7 +33,8 @@ const metrics = (responses, sessions, activities, privateView) => {
 const cleanNumber = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
 
 async function createAiInsight(request, response) {
-  if (!process.env.AI_GATEWAY_API_KEY) return sendJson(response, 503, { error: 'AI Gateway är inte konfigurerad ännu.' })
+  const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
+  if (!gatewayKey) return sendJson(response, 503, { error: 'AI Gateway är inte konfigurerad ännu.' })
   const input = request.body?.data || {}, periodLabel = String(request.body?.periodLabel || 'vald period').slice(0, 80)
   const current = input.current || {}, previous = input.previous || {}, analysis = input.workoutAnalysis || {}
   const safe = {
@@ -45,7 +46,7 @@ async function createAiInsight(request, response) {
   }
   const prompt = `Du är ett försiktigt analysstöd för simtränare. Analysera endast datan nedan. Skriv på svenska, konkret och uppmuntrande. Dra inga medicinska slutsatser och hitta inte på orsaker. Om underlaget är litet, säg det tydligt. Jämför bara med föregående period när båda värdena finns. Returnera ENDAST giltig JSON med exakt dessa nycklar: summary (max 280 tecken), positives (array med max 3 korta strängar), attention (array med max 3 korta strängar), limitations (array med max 2 korta strängar). Data: ${JSON.stringify(safe)}`
   try {
-    const result = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.AI_GATEWAY_API_KEY}` }, body: JSON.stringify({ model: 'openai/gpt-5.5', temperature: 0.2, max_tokens: 700, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    const result = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gatewayKey}` }, body: JSON.stringify({ model: 'openai/gpt-5.5', temperature: 0.2, max_tokens: 700, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
     if (!result.ok) throw new Error(`AI Gateway request failed: ${result.status}`)
     const payload = await result.json(), text = payload.choices?.[0]?.message?.content || ''
     const parsed = JSON.parse(text.replace(/^```json\s*/i, '').replace(/\s*```$/, ''))
