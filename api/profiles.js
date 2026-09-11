@@ -25,6 +25,11 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
+        if (request.query?.tempusResults === 'true') {
+          const result = await supabaseRequest('competition_results?select=*&order=result_date.desc&limit=10000')
+          if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
+          return sendJson(response, 200, { results: await result.json() })
+        }
         const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
@@ -36,11 +41,6 @@ export default async function handler(request, response) {
         const result = await supabaseRequest(`profiles?id=neq.${profile.id}&active=eq.true&select=id,display_name,emoji&order=display_name.asc`)
         if (!result.ok) throw new Error(`Directory GET failed: ${result.status}`)
         return sendJson(response, 200, { profiles: (await result.json()).map((item) => ({ id: item.id, displayName: item.display_name, emoji: item.emoji })) })
-      }
-      if (groupRole(request) === 'coach' && request.query?.tempusResults === 'true') {
-        const result = await supabaseRequest('competition_results?select=*&order=result_date.desc&limit=10000')
-        if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { results: await result.json() })
       }
       return sendJson(response, 200, { profile: publicProfile(profile) })
     }
