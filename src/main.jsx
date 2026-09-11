@@ -1065,7 +1065,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
     setAiLoading(true); setAiError('')
     try {
       const label = ANALYSIS_PERIODS.find((item) => item.key === period)?.label || 'vald period'
-      const result = await apiRequest('/api/ai-insights', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ periodLabel: label, data }) })
+      const result = await apiRequest('/api/analytics', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ai-insights', periodLabel: label, data }) })
       setAiInsight(result.insight)
     } catch (nextError) { setAiError(nextError.message) } finally { setAiLoading(false) }
   }
