@@ -1079,11 +1079,12 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   useEffect(() => {
-    setData(null); setError('')
+    setData(null); setError(''); setAiInsight(null)
     const range = analysisRange(period)
     const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), previousStart: range.previousStart.toISOString(), previousEnd: (range.previousEnd || range.start).toISOString() })
+    query.set('period', period)
     if (profile) query.set('profileId', profile.id)
-    apiRequest(`/api/analytics?${query}`, code).then(setData).catch((nextError) => setError(nextError.message))
+    apiRequest(`/api/analytics?${query}`, code).then((nextData) => { setData(nextData); setAiInsight(nextData.savedInsight?.insight || null) }).catch((nextError) => setError(nextError.message))
   }, [code, profile?.id, period])
   const change = (key) => {
     if (!data?.current || !data?.previous || data.current[key] == null || data.previous[key] == null) return null
@@ -1094,7 +1095,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
     setAiLoading(true); setAiError('')
     try {
       const label = ANALYSIS_PERIODS.find((item) => item.key === period)?.label || 'vald period'
-      const result = await apiRequest('/api/analytics', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ai-insights', periodLabel: label, data }) })
+      const result = await apiRequest('/api/analytics', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ai-insights', periodLabel: label, period, profileId: profile?.id, data }) })
       setAiInsight(result.insight)
     } catch (nextError) { setAiError(nextError.message) } finally { setAiLoading(false) }
   }

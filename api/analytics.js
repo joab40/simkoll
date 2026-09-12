@@ -85,7 +85,11 @@ async function createAiInsight(request, response) {
       console.warn('AI returned invalid JSON:', String(rawText).slice(0, 500), parseError.message)
       parsed = fallbackInsight(safe)
     }
-    return sendJson(response, 200, { insight: { summary: String(parsed.summary || ''), positives: Array.isArray(parsed.positives) ? parsed.positives.slice(0, 3).map(String) : [], attention: Array.isArray(parsed.attention) ? parsed.attention.slice(0, 3).map(String) : [], limitations: Array.isArray(parsed.limitations) ? parsed.limitations.slice(0, 2).map(String) : [] } })
+    const insight = { summary: String(parsed.summary || ''), positives: Array.isArray(parsed.positives) ? parsed.positives.slice(0, 3).map(String) : [], attention: Array.isArray(parsed.attention) ? parsed.attention.slice(0, 3).map(String) : [], limitations: Array.isArray(parsed.limitations) ? parsed.limitations.slice(0, 2).map(String) : [] }
+    const scopeKey = request.body?.profileId ? String(request.body.profileId) : 'group'
+    const periodKey = String(request.body?.period || periodLabel).slice(0, 40)
+    await supabaseRequest('ai_insights?on_conflict=scope_key,period', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ scope_key: scopeKey, period: periodKey, insight, created_at: new Date().toISOString() }) })
+    return sendJson(response, 200, { insight, createdAt: new Date().toISOString() })
   } catch (error) { console.error(error); return sendJson(response, 502, { error: 'AI-sammanfattningen kunde inte skapas just nu.' }) }
 }
 
@@ -109,6 +113,7 @@ export default async function handler(request, response) {
   const sessionQueryStart = profileId && requestMonday < previousStartDay ? requestMonday : previousStartDay
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
+    const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
     const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult] = await Promise.all([
       supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
@@ -206,7 +211,7 @@ export default async function handler(request, response) {
       recent: privateView ? currentResponses.filter((item) => item.comment).slice(-10).reverse().map((item) => ({ date: item.created_at, feeling: item.feeling, comment: item.comment })) : [],
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
       goalProgress, currentWeekGoal, crossProgress, currentCrossGoals,
-      workoutAnalysis,
+      workoutAnalysis, savedInsight: savedResult.ok ? (await savedResult.json())[0] || null : null,
     })
   } catch (error) {
     console.error(error)
