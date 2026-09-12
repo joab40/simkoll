@@ -381,6 +381,8 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count">● {activeProfilesToday} profiler inne idag</span>}</div>
       </section>
 
+      {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
+
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
@@ -391,6 +393,14 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
+}
+
+function DailyProgressCard({ responses, points, onGoals }) {
+  const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
+  let streak = 0; const cursor = new Date()
+  while (activeDates.has(dateKey(cursor))) { streak += 1; cursor.setDate(cursor.getDate() - 1) }
+  const todayDone = activeDates.has(todayKey())
+  return <section className="daily-progress-card"><div><p className="eyebrow">Din status idag</p><h2>{todayDone ? 'Du är med idag ✓' : 'Hur är läget?'}</h2><small>{todayDone ? `Du har svarat idag · ${streak} ${streak === 1 ? 'dag' : 'dagar'} i rad` : 'En snabb check-in hjälper dig och tränaren.'}</small></div><div className="daily-progress-actions">{points?.total != null && <span>⭐ {points.total} p</span>}<button onClick={onGoals}>Se mina mål →</button></div></section>
 }
 
 function NotificationCard({ profile, notifications, onChange, onCommunity, onGoals }) {
