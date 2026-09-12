@@ -914,7 +914,6 @@ button { cursor: pointer; }
   .club-brand { gap: 9px; }
   .club-brand > span { padding-left: 9px; font-size: 10px; max-width: 82px; line-height: 1.15; }
   .profile-chip { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .feed-link { display: none; }
 }
 
 .library-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
