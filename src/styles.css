@@ -57,6 +57,7 @@ button { cursor: pointer; }
 .profile-chip span { font-size: 18px; margin-right: 5px; }
 .help-tip { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 3px; padding: 0; border: 1px solid #9eb5b1; border-radius: 50%; background: transparent; color: var(--teal); font: 800 10px 'Manrope'; vertical-align: middle; cursor: help; }
 .feed-link { border: 0; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; }
+.menu-link { border: 0; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
@@ -799,7 +800,7 @@ button { cursor: pointer; }
   .app-shell > header .header-actions { display: none; flex: 0 0 100%; width: 100%; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 6px; overflow: hidden; }
   .app-shell > header .header-actions.open { display: grid; }
   .app-shell > header .header-actions > button { min-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .app-shell > header .feed-link { padding: 7px 3px; }
+  .app-shell > header .menu-link { padding: 7px 3px; }
   .app-shell > header .profile-chip { padding: 5px 6px; }
   .page-content { padding-top: 16px; }
   .game-card { display: block; padding: 21px 22px; }
