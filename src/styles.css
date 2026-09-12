@@ -940,6 +940,9 @@ button { cursor: pointer; }
 .competition-sync-list small { color: var(--muted); margin-right: auto; }
 .competition-table { margin-top: 18px; }
 .competition-profile-list { display: grid; gap: 12px; }
+.competition-results > .period-heading { align-items: flex-start; }
+.competition-results > .period-heading > .primary-button { margin-top: 4px; }
+@media (max-width: 600px) { .competition-results > .period-heading { flex-direction: column; gap: 10px; } .competition-results > .period-heading > .primary-button { width: 100%; } }
 .competition-profile-card, .competition-profile-card > summary + div { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .competition-profile-card > summary { display: flex; justify-content: space-between; padding: 16px; font-weight: 700; cursor: pointer; }
 .competition-profile-card > summary > span { min-width: 0; }
