@@ -1127,7 +1127,7 @@ function WorkoutLibrary({ code, responses }) {
   return <section className="workout-library"><div className="period-heading"><div><p className="eyebrow">Träningspass</p><h1>Passbibliotek</h1></div><div className="big-count"><strong>{visible.length}</strong><span>pass</span></div></div><div className="library-controls"><label>Visa<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Alla pass</option><option value="upcoming">Kommande</option><option value="past">Tidigare</option></select></label><label>Sortera efter<select value={sort} onChange={(event) => setSort(event.target.value)}><option value="date">Datum</option><option value="distance">Distans</option><option value="duration">Tid</option><option value="rpe">RPE</option><option value="pass">Passbetyg</option><option value="setup">Upplägg</option></select></label></div>{visible.length ? <div className="workout-library-list">{visible.map((workout) => <article key={workout.id} className={workout.date >= today ? 'upcoming' : ''}><div><p className="eyebrow">{new Date(`${workout.date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>{workout.title}</h2><span className="workout-focus-pill">{workout.focusLabel}</span></div><p className="workout-content-preview">{workout.content}</p><div className="workout-library-stats"><span>{workout.distanceMeters ? `${workout.distanceMeters.toLocaleString('sv-SE')} m` : '– m'}</span><span>{workout.durationMinutes ? `${workout.durationMinutes} min` : '– min'}</span><span>{workout.responses ? `${workout.responses} svar` : 'Inga svar'}</span><span>{workout.pass ? `Pass ${workout.pass}/5` : 'Pass –'}</span><span>{workout.rpe ? `RPE ${workout.rpe}/10` : 'RPE –'}</span></div></article>)}</div> : <p className="empty">Inga pass matchar urvalet ännu.</p>}</section>
 }
 
-function CompetitionResults({ profiles, results: rawResults, loading, onSync, onSyncProfile }) {
+function CompetitionResults({ profiles, results: rawResults, loading, onSync: performSync, onSyncProfile }) {
   const [profileFilter, setProfileFilter] = useState('all')
   const results = rawResults.filter((item, index, all) => {
     const same = all.filter((other) => other.profile_id === item.profile_id && other.event === item.event && (other.pool || '') === (item.pool || '')).sort((a, b) => b.result_date.localeCompare(a.result_date))
@@ -1135,11 +1135,10 @@ function CompetitionResults({ profiles, results: rawResults, loading, onSync, on
   })
   const visibleProfiles = profiles.filter((profile) => profile.tempusId && (profileFilter === 'all' || profile.id === profileFilter))
   const latestSync = rawResults.reduce((latest, item) => !latest || (item.synced_at && item.synced_at > latest) ? item.synced_at : latest, null)
-  useEffect(() => {
-    if (!loading) return
-    const previous = latestSync ? `Senaste sparade hämtning: ${new Date(latestSync).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}.` : 'Ingen tidigare hämtning finns sparad.'
-    window.alert(`Tempus-data hämtas nu. Det kan ta en stund om många simmare har Tempus-ID.\n\n${previous}`)
-  }, [loading])
+  const onSync = () => {
+    const previous = latestSync ? `Senaste hämtning: ${new Date(latestSync).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}.` : 'Ingen tidigare hämtning finns sparad.'
+    if (window.confirm(`Hämta Tempus-data för alla simmare?\n\n${previous}\n\nHämtningen kan ta en stund om många simmare har Tempus-ID.`)) performSync()
+  }
   const strokeOrder = (event) => {
     const name = String(event || '').toLowerCase()
     const stroke = name.includes('bröst') || name.includes('breast') ? 0 : name.includes('frisim') || name.includes('freestyle') ? 1 : name.includes('rygg') || name.includes('backstroke') ? 2 : name.includes('fjäril') || name.includes('butterfly') ? 3 : name.includes('medley') ? 4 : 5
