@@ -1131,7 +1131,13 @@ function CompetitionResults({ profiles, results: rawResults, loading, onSync, on
     const same = all.filter((other) => other.profile_id === item.profile_id && other.event === item.event && (other.pool || '') === (item.pool || '')).sort((a, b) => b.result_date.localeCompare(a.result_date))
     return same.indexOf(item) < 20
   })
-const visibleProfiles = profiles.filter((profile) => profile.tempusId && (profileFilter === 'all' || profile.id === profileFilter))
+  const visibleProfiles = profiles.filter((profile) => profile.tempusId && (profileFilter === 'all' || profile.id === profileFilter))
+  const latestSync = rawResults.reduce((latest, item) => !latest || (item.synced_at && item.synced_at > latest) ? item.synced_at : latest, null)
+  useEffect(() => {
+    if (!loading) return
+    const previous = latestSync ? `Senaste sparade hämtning: ${new Date(latestSync).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}.` : 'Ingen tidigare hämtning finns sparad.'
+    window.alert(`Tempus-data hämtas nu. Det kan ta en stund om många simmare har Tempus-ID.\n\n${previous}`)
+  }, [loading])
   const strokeOrder = (event) => {
     const name = String(event || '').toLowerCase()
     const stroke = name.includes('bröst') || name.includes('breast') ? 0 : name.includes('frisim') || name.includes('freestyle') ? 1 : name.includes('rygg') || name.includes('backstroke') ? 2 : name.includes('fjäril') || name.includes('butterfly') ? 3 : name.includes('medley') ? 4 : 5
