@@ -2,5 +2,5 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "crons": [{ "path": "/api/cron-tempus", "schedule": "0 1 * * *" }]
+  "crons": [{ "path": "/api/profiles?cron=tempus", "schedule": "0 1 * * *" }]
 }
