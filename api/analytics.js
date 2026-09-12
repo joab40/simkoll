@@ -51,8 +51,9 @@ const fallbackInsight = (data) => {
 }
 
 async function createAiInsight(request, response) {
+  const openAiKey = process.env.OPENAI_API_KEY
   const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
-  if (!gatewayKey) return sendJson(response, 503, { error: 'AI Gateway är inte konfigurerad ännu.' })
+  if (!openAiKey && !gatewayKey) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad ännu.' })
   const input = request.body?.data || {}, periodLabel = String(request.body?.periodLabel || 'vald period').slice(0, 80)
   const current = input.current || {}, previous = input.previous || {}, analysis = input.workoutAnalysis || {}
   const safe = {
@@ -65,8 +66,9 @@ async function createAiInsight(request, response) {
   const prompt = `Du är ett försiktigt analysstöd för simtränare. Analysera endast datan nedan. Skriv på svenska, konkret och uppmuntrande. Dra inga medicinska slutsatser och hitta inte på orsaker. Om underlaget är litet, säg det tydligt. Jämför bara med föregående period när båda värdena finns. Returnera ENDAST giltig JSON med exakt dessa nycklar: summary (max 280 tecken), positives (array med max 3 korta strängar), attention (array med max 3 korta strängar), limitations (array med max 2 korta strängar). Data: ${JSON.stringify(safe)}`
   try {
     // Free model on Vercel AI Gateway, suitable for Hobby projects without paid credits.
-    const model = process.env.AI_MODEL || 'google/gemini-3.1-flash-lite'
-    const result = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gatewayKey}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 700, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    const directOpenAi = Boolean(openAiKey)
+    const model = directOpenAi ? (process.env.OPENAI_MODEL || 'gpt-4o-mini') : (process.env.AI_MODEL || 'inclusionai/ling-3.0-flash-fin-free')
+    const result = await fetch(directOpenAi ? 'https://api.openai.com/v1/chat/completions' : 'https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${directOpenAi ? openAiKey : gatewayKey}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 700, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
     if (!result.ok) { const detail = (await result.text()).slice(0, 300); throw new Error(`AI Gateway request failed: ${result.status} ${detail}`) }
     const payload = await result.json(), rawText = payload.choices?.[0]?.message?.content || ''
     // Models occasionally wrap JSON in markdown or a short explanation. Extract
