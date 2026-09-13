@@ -82,12 +82,17 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setTomorrowWorkout(null); setWorkoutLocked(false); return }
-    ;(async () => {
+    const loadProfileData = async () => {
       const trainingData = await apiRequest('/api/training', auth.code)
       const tomorrow = dateKey(new Date(Date.now() + 86400000))
       const [workoutData, tomorrowData, activityData, pointsData, notificationData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] }))])
       setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setNotifications(notificationData.notifications || []); setTraining(trainingData)
-    })().catch(() => { setWorkout(null); setWorkoutLocked(false) })
+    }
+    loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') loadProfileData().catch(() => {}) }
+    window.addEventListener('focus', refreshOnFocus)
+    document.addEventListener('visibilitychange', refreshOnFocus)
+    return () => { window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus) }
   }, [auth, profile])
 
   useEffect(() => {
