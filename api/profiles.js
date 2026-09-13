@@ -59,7 +59,7 @@ export default async function handler(request, response) {
           if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
           return sendJson(response, 200, { results: await result.json() })
         }
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,ai_analysis_status,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
         return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
@@ -157,6 +157,15 @@ export default async function handler(request, response) {
       const trainingGroup = request.body.trainingGroup ? String(request.body.trainingGroup) : null
       if (!profileId || (trainingGroup && !allowed.includes(trainingGroup))) return sendJson(response, 400, { error: 'Ogiltig träningsgrupp.' })
       const updated = await updateProfile(profileId, { training_group: trainingGroup })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
+    if (action === 'set-ai-analysis-status') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra AI-analysens status.' })
+      const profileId = String(request.body.profileId || '')
+      const status = String(request.body.status || '')
+      if (!profileId || !['not_requested', 'pending', 'approved', 'revoked'].includes(status)) return sendJson(response, 400, { error: 'Ogiltig AI-status.' })
+      const updated = await updateProfile(profileId, { ai_analysis_status: status })
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 

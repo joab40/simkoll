@@ -212,7 +212,8 @@ export default async function handler(request, response) {
       recent: privateView ? currentResponses.filter((item) => item.comment).slice(-10).reverse().map((item) => ({ date: item.created_at, feeling: item.feeling, comment: item.comment })) : [],
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
       goalProgress, currentWeekGoal, crossProgress, currentCrossGoals,
-      workoutAnalysis, savedInsight: savedResult.ok ? (await savedResult.json())[0] || null : null,
+      workoutAnalysis,
+      savedInsight: savedResult.ok && (role !== 'swimmer' || sessionProfile?.ai_analysis_status === 'approved') ? (await savedResult.json())[0] || null : null,
     })
   } catch (error) {
     console.error(error)

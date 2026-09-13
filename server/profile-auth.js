@@ -31,6 +31,7 @@ export function publicProfile(profile) {
     trainingGroup: profile.training_group || null,
     tempusId: profile.tempus_id || null,
     approvalStatus: profile.approval_status || 'approved',
+    aiAnalysisStatus: profile.ai_analysis_status || 'not_requested',
     isTestProfile: Boolean(profile.is_test_profile),
     createdAt: profile.created_at,
   }
