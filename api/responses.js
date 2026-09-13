@@ -120,7 +120,7 @@ export default async function handler(request, response) {
         if (request.body.type === 'after') {
           const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
           const trainingResult = await supabaseRequest('personal_training_sessions', {
-            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin_auto' }),
+            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin' }),
           })
           if (!trainingResult.ok && trainingResult.status !== 409) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
         }

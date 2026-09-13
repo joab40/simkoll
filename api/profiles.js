@@ -101,7 +101,7 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error(`Attendance update failed: ${result.status} ${await result.text()}`)
       if (present) {
         const existing = await supabaseRequest(`personal_training_sessions?profile_id=eq.${profileId}&session_date=eq.${date}&session_slot=eq.${slot}&select=id&limit=1`)
-        if (existing.ok && !(await existing.json()).length) await supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ profile_id: profileId, activity_type: 'swim', session_slot: slot, session_date: date, source: 'coach_attendance' }) })
+        if (existing.ok && !(await existing.json()).length) await supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ profile_id: profileId, activity_type: 'swim', session_slot: slot, session_date: date, source: 'checkin' }) })
       }
       return sendJson(response, 200, { attendance: (await result.json())[0] || null })
     }

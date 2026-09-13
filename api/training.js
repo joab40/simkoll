@@ -24,7 +24,7 @@ async function loadTraining(profileId = null) {
     const existingKeys = new Set(existingSessions.map((item) => `${item.session_date}|${item.session_slot}`))
     const missing = afterResponses.map((item) => {
       const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at))
-      return { profile_id: profileId, activity_type: 'swim', session_slot: 'afternoon_swim', session_date: date, source: 'checkin_auto' }
+      return { profile_id: profileId, activity_type: 'swim', session_slot: 'afternoon_swim', session_date: date, source: 'checkin' }
     }).filter((item) => { const key = `${item.session_date}|${item.session_slot}`; if (existingKeys.has(key)) return false; existingKeys.add(key); return true })
     if (missing.length) await Promise.all(missing.map((item) => supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify(item) })))
   }
@@ -33,7 +33,7 @@ async function loadTraining(profileId = null) {
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
-    sessions: (existingSessions.concat(profileId ? afterResponses.map((item) => ({ profile_id: profileId, activity_type: 'swim', session_slot: 'afternoon_swim', session_date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at)), source: 'checkin_auto' })) : []).filter((item, index, all) => all.findIndex((other) => `${other.session_date}|${other.session_slot}` === `${item.session_date}|${item.session_slot}`) === index).map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at })),
+    sessions: (existingSessions.concat(profileId ? afterResponses.map((item) => ({ profile_id: profileId, activity_type: 'swim', session_slot: 'afternoon_swim', session_date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at)), source: 'checkin' })) : []).filter((item, index, all) => all.findIndex((other) => `${other.session_date}|${other.session_slot}` === `${item.session_date}|${item.session_slot}`) === index).map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at })),
     plannedSessions: (await plannedResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, weekStart: item.week_start, date: item.planned_date, slot: item.session_slot })),
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     programGoals: (await programGoalsResult.json()).filter((item) => !profileId || allowedAssignments.has(item.assignment_id)).map((item) => ({ id: item.id, assignmentId: item.assignment_id, title: item.title, description: item.description, rewardPoints: item.reward_points, status: item.status, coachFeedback: item.coach_feedback || '', submittedAt: item.submitted_at, approvedAt: item.approved_at })),
