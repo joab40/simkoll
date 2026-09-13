@@ -54,6 +54,13 @@ export default async function handler(request, response) {
     }
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
+        if (request.query?.attendance === 'true') {
+          const date = String(request.query.date || '').slice(0, 10)
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Ogiltigt närvarodatum.' })
+          const result = await supabaseRequest(`session_attendance?attendance_date=eq.${date}&select=profile_id,present,marked_at`)
+          if (!result.ok) throw new Error(`Attendance GET failed: ${result.status} ${await result.text()}`)
+          return sendJson(response, 200, { attendance: await result.json() })
+        }
         if (request.query?.tempusResults === 'true') {
           const result = await supabaseRequest('competition_results?select=*&order=result_date.desc&limit=10000')
           if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
@@ -81,6 +88,17 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+
+    if (action === 'set-attendance') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan registrera närvaro.' })
+      const profileId = String(request.body.profileId || '')
+      const date = String(request.body.date || '').slice(0, 10)
+      const present = request.body.present === true
+      if (!profileId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Profil eller datum saknas.' })
+      const result = await supabaseRequest('session_attendance?on_conflict=profile_id,attendance_date', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, attendance_date: date, present, marked_at: new Date().toISOString() }) })
+      if (!result.ok) throw new Error(`Attendance update failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { attendance: (await result.json())[0] || null })
+    }
 
     if (action === 'create') {
       if (groupRole(request) !== 'swimmer') return sendJson(response, 401, { error: 'Simmarkoden behövs för att skapa en profil.' })

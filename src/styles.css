@@ -223,6 +223,18 @@ button { cursor: pointer; }
 .my-history article small { color: var(--muted); font-size: 11px; }
 .my-history article b { font-size: 12px; color: var(--teal); }
 .profile-stats-button { display: block; margin: 18px auto 0; }
+.attendance-panel { margin: 0 0 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.attendance-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; background: transparent; padding: 16px 18px; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; text-align: left; }
+.attendance-toggle span { color: var(--muted); font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.attendance-body { border-top: 1px solid var(--line); padding: 14px 18px 18px; }
+.attendance-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.attendance-list button { display: grid; grid-template-columns: 30px 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 0 8px; border: 1px solid var(--line); border-radius: 12px; background: white; padding: 10px; text-align: left; cursor: pointer; }
+.attendance-list button.present { border-color: #4f9d69; background: #effaf1; }
+.attendance-list button > span { grid-row: 1 / 3; font-size: 1.35rem; }
+.attendance-list button strong { font-size: .95rem; }
+.attendance-list button small { color: var(--muted); font-size: .75rem; }
+.attendance-list button b { grid-column: 3; grid-row: 1 / 3; font-size: 1.35rem; color: var(--muted); }
+.attendance-list button.present b { color: #278044; }
 .profile-logout { display: block; margin: 22px auto; border: 0; background: transparent; color: #956262; font-size: 12px; }
 .community-page { min-height: calc(100vh - 72px); position: relative; padding: 75px max(20px, calc((100vw - 1050px) / 2)); background: #eff6f4; }
 .community-page > .back-button { position: absolute; top: 18px; left: max(5px, calc((100vw - 1120px) / 2)); }

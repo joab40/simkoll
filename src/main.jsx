@@ -996,7 +996,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'history' ? (
           <History responses={responses} />
         ) : (
-          <PeriodOverview
+          <>{view === 'today' && <AttendancePanel code={code} profiles={profiles} responses={todayResponses} />}<PeriodOverview
             responses={scopedResponses}
             title={view === 'today' ? 'Idag' : 'Förra veckan'}
             profiles={profiles}
@@ -1004,7 +1004,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
               ? new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
               : previousWeekLabel}
             showDays={view === 'week'}
-          />
+          /></>
         )}
         <button className="clear-button" onClick={async () => {
           if (!confirmDestructive('Alla incheckningar och all historik kommer att raderas permanent.')) return
@@ -1014,6 +1014,22 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
       </div>
     </main>
   )
+}
+
+function AttendancePanel({ code, profiles, responses }) {
+  const [open, setOpen] = useState(false)
+  const [group, setGroup] = useState('all')
+  const [attendance, setAttendance] = useState({})
+  const [loading, setLoading] = useState(false)
+  const date = todayKey()
+  useEffect(() => { if (open) apiRequest(`/api/profiles?attendance=true&date=${date}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [open, code, date])
+  const visible = profiles.filter((profile) => group === 'all' || profile.trainingGroup === group).sort((a, b) => {
+    const priority = (profile) => { const item = responses.find((response) => response.profileId === profile.id); return item?.type === 'after' ? 3 : item?.type === 'before' ? 2 : attendance[profile.id] ? 1 : 0 }
+    return priority(b) - priority(a) || a.displayName.localeCompare(b.displayName, 'sv')
+  })
+  const presentCount = visible.filter((profile) => attendance[profile.id]).length
+  const toggle = async (profile) => { const next = !attendance[profile.id]; setAttendance((current) => ({ ...current, [profile.id]: next })); setLoading(true); try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId: profile.id, date, present: next }) }) } catch (error) { setAttendance((current) => ({ ...current, [profile.id]: !next })); window.alert(error.message) } finally { setLoading(false) } }
+  return <section className="attendance-panel"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under pågående pass'}<span>{presentCount}/{visible.length} närvarande</span></button>{open && <div className="attendance-body"><div className="library-controls"><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label></div><div className="attendance-list">{visible.map((profile) => { const item = responses.find((response) => response.profileId === profile.id); return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={loading} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{item?.type === 'after' ? '✓ Har checkat in' : item?.type === 'before' ? '→ Ska träna' : 'Ej checkat in'}</small><b>{attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}</section>
 }
 
 function WeeklyMeeting({ code }) {
