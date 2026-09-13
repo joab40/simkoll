@@ -1490,11 +1490,12 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const todayItem = items.filter((item) => dateKey(responseDate(item)) === todayKey()).sort((a, b) => responseDate(b) - responseDate(a))[0]
         const after = items.filter((item) => item.type === 'after')
         const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
-        const status = todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: ['before', '→ Ska träna idag'], after: ['after', '✓ Har tränat idag'] }[todayItem.type])
-        const attention = todayItem?.type === 'after' ? '🏊 Tränat idag' : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
         const earnedArtifacts = artifactAssignments.filter((item) => item.profile_id === profile.id).map((item) => artifactCatalog.find((artifact) => artifact.id === item.artifact_id)).filter(Boolean)
         const weekStartDate = dateKey(weekStart(new Date()))
         const profileSessions = training?.sessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
+        const hasSwimToday = profileSessions.some((item) => item.type === 'swim' && item.date === todayKey())
+        const status = hasSwimToday ? ['after', '✓ Har tränat idag'] : todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: ['before', '→ Ska träna idag'], after: ['after', '✓ Har tränat idag'] }[todayItem.type])
+        const attention = hasSwimToday ? '🏊 Tränat idag' : todayItem?.type === 'after' ? '🏊 Tränat idag' : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
         const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
         const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
         const recentItems = items.filter((item) => { const date = responseDate(item); const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 6); return date >= cutoff })
