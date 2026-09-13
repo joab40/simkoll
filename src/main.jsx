@@ -1112,6 +1112,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
   const [aiCreatedAt, setAiCreatedAt] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [trainingContext, setTrainingContext] = useState({ phase: 'normal', minVolume: 30000, maxVolume: 40000 })
   useEffect(() => {
     setData(null); setError(''); setAiInsight(null); setAiCreatedAt(null)
     const range = analysisRange(period)
@@ -1129,7 +1130,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
     setAiLoading(true); setAiError('')
     try {
       const label = ANALYSIS_PERIODS.find((item) => item.key === period)?.label || 'vald period'
-      const result = await apiRequest('/api/analytics', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ai-insights', periodLabel: label, period, profileId: profile?.id, data }) })
+      const result = await apiRequest('/api/analytics', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ai-insights', periodLabel: label, period, profileId: profile?.id, trainingContext: selfView ? null : trainingContext, data }) })
       setAiInsight(result.insight); setAiCreatedAt(result.createdAt)
     } catch (nextError) { setAiError(nextError.message) } finally { setAiLoading(false) }
   }

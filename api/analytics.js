@@ -59,6 +59,7 @@ async function createAiInsight(request, response) {
   if (!openAiKey && !gatewayKey) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad ännu.' })
   const input = request.body?.data || {}, periodLabel = String(request.body?.periodLabel || 'vald period').slice(0, 80)
   const current = input.current || {}, previous = input.previous || {}, analysis = input.workoutAnalysis || {}
+  const trainingContext = request.body?.trainingContext || { phase: 'normal', minVolume: 30000, maxVolume: 40000 }
   const focusRows = Array.isArray(analysis.focuses) ? analysis.focuses : []
   const volume = focusRows.reduce((sum, item) => sum + (Number(item.distance) || 0), 0)
   const duration = focusRows.reduce((sum, item) => sum + (Number(item.duration) || 0), 0)
@@ -67,6 +68,7 @@ async function createAiInsight(request, response) {
     current: { checkins: cleanNumber(current.checkins), activeDays: cleanNumber(current.activeDays), sickDays: cleanNumber(current.sickDays), restDays: cleanNumber(current.restDays), feeling: cleanNumber(current.feeling), body: cleanNumber(current.body), rpe: cleanNumber(current.rpe), speedFeeling: cleanNumber(current.speedFeeling), passRating: cleanNumber(current.passRating), swimSessions: cleanNumber(current.swimSessions), strengthSessions: cleanNumber(current.strengthSessions), drylandSessions: cleanNumber(current.drylandSessions), sickAndRestInstruction: 'Sjukdagar och vilodagar är registrerade statusar och ska alltid beskrivas neutralt om värdet är större än 0.' },
     previous: { feeling: cleanNumber(previous.feeling), body: cleanNumber(previous.body), rpe: cleanNumber(previous.rpe), passRating: cleanNumber(previous.passRating), swimSessions: cleanNumber(previous.swimSessions), strengthSessions: cleanNumber(previous.strengthSessions), drylandSessions: cleanNumber(previous.drylandSessions), sickDays: cleanNumber(previous.sickDays), restDays: cleanNumber(previous.restDays) },
     volume: { workouts: focusRows.reduce((sum, item) => sum + (Number(item.workouts) || 0), 0), distanceMeters: volume || null, durationMinutes: duration || null },
+    trainingContext: { phase: String(trainingContext.phase || 'normal').slice(0, 30), minVolume: cleanNumber(Number(trainingContext.minVolume)), maxVolume: cleanNumber(Number(trainingContext.maxVolume)) },
     workouts: focusRows.slice(0, 20).map((item) => ({ label: String(item.label || '').slice(0, 40), workouts: cleanNumber(item.workouts), distance: cleanNumber(item.distance), duration: cleanNumber(item.duration), feeling: cleanNumber(item.feeling), body: cleanNumber(item.body), rpe: cleanNumber(item.rpe), rpeSpread: cleanNumber(item.rpeSpread), speedFeeling: cleanNumber(item.speedFeeling), temperature: cleanNumber(item.temperature), passRating: cleanNumber(item.passRating), responseCount: cleanNumber(item.responseCount) })),
     workload: (analysis.workload || []).slice(-12).map((item) => ({ weekStart: String(item.weekStart || '').slice(0, 10), workouts: cleanNumber(item.workouts), distance: cleanNumber(item.distance), duration: cleanNumber(item.duration) })),
   }
