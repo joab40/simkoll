@@ -114,10 +114,13 @@ export default async function handler(request, response) {
           })
           if (!tomorrowUnlock.ok) console.error(`Tomorrow workout unlock failed: ${tomorrowUnlock.status} ${await tomorrowUnlock.text()}`)
         }
-        if (request.body.type === 'after' && request.body.registerTraining === true) {
+        // Ett profilinloggat "efter pass" räknas automatiskt som ett genomfört
+        // simpass. Själva feedbacken kan fortfarande vara anonym (profile_id
+        // på svaret är då null), men träningsräkningen kopplas till sessionen.
+        if (request.body.type === 'after') {
           const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
           const trainingResult = await supabaseRequest('personal_training_sessions', {
-            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin' }),
+            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin_auto' }),
           })
           if (!trainingResult.ok && trainingResult.status !== 409) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
         }
