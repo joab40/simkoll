@@ -336,6 +336,7 @@ const HELP_TEXT = {
   'Motivation': 'Hur sugen eller redo simmaren känner sig inför träningen.',
   'Sömn': 'Den egna upplevelsen av nattens sömn, inte antalet timmar.',
   'RPE': 'Upplevd ansträngning för hela passet: 1 är mycket lätt och 10 är maximalt.',
+  'sRPE': 'Total upplevd belastning för ett pass: RPE × passets längd i minuter. Exempel: RPE 6 × 75 minuter = 450 belastningsenheter. Används för att följa trender, inte som en exakt medicinsk mätning.',
   'Passet': 'Upplevelsen av passet, inte ett betyg på den egna prestationen.',
   'Upplägget': 'Om passets innehåll och struktur fungerade för simmaren.',
   'Aktiva dagar': 'Dagar då profilen har använt en profilfunktion i Simkoll.',
