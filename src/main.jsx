@@ -1023,7 +1023,7 @@ function AttendancePanel({ code, profiles, responses }) {
   const [loading, setLoading] = useState(false)
   const date = todayKey()
   const [slot, setSlot] = useState(new Date().getHours() < 13 ? 'morning_swim' : 'afternoon_swim')
-  useEffect(() => { if (open) apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [open, code, date, slot])
+  useEffect(() => { apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [code, date, slot])
   const visible = profiles.filter((profile) => group === 'all' || profile.trainingGroup === group).sort((a, b) => {
     const priority = (profile) => { const item = responses.find((response) => response.profileId === profile.id); return item?.type === 'after' ? 3 : item?.type === 'before' ? 2 : attendance[profile.id] ? 1 : 0 }
     return priority(b) - priority(a) || a.displayName.localeCompare(b.displayName, 'sv')
