@@ -56,8 +56,9 @@ export default async function handler(request, response) {
       if (groupRole(request) === 'coach') {
         if (request.query?.attendance === 'true') {
           const date = String(request.query.date || '').slice(0, 10)
+          const slot = ['morning_swim', 'afternoon_swim'].includes(request.query.slot) ? request.query.slot : null
           if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Ogiltigt närvarodatum.' })
-          const result = await supabaseRequest(`session_attendance?attendance_date=eq.${date}&select=profile_id,present,marked_at`)
+          const result = await supabaseRequest(`session_attendance?attendance_date=eq.${date}${slot ? `&session_slot=eq.${slot}` : ''}&select=profile_id,present,session_slot,marked_at`)
           if (!result.ok) throw new Error(`Attendance GET failed: ${result.status} ${await result.text()}`)
           return sendJson(response, 200, { attendance: await result.json() })
         }
@@ -93,10 +94,15 @@ export default async function handler(request, response) {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan registrera närvaro.' })
       const profileId = String(request.body.profileId || '')
       const date = String(request.body.date || '').slice(0, 10)
+      const slot = String(request.body.slot || '')
       const present = request.body.present === true
-      if (!profileId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Profil eller datum saknas.' })
-      const result = await supabaseRequest('session_attendance?on_conflict=profile_id,attendance_date', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, attendance_date: date, present, marked_at: new Date().toISOString() }) })
+      if (!profileId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !['morning_swim', 'afternoon_swim'].includes(slot)) return sendJson(response, 400, { error: 'Profil, datum eller simpass saknas.' })
+      const result = await supabaseRequest('session_attendance?on_conflict=profile_id,attendance_date,session_slot', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, attendance_date: date, session_slot: slot, present, marked_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error(`Attendance update failed: ${result.status} ${await result.text()}`)
+      if (present) {
+        const existing = await supabaseRequest(`personal_training_sessions?profile_id=eq.${profileId}&session_date=eq.${date}&session_slot=eq.${slot}&select=id&limit=1`)
+        if (existing.ok && !(await existing.json()).length) await supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ profile_id: profileId, activity_type: 'swim', session_slot: slot, session_date: date, source: 'coach_attendance' }) })
+      }
       return sendJson(response, 200, { attendance: (await result.json())[0] || null })
     }
 
