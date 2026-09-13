@@ -178,7 +178,11 @@ export default async function handler(request, response) {
     const workoutFocus = [...workoutFocusMap.values()].map((item) => ({ focus: item.focus, label: item.label, workouts: item.workouts, distance: item.distance || null, duration: item.duration || null, responseDays: item.responseDays, responseCount: item.responseCount, feeling: meanValues(item.feeling), body: meanValues(item.body), rpe: meanValues(item.rpe), speedFeeling: meanValues(item.speedFeeling), temperature: meanValues(item.temperature), passRating: meanValues(item.passRating), rpeSpread: spread(item.rpe) }))
     const workloadMap = new Map()
     currentWorkouts.forEach((workout) => { const date = new Date(`${workout.workout_date}T12:00:00Z`), monday = new Date(date); monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7)); const key = monday.toISOString().slice(0, 10); const entry = workloadMap.get(key) || { weekStart: key, workouts: 0, distance: 0, duration: 0 }; entry.workouts += 1; entry.distance += Number(workout.distance_meters || 0); entry.duration += Number(workout.duration_minutes || 0); workloadMap.set(key, entry) })
-    const workoutAnalysis = { focuses: workoutFocus, workload: [...workloadMap.values()] }
+    const rpeValues = currentResponses.filter((item) => item.day_type === 'after' && typeof item.rpe === 'number').map((item) => item.rpe)
+    const hardSessions = rpeValues.filter((value) => value >= 8).length
+    const volumeMeters = currentWorkouts.reduce((sum, item) => sum + Number(item.distance_meters || 0), 0)
+    const durationMinutes = currentWorkouts.reduce((sum, item) => sum + Number(item.duration_minutes || 0), 0)
+    const workoutAnalysis = { focuses: workoutFocus, workload: [...workloadMap.values()], summary: { workouts: currentWorkouts.length, volumeMeters: volumeMeters || null, durationMinutes: durationMinutes || null, rpe: meanValues(rpeValues), hardResponses: hardSessions, responseCount: currentResponses.length, load: durationMinutes && rpeValues.length ? Math.round(durationMinutes * meanValues(rpeValues)) : null } }
     let goalProgress = null, currentWeekGoal = null, crossProgress = null, currentCrossGoals = null
     if (profileId) {
       const goals = await goalsResult.json(), today = requestToday, currentMonday = requestMonday
