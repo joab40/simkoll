@@ -779,6 +779,12 @@ button { cursor: pointer; }
 .faq-content > h1 { font-size: clamp(38px, 6vw, 58px); margin: 0 0 12px; }
 .faq-intro { color: var(--muted); line-height: 1.65; max-width: 650px; margin-bottom: 28px; }
 .faq-list { display: grid; gap: 7px; }
+.faq-install { display: grid; gap: 8px; margin: 0 0 22px; padding: 18px; background: #eef8f4; border: 1px solid #cfe4dd; border-radius: 14px; }
+.faq-install h2, .faq-install p { margin: 0; }
+.faq-install > p:not(.eyebrow) { color: var(--muted); }
+.faq-install details { background: white; border-radius: 10px; padding: 10px 12px; }
+.faq-install ol { margin: 10px 0 2px 20px; padding: 0; }
+.faq-install small { color: var(--muted); }
 .faq-list details { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 13px; padding: 0 17px; }
 .faq-list summary { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; cursor: pointer; font-weight: 800; }
 .faq-list summary span { color: var(--teal); font-size: 20px; }
