@@ -433,7 +433,7 @@ function StartCard({ profile, onStart }) {
 }
 
 function GameCard({ onOpen, onVanda }) {
-  return <section className="game-card"><div><p className="eyebrow">Månadens spel</p><h2>Simpaus 🐬</h2><p>Testa hur länge du kan hålla dig mellan vågorna.</p><div className="game-choice"><button className="primary-button" onClick={onOpen}>Spela Simpaus →</button><button className="secondary-button" onClick={onVanda}>Vändningsmästaren ↻</button></div></div></section>
+  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Vändningsmästaren ↻</h2><p>Nyast: vänta på signalen och tryck så snabbt du kan.</p><div className="game-choice"><button className="primary-button" onClick={onVanda}>Spela Vändningsmästaren →</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button></div></div></section>
 }
 
 function Vandningsmastaren({ code, onBack }) {
