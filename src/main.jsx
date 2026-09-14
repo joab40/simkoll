@@ -1068,12 +1068,14 @@ function AttendancePanel({ code, profiles, responses }) {
   const [group, setGroup] = useState('all')
   const [attendance, setAttendance] = useState({})
   const [loading, setLoading] = useState(false)
+  const [sortPresent, setSortPresent] = useState(false)
   const date = todayKey()
   const [slot, setSlot] = useState(new Date().getHours() < 13 ? 'morning_swim' : 'afternoon_swim')
   useEffect(() => { apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [code, date, slot])
-  const visible = profiles.filter((profile) => group === 'all' || profile.trainingGroup === group).sort((a, b) => {
-    const priority = (profile) => { const item = responses.find((response) => response.profileId === profile.id); return item?.type === 'after' ? 3 : item?.type === 'before' ? 2 : attendance[profile.id] ? 1 : 0 }
-    return priority(b) - priority(a) || a.displayName.localeCompare(b.displayName, 'sv')
+  const groupOrder = { ungdom_orange: 1, ungdom_svart: 2, junior: 3 }
+  const visible = profiles.filter((profile) => group === 'all' || profile.trainingGroup === group).slice().sort((a, b) => {
+    if (sortPresent && Boolean(attendance[b.id]) !== Boolean(attendance[a.id])) return Number(Boolean(attendance[b.id])) - Number(Boolean(attendance[a.id]))
+    return (group === 'all' ? (groupOrder[a.trainingGroup] || 9) - (groupOrder[b.trainingGroup] || 9) : 0) || a.displayName.localeCompare(b.displayName, 'sv')
   })
   const presentCount = visible.filter((profile) => attendance[profile.id]).length
   const toggle = async (profile) => { const next = !attendance[profile.id]; setAttendance((current) => ({ ...current, [profile.id]: next })); setLoading(true); try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId: profile.id, date, slot, present: next }) }) } catch (error) { setAttendance((current) => ({ ...current, [profile.id]: !next })); window.alert(error.message) } finally { setLoading(false) } }
