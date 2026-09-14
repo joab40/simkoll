@@ -5,6 +5,15 @@ const stockholmDate = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe
 const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7)); return value.toISOString().slice(0, 10) }
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,created_at,profiles(display_name,emoji)'
+const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
+async function monthlyGameLeaderboard(profileId) {
+  const start = monthStart(); const result = await supabaseRequest(`game_scores?game_key=eq.${gameKey}&created_at=gte.${start}T00:00:00.000Z&select=${gameSelect}&order=score.desc,created_at.asc&limit=1000`)
+  if (!result.ok) throw new Error(`Monthly game leaderboard lookup failed: ${result.status}`)
+  const best = new Map(); (await result.json()).forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) })
+  const rows = [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10)
+  const own = profileId ? [...best.values()].find((item) => item.profile_id === profileId) : null
+  return { monthStart: start, leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest: own?.score || 0 }
+}
 
 async function gameLeaderboard(profileId, week = weekStart()) {
   const result = await supabaseRequest(`game_scores?game_key=eq.${gameKey}&week_start=eq.${week}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10`)
@@ -110,7 +119,7 @@ export default async function handler(request, response) {
     if (request.query?.game === gameKey) {
       const profile = await getSessionProfile(request)
       if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
-      return sendJson(response, 200, await gameLeaderboard(profile.id))
+      return sendJson(response, 200, request.query?.monthly === 'true' ? await monthlyGameLeaderboard(profile.id) : await gameLeaderboard(profile.id))
     }
     if (role === 'swimmer' && request.query?.artifacts === 'true') {
       const profile = await getSessionProfile(request)

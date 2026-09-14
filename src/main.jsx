@@ -432,7 +432,7 @@ function StartCard({ profile, onStart }) {
 }
 
 function GameCard({ onOpen }) {
-  return <section className="game-card"><div><p className="eyebrow">En liten paus</p><h2>Simpaus 🐬</h2><p>Testa hur länge du kan hålla dig mellan vågorna.</p></div><button className="primary-button" onClick={onOpen}>Spela →</button></section>
+  return <section className="game-card"><div><p className="eyebrow">Månadens spel</p><h2>Simpaus 🐬</h2><p>Testa hur länge du kan hålla dig mellan vågorna.</p></div><button className="primary-button" onClick={onOpen}>Spela →</button></section>
 }
 
 function Simpaus({ code, onBack }) {
@@ -442,7 +442,7 @@ function Simpaus({ code, onBack }) {
   const [score, setScore] = useState(0)
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
 
-  useEffect(() => { apiRequest('/api/points?game=simpaus', code).then(setGameData).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/points?game=simpaus&monthly=true', code).then(setGameData).catch(() => {}) }, [code])
 
   useEffect(() => {
     const canvas = canvasRef.current
