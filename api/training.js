@@ -14,18 +14,18 @@ async function loadTraining(profileId = null) {
     supabaseRequest(`program_assignments?select=*${profileFilter}`),
     supabaseRequest('training_programs?select=*&order=created_at.desc'),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
-    profileId ? supabaseRequest(`responses?profile_id=eq.${profileId}&day_type=eq.after&select=created_at&order=created_at.asc&limit=10000`) : Promise.resolve({ ok: true, json: async () => [] }),
+    supabaseRequest(`responses?day_type=eq.after${profileId ? `&profile_id=eq.${profileId}` : ''}&select=profile_id,created_at&order=created_at.asc&limit=10000`),
   ])
   if (![goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')
   const assignments = await assignmentsResult.json()
   const existingSessions = await sessionsResult.json()
   const afterResponses = afterResponsesResult.ok ? await afterResponsesResult.json() : []
   if (profileId) {
-    const existingKeys = new Set(existingSessions.map((item) => `${item.session_date}|${item.session_slot}`))
+    const existingKeys = new Set(existingSessions.map((item) => `${item.profile_id}|${item.session_date}|${item.session_slot}`))
     const missing = afterResponses.map((item) => {
       const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at))
       return { profile_id: profileId, activity_type: 'swim', session_slot: 'afternoon_swim', session_date: date, source: 'checkin' }
-    }).filter((item) => { const key = `${item.session_date}|${item.session_slot}`; if (existingKeys.has(key)) return false; existingKeys.add(key); return true })
+    }).filter((item) => { const key = `${item.profile_id}|${item.session_date}|${item.session_slot}`; if (existingKeys.has(key)) return false; existingKeys.add(key); return true })
     if (missing.length) {
       // Komplettering av historiska svar får aldrig blockera veckovyn.
       await Promise.all(missing.map((item) => supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify(item) }).catch(() => null)))
@@ -33,14 +33,14 @@ async function loadTraining(profileId = null) {
   }
   const allowedAssignments = new Set(assignments.map((item) => item.id))
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
-  const autoSessions = profileId ? afterResponses.map((item) => ({
-    profile_id: profileId,
+  const autoSessions = afterResponses.map((item) => ({
+    profile_id: item.profile_id || profileId,
     activity_type: 'swim',
     session_slot: 'afternoon_swim',
     session_date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at)),
     source: 'checkin',
-  })) : []
-  const sessionRows = existingSessions.concat(autoSessions).filter((item, index, all) => all.findIndex((other) => `${other.session_date}|${other.session_slot}` === `${item.session_date}|${item.session_slot}`) === index)
+  })).filter((item) => item.profile_id)
+  const sessionRows = existingSessions.concat(autoSessions).filter((item, index, all) => all.findIndex((other) => `${other.profile_id}|${other.session_date}|${other.session_slot}` === `${item.profile_id}|${item.session_date}|${item.session_slot}`) === index)
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
