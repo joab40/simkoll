@@ -141,9 +141,10 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
+    <Shell profile={profile} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'vanda' && <Vandningsmastaren code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
       {screen === 'account' && <AccountChoice
         onAnonymous={() => { setProfile(null); setScreen('home') }}
@@ -301,12 +302,13 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, profile, onCommunity, onGoals, onHelp, onLegal, onProfile, onGame, onLogout }) {
+function Shell({ children, profile, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
       <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
+      {profile && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
       {children}
     </main>
   )
@@ -434,6 +436,25 @@ function StartCard({ profile, onStart }) {
 
 function GameCard({ onOpen, onVanda }) {
   return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Vändningsmästaren ↻</h2><p>Vänta på signalen och tryck så snabbt du kan.</p><div className="game-choice"><button className="primary-button" onClick={onVanda}>Spela Vändningsmästaren →</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button></div></div></section>
+}
+
+const TALK_STEPS = [
+  ['🏊', 'Min träning', [['simPass', 'Önskat antal simpass/vecka'], ['styrka', 'Styrketräning/vecka'], ['land', 'Landträning/vecka'], ['prehab', 'Vad vill du göra för prehab/rörlighet?']]],
+  ['🎯', 'Det jag vill utveckla', [['fokus', 'Vilka simsätt eller distanser vill du fokusera på?'], ['teknik', 'Vad vill du förbättra tekniskt?']]],
+  ['⭐', 'Mina mål', [['kort', 'Mål på 6–12 månader'], ['lang', 'Mål på längre sikt'], ['egen', 'Vad kan du själv göra i träningen?']]],
+  ['😴', 'Återhämtning', [['sovn', 'Hur fungerar sömn och återhämtning?'], ['vardag', 'Hur känns balansen mellan träning, skola och fritid?']]],
+  ['🌍', 'Helheten', [['simningBra', 'Simningen fungerar bra'], ['simningBattre', 'Simningen skulle kunna bli bättre'], ['gruppBra', 'Gruppen fungerar bra'], ['gruppBattre', 'Gruppen skulle kunna bli bättre'], ['skolaBra', 'Skolan fungerar bra'], ['skolaBattre', 'Skolan skulle kunna bli bättre'], ['hemmaBra', 'Hemma/fritiden fungerar bra'], ['hemmaBattre', 'Hemma/fritiden skulle kunna bli bättre']]],
+  ['🤝', 'Stöd', [['stod', 'Vad skulle hjälpa dig från tränarna eller gruppen?']]],
+]
+
+function DevelopmentTalkSwimmer({ code, onBack }) {
+  const [talks, setTalks] = useState([]); const [talk, setTalk] = useState(null); const [step, setStep] = useState(0); const [saving, setSaving] = useState(false); const [status, setStatus] = useState('')
+  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => { setTalks(data.talks || []); if (data.talks?.[0]) setTalk(data.talks[0]) }).catch(() => {}) }, [code])
+  const answers = talk?.swimmerAnswers || {}
+  const update = (key, value) => setTalk((current) => ({ ...(current || { swimmerAnswers: {} }), swimmerAnswers: { ...(current?.swimmerAnswers || {}), [key]: value } }))
+  const save = async (nextStatus = 'draft') => { setSaving(true); try { const data = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-talk', id: talk?.id, swimmerAnswers: answers, status: nextStatus }) }); setTalk(data.talk); setTalks((current) => [data.talk, ...current.filter((item) => item.id !== data.talk.id)]); setStatus(nextStatus === 'prepared' ? 'Redo för samtalet! 🙌' : 'Sparat – du kan fortsätta senare.') } catch (error) { setStatus(error.message) } finally { setSaving(false) } }
+  const current = TALK_STEPS[step]
+  return <div className="talk-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><section className="talk-content"><p className="eyebrow">Din utveckling</p><h1>Utvecklingssamtal</h1><p className="talk-intro">En kort förberedelse inför vårt samtal. Det finns inget rätt eller fel svar.</p><div className="talk-progress"><span>{step + 1} av {TALK_STEPS.length} delar</span><i><b style={{ width: `${((step + 1) / TALK_STEPS.length) * 100}%` }} /></i></div><section className="talk-card"><h2>{current[0]} {current[1]}</h2>{current[2].map(([key, label]) => <label key={key}>{label}<textarea value={answers[key] || ''} maxLength={1000} placeholder="Skriv några rader…" onChange={(event) => update(key, event.target.value)} /></label>)}<div className="talk-actions"><button className="secondary-button" disabled={!step} onClick={() => setStep((value) => value - 1)}>← Föregående</button>{step < TALK_STEPS.length - 1 ? <button className="primary-button" onClick={() => { setStep((value) => value + 1); save() }} disabled={saving}>Nästa →</button> : <button className="primary-button" onClick={() => save('prepared')} disabled={saving}>Redo för samtalet 🙌</button>}</div>{status && <small className="talk-status">{status}</small>}</section><details className="talk-history"><summary>Tidigare samtal ({talks.length})</summary>{talks.map((item) => <p key={item.id}>{item.meetingDate} · {item.status === 'completed' ? 'Genomfört' : 'Förbereds'}</p>)}</details></section></div>
 }
 
 function Vandningsmastaren({ code, onBack }) {
@@ -1009,6 +1030,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'workout-library' ? 'active' : ''} onClick={() => setView('workout-library')}><span className="desktop-tab-label">Passbibliotek</span><span className="mobile-tab-label">Bibliotek</span></button>
             <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}><span className="desktop-tab-label">Meddelanden</span><span className="mobile-tab-label">Meddelanden</span></button>
             <button className={view === 'goals' ? 'active' : ''} onClick={() => setView('goals')}><span className="desktop-tab-label">Utvecklingsmål</span><span className="mobile-tab-label">Mål</span></button>
+            <button className={view === 'talks' ? 'active' : ''} onClick={() => setView('talks')}><span className="desktop-tab-label">Utvecklingssamtal</span><span className="mobile-tab-label">Samtal</span></button>
             <button className={view === 'programs' ? 'active' : ''} onClick={() => setView('programs')}><span className="desktop-tab-label">Träningsprogram</span><span className="mobile-tab-label">Program</span></button>
             <button className={view === 'rewards' ? 'active' : ''} onClick={() => setView('rewards')}><span className="desktop-tab-label">Poäng & nivåer</span><span className="mobile-tab-label">Poäng</span></button>
             <button className={view === 'faq' ? 'active' : ''} onClick={() => setView('faq')}><span className="desktop-tab-label">FAQ</span><span className="mobile-tab-label">FAQ</span></button>
@@ -1030,6 +1052,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <CoachPrograms code={code} profiles={profiles} />
         ) : view === 'goals' ? (
           <CoachGoals code={code} profiles={profiles} />
+        ) : view === 'talks' ? (
+          <DevelopmentTalkCoach code={code} profiles={profiles} />
         ) : view === 'community' ? (
           <CoachCommunity code={code} profiles={profiles} />
         ) : view === 'workout' ? (
@@ -1284,6 +1308,15 @@ function CoachRewards({ code }) {
     try { await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-level', id: level.id }) }); await load() } catch (error) { window.alert(error.message) }
   }
   return <section className="coach-rewards"><div className="period-heading"><div><p className="eyebrow">Aktivitet i appen – inte simprestation</p><h2>Poäng & nivåer</h2></div></div>{status ? <p className="form-error">{status}</p> : <><div className="reward-admin-grid"><section className="coach-card"><h3>Så får simmarna poäng</h3><div className="point-rules">{data.rules.map((rule) => <div key={rule.activity}><strong>{rule.activity}</strong><b>+{rule.points} p</b><small>{rule.limit}</small></div>)}</div></section><section className="coach-card"><h3>Fördelning just nu</h3><div className="level-distribution">{data.levels.map((level) => <div key={level.id}><span>{level.emoji}</span><strong>{data.profiles.filter((profile) => profile.level?.name === level.name).length}</strong><small>{level.name}</small></div>)}</div><p className="reward-note">Nivån visar aktivitet och positiva bidrag i Simkoll. Den bedömer inte simmarens prestation eller förmåga.</p></section></div><section className="level-editor"><div><h3>Nivågränser</h3><small>Simmarnas poäng förändras inte när en gräns ändras.</small></div>{data.levels.map((level, index) => { const draft = drafts[level.id] || level; return <article key={level.id}><input className="emoji-input" aria-label="Emoji" maxLength="16" value={draft.emoji} onChange={(event) => updateDraft(level.id, 'emoji', event.target.value)} /><input aria-label="Nivåns namn" maxLength="30" value={draft.name} onChange={(event) => updateDraft(level.id, 'name', event.target.value)} /><label>Från <input type="number" min={index === 0 ? 0 : 1} disabled={index === 0} value={draft.minPoints} onChange={(event) => updateDraft(level.id, 'minPoints', event.target.value)} /> poäng</label><span>{data.profiles.filter((profile) => levelFor(profile.total, Object.values(drafts).map((item) => ({ ...item, minPoints: Number(item.minPoints) })))?.id === level.id).length} profiler i förhandsvisningen</span><button onClick={() => save(level)}>Spara</button>{index > 0 && <button className="delete-level" onClick={() => remove(level)}>Radera</button>}</article> })}<form className="add-level" onSubmit={add}><input className="emoji-input" required maxLength="16" value={newLevel.emoji} onChange={(event) => setNewLevel({ ...newLevel, emoji: event.target.value })} /><input required maxLength="30" placeholder="Ny nivå" value={newLevel.name} onChange={(event) => setNewLevel({ ...newLevel, name: event.target.value })} /><label>Från <input type="number" min="1" required value={newLevel.minPoints} onChange={(event) => setNewLevel({ ...newLevel, minPoints: event.target.value })} /> poäng</label><button className="primary-button">Lägg till nivå +</button></form></section></>}</section>
+}
+
+function DevelopmentTalkCoach({ code, profiles }) {
+  const [talks, setTalks] = useState([]); const [selected, setSelected] = useState(null); const [notes, setNotes] = useState(''); const [agreement, setAgreement] = useState(''); const [status, setStatus] = useState('')
+  const load = () => apiRequest('/api/goals?talks=true', code).then((data) => setTalks(data.talks || []))
+  useEffect(() => { load().catch((error) => setStatus(error.message)) }, [])
+  const open = (talk) => { setSelected(talk); setNotes(Object.values(talk.coachNotes || {}).join('\n')); setAgreement(Object.values(talk.agreement || {}).join('\n')) }
+  const save = async () => { try { await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-talk', id: selected.id, profileId: selected.swimmerId, meetingDate: selected.meetingDate, status: 'completed', swimmerAnswers: selected.swimmerAnswers, coachNotes: { summary: notes }, agreement: { summary: agreement } }) }); setStatus('Sparat ✓'); await load() } catch (error) { setStatus(error.message) } }
+  return <section className="coach-card talk-coach"><div className="period-heading"><div><p className="eyebrow">Förberedelser och överenskommelser</p><h2>Utvecklingssamtal</h2></div></div>{!selected ? <div className="talk-coach-list">{talks.length ? talks.map((talk) => { const swimmer = profiles.find((item) => item.id === talk.swimmerId); return <button key={talk.id} onClick={() => open(talk)}><span>{swimmer?.emoji || '🏊'}</span><strong>{swimmer?.displayName || 'Simmare'}</strong><small>{talk.meetingDate} · {talk.status === 'prepared' ? 'Redo för samtal' : talk.status}</small>→</button> }) : <p className="empty">Inga utvecklingssamtal är inskickade ännu.</p>}</div> : <div className="talk-coach-detail"><button className="back-button" onClick={() => setSelected(null)}>← Alla samtal</button><h3>{profiles.find((item) => item.id === selected.swimmerId)?.displayName || 'Simmare'} · {selected.meetingDate}</h3><h4>Simmarens svar</h4><div className="talk-answer-list">{Object.entries(selected.swimmerAnswers || {}).filter(([, value]) => value).map(([key, value]) => <p key={key}><strong>{key}</strong><span>{value}</span></p>)}</div><label>Tränarens interna anteckningar<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label><label>Gemensam överenskommelse<textarea value={agreement} onChange={(event) => setAgreement(event.target.value)} /></label><button className="primary-button" onClick={save}>Spara samtal</button>{status && <small>{status}</small>}</div>}</section>
 }
 
 function CoachPrograms({ code, profiles }) {

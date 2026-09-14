@@ -19,6 +19,14 @@ const mapGoal = (goal, updates = []) => ({
   })),
 })
 
+const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
+async function loadTalks(profileId = null) {
+  const filter = profileId ? `&swimmer_id=eq.${profileId}` : ''
+  const result = await supabaseRequest(`development_talks?select=*&${filter.slice(1)}&order=meeting_date.desc,created_at.desc&limit=200`)
+  if (!result.ok) throw new Error(`Development talks GET failed: ${result.status}`)
+  return (await result.json()).map(mapTalk)
+}
+
 async function loadGoals(profileId = null) {
   const filter = profileId ? `&profile_id=eq.${profileId}` : ''
   const goalsResult = await supabaseRequest(`development_goals?select=*${filter}&order=updated_at.desc`)
@@ -42,6 +50,12 @@ export default async function handler(request, response) {
   const role = getRole(code)
   try {
     if (request.method === 'GET') {
+      if (request.query?.talks === 'true') {
+        if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null) })
+        const profile = await getSessionProfile(request)
+        if (!profile) return sendJson(response, 403, { error: 'Utvecklingssamtal visas bara för inloggade profiler.' })
+        return sendJson(response, 200, { talks: await loadTalks(profile.id) })
+      }
       if (role === 'coach') return sendJson(response, 200, { goals: await loadGoals() })
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Mål visas bara för inloggade profiler.' })
@@ -50,6 +64,13 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST' && role === 'coach') {
       const action = request.body?.action
+      if (action === 'create-talk' || action === 'update-talk') {
+        const id = String(request.body.id || ''), profileId = String(request.body.profileId || ''), body = request.body
+        const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status: body.status || 'completed', swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
+        const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+      }
       if (action === 'create') {
         const profileId = String(request.body.profileId || '')
         const title = String(request.body.title || '').trim()
@@ -92,6 +113,16 @@ export default async function handler(request, response) {
         if (request.body.feedbackType === 'goal_complete') await supabaseRequest(`development_goals?id=eq.${goal.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'complete', updated_at: new Date().toISOString() }) })
         return sendJson(response, 201, { ok: true })
       }
+    }
+
+    if (request.method === 'POST' && request.body?.action === 'save-talk') {
+      const profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
+      const id = String(request.body?.id || ''), answers = request.body?.swimmerAnswers || {}, status = request.body?.status === 'prepared' ? 'prepared' : 'draft'
+      const payload = { swimmer_id: profile.id, meeting_date: request.body?.meetingDate || new Date().toISOString().slice(0, 10), status, swimmer_answers: answers, updated_at: new Date().toISOString() }
+      const result = id ? await supabaseRequest(`development_talks?id=eq.${id}&swimmer_id=eq.${profile.id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+      if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
     }
 
     if (request.method === 'POST') {
