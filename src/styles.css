@@ -135,13 +135,19 @@ button { cursor: pointer; }
 .game-card p:last-child { color: #506469; margin: 0; }
 .game-choice { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .game-choice .primary-button, .game-choice .secondary-button { margin: 0; }
-.reaction-board { min-height: 300px; width: min(100%, 420px); border-radius: 24px; background: #163f52; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 28px; text-align: center; box-shadow: 0 16px 34px rgba(16,45,55,.18); }
-.reaction-board.go { background: #19866f; }
-.reaction-board.false { background: #9b4d52; }
+.reaction-board { min-height: 300px; width: min(100%, 420px); border-radius: 24px; background: linear-gradient(145deg, #15516d, #102f4a); color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 28px; text-align: center; box-shadow: 0 16px 34px rgba(16,45,55,.18); position: relative; overflow: hidden; }
+.reaction-board.go { background: linear-gradient(145deg, #159a7e, #116253); }
+.reaction-board.false { background: linear-gradient(145deg, #c94d58, #7f263c); animation: reaction-shake .25s ease-in-out; }
+.pool-lanes { position: absolute; inset: 0; opacity: .24; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 47px, rgba(255,255,255,.8) 48px 50px); }
+.pool-lanes i { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #b9f5ef; animation: bubble-rise 2.4s infinite ease-in; }
+.pool-lanes i:nth-child(1) { left: 18%; bottom: 8%; animation-delay: .2s; }.pool-lanes i:nth-child(2) { right: 22%; bottom: 1%; animation-delay: 1s; }.pool-lanes i:nth-child(3) { left: 72%; bottom: 22%; animation-delay: 1.6s; }
+.reaction-board > span, .reaction-board > small, .reaction-board > button { position: relative; z-index: 1; }
 .reaction-board span { font: 800 clamp(32px, 8vw, 52px) 'Manrope', sans-serif; }
 .reaction-board small { color: #d9ece8; }
 .reaction-button { border: 0; border-radius: 999px; padding: 14px 24px; font: 800 15px 'Manrope', sans-serif; color: #123e52; background: #c9f05a; cursor: pointer; }
 .team-game-bonus { margin: 18px 0; padding: 13px 16px; border-radius: 14px; background: #fff4c7; color: #5a4a17; }
+@keyframes bubble-rise { from { transform: translateY(20px); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(-180px); opacity: 0; } }
+@keyframes reaction-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .game-page { min-height: calc(100vh - 72px); background: #eff6f4; padding: 40px max(20px, calc((100vw - 920px) / 2)) 65px; position: relative; }
 .game-page > .back-button { margin-bottom: 20px; }
 .game-layout { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(250px, .7fr); gap: 32px; align-items: start; }

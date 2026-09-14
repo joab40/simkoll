@@ -451,8 +451,8 @@ function Vandningsmastaren({ code, onBack }) {
     return () => { if (timerRef.current) window.clearTimeout(timerRef.current) }
   }, [code])
 
-  const finish = (finalScore) => {
-    setStatus('over')
+  const finish = (finalScore, failed = false) => {
+    setStatus(failed ? 'false' : 'over')
     apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'vanda', score: finalScore }) }).then((data) => { setGameData(data); if (data.teamBonus?.unlocked) setTeamBonus(data.teamBonus) }).catch(() => {})
   }
 
@@ -465,7 +465,7 @@ function Vandningsmastaren({ code, onBack }) {
 
   const start = () => { setScore(0); setLastReaction(null); setRound(0); setStatus('waiting'); timerRef.current = window.setTimeout(() => { goAtRef.current = performance.now(); setStatus('go') }, 1000 + Math.random() * 1500) }
   const turn = () => {
-    if (status === 'waiting') { if (timerRef.current) window.clearTimeout(timerRef.current); setStatus('false'); finish(0); return }
+    if (status === 'waiting') { if (timerRef.current) window.clearTimeout(timerRef.current); finish(0, true); return }
     if (status !== 'go') return
     const reaction = Math.round(performance.now() - goAtRef.current)
     const gained = Math.max(50, 1100 - reaction)
@@ -473,7 +473,7 @@ function Vandningsmastaren({ code, onBack }) {
     setLastReaction(reaction); setScore(nextScore); nextTurn(round + 1, nextScore)
   }
 
-  return <section className="game-page reaction-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Månadens spel · reaktion</p><h1>Vändningsmästaren ↻</h1><p className="game-intro">Vänta på <strong>VÄND!</strong> och tryck så snabbt du kan. Tjuvtrycker du blir rundan nollad.</p>{teamBonus && <div className="team-game-bonus">🎉 Gruppen klarade målet! Alla som deltagit får <strong>+20 poäng</strong>.</div>}<div className={`reaction-board ${status}`}><span>{status === 'go' ? 'VÄND!' : status === 'waiting' ? 'Vänta…' : status === 'false' ? 'För tidigt!' : status === 'over' ? 'Bra jobbat!' : 'Redo?'}</span><small>{status === 'go' ? 'Tryck nu!' : status === 'waiting' ? `Runda ${round + 1} av 5` : lastReaction ? `${lastReaction} ms · ${score} poäng` : 'Fem snabba vändningar.'}</small><button className="reaction-button" onClick={status === 'ready' || status === 'over' ? start : turn}>{status === 'ready' ? 'Starta' : status === 'over' ? 'Spela igen' : 'Tryck här!'}</button></div></div><section className="game-scoreboard"><p className="eyebrow">Månadens highscore</p><h2>Vändningslistan</h2><p className="game-best">Ditt rekord: <strong>{gameData.ownBest || 0}</strong></p>{gameData.leaderboard.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}<small>Poängen visar snabb och schysst reaktion – inte simförmåga. När 10 olika simmare har spelat får deltagarna +20 grupppoäng.</small></section></div></section>
+  return <section className="game-page reaction-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Månadens spel · reaktion</p><h1>Vändningsmästaren ↻</h1><p className="game-intro">Vänta på <strong>VÄND!</strong> och tryck så snabbt du kan. Tjuvtrycker du blir rundan nollad.</p>{teamBonus && <div className="team-game-bonus">🎉 Gruppen klarade målet! Alla som deltagit får <strong>+20 poäng</strong>.</div>}<div className={`reaction-board ${status}`}><div className="pool-lanes" aria-hidden="true"><i /><i /><i /></div><span>{status === 'go' ? 'VÄND!' : status === 'waiting' ? 'Vänta…' : status === 'false' ? 'För tidigt!' : status === 'over' ? 'Bra jobbat!' : 'Redo?'}</span><small>{status === 'go' ? 'Tryck nu!' : status === 'waiting' ? `Runda ${round + 1} av 5` : status === 'false' ? 'Starta om och vänta på signalen.' : lastReaction ? `${lastReaction} ms · ${score} poäng` : 'Fem snabba vändningar.'}</small><button className="reaction-button" onClick={status === 'ready' || status === 'over' || status === 'false' ? start : turn}>{status === 'ready' ? 'Starta' : status === 'over' || status === 'false' ? 'Spela igen' : 'Tryck här!'}</button></div></div><section className="game-scoreboard"><p className="eyebrow">Månadens highscore</p><h2>Vändningslistan</h2><p className="game-best">Ditt rekord: <strong>{gameData.ownBest || 0}</strong></p>{gameData.leaderboard.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}<small>Poängen visar snabb och schysst reaktion – inte simförmåga. När 10 olika simmare har spelat får deltagarna +20 grupppoäng.</small></section></div></section>
 }
 
 function Simpaus({ code, onBack }) {
