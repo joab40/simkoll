@@ -6,8 +6,18 @@ const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,created_at,profiles(display_name,emoji)'
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
-async function monthlyGameLeaderboard(profileId) {
-  const start = monthStart(); const result = await supabaseRequest(`game_scores?game_key=eq.${gameKey}&created_at=gte.${start}T00:00:00.000Z&select=${gameSelect}&order=score.desc,created_at.asc&limit=1000`)
+const TEAM_GAME_TARGET = 10
+async function awardTeamGameBonus(key) {
+  const start = monthStart()
+  const result = await supabaseRequest(`game_scores?game_key=eq.${key}&created_at=gte.${start}T00:00:00.000Z&select=profile_id&limit=10000`)
+  if (!result.ok) throw new Error(`Team game lookup failed: ${result.status}`)
+  const participants = [...new Set((await result.json()).map((row) => row.profile_id))]
+  if (participants.length < TEAM_GAME_TARGET) return { unlocked: false, participants: participants.length }
+  await Promise.all(participants.map((profileId) => awardPoints(profileId, 'game_played', 20, `team-${key}-${start}`)))
+  return { unlocked: true, participants: participants.length }
+}
+async function monthlyGameLeaderboard(profileId, key = gameKey) {
+  const start = monthStart(); const result = await supabaseRequest(`game_scores?game_key=eq.${key}&created_at=gte.${start}T00:00:00.000Z&select=${gameSelect}&order=score.desc,created_at.asc&limit=1000`)
   if (!result.ok) throw new Error(`Monthly game leaderboard lookup failed: ${result.status}`)
   const best = new Map(); (await result.json()).forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) })
   const rows = [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10)
@@ -15,14 +25,14 @@ async function monthlyGameLeaderboard(profileId) {
   return { monthStart: start, leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest: own?.score || 0 }
 }
 
-async function gameLeaderboard(profileId, week = weekStart()) {
-  const result = await supabaseRequest(`game_scores?game_key=eq.${gameKey}&week_start=eq.${week}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10`)
+async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
+  const result = await supabaseRequest(`game_scores?game_key=eq.${key}&week_start=eq.${week}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10`)
   if (!result.ok) throw new Error(`Game leaderboard lookup failed: ${result.status}`)
   const rows = await result.json()
   const own = rows.find((item) => item.profile_id === profileId)
   let ownBest = own ? own.score : 0
   if (!own && profileId) {
-    const ownResult = await supabaseRequest(`game_scores?profile_id=eq.${profileId}&game_key=eq.${gameKey}&week_start=eq.${week}&select=score&limit=1`)
+    const ownResult = await supabaseRequest(`game_scores?profile_id=eq.${profileId}&game_key=eq.${key}&week_start=eq.${week}&select=score&limit=1`)
     if (!ownResult.ok) throw new Error('Own game score lookup failed')
     ownBest = (await ownResult.json())[0]?.score || 0
   }
@@ -55,19 +65,21 @@ export default async function handler(request, response) {
         const score = Number(request.body?.score)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
         if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
+        const key = ['simpaus', 'vanda'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
         const week = weekStart()
-        const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${gameKey}&week_start=eq.${week}&select=id,score&limit=1`)
+        const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&select=id,score&limit=1`)
         if (!existingResult.ok) throw new Error('Game score lookup failed')
         const existing = (await existingResult.json())[0]
         if (!existing) {
-          const insert = await supabaseRequest('game_scores', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, game_key: gameKey, week_start: week, score }) })
+          const insert = await supabaseRequest('game_scores', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, game_key: key, week_start: week, score }) })
           if (!insert.ok) throw new Error(`Game score insert failed: ${insert.status}`)
         } else if (score > existing.score) {
           const update = await supabaseRequest(`game_scores?id=eq.${existing.id}`, { method: 'PATCH', body: JSON.stringify({ score, created_at: new Date().toISOString() }) })
           if (!update.ok) throw new Error(`Game score update failed: ${update.status}`)
         }
-        await awardPoints(profile.id, 'game_played', 1, `simpaus:${stockholmDate()}`)
-        return sendJson(response, 200, await gameLeaderboard(profile.id, week))
+        await awardPoints(profile.id, 'game_played', 1, `${key}:${stockholmDate()}`)
+        const teamBonus = await awardTeamGameBonus(key)
+        return sendJson(response, 200, { ...(await monthlyGameLeaderboard(profile.id, key)), teamBonus })
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
       if (action === 'grant-artifact') {
@@ -116,10 +128,11 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
-    if (request.query?.game === gameKey) {
+    const requestedGame = ['simpaus', 'vanda'].includes(request.query?.game) ? request.query.game : null
+    if (requestedGame) {
       const profile = await getSessionProfile(request)
       if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
-      return sendJson(response, 200, request.query?.monthly === 'true' ? await monthlyGameLeaderboard(profile.id) : await gameLeaderboard(profile.id))
+      return sendJson(response, 200, request.query?.monthly === 'true' ? await monthlyGameLeaderboard(profile.id, requestedGame) : await gameLeaderboard(profile.id, weekStart(), requestedGame))
     }
     if (role === 'swimmer' && request.query?.artifacts === 'true') {
       const profile = await getSessionProfile(request)
