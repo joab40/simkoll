@@ -644,7 +644,7 @@ function WorkoutContent({ content }) {
   const lines = String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
   if (!lines.length) return null
   const isSection = (line) => /^(insim|uppvärmning|huvudserie|serie|ben|arm|teknik|fart|avsim|nedvarvning|styrka)\b/i.test(line.replace(/^#+\s*/, ''))
-  return <div className="workout-content">{lines.map((line, index) => { const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, ''); return isSection(clean) ? <h4 key={`${index}-${clean}`}>{clean.replace(/:$/, '')}</h4> : <div className="workout-set" key={`${index}-${clean}`}><span className="workout-set-dot">{index + 1}</span><span>{clean}</span></div> })}</div>
+  return <div className="workout-content">{lines.map((line, index) => { const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, ''); if (isSection(clean)) return <h4 key={`${index}-${clean}`}>{clean.replace(/:$/, '')}</h4>; const parts = clean.split(/\s*·\s*/).map((part) => part.trim()).filter(Boolean); const timeIndex = parts.findIndex((part) => /^(?:st\.?|start|starttid)\s*[\d:.,-]+/i.test(part)); const start = timeIndex >= 0 ? parts.splice(timeIndex, 1)[0] : ''; return <div className="workout-set" key={`${index}-${clean}`}><span className="workout-set-dot">{index + 1}</span><span className="workout-set-main">{parts.join(' · ')}</span>{start && <span className="workout-set-time">{start.replace(/^st\.?\s*/i, 'Start ')}</span>}</div> })}</div>
 }
 
 function TomorrowWorkoutCard({ workout }) {
