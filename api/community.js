@@ -102,8 +102,10 @@ export default async function handler(request, response) {
         return sendJson(response, 201, { ok: true })
       }
       const mode = request.body?.mode === 'group' ? 'group' : 'private'
+      const privateSent = await messagesSentToday('kudos', profile.id)
+      const groupSent = await messagesSentToday('group_pep', profile.id)
+      if (privateSent + groupSent >= 4) return sendJson(response, 429, { error: 'Du har skickat fyra peppmeddelanden idag. Du kan skicka mer imorgon!' })
       if (mode === 'group') {
-        if ((await messagesSentToday('group_pep', profile.id)) >= 1) return sendJson(response, 429, { error: 'Du har redan skickat dagens grupp-pepp. Du kan skicka en ny imorgon!' })
         const templateKey = String(request.body?.templateKey || '')
         if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
         const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey }) })
@@ -113,7 +115,6 @@ export default async function handler(request, response) {
         await touchProfileActivity(profile.id)
         return sendJson(response, 201, { ok: true })
       }
-      if ((await messagesSentToday('kudos', profile.id)) >= 3) return sendJson(response, 429, { error: 'Du har skickat tre privata pepp idag. Du kan skicka mer imorgon!' })
       const recipientId = String(request.body?.recipientId || '')
       const templateKey = String(request.body?.templateKey || '')
       if (recipientId === profile.id || !KUDOS_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en simmare och en pepphälsning.' })
