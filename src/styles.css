@@ -86,6 +86,8 @@ button { cursor: pointer; }
 .workout-body { border-left: 1px solid #dce7e4; padding-left: 35px; }
 .workout-body h3 { font: 700 19px 'Manrope'; margin: 0 0 12px; }
 .workout-expand-button { margin: 3px 0 12px; border: 0; border-radius: 9px; padding: 8px 12px; background: #e8f2ef; color: var(--teal); font-size: 12px; font-weight: 800; cursor: pointer; }
+.workout-content-collapsed { max-height: 145px; overflow: hidden; position: relative; }
+.workout-content-collapsed::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 42px; background: linear-gradient(transparent, #fff); pointer-events: none; }
 .workout-body > p { white-space: pre-wrap; line-height: 1.65; color: #40575c; }
 .workout-content { display: grid; gap: 7px; color: #40575c; }
 .workout-content h4 { margin: 13px 0 2px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
