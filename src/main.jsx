@@ -632,7 +632,7 @@ function RewardCelebration({ rewards }) {
 }
 
 function WorkoutCard({ workout, locked }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   return (
     <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
       <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div></div>
