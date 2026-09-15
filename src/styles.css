@@ -392,6 +392,11 @@ button { cursor: pointer; }
 .coach-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
+.editor-import-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.workout-picker { margin: 0 0 20px; padding: 18px; background: #eef7f3; border: 1px solid #cfe4dd; border-radius: 16px; }
+.workout-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }.workout-picker h3 { margin: 0; }.workout-picker > p { color: var(--muted); margin: 6px 0 14px; }
+.workout-picker-criteria { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.workout-picker-criteria label { font-size: 11px; font-weight: 800; }.workout-picker-criteria select { margin-top: 5px; }
+.workout-picker-list { display: grid; gap: 7px; margin-top: 15px; }.workout-picker-list button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 13px; border: 1px solid #d6e6e1; border-radius: 11px; background: white; }.workout-picker-list span { display: grid; gap: 3px; }.workout-picker-list small { color: var(--muted); }.workout-picker-list b { color: var(--teal); white-space: nowrap; }
 .workout-editor form { display: grid; gap: 18px; }
 .workout-editor label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
 .workout-editor label > small { color: var(--muted); font-weight: 400; }
@@ -620,6 +625,7 @@ button { cursor: pointer; }
 .daily-progress-actions > span { font-weight: 800; color: var(--teal); }
 .daily-progress-actions button { border: 0; background: transparent; color: var(--teal); font-weight: 800; }
 @media (max-width: 600px) { .daily-progress-card { align-items: flex-start; flex-direction: column; } .daily-progress-actions { justify-content: space-between; width: 100%; } }
+@media (max-width: 600px) { .editor-import-actions { justify-content: flex-start; } .workout-picker-criteria { grid-template-columns: 1fr; } }
 .sick-count { color: #a85f5f; }
 
 .weekly-card, .season-goal-section, .assigned-programs, .development-section { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 24px; margin-top: 14px; }

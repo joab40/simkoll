@@ -1085,7 +1085,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'community' ? (
           <CoachCommunity code={code} profiles={profiles} />
         ) : view === 'workout' ? (
-          <WorkoutEditor code={code} />
+          <WorkoutEditor code={code} responses={responses} />
         ) : view === 'workout-library' ? (
           <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
@@ -1459,11 +1459,16 @@ function localDateValue() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-function WorkoutEditor({ code }) {
+function WorkoutEditor({ code, responses }) {
   const [date, setDate] = useState(localDateValue)
   const [form, setForm] = useState({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
+  const [library, setLibrary] = useState([])
+  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [criteria, setCriteria] = useState(['focus', 'pass', 'rpe'])
+  const loadLibrary = async () => { try { const data = await apiRequest('/api/workouts?history=true', code); setLibrary(data.workouts || []); setLibraryOpen(true) } catch (error) { window.alert(error.message) } }
+  const rankedLibrary = library.map((workout) => { const answers = responses.filter((item) => item.type === 'after' && dateKey(responseDate(item)) === workout.date); const average = (key) => { const values = answers.map((item) => Number(item[key])).filter(Number.isFinite); return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null }; return { ...workout, pass: average('pass'), rpe: average('rpe') } }).sort((a, b) => criteria.reduce((score, key, index) => { const av = key === 'focus' ? (a.focus ? 1 : 0) : (key === 'distance' ? (a.distanceMeters || 0) : (key === 'duration' ? (a.durationMinutes || 0) : (a[key] || -1))); const bv = key === 'focus' ? (b.focus ? 1 : 0) : (key === 'distance' ? (b.distanceMeters || 0) : (key === 'duration' ? (b.durationMinutes || 0) : (b[key] || -1))); return score + (bv - av) * (3 - index) }, 0))
   const importSheet = async () => { setLoading(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sheet', url: 'https://docs.google.com/spreadsheets/d/1V_Y170h0mOPf3AsrF-9wW9o3paL_X579n4w7aKQgeoc/edit?usp=sharing' }) }); setForm((current) => ({ ...current, ...data.draft })); setSaved(false) } catch (error) { window.alert(error.message) } finally { setLoading(false) } }
 
   useEffect(() => {
@@ -1498,7 +1503,8 @@ function WorkoutEditor({ code }) {
 
   return (
     <section className="workout-editor">
-      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>Lägg upp ett pass</h2></div><button type="button" className="secondary-button" onClick={importSheet} disabled={loading}>Hämta träningsmall</button></div>
+      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>Lägg upp ett pass</h2></div><div className="editor-import-actions"><button type="button" className="secondary-button" onClick={loadLibrary}>Hämta från bibliotek</button><button type="button" className="secondary-button" onClick={importSheet} disabled={loading}>Hämta träningsmall</button></div></div>
+      {libraryOpen && <section className="workout-picker"><div className="workout-picker-head"><h3>Välj ett tidigare pass</h3><button type="button" className="text-button" onClick={() => setLibraryOpen(false)}>Stäng</button></div><p>Välj upp till tre prioriteringar. Bäst match hamnar först.</p><div className="workout-picker-criteria">{[0, 1, 2].map((index) => <label key={index}>{index + 1}. prioritet<select value={criteria[index]} onChange={(event) => { const next = [...criteria]; next[index] = event.target.value; setCriteria(next) }}><option value="focus">Huvudinriktning</option><option value="pass">Passbetyg</option><option value="rpe">RPE</option><option value="distance">Meter</option><option value="duration">Tidsåtgång</option></select></label>)}</div><div className="workout-picker-list">{rankedLibrary.slice(0, 8).map((workout) => <button type="button" key={workout.id} onClick={() => { setForm((current) => ({ ...current, title: workout.title, content: workout.content, note: workout.note, focus: workout.focus || '', distanceMeters: workout.distanceMeters || '', durationMinutes: workout.durationMinutes || '', targetGroups: workout.targetGroups || current.targetGroups })); setLibraryOpen(false); setSaved(false) }}><span><strong>{workout.title}</strong><small>{workout.date} · {workout.distanceMeters ? `${workout.distanceMeters} m` : 'meter saknas'} · {workout.pass ? `Pass ${workout.pass.toFixed(1)}/5` : 'inget betyg'}</small></span><b>Välj →</b></button>)}</div></section>}
       <form onSubmit={save}>
         <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setDate(event.target.value) }} /></label>
         <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
