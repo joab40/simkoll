@@ -1020,3 +1020,7 @@ button { cursor: pointer; }
 .my-competition-results h2 { margin: 0; }
 .my-competition-results > small { color: var(--muted); }
 .swimmer-card-details .tempus-results, .swimmer-card-details .tempus-history { display: none; }
+ .talk-coach-row { display: flex; gap: 8px; align-items: center; }
+ .talk-coach-row > button:first-child { flex: 1; }
+ .talk-switch { border: 0; border-radius: 999px; padding: 8px 13px; background: #e8eeec; color: #637275; font-weight: 800; cursor: pointer; }
+ .talk-switch.on { background: #dff4d2; color: #33703c; }
