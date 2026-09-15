@@ -986,6 +986,11 @@ button { cursor: pointer; }
 .workout-library-list h2 { margin: 4px 0 10px; }
 .workout-focus-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e4f3f0; font-size: 12px; }
 .workout-content-preview { color: var(--muted); white-space: pre-line; max-height: 4.5em; overflow: hidden; }
+.workout-library-details { margin-top: 14px; border-top: 1px solid #e0ebe8; padding-top: 10px; }
+.workout-library-details summary { cursor: pointer; color: var(--teal); font-size: 12px; font-weight: 800; }
+.workout-library-details .workout-content { margin-top: 12px; }
+.workout-library-details aside { margin-top: 12px; background: #edf6f3; border-radius: 11px; padding: 13px 15px; color: #52676b; font-size: 13px; white-space: pre-line; }
+.workout-library-details aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .workout-library-stats { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
 .tempus-results { display: grid; gap: 7px; margin-top: 12px; }
 .tempus-results > strong { font-size: 13px; }
