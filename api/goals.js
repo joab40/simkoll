@@ -26,6 +26,11 @@ async function loadTalks(profileId = null) {
   if (!result.ok) throw new Error(`Development talks GET failed: ${result.status}`)
   return (await result.json()).map(mapTalk)
 }
+async function talksEnabled() {
+  const result = await supabaseRequest("app_settings?setting_key=eq.development_talks&select=setting_value&limit=1")
+  if (!result.ok) return true
+  return (await result.json())[0]?.setting_value?.enabled !== false
+}
 
 async function loadGoals(profileId = null) {
   const filter = profileId ? `&profile_id=eq.${profileId}` : ''
@@ -51,10 +56,10 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (request.query?.talks === 'true') {
-        if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null) })
+        if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null), globalEnabled: await talksEnabled() })
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Utvecklingssamtal visas bara för inloggade profiler.' })
-        return sendJson(response, 200, { talks: await loadTalks(profile.id) })
+        return sendJson(response, 200, { talks: await loadTalks(profile.id), globalEnabled: await talksEnabled() })
       }
       if (role === 'coach') return sendJson(response, 200, { goals: await loadGoals() })
       const profile = await getSessionProfile(request)
@@ -76,6 +81,12 @@ export default async function handler(request, response) {
         const result = await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ enabled, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Development talk setting failed: ${result.status}`)
         return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+      }
+      if (action === 'toggle-talk-global') {
+        const enabled = Boolean(request.body.enabled)
+        const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ setting_key: 'development_talks', setting_value: { enabled }, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Global development talk setting failed: ${result.status}`)
+        return sendJson(response, 200, { globalEnabled: enabled })
       }
       if (action === 'create') {
         const profileId = String(request.body.profileId || '')
@@ -124,6 +135,8 @@ export default async function handler(request, response) {
     if (request.method === 'POST' && request.body?.action === 'save-talk') {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
+      if (!(await talksEnabled())) return sendJson(response, 403, { error: 'Utvecklingssamtal är avstängda.' })
+      if (request.body.id) { const existing = await supabaseRequest(`development_talks?id=eq.${request.body.id}&swimmer_id=eq.${profile.id}&select=enabled&limit=1`); if (existing.ok && (await existing.json())[0]?.enabled === false) return sendJson(response, 403, { error: 'Samtalet är skrivskyddat.' }) }
       const id = String(request.body?.id || ''), answers = request.body?.swimmerAnswers || {}, status = request.body?.status === 'prepared' ? 'prepared' : 'draft'
       const payload = { swimmer_id: profile.id, meeting_date: request.body?.meetingDate || new Date().toISOString().slice(0, 10), status, swimmer_answers: answers, updated_at: new Date().toISOString() }
       const result = id ? await supabaseRequest(`development_talks?id=eq.${id}&swimmer_id=eq.${profile.id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })

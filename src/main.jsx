@@ -106,7 +106,7 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) return
-    apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.talks?.[0]?.enabled !== false)).catch(() => {})
+    apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false && data.talks?.[0]?.enabled !== false)).catch(() => {})
   }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
