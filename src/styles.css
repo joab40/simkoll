@@ -1007,6 +1007,7 @@ button { cursor: pointer; }
 .workout-library-details .workout-content { margin-top: 12px; }
 .workout-library-details aside { margin-top: 12px; background: #edf6f3; border-radius: 11px; padding: 13px 15px; color: #52676b; font-size: 13px; white-space: pre-line; }
 .workout-library-details aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.workout-library-title { display: flex; justify-content: space-between; gap: 12px; }.workout-incomplete-flag { color: #c55252; font-size: 24px; }.workout-library-list article.incomplete { border-color: #e6bcbc; }.workout-edit-button { margin: 10px 0 14px; }
 .workout-library-stats { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
 .tempus-results { display: grid; gap: 7px; margin-top: 12px; }
 .tempus-results > strong { font-size: 13px; }
