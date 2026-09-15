@@ -390,6 +390,7 @@ button { cursor: pointer; }
 .coach-tabs button { flex: 0 0 auto; min-height: 39px; padding: 0 15px; border: 0; border-radius: 10px; background: transparent; color: #687b7e; font-size: 13px; font-weight: 600; }
 .mobile-tab-label { display: none; }
 .coach-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
+.coach-tools-menu { min-width: 0; }.coach-tools-menu > summary { list-style: none; cursor: pointer; padding: 10px 14px; border-radius: 12px; background: #e8f1ee; color: var(--teal); font-size: 12px; font-weight: 800; }.coach-tools-menu > summary::-webkit-details-marker { display: none; }.coach-tools-menu > summary span { float: right; font-size: 16px; }.coach-tools-menu[open] > summary { margin-bottom: 6px; }.coach-tools-menu .coach-tab-buttons { background: #f4f8f6; border-radius: 12px; padding: 4px; }
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
 .editor-import-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

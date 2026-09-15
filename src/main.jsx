@@ -1051,7 +1051,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}><span className="desktop-tab-label">Grupptrend</span><span className="mobile-tab-label">Trend</span></button>
             <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><span className="desktop-tab-label">Historik</span><span className="mobile-tab-label">Historik</span></button>
           </div></div>
-          <div className="coach-tab-group"><span className="coach-tab-label">Verktyg</span><div className="coach-tab-buttons">
+          <details className="coach-tools-menu"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
             <button className={view === 'talks' ? 'active' : ''} onClick={() => setView('talks')}><span className="desktop-tab-label">Utvecklingssamtal</span><span className="mobile-tab-label">Samtal</span></button>
             <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
             <button className={view === 'competition' ? 'active' : ''} onClick={() => { setView('competition'); loadCompetitionResults() }}><span className="desktop-tab-label">Tävlingsresultat</span><span className="mobile-tab-label">Resultat</span></button>
@@ -1063,7 +1063,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'rewards' ? 'active' : ''} onClick={() => setView('rewards')}><span className="desktop-tab-label">Poäng & nivåer</span><span className="mobile-tab-label">Poäng</span></button>
             <button className={view === 'faq' ? 'active' : ''} onClick={() => setView('faq')}><span className="desktop-tab-label">FAQ</span><span className="mobile-tab-label">FAQ</span></button>
             <button className={view === 'legal' ? 'active' : ''} onClick={() => setView('legal')}><span className="desktop-tab-label">Info & villkor</span><span className="mobile-tab-label">Info</span></button>
-          </div></div>
+          </div></details>
         </nav>
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'faq' ? (
