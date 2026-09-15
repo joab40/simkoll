@@ -97,7 +97,7 @@ button { cursor: pointer; }
 .workout-set-time { width: 82px; box-sizing: border-box; padding: 5px 6px; border-radius: 7px; background: #dceee8; color: var(--teal); font-size: 11px; font-weight: 800; text-align: center; white-space: nowrap; }
 .workout-set.indented { margin-left: 18px; }
 .workout-set-dot { flex: 0 0 21px; height: 21px; border-radius: 50%; background: #dceee8; color: var(--teal); display: grid; place-items: center; font-size: 10px; font-weight: 800; }
-.workout-body aside { background: #edf6f3; border-radius: 11px; padding: 13px 15px; color: #52676b; font-size: 13px; }
+.workout-body aside { margin-top: 18px; background: #edf6f3; border-radius: 11px; padding: 13px 15px; color: #52676b; font-size: 13px; }
 .workout-body aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .workout-empty > p { color: var(--muted); align-self: center; }
 .tomorrow-card { margin-top: 12px; background: linear-gradient(120deg, #e5f4ef, #f2f7d9); border: 1px solid #cbded5; border-radius: 20px; padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
@@ -144,6 +144,8 @@ button { cursor: pointer; }
 .game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .talk-shortcut { margin: 10px 20px 0; border: 1px solid #c9dfd7; border-radius: 999px; background: #eff8f4; color: var(--teal); padding: 8px 13px; font-weight: 700; }
 .talk-page { min-height: calc(100vh - 72px); background: var(--paper); padding: 24px max(20px, calc((100vw - 720px) / 2)) 60px; }
+.swimmer-talk-history { margin-top: 18px; }
+.swimmer-talk-history details { margin-top: 8px; padding: 12px 14px; background: #f7fbf9; border: 1px solid var(--line); border-radius: 12px; }
 .talk-content { max-width: 680px; margin: 0 auto; }.talk-intro { color: var(--muted); }.talk-progress i { display: block; height: 7px; background: #e0ebe7; border-radius: 9px; margin: 8px 0 20px; overflow: hidden; }.talk-progress b { display: block; height: 100%; background: var(--teal); }.talk-card, .talk-coach { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 22px; }.talk-card label, .talk-coach-detail label { display: block; margin: 16px 0; font-weight: 700; }.talk-card textarea, .talk-coach textarea { display: block; width: 100%; min-height: 74px; margin-top: 7px; }.talk-actions { display: flex; justify-content: space-between; gap: 10px; }.talk-status { display: block; margin-top: 12px; color: var(--teal); }.talk-history { margin-top: 16px; }.talk-coach-list { display: grid; gap: 8px; }.talk-coach-list button { display: grid; grid-template-columns: 30px 1fr auto auto; gap: 8px; align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 12px; background: white; padding: 12px; }.talk-coach-list small { color: var(--muted); }.talk-answer-list { background: #f5faf8; border-radius: 12px; padding: 10px 14px; }.talk-answer-list p { display: grid; gap: 3px; border-bottom: 1px solid var(--line); padding: 8px 0; }.talk-answer-list p:last-child { border-bottom: 0; }
 .game-card h2 { margin: 0 0 5px; font-size: 24px; }
 .game-card p:last-child { color: #506469; margin: 0; }
@@ -604,7 +606,7 @@ button { cursor: pointer; }
 .clear-button { display: block; margin: 25px auto 0; border: 0; background: transparent; color: #9b6868; font-size: 12px; }
 .app-meta { border-top: 1px solid #d9e5e2; margin-top: 25px; padding-top: 18px; display: flex; justify-content: center; gap: 17px; color: #899997; font-size: 10px; }
 .swimmer-app-meta { max-width: 1100px; margin-left: auto; margin-right: auto; padding-left: 18px; padding-right: 18px; }
-.daily-progress-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px; background: linear-gradient(135deg, #eef8f4, #fff); border: 1px solid #cfe4dd; border-radius: 16px; }
+.daily-progress-card { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px; background: linear-gradient(135deg, #eef8f4, #fff); border: 1px solid #cfe4dd; border-radius: 16px; }
 .daily-progress-card h2 { margin: 2px 0 4px; }
 .daily-progress-card small { color: var(--muted); }
 .daily-progress-actions { display: flex; align-items: center; gap: 12px; white-space: nowrap; }

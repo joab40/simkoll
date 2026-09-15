@@ -66,7 +66,7 @@ function App() {
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
-  const [talksEnabled, setTalksEnabled] = useState(true)
+  const [talksEnabled, setTalksEnabled] = useState(false)
 
   useEffect(() => {
     if (!auth) return
