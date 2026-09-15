@@ -1014,6 +1014,9 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const [view, setView] = useState('today')
   const [competitionResults, setCompetitionResults] = useState([])
   const [competitionLoading, setCompetitionLoading] = useState(false)
+  const [talksGlobalEnabled, setTalksGlobalEnabled] = useState(true)
+  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
+  const toggleAllTalks = async () => { try { const next = !talksGlobalEnabled; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-talk-global', enabled: next }) }); setTalksGlobalEnabled(next) } catch (error) { window.alert(error.message) } }
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
@@ -1030,6 +1033,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
       <header><ClubBrand /><div><span className="coach-badge">Tränarvy</span><button className="text-button" onClick={onLogout}>Logga ut</button></div></header>
       <div className="coach-content">
         <div className="coach-heading"><div><p className="eyebrow">Tränaröversikt</p><h1>Gruppens läge</h1></div><div className="usage-summary"><div className="usage-stat"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{todayResponses.length}</strong><span>incheckningar</span></div>{todayResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{todayResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka idag</span></div></>}</div></div>
+        <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
             <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><span className="desktop-tab-label">Idag</span><span className="mobile-tab-label">Idag</span></button>

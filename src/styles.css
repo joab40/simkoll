@@ -1023,4 +1023,5 @@ button { cursor: pointer; }
  .talk-coach-row { display: flex; gap: 8px; align-items: center; }
  .talk-coach-row > button:first-child { flex: 1; }
  .talk-switch { border: 0; border-radius: 999px; padding: 8px 13px; background: #e8eeec; color: #637275; font-weight: 800; cursor: pointer; }
- .talk-switch.on { background: #dff4d2; color: #33703c; }
+.talk-switch.on { background: #dff4d2; color: #33703c; }
+.global-talk-setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -12px 0 18px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f7fbf9; }.global-talk-setting span { display: grid; gap: 3px; }.global-talk-setting small { color: var(--muted); }
