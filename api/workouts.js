@@ -50,7 +50,7 @@ export default async function handler(request, response) {
         const header = rows.find((row) => /^träningspass/i.test(valueAt(row, 0))) || []
         const dateRow = rows.find((row) => /^datum/i.test(valueAt(row, 0))) || []
         const title = `${valueAt(header, 0).replace(/:$/, '')}${valueAt(header, 1) ? ` · ${valueAt(header, 1)}` : ''}`.slice(0, 80) || 'Hämtat träningspass'
-        const contentRows = rows.filter((row) => { const first = valueAt(row, 0); const set = valueAt(row, 2); return row.some((cell) => cell) && !/^träningspass|^datum|^nästa tävling|^summa|^tid/i.test(first) && !/^\d+\s*$/i.test(first) && !(first === '' && set === '' && valueAt(row, 3)) }).map((row) => row.map((cell) => String(cell).trim()).filter(Boolean).join(' · '))
+        const contentRows = rows.filter((row) => { const first = valueAt(row, 0); const set = valueAt(row, 2); return (set || /^(insim|ben|spec|arm|avsim)/i.test(first)) && !/^träningspass|^datum|^nästa tävling|^summa|^tid/i.test(first) }).map((row) => { const section = valueAt(row, 0); const set = valueAt(row, 2); const details = [valueAt(row, 3), valueAt(row, 5), valueAt(row, 6)].filter(Boolean); if (!set) return section; return `${set}${details.length ? ` · ${details.join(' · ')}` : ''}` }).filter(Boolean)
         const content = contentRows.join('\n').slice(0, 5000)
         const totalRow = rows.find((row) => /^summa/i.test(valueAt(row, 0))) || []
         const distance = valueAt(totalRow, 2).replace(/\D/g, '')
