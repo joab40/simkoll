@@ -635,13 +635,20 @@ function WorkoutCard({ workout, locked }) {
   return (
     <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
       <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div></div>
-      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><WorkoutMeta workout={workout} /><p>{workout.content}</p>{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><WorkoutMeta workout={workout} /><WorkoutContent content={workout.content} />{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
 }
 
+function WorkoutContent({ content }) {
+  const lines = String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  if (!lines.length) return null
+  const isSection = (line) => /^(insim|uppvärmning|huvudserie|serie|ben|arm|teknik|fart|avsim|nedvarvning|styrka)\b/i.test(line.replace(/^#+\s*/, ''))
+  return <div className="workout-content">{lines.map((line, index) => { const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, ''); return isSection(clean) ? <h4 key={`${index}-${clean}`}>{clean.replace(/:$/, '')}</h4> : <div className="workout-set" key={`${index}-${clean}`}><span className="workout-set-dot">{index + 1}</span><span>{clean}</span></div> })}</div>
+}
+
 function TomorrowWorkoutCard({ workout }) {
-  return <section className="tomorrow-card"><div><p className="eyebrow">Imorgon</p><h2>{workout.title}</h2><WorkoutMeta workout={workout} /><p>{workout.content}</p></div><span>🔓</span></section>
+  return <section className="tomorrow-card"><div><p className="eyebrow">Imorgon</p><h2>{workout.title}</h2><WorkoutMeta workout={workout} /><WorkoutContent content={workout.content} /></div><span>🔓</span></section>
 }
 
 function WorkoutMeta({ workout }) {
