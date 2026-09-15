@@ -39,13 +39,14 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest(`game_scores?game_key=in.(simpaus,vanda)&select=profile_id,game_key,week_start,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000`)
+  const week = weekStart()
+  const result = await supabaseRequest(`game_scores?game_key=in.(simpaus,vanda)&week_start=eq.${week}&select=profile_id,game_key,week_start,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000`)
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
   const rows = await result.json(); const weeks = new Map()
   rows.forEach((item) => { const key = `${item.game_key}|${item.week_start}`; if (!weeks.has(key)) weeks.set(key, []); weeks.get(key).push(item) })
   const totals = new Map()
   weeks.forEach((items) => { const seen = new Set(); items.forEach((item) => { if (seen.has(item.profile_id)) return; seen.add(item.profile_id); const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += Math.max(0, 10 - (seen.size - 1)); totals.set(item.profile_id, current) }) })
-  return { leaderboard: [...totals.values()].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName, 'sv')).slice(0, 10).map((item, index) => ({ ...item, rank: index + 1 })), scoring: '10 poäng till vinnaren i varje spel och vecka, därefter 9–1.' }
+  return { weekStart: week, leaderboard: [...totals.values()].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName, 'sv')).slice(0, 10).map((item, index) => ({ ...item, rank: index + 1 })), scoring: '10 poäng till vinnaren i varje spel den här veckan, därefter 9–1.' }
 }
 
 const POINT_RULES = [
