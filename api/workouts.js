@@ -6,6 +6,37 @@ function publicWorkout(item) {
   return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
 }
 
+function parseWorkoutCsv(csv) {
+  const parseCsvLine = (line) => { const cells = []; let value = ''; let quoted = false; for (let index = 0; index < line.length; index += 1) { const char = line[index]; if (char === '"' && line[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = !quoted; else if (char === ',' && !quoted) { cells.push(value.trim()); value = '' } else value += char } cells.push(value.trim()); return cells }
+  const rows = csv.split(/\r?\n/).filter(Boolean).map(parseCsvLine)
+  const valueAt = (row, index) => String(row?.[index] || '').trim()
+  const header = rows.find((row) => /^träningspass/i.test(valueAt(row, 0))) || []
+  const dateRow = rows.find((row) => /^datum/i.test(valueAt(row, 0))) || []
+  const title = `${valueAt(header, 0).replace(/:$/, '')}${valueAt(header, 1) ? ` · ${valueAt(header, 1)}` : ''}`.slice(0, 80) || 'Hämtat träningspass'
+  const contentRows = rows.filter((row) => { const first = valueAt(row, 0); const set = valueAt(row, 2); return (set || /^(insim|ben|spec|arm|avsim)/i.test(first)) && !/^träningspass|^datum|^nästa tävling|^summa|^tid/i.test(first) }).map((row) => { const section = valueAt(row, 0); const set = valueAt(row, 2); const details = [valueAt(row, 3), valueAt(row, 5), valueAt(row, 6)].filter(Boolean); if (!set) return section; return `${set}${details.length ? ` · ${details.join(' · ')}` : ''}` }).filter(Boolean)
+  const totalRow = rows.find((row) => /^summa/i.test(valueAt(row, 0))) || []
+  const timeIndex = rows.findIndex((row) => /^tid/i.test(valueAt(row, 0)))
+  return { title, content: contentRows.join('\n').slice(0, 5000), note: `Importerat från träningsmall${valueAt(dateRow, 1) ? ` · ${valueAt(dateRow, 1)}` : ''} – kontrollera uppgifterna före publicering.`, focus: '', distanceMeters: valueAt(totalRow, 2).replace(/\D/g, ''), durationMinutes: timeIndex >= 0 ? valueAt(rows[timeIndex + 1], 0).replace(/\D/g, '') : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] }
+}
+
+async function improveWorkoutWithAi(csv, fallback) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return fallback
+  const prompt = `Du tolkar en svensk simträningsmall. Returnera endast giltig JSON, utan markdown, med exakt dessa nycklar: title (string max 80), content (ren läsbar text max 5000), distanceMeters (heltal eller null), durationMinutes (heltal eller null), focus (en av fart,troskel,syra,f2_frisim,f2_spec,distans,teknik,aterhamtning,kondition_frisim,kondition_special eller tom sträng).\n\nFORMATREGLER FÖR content:\n- Behåll exakt samma ordning som raderna kommer i källan. Sortera aldrig efter tider, meter eller intervall.\n- Starttider/startintervall ska stå kvar på rätt rad tillsammans med sin serie; flytta eller slå aldrig ihop dem.\n- Lägg varje serie på en egen rad. Lägg avsnittsnamn (t.ex. Insim, Huvudserie, Ben, Avsim) på egen rad och lämna en tom rad före nästa avsnitt.\n- Använd vanlig text och separatorn " · " mellan delar på samma rad. Inga CSV-tecken, tabellkoder eller tomma celler.\n- Ta bort kolumnrubriker, tävlingskalender och summeringsrader från content. Gissa inte värden som saknas.\n\nCSV:\n${csv.slice(0, 24000)}`
+  try {
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) return fallback
+    const payload = await result.json()
+    const parsed = JSON.parse(payload.choices?.[0]?.message?.content || '{}')
+    if (!parsed.title || !parsed.content) return fallback
+    const formattedContent = String(parsed.content).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').replace(/\s*·\s*/g, ' · ').trim()).filter(Boolean).join('\n')
+    return { ...fallback, title: String(parsed.title).slice(0, 80), content: formattedContent.slice(0, 5000), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : fallback.distanceMeters, durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : fallback.durationMinutes, focus: typeof parsed.focus === 'string' ? parsed.focus : '' }
+  } catch (error) {
+    console.warn('Workout AI import fallback:', error.message)
+    return fallback
+  }
+}
+
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
@@ -44,20 +75,9 @@ export default async function handler(request, response) {
         const source = await fetch(`https://docs.google.com/spreadsheets/d/${match[1]}/gviz/tq?tqx=out:csv`)
         if (!source.ok) return sendJson(response, 502, { error: 'Kunde inte läsa träningsmallen.' })
         const text = await source.text()
-        const parseCsvLine = (line) => { const cells = []; let value = ''; let quoted = false; for (let index = 0; index < line.length; index += 1) { const char = line[index]; if (char === '"' && line[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = !quoted; else if (char === ',' && !quoted) { cells.push(value.trim()); value = '' } else value += char } cells.push(value.trim()); return cells }
-        const rows = text.split(/\r?\n/).filter(Boolean).map(parseCsvLine)
-        const valueAt = (row, index) => String(row?.[index] || '').trim()
-        const header = rows.find((row) => /^träningspass/i.test(valueAt(row, 0))) || []
-        const dateRow = rows.find((row) => /^datum/i.test(valueAt(row, 0))) || []
-        const title = `${valueAt(header, 0).replace(/:$/, '')}${valueAt(header, 1) ? ` · ${valueAt(header, 1)}` : ''}`.slice(0, 80) || 'Hämtat träningspass'
-        const contentRows = rows.filter((row) => { const first = valueAt(row, 0); const set = valueAt(row, 2); return (set || /^(insim|ben|spec|arm|avsim)/i.test(first)) && !/^träningspass|^datum|^nästa tävling|^summa|^tid/i.test(first) }).map((row) => { const section = valueAt(row, 0); const set = valueAt(row, 2); const details = [valueAt(row, 3), valueAt(row, 5), valueAt(row, 6)].filter(Boolean); if (!set) return section; return `${set}${details.length ? ` · ${details.join(' · ')}` : ''}` }).filter(Boolean)
-        const content = contentRows.join('\n').slice(0, 5000)
-        const totalRow = rows.find((row) => /^summa/i.test(valueAt(row, 0))) || []
-        const distance = valueAt(totalRow, 2).replace(/\D/g, '')
-        const timeIndex = rows.findIndex((row) => /^tid/i.test(valueAt(row, 0)))
-        const durationMinutes = timeIndex >= 0 ? valueAt(rows[timeIndex + 1], 0).replace(/\D/g, '') : ''
-        const targetGroups = ['ungdom_orange', 'ungdom_svart', 'junior']
-        return sendJson(response, 200, { draft: { title, content, note: `Importerat från träningsmall${valueAt(dateRow, 1) ? ` · ${valueAt(dateRow, 1)}` : ''} – kontrollera uppgifterna före publicering.`, focus: '', distanceMeters: distance, durationMinutes, targetGroups } })
+        const fallback = parseWorkoutCsv(text)
+        const draft = await improveWorkoutWithAi(text, fallback)
+        return sendJson(response, 200, { draft })
       }
       const date = String(request.body?.date || stockholmDate())
       const title = String(request.body?.title || '').trim()
