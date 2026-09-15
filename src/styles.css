@@ -92,7 +92,7 @@ button { cursor: pointer; }
 .workout-content { display: grid; gap: 7px; color: #40575c; }
 .workout-content h4 { margin: 13px 0 2px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .workout-content h4:first-child { margin-top: 0; }
-.workout-set { display: grid; grid-template-columns: 21px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 11px; background: #f3f8f6; border-radius: 10px; line-height: 1.45; font-size: 14px; }
+.workout-set { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 11px; background: #f3f8f6; border-radius: 10px; line-height: 1.45; font-size: 14px; }
 .workout-set-main { min-width: 0; }
 .workout-set-time { width: 82px; box-sizing: border-box; padding: 5px 6px; border-radius: 7px; background: #dceee8; color: var(--teal); font-size: 11px; font-weight: 800; text-align: center; white-space: nowrap; }
 .workout-set.indented { margin-left: 18px; }
