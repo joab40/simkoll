@@ -37,6 +37,20 @@ export default async function handler(request, response) {
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'import-sheet') {
+        const sheetUrl = String(request.body.url || '')
+        const match = sheetUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
+        if (!match) return sendJson(response, 400, { error: 'Ange en giltig Google Sheets-länk.' })
+        const source = await fetch(`https://docs.google.com/spreadsheets/d/${match[1]}/gviz/tq?tqx=out:csv`)
+        if (!source.ok) return sendJson(response, 502, { error: 'Kunde inte läsa träningsmallen.' })
+        const text = await source.text()
+        const lines = text.split(/\r?\n/).map((line) => line.replace(/^"|"$/g, '').replace(/""/g, '"').trim()).filter(Boolean)
+        const content = lines.join('\n').slice(0, 5000)
+        const title = lines.find((line) => line && !/^träningspass:?$/i.test(line))?.slice(0, 80) || 'Hämtat träningspass'
+        const distance = content.match(/(?:total|meter|m)[^\d]{0,12}(\d{3,5})\s*m?/i)?.[1] || ''
+        const targetGroups = /J-US-UO|alla grupper/i.test(content) ? ['ungdom_orange', 'ungdom_svart', 'junior'] : ['ungdom_orange', 'ungdom_svart', 'junior']
+        return sendJson(response, 200, { draft: { title, content, note: 'Importerat från träningsmall – kontrollera uppgifterna före publicering.', focus: '', distanceMeters: distance, durationMinutes: '', targetGroups } })
+      }
       const date = String(request.body?.date || stockholmDate())
       const title = String(request.body?.title || '').trim()
       const content = String(request.body?.content || '').trim()

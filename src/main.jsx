@@ -1459,6 +1459,7 @@ function WorkoutEditor({ code }) {
   const [form, setForm] = useState({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
+  const importSheet = async () => { setLoading(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sheet', url: 'https://docs.google.com/spreadsheets/d/1V_Y170h0mOPf3AsrF-9wW9o3paL_X579n4w7aKQgeoc/edit?usp=sharing' }) }); setForm((current) => ({ ...current, ...data.draft })); setSaved(false) } catch (error) { window.alert(error.message) } finally { setLoading(false) } }
 
   useEffect(() => {
     setLoading(true)
@@ -1492,7 +1493,7 @@ function WorkoutEditor({ code }) {
 
   return (
     <section className="workout-editor">
-      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>Lägg upp ett pass</h2></div></div>
+      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>Lägg upp ett pass</h2></div><button type="button" className="secondary-button" onClick={importSheet} disabled={loading}>Hämta träningsmall</button></div>
       <form onSubmit={save}>
         <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setDate(event.target.value) }} /></label>
         <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
