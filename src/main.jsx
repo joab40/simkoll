@@ -632,10 +632,11 @@ function RewardCelebration({ rewards }) {
 }
 
 function WorkoutCard({ workout, locked }) {
+  const [expanded, setExpanded] = useState(false)
   return (
     <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
       <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div></div>
-      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><WorkoutMeta workout={workout} /><WorkoutContent content={workout.content} />{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><WorkoutMeta workout={workout} /><button type="button" className="workout-expand-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Dölj passet ↑' : 'Visa hela passet ↓'}</button>{expanded && <><WorkoutContent content={workout.content} />{workout.note && <aside><strong>Från tränaren</strong>{workout.note}</aside>}</>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
 }
