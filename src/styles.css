@@ -253,6 +253,13 @@ button { cursor: pointer; }
 .my-history article > div { display: flex; flex-direction: column; text-transform: capitalize; }
 .my-history article small { color: var(--muted); font-size: 11px; }
 .my-history article b { font-size: 12px; color: var(--teal); }
+.my-history > summary, .my-competition-results > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; }
+.my-history > summary::-webkit-details-marker, .my-competition-results > summary::-webkit-details-marker { display: none; }
+.my-history > summary > span, .my-competition-results > summary > span { min-width: 0; }
+.my-history > summary h2, .my-competition-results > summary h2 { margin-bottom: 4px; }
+.my-history > summary small, .my-competition-results > summary small { color: var(--muted); }
+.my-history > summary > b, .my-competition-results > summary > b { color: var(--teal); font-size: 22px; }
+.my-history[open] > summary > b, .my-competition-results[open] > summary > b { transform: rotate(45deg); }
 .profile-stats-button { display: block; margin: 18px auto 0; }
 .attendance-panel { margin: 0 0 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
 .attendance-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; background: transparent; padding: 16px 18px; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; text-align: left; }
