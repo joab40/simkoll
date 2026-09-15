@@ -1524,6 +1524,7 @@ function WorkoutEditor({ code, responses }) {
 function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
   const [reset, setReset] = useState(null)
   const [search, setSearch] = useState('')
+  const [trafficFilter, setTrafficFilter] = useState('all')
   const [expandedProfile, setExpandedProfile] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePoints, setProfilePoints] = useState({})
@@ -1564,7 +1565,9 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     if (!confirmDestructive(`Profilen “${profile.displayName}” och all kopplad historik tas bort permanent. Detta går inte att ångra.`, 'RADERA PROFIL')) return
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
   }
+  const trafficColorFor = (profile) => { const recent = responses.filter((item) => item.profileId === profile.id && responseDate(item) >= new Date(Date.now() - 6 * 86400000)); const sick = new Set(recent.filter((item) => item.type === 'sick').map((item) => dateKey(responseDate(item)))).size; const lowBody = recent.filter((item) => Number(item.body) <= 2).length; const lowFeeling = recent.filter((item) => Number(item.feeling) <= 2).length; if (!recent.length) return 'unknown'; if (sick >= 2 || (lowBody >= 2 && lowFeeling >= 2)) return 'red'; if (sick || lowBody || lowFeeling) return 'yellow'; return 'green' }
   const visibleProfiles = profiles
+    .filter((profile) => trafficFilter === 'all' || trafficColorFor(profile) === trafficFilter)
     .filter((profile) => `${profile.displayName} ${profile.username}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => {
       const latestToday = (profile) => responses
@@ -1607,6 +1610,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     <section className="swimmers-section">
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
       <label className="swimmer-search"><span>🔎</span><input type="search" placeholder="Sök namn eller användarnamn…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+      <div className="swimmer-traffic-filters" aria-label="Filtrera trafikljus"><span>Visa:</span>{[['all', 'Alla'], ['red', '🔴 Röda'], ['yellow', '🟡 Gula'], ['green', '🟢 Gröna']].map(([value, label]) => <button type="button" className={trafficFilter === value ? 'active' : ''} key={value} onClick={() => setTrafficFilter(value)}>{label}</button>)}</div>
       {artifactError && <p className="form-error">Artefakter kunde inte laddas. Kontrollera att migration 013 är körd i Supabase.</p>}
       {pendingProfiles.length > 0 && <section className="pending-profiles"><div><p className="eyebrow">Behöver granskas</p><h3>Nya profilförfrågningar</h3></div>{pendingProfiles.map((profile) => <article key={profile.id}><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username} · skapad {new Date(profile.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div><button className="approve-profile" onClick={() => reviewProfile(profile, true)}>Godkänn</button><button onClick={() => reviewProfile(profile, false)}>Avvisa</button></article>)}</section>}
       {reset && <div className="reset-banner"><span>{reset.profile.emoji}</span><div><small>Engångskod för {reset.profile.displayName} · giltig 30 minuter</small><strong>{reset.code}</strong></div><button onClick={() => setReset(null)}>×</button></div>}
