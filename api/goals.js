@@ -19,7 +19,7 @@ const mapGoal = (goal, updates = []) => ({
   })),
 })
 
-const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
+const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
 async function loadTalks(profileId = null) {
   const filter = profileId ? `&swimmer_id=eq.${profileId}` : ''
   const result = await supabaseRequest(`development_talks?select=*&${filter.slice(1)}&order=meeting_date.desc,created_at.desc&limit=200`)
@@ -66,9 +66,15 @@ export default async function handler(request, response) {
       const action = request.body?.action
       if (action === 'create-talk' || action === 'update-talk') {
         const id = String(request.body.id || ''), profileId = String(request.body.profileId || ''), body = request.body
-        const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status: body.status || 'completed', swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
+        const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status: body.status || 'completed', enabled: body.enabled !== false, swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
         const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+      }
+      if (action === 'toggle-talk') {
+        const id = String(request.body.id || ''), enabled = Boolean(request.body.enabled)
+        const result = await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ enabled, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Development talk setting failed: ${result.status}`)
         return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
       }
       if (action === 'create') {
