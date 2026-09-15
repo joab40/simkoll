@@ -106,7 +106,7 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) return
-    apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false && data.talks?.[0]?.enabled !== false)).catch(() => {})
+    apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false)).catch(() => {})
   }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
@@ -800,8 +800,9 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   const [training, setTraining] = useState(null)
   const [loading, setLoading] = useState(true)
   const [reflection, setReflection] = useState({})
+  const [talks, setTalks] = useState([])
   const [seasonForm, setSeasonForm] = useState({ title: 'Mitt höstmål', target: 4, startDate: localDateValue(), endDate: `${new Date().getFullYear()}-12-20`, reflection: '' })
-  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code)]).then(([goalData, trainingData]) => { setGoals(goalData.goals); setTraining(trainingData); onTrainingChange(trainingData) }).finally(() => setLoading(false))
+  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code), apiRequest('/api/goals?talks=true', code)]).then(([goalData, trainingData, talkData]) => { setGoals(goalData.goals); setTraining(trainingData); setTalks(talkData.talks || []); onTrainingChange(trainingData) }).finally(() => setLoading(false))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const addReflection = async (goalId) => {
     const content = String(reflection[goalId] || '').trim()
@@ -834,6 +835,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
   const [responses, setResponses] = useState([])
   const [artifacts, setArtifacts] = useState([])
   const [competitionResults, setCompetitionResults] = useState([])
+  const [developmentTalks, setDevelopmentTalks] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -843,6 +845,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
     apiRequest('/api/responses?mine=true', code).then((data) => setResponses(data.responses)).finally(() => setLoading(false))
     apiRequest('/api/points?artifacts=true', code).then((data) => setArtifacts(data.artifacts || [])).catch(() => {})
     apiRequest('/api/profiles?competitionResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {})
+    apiRequest('/api/goals?talks=true', code).then((data) => setDevelopmentTalks(data.talks || [])).catch(() => {})
   }, [code])
   return (
     <div className="my-profile-page">
@@ -851,6 +854,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
       {!editing ? <button className="profile-edit-button" onClick={() => { setEditForm({ displayName: profile.displayName, emoji: profile.emoji }); setEditError(''); setEditing(true) }}>✏️ Ändra namn eller emoji</button> : <form className="profile-edit-form" onSubmit={async (event) => { event.preventDefault(); setEditError(''); try { const data = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-profile', ...editForm }) }); onProfileChange(data.profile); setEditing(false) } catch (error) { setEditError(error.message) } }}><label>Visningsnamn<input maxLength="40" required value={editForm.displayName} onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })} /></label><fieldset><legend>Välj emoji</legend><div className="avatar-picker">{PROFILE_EMOJIS.map((emoji) => <button type="button" className={editForm.emoji === emoji ? 'selected' : ''} key={emoji} onClick={() => setEditForm({ ...editForm, emoji })}>{emoji}</button>)}</div><input className="custom-emoji-input" maxLength="16" aria-label="Egen emoji" placeholder="Eller skriv en egen emoji" value={editForm.emoji} onChange={(event) => setEditForm({ ...editForm, emoji: event.target.value })} /></fieldset>{editError && <p className="form-error">{editError}</p>}<div><button type="button" className="secondary-button" onClick={() => setEditing(false)}>Avbryt</button><button className="primary-button">Spara ändringar</button></div></form>}
       <section className="artifact-collection"><div><p className="eyebrow">Min samling</p><h2>Artefakter</h2><small>Små bevis på vanor, utveckling och lagkänsla.</small></div>{artifacts.length ? <div className="artifact-grid">{artifacts.map((artifact) => <article key={artifact.id} title={artifact.description}><span>{artifact.emoji}</span><strong>{artifact.name}</strong><small>{new Date(artifact.awardedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></article>)}</div> : <p className="empty">Din samling är tom än så länge.</p>}</section>
       {competitionResults.length > 0 && <section className="my-competition-results"><p className="eyebrow">Tempus Open</p><h2>Mina tävlingsresultat</h2><small>Resultat som tränaren har hämtat till Simkoll.</small><div className="competition-event-list">{[...new Set(competitionResults.map((item) => item.event))].sort((a, b) => a.localeCompare(b, 'sv')).map((event) => { const items = competitionResults.filter((item) => item.event === event); const best = items.slice().sort((a, b) => (a.result_time || 999999) - (b.result_time || 999999))[0]; return <details key={event}><summary><span>{event}</span><b>{best.swim_time}</b></summary><div className="competition-history">{items.slice(0, 20).map((item) => <span key={item.id}>{item.pool || 'Bassäng saknas'} · {new Date(item.result_date).toLocaleDateString('sv-SE')} · {item.swim_time}</span>)}</div></details> })}</div></section>}
+      <section className="talk-history swimmer-talk-history"><p className="eyebrow">Sparat över tid</p><h2>Mina utvecklingssamtal</h2>{developmentTalks.length ? developmentTalks.map((talk) => <details key={talk.id}><summary>{talk.meetingDate} · {talk.status === 'completed' ? 'Genomfört' : 'Förbereds'} {!talk.enabled && '· Skrivskyddat'}</summary><div className="talk-history-answer">{Object.entries(talk.swimmerAnswers || {}).filter(([, value]) => value).map(([key, value]) => <p key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><span>{value}</span></p>)}{Object.values(talk.agreement || {}).filter(Boolean).map((value) => <p key={value}><strong>Gemensam överenskommelse</strong><span>{value}</span></p>)}</div></details>) : <p className="empty">Inga utvecklingssamtal ännu.</p>}</section>
       <section className="my-history">
         <div><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></div>
         {loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}
