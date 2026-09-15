@@ -26,7 +26,7 @@ function formatWorkoutLayout(content) {
   let inSection = false
   return String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
     const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, '')
-    if (section.test(clean)) { inSection = true; return clean.replace(/:$/, '') }
+    if (section.test(clean) || (/^[^·]{1,42}:$/.test(clean) && !/\d/.test(clean))) { inSection = true; return clean.replace(/:$/, '') }
     return inSection ? `  ${clean}` : clean
   }).join('\n')
 }
