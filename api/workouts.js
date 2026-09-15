@@ -44,12 +44,20 @@ export default async function handler(request, response) {
         const source = await fetch(`https://docs.google.com/spreadsheets/d/${match[1]}/gviz/tq?tqx=out:csv`)
         if (!source.ok) return sendJson(response, 502, { error: 'Kunde inte läsa träningsmallen.' })
         const text = await source.text()
-        const lines = text.split(/\r?\n/).map((line) => line.replace(/^"|"$/g, '').replace(/""/g, '"').trim()).filter(Boolean)
-        const content = lines.join('\n').slice(0, 5000)
-        const title = lines.find((line) => line && !/^träningspass:?$/i.test(line))?.slice(0, 80) || 'Hämtat träningspass'
-        const distance = content.match(/(?:total|meter|m)[^\d]{0,12}(\d{3,5})\s*m?/i)?.[1] || ''
-        const targetGroups = /J-US-UO|alla grupper/i.test(content) ? ['ungdom_orange', 'ungdom_svart', 'junior'] : ['ungdom_orange', 'ungdom_svart', 'junior']
-        return sendJson(response, 200, { draft: { title, content, note: 'Importerat från träningsmall – kontrollera uppgifterna före publicering.', focus: '', distanceMeters: distance, durationMinutes: '', targetGroups } })
+        const parseCsvLine = (line) => { const cells = []; let value = ''; let quoted = false; for (let index = 0; index < line.length; index += 1) { const char = line[index]; if (char === '"' && line[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = !quoted; else if (char === ',' && !quoted) { cells.push(value.trim()); value = '' } else value += char } cells.push(value.trim()); return cells }
+        const rows = text.split(/\r?\n/).filter(Boolean).map(parseCsvLine)
+        const valueAt = (row, index) => String(row?.[index] || '').trim()
+        const header = rows.find((row) => /^träningspass/i.test(valueAt(row, 0))) || []
+        const dateRow = rows.find((row) => /^datum/i.test(valueAt(row, 0))) || []
+        const title = `${valueAt(header, 0).replace(/:$/, '')}${valueAt(header, 1) ? ` · ${valueAt(header, 1)}` : ''}`.slice(0, 80) || 'Hämtat träningspass'
+        const contentRows = rows.filter((row) => { const first = valueAt(row, 0); const set = valueAt(row, 2); return row.some((cell) => cell) && !/^träningspass|^datum|^nästa tävling|^summa|^tid/i.test(first) && !/^\d+\s*$/i.test(first) && !(first === '' && set === '' && valueAt(row, 3)) }).map((row) => row.map((cell) => String(cell).trim()).filter(Boolean).join(' · '))
+        const content = contentRows.join('\n').slice(0, 5000)
+        const totalRow = rows.find((row) => /^summa/i.test(valueAt(row, 0))) || []
+        const distance = valueAt(totalRow, 2).replace(/\D/g, '')
+        const timeIndex = rows.findIndex((row) => /^tid/i.test(valueAt(row, 0)))
+        const durationMinutes = timeIndex >= 0 ? valueAt(rows[timeIndex + 1], 0).replace(/\D/g, '') : ''
+        const targetGroups = ['ungdom_orange', 'ungdom_svart', 'junior']
+        return sendJson(response, 200, { draft: { title, content, note: `Importerat från träningsmall${valueAt(dateRow, 1) ? ` · ${valueAt(dateRow, 1)}` : ''} – kontrollera uppgifterna före publicering.`, focus: '', distanceMeters: distance, durationMinutes, targetGroups } })
       }
       const date = String(request.body?.date || stockholmDate())
       const title = String(request.body?.title || '').trim()
