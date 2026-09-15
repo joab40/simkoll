@@ -19,6 +19,16 @@ function parseWorkoutCsv(csv) {
   return { title, content: contentRows.join('\n').slice(0, 5000), note: `Importerat från träningsmall${valueAt(dateRow, 1) ? ` · ${valueAt(dateRow, 1)}` : ''} – kontrollera uppgifterna före publicering.`, focus: '', distanceMeters: valueAt(totalRow, 2).replace(/\D/g, ''), durationMinutes: timeIndex >= 0 ? valueAt(rows[timeIndex + 1], 0).replace(/\D/g, '') : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] }
 }
 
+function formatWorkoutLayout(content) {
+  const section = /^(insim|uppvärmning|huvudserie|serie|ben|arm|teknik|fart|avsim|nedvarvning|styrka)\b/i
+  let inSection = false
+  return String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, '')
+    if (section.test(clean)) { inSection = true; return clean.replace(/:$/, '') }
+    return inSection ? `  ${clean}` : clean
+  }).join('\n')
+}
+
 async function improveWorkoutWithAi(csv, fallback) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return fallback
@@ -29,7 +39,7 @@ async function improveWorkoutWithAi(csv, fallback) {
     const payload = await result.json()
     const parsed = JSON.parse(payload.choices?.[0]?.message?.content || '{}')
     if (!parsed.title || !parsed.content) return fallback
-    const formattedContent = String(parsed.content).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').replace(/\s*·\s*/g, ' · ').trim()).filter(Boolean).join('\n')
+    const formattedContent = formatWorkoutLayout(String(parsed.content).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').replace(/\s*·\s*/g, ' · ').trim()).filter(Boolean).join('\n'))
     return { ...fallback, title: String(parsed.title).slice(0, 80), content: formattedContent.slice(0, 5000), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : fallback.distanceMeters, durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : fallback.durationMinutes, focus: typeof parsed.focus === 'string' ? parsed.focus : '' }
   } catch (error) {
     console.warn('Workout AI import fallback:', error.message)
