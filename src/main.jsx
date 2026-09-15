@@ -442,7 +442,7 @@ function GameCard({ onOpen, onVanda, onAllTime }) {
 function AllTimeGames({ code, onBack }) {
   const [data, setData] = useState(null)
   useEffect(() => { apiRequest('/api/points?game=alltime', code).then(setData).catch(() => setData({ leaderboard: [] })) }, [code])
-  return <section className="game-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel</p><h1>All time-topplistan 🏆</h1><p className="game-intro">En samlad ranking från veckans alla spel. Vinnaren i varje spel får 10 poäng, sedan 9–1.</p></div><section className="game-scoreboard"><p className="eyebrow">Alla spel tillsammans</p><h2>Top 10</h2>{data?.leaderboard?.length ? <div>{data.leaderboard.map((item) => <article key={item.displayName}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}</section></div></section>
+  return <section className="game-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel</p><h1>All time-topplistan 🏆</h1><p className="game-intro">En permanent ranking från alla spel över tid. Vinnaren i varje spel får 10 poäng, sedan 9–1.</p></div><section className="game-scoreboard"><p className="eyebrow">Alla spel tillsammans</p><h2>Top 10</h2>{data?.leaderboard?.length ? <div>{data.leaderboard.map((item) => <article key={item.displayName}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}</section></div></section>
 }
 
 const TALK_STEPS = [
@@ -476,7 +476,7 @@ function Vandningsmastaren({ code, onBack }) {
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
 
   useEffect(() => {
-    apiRequest('/api/points?game=vanda&monthly=true', code).then(setGameData).catch(() => {})
+    apiRequest('/api/points?game=vanda&lifetime=true', code).then(setGameData).catch(() => {})
     return () => { if (timerRef.current) window.clearTimeout(timerRef.current) }
   }, [code])
 
@@ -512,7 +512,7 @@ function Simpaus({ code, onBack }) {
   const [score, setScore] = useState(0)
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
 
-  useEffect(() => { apiRequest('/api/points?game=simpaus&monthly=true', code).then(setGameData).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/points?game=simpaus&lifetime=true', code).then(setGameData).catch(() => {}) }, [code])
 
   useEffect(() => {
     const canvas = canvasRef.current

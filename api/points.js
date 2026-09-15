@@ -24,6 +24,14 @@ async function monthlyGameLeaderboard(profileId, key = gameKey) {
   const own = profileId ? [...best.values()].find((item) => item.profile_id === profileId) : null
   return { monthStart: start, leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest: own?.score || 0 }
 }
+async function lifetimeGameLeaderboard(profileId, key = gameKey) {
+  const result = await supabaseRequest(`game_scores?game_key=eq.${key}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10000`)
+  if (!result.ok) throw new Error(`Lifetime game leaderboard lookup failed: ${result.status}`)
+  const best = new Map(); (await result.json()).forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) })
+  const rows = [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10)
+  const own = profileId ? [...best.values()].find((item) => item.profile_id === profileId) : null
+  return { leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest: own?.score || 0 }
+}
 
 async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   const result = await supabaseRequest(`game_scores?game_key=eq.${key}&week_start=eq.${week}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10`)
@@ -39,14 +47,13 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => ({ rank: index + 1, score: item.score, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const week = weekStart()
-  const result = await supabaseRequest(`game_scores?game_key=in.(simpaus,vanda)&week_start=eq.${week}&select=profile_id,game_key,week_start,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000`)
+  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
-  const rows = await result.json(); const weeks = new Map()
-  rows.forEach((item) => { const key = `${item.game_key}|${item.week_start}`; if (!weeks.has(key)) weeks.set(key, []); weeks.get(key).push(item) })
+  const rows = await result.json(); const games = new Map()
+  rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
   const totals = new Map()
-  weeks.forEach((items) => { const seen = new Set(); items.forEach((item) => { if (seen.has(item.profile_id)) return; seen.add(item.profile_id); const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += Math.max(0, 10 - (seen.size - 1)); totals.set(item.profile_id, current) }) })
-  return { weekStart: week, leaderboard: [...totals.values()].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName, 'sv')).slice(0, 10).map((item, index) => ({ ...item, rank: index + 1 })), scoring: '10 poäng till vinnaren i varje spel den här veckan, därefter 9–1.' }
+  games.forEach((items) => { const best = new Map(); items.forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) }); [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10).forEach((item, index) => { const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += 10 - index; totals.set(item.profile_id, current) }) })
+  return { leaderboard: [...totals.values()].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName, 'sv')).slice(0, 10).map((item, index) => ({ ...item, rank: index + 1 })), scoring: '10 poäng till vinnaren i varje spel över tid, därefter 9–1.' }
 }
 
 const POINT_RULES = [
@@ -143,6 +150,7 @@ export default async function handler(request, response) {
       const profile = await getSessionProfile(request)
       if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
       if (requestedGame === 'alltime') return sendJson(response, 200, await allTimeGameLeaderboard())
+      if (request.query?.lifetime === 'true') return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, requestedGame))
       return sendJson(response, 200, request.query?.monthly === 'true' ? await monthlyGameLeaderboard(profile.id, requestedGame) : await gameLeaderboard(profile.id, weekStart(), requestedGame))
     }
     if (role === 'swimmer' && request.query?.artifacts === 'true') {
