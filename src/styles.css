@@ -393,6 +393,7 @@ button { cursor: pointer; }
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
 .editor-import-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.workout-import-hint { display: block; color: var(--muted); font-size: 12px; margin-top: -7px; }
 .workout-picker { margin: 0 0 20px; padding: 18px; background: #eef7f3; border: 1px solid #cfe4dd; border-radius: 16px; }
 .workout-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }.workout-picker h3 { margin: 0; }.workout-picker > p { color: var(--muted); margin: 6px 0 14px; }
 .workout-picker-criteria { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.workout-picker-criteria label { font-size: 11px; font-weight: 800; }.workout-picker-criteria select { margin-top: 5px; }
