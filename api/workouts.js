@@ -14,13 +14,15 @@ function parseWorkoutCsv(csv) {
   const dateRow = rows.find((row) => /^datum/i.test(valueAt(row, 0))) || []
   const title = `${valueAt(header, 0).replace(/:$/, '')}${valueAt(header, 1) ? ` · ${valueAt(header, 1)}` : ''}`.slice(0, 80) || 'Hämtat träningspass'
   const contentRows = rows.filter((row) => { const first = valueAt(row, 0); const set = valueAt(row, 2); return (set || /^(insim|ben|spec|arm|avsim)/i.test(first)) && !/^träningspass|^datum|^nästa tävling|^summa|^tid/i.test(first) }).map((row) => { const section = valueAt(row, 0); const set = valueAt(row, 2); const details = [valueAt(row, 3), valueAt(row, 5), valueAt(row, 6)].filter(Boolean); if (!set) return section; return `${set}${details.length ? ` · ${details.join(' · ')}` : ''}` }).filter(Boolean)
+  const competitionStart = rows.findIndex((row) => /^nästa tävling/i.test(valueAt(row, 0)))
+  const competitions = competitionStart >= 0 ? rows.slice(competitionStart, competitionStart + 5).map((row) => [valueAt(row, 3), valueAt(row, 4), valueAt(row, 8)].filter(Boolean).join(' · ')).filter(Boolean) : []
   const totalRow = rows.find((row) => /^summa/i.test(valueAt(row, 0))) || []
   const timeIndex = rows.findIndex((row) => /^tid/i.test(valueAt(row, 0)))
-  return { title, content: contentRows.join('\n').slice(0, 5000), note: `Importerat från träningsmall${valueAt(dateRow, 1) ? ` · ${valueAt(dateRow, 1)}` : ''} – kontrollera uppgifterna före publicering.`, focus: '', distanceMeters: valueAt(totalRow, 2).replace(/\D/g, ''), durationMinutes: timeIndex >= 0 ? valueAt(rows[timeIndex + 1], 0).replace(/\D/g, '') : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] }
+  return { title, content: contentRows.join('\n').slice(0, 5000), note: `${competitions.length ? `Kommande tävlingar:\n${competitions.join('\n')}\n\n` : ''}Importerat från träningsmall${valueAt(dateRow, 1) ? ` · ${valueAt(dateRow, 1)}` : ''} – kontrollera uppgifterna före publicering.`, focus: '', distanceMeters: valueAt(totalRow, 2).replace(/\D/g, ''), durationMinutes: timeIndex >= 0 ? valueAt(rows[timeIndex + 1], 0).replace(/\D/g, '') : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] }
 }
 
 function formatWorkoutLayout(content) {
-  const section = /^(insim|uppvärmning|huvudserie|serie|ben|arm|teknik|fart|avsim|nedvarvning|styrka)\b/i
+  const section = /^(insim|uppvärmning|huvudserie|serie|ben|arm|spec|teknik|fart|avsim|nedvarvning|styrka)\b/i
   let inSection = false
   return String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
     const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, '')
