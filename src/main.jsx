@@ -1046,14 +1046,14 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
             <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><span className="desktop-tab-label">Idag</span><span className="mobile-tab-label">Idag</span></button>
-            <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}><span className="desktop-tab-label">Förra veckan</span><span className="mobile-tab-label">Förra veckan</span></button>
-            <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}><span className="desktop-tab-label">Veckomöte</span><span className="mobile-tab-label">Möte</span></button>
             <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
-            <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Dagens pass</span><span className="mobile-tab-label">Pass</span></button>
+            <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Pass</span><span className="mobile-tab-label">Pass</span></button>
+            <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}><span className="desktop-tab-label">Veckomöte</span><span className="mobile-tab-label">Möte</span></button>
           </div></div>
           <details className="coach-tools-menu"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
             <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}><span className="desktop-tab-label">Grupptrend</span><span className="mobile-tab-label">Trend</span></button>
             <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><span className="desktop-tab-label">Historik</span><span className="mobile-tab-label">Historik</span></button>
+            <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}><span className="desktop-tab-label">Förra veckan</span><span className="mobile-tab-label">Förra veckan</span></button>
             <button className={view === 'talks' ? 'active' : ''} onClick={() => setView('talks')}><span className="desktop-tab-label">Utvecklingssamtal</span><span className="mobile-tab-label">Samtal</span></button>
             <button className={view === 'competition' ? 'active' : ''} onClick={() => { setView('competition'); loadCompetitionResults() }}><span className="desktop-tab-label">Tävlingsresultat</span><span className="mobile-tab-label">Resultat</span></button>
             <button className={view === 'workout-library' ? 'active' : ''} onClick={() => setView('workout-library')}><span className="desktop-tab-label">Passbibliotek</span><span className="mobile-tab-label">Bibliotek</span></button>
