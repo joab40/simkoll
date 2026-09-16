@@ -1028,6 +1028,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setNavigationSettings(data.settings || { overview: {}, coach: {} })).catch(() => {}) }, [code])
   useEffect(() => { const onSettings = (event) => setNavigationSettings(event.detail || { overview: {}, coach: {} }); window.addEventListener('simkoll-settings-updated', onSettings); return () => window.removeEventListener('simkoll-settings-updated', onSettings) }, [])
+  useEffect(() => { const labels = { Simmare: 'swimmers', Pass: 'workout', Meddelanden: 'community', 'Veckomöte': 'meeting', Grupptrend: 'trends', Historik: 'history', 'Tävlingsresultat': 'competition', Utvecklingssamtal: 'talks', Utvecklingsmål: 'goals', 'Träningsprogram': 'programs', 'Poäng & nivåer': 'rewards', FAQ: 'faq', 'Info & villkor': 'legal' }; const menu = document.querySelector('.coach-header-menu > div'); if (!menu) return; menu.querySelectorAll('button').forEach((button) => { const key = labels[button.textContent.trim()]; if (key) button.style.display = navigationSettings.coach?.[key] === false ? 'none' : ''; }); }, [navigationSettings])
   useEffect(() => {
     const menu = document.querySelector('.coach-header-menu > div')
     if (!menu || menu.querySelector('[data-settings-link]')) return undefined
@@ -1060,7 +1061,6 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
-            <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><span className="desktop-tab-label">Idag</span><span className="mobile-tab-label">Idag</span></button>
             {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => setView(item.key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>)}
           </div></div>
           <details className="coach-tools-menu legacy-tools"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
