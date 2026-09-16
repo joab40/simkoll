@@ -1034,7 +1034,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
     const button = document.createElement('button')
     button.type = 'button'; button.dataset.settingsLink = 'true'; button.textContent = 'Inställningar'
     button.onclick = () => { setView('settings'); const details = menu.parentElement; if (details) details.open = false }
-    menu.appendChild(button)
+    menu.insertBefore(button, menu.lastElementChild)
     return () => button.remove()
   }, [])
   const overviewVisible = (key) => key === 'today' || navigationSettings.overview?.[key] !== false
