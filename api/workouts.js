@@ -6,7 +6,18 @@ function publicWorkout(item) {
   return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
 }
 function publicPlan(item) {
-  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', updatedAt: item.updated_at }
+  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
+}
+
+async function syncPlanningFromWorkout(workout) {
+  const date = workout.workout_date
+  const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&limit=1`)
+  if (!existing.ok) return
+  const current = (await existing.json())[0]
+  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, target_groups: workout.target_groups || [], source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+  if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
+  else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
+  else if (current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
 }
 
 function parseWorkoutCsv(csv) {
@@ -96,7 +107,7 @@ export default async function handler(request, response) {
         const title = String(body.title || '').trim()
         const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['swim', 'strength', 'dryland', 'competition'].includes(activityType) || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, aktivitet, rubrik och minst en grupp.' })
-        const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, updated_at: new Date().toISOString() }
+        const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, sync_status: 'manual', updated_at: new Date().toISOString() }
         const endpoint = body.id ? `training_plans?id=eq.${body.id}` : 'training_plans'
         const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Training plan save failed: ${result.status} ${await result.text()}`)
@@ -131,7 +142,9 @@ export default async function handler(request, response) {
         body: JSON.stringify({ workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, target_groups: targetGroups, updated_at: new Date().toISOString() }),
       })
       if (!result.ok) throw new Error(`Workout POST failed: ${result.status} ${await result.text()}`)
-      return sendJson(response, 200, { workout: publicWorkout((await result.json())[0]) })
+      const savedWorkout = (await result.json())[0]
+      await syncPlanningFromWorkout(savedWorkout)
+      return sendJson(response, 200, { workout: publicWorkout(savedWorkout) })
     }
 
     if (request.method === 'DELETE') {

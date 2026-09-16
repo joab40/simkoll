@@ -9,6 +9,9 @@ create table if not exists training_plans (
   target_groups text[] not null default '{ungdom_orange,ungdom_svart,junior}',
   location text,
   notes text,
+  source_workout_id uuid,
+  sync_status text not null default 'manual' check (sync_status in ('manual', 'linked', 'changed')),
+  synced_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
