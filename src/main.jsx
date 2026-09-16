@@ -1027,6 +1027,15 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const [navigationSettings, setNavigationSettings] = useState({ overview: {}, coach: {} })
   useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setNavigationSettings(data.settings || { overview: {}, coach: {} })).catch(() => {}) }, [code])
+  useEffect(() => {
+    const menu = document.querySelector('.coach-header-menu > div')
+    if (!menu || menu.querySelector('[data-settings-link]')) return undefined
+    const button = document.createElement('button')
+    button.type = 'button'; button.dataset.settingsLink = 'true'; button.textContent = 'Inställningar'
+    button.onclick = () => { setView('settings'); const details = menu.parentElement; if (details) details.open = false }
+    menu.appendChild(button)
+    return () => button.remove()
+  }, [])
   const overviewVisible = (key) => key === 'today' || key === 'settings' || navigationSettings.overview?.[key] !== false
   const toggleAllTalks = async () => { try { const next = !talksGlobalEnabled; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-talk-global', enabled: next }) }); setTalksGlobalEnabled(next) } catch (error) { window.alert(error.message) } }
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
