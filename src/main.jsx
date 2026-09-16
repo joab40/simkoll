@@ -1043,12 +1043,6 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
     const menu = document.querySelector('.coach-header-menu > div')
     if (!menu) return undefined
     const added = []
-    if (!menu.querySelector('[data-groups-link]')) {
-      const button = document.createElement('button')
-      button.type = 'button'; button.dataset.groupsLink = 'true'; button.textContent = 'Grupper'
-      button.onclick = () => { setView('groups'); const details = menu.parentElement; if (details) details.open = false }
-      menu.insertBefore(button, menu.lastElementChild); added.push(button)
-    }
     if (!menu.querySelector('[data-settings-link]')) {
       const button = document.createElement('button')
       button.type = 'button'; button.dataset.settingsLink = 'true'; button.textContent = 'Inställningar'
@@ -1076,7 +1070,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
 
   return (
     <main className="coach-shell">
-      <header><ClubBrand /><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
+      <header><ClubBrand /><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
