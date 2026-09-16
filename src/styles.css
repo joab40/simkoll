@@ -1143,8 +1143,11 @@ button { cursor: pointer; }
  .talk-switch { border: 0; border-radius: 999px; padding: 8px 13px; background: #e8eeec; color: #637275; font-weight: 800; cursor: pointer; }
 .talk-switch.on { background: #dff4d2; color: #33703c; }
 .global-talk-setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -12px 0 18px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f7fbf9; }.global-talk-setting span { display: grid; gap: 3px; }.global-talk-setting small { color: var(--muted); }
-.welcome-moment { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 118px; padding: 20px 22px; border-radius: 20px; color: #fff; background: linear-gradient(125deg, #176c73, #329b9a 55%, #77c8ae); box-shadow: 0 12px 28px rgba(32, 107, 111, .18); }
-.welcome-moment.race-near { background: linear-gradient(125deg, #155b78, #7f65ad 58%, #e99675); }
+.welcome-moment { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 128px; padding: 22px 24px; border: 1px solid rgba(255,255,255,.25); border-radius: 22px; color: #fff; background: linear-gradient(120deg, #176c73, #329b9a 55%, #77c8ae); box-shadow: 0 14px 32px rgba(32, 107, 111, .22); }
+.welcome-moment.race-coming { background: linear-gradient(120deg, #155b78, #5276bf 55%, #9c6ed1); }
+.welcome-moment.race-near { background: linear-gradient(120deg, #174f82, #8658b4 48%, #e47b73); animation: welcome-pulse 4s ease-in-out infinite; }
+.welcome-moment.race-day { background: linear-gradient(120deg, #0e5d73, #168f91 45%, #f09a5b); }
+.welcome-moment.focus-moment { background: linear-gradient(120deg, #176c73, #2c9f8d 55%, #a2bf65); }
 .welcome-moment-content { position: relative; z-index: 1; display: grid; gap: 4px; }
 .welcome-moment .eyebrow { margin: 0; color: rgba(255,255,255,.72); }
 .welcome-moment strong { font-size: 1.22rem; }
@@ -1152,7 +1155,12 @@ button { cursor: pointer; }
 .welcome-countdown { font-size: 1.45rem !important; }
 .welcome-moment-emoji { position: relative; z-index: 1; font-size: 3.1rem; filter: drop-shadow(0 6px 8px rgba(0,0,0,.12)); animation: welcome-float 3s ease-in-out infinite; }
 .welcome-moment-glow { position: absolute; width: 180px; height: 180px; right: 8%; top: -85px; border-radius: 50%; background: rgba(255,255,255,.12); }
-@keyframes welcome-float { 50% { transform: translateY(-5px) rotate(3deg); } }
+.welcome-spark { position: absolute; z-index: 1; color: rgba(255,255,255,.78); font-size: 18px; animation: welcome-sparkle 2.6s ease-in-out infinite; }
+.spark-one { right: 34%; top: 18px; }
+.spark-two { right: 16%; bottom: 18px; animation-delay: 1.1s; font-size: 13px; }
+@keyframes welcome-float { 50% { transform: translateY(-7px) rotate(4deg) scale(1.05); } }
+@keyframes welcome-sparkle { 50% { opacity: .2; transform: scale(.6) rotate(20deg); } }
+@keyframes welcome-pulse { 50% { box-shadow: 0 14px 40px rgba(129, 76, 174, .35); } }
 .settings-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; }
 .settings-toggle-row span { display: grid; gap: 3px; }
 .settings-toggle-row small { color: var(--muted); }

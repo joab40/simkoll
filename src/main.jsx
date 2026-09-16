@@ -430,8 +430,10 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
 function WelcomeMoment({ workout, competition }) {
   const daysTo = competition ? Math.max(0, Math.ceil((new Date(`${competition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
   const focus = workout?.focus
-  const focusText = focus === 'fart' ? 'Idag vässar vi farten ⚡' : ['troskel', 'syra', 'f2_spec', 'distans'].includes(focus) ? 'Kvalitet i varje längd 🎯' : ['teknik', 'aterhamtning'].includes(focus) ? 'Bra känsla före allt annat 🌱' : 'En bra dag att bygga vidare 💪'
-  return <section className={`welcome-moment ${daysTo != null && daysTo <= 3 ? 'race-near' : ''}`}><div className="welcome-moment-glow" /><div className="welcome-moment-content"><p className="eyebrow">Dagens pepp</p>{daysTo != null ? <><strong className="welcome-countdown">{daysTo === 0 ? 'Tävlingsdag!' : `${daysTo} ${daysTo === 1 ? 'dag' : 'dagar'} kvar`}</strong><span>{competition.title}</span></> : <strong>{focusText}</strong>}<small>{daysTo != null && daysTo > 0 ? 'Lugn, fokus och bra känsla hela vägen.' : focusText}</small></div><span className="welcome-moment-emoji">{daysTo != null && daysTo <= 1 ? '🏁' : focus === 'fart' ? '⚡' : '🌊'}</span></section>
+  const focusText = focus === 'fart' ? 'Idag vässar vi farten ⚡' : ['troskel', 'syra', 'f2_spec', 'distans'].includes(focus) ? 'Kvalitet i varje längd 🎯' : ['teknik', 'aterhamtning'].includes(focus) ? 'Bra känsla före allt annat 🌱' : ''
+  if (daysTo == null && !focusText) return null
+  const raceClass = daysTo != null ? (daysTo <= 0 ? 'race-day' : daysTo <= 3 ? 'race-near' : 'race-coming') : 'focus-moment'
+  return <section className={`welcome-moment ${raceClass}`}><div className="welcome-moment-glow" /><div className="welcome-spark spark-one">✦</div><div className="welcome-spark spark-two">✦</div><div className="welcome-moment-content"><p className="eyebrow">{daysTo != null ? 'Tävlingspepp' : 'Dagens extra'}</p>{daysTo != null ? <><strong className="welcome-countdown">{daysTo === 0 ? 'Tävlingsdag!' : `${daysTo} ${daysTo === 1 ? 'dag' : 'dagar'} kvar`}</strong><span>{competition.title}</span></> : <strong>{focusText}</strong>}<small>{daysTo != null && daysTo > 0 ? 'Lugn, fokus och bra känsla hela vägen.' : daysTo === 0 ? 'Nu kör vi — du är redo! 💙' : focusText}</small></div><span className="welcome-moment-emoji">{daysTo != null && daysTo <= 1 ? '🏁' : focus === 'fart' ? '⚡' : '🌊'}</span></section>
 }
 
 function DailyProgressCard({ responses, points, onGoals }) {
