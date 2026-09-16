@@ -8,6 +8,9 @@ function publicWorkout(item) {
 function publicPlan(item) {
   return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
 }
+function publicCompetition(item) {
+  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', updatedAt: item.updated_at }
+}
 
 async function syncPlanningFromWorkout(workout) {
   const date = workout.workout_date
@@ -25,7 +28,15 @@ async function backfillPlanningFromWorkouts(plans) {
   const workouts = await workoutsResult.json()
   const existingDates = new Set(plans.filter((item) => item.activity_type === 'swim').map((item) => item.plan_date))
   await Promise.all(workouts.filter((workout) => !existingDates.has(workout.workout_date)).map((workout) => syncPlanningFromWorkout(workout)))
-  if (!workouts.some((workout) => !existingDates.has(workout.workout_date))) return plans
+  const competitionsResult = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
+  const competitions = competitionsResult.ok ? await competitionsResult.json() : []
+  const planDates = new Set(plans.map((item) => `${item.plan_date}:${item.activity_type}`))
+  await Promise.all(competitions.flatMap((competition) => {
+    const start = new Date(`${competition.start_date}T12:00:00`), end = new Date(`${competition.end_date}T12:00:00`), entries = []
+    for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) { const date = day.toISOString().slice(0, 10); if (!planDates.has(`${date}:competition`)) entries.push(supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'competition', title: competition.title, target_groups: competition.target_groups, location: competition.location, notes: competition.notes, updated_at: new Date().toISOString() }) })) }
+    return entries
+  }))
+  if (!workouts.some((workout) => !existingDates.has(workout.workout_date)) && !competitions.length) return plans
   const refreshed = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
   return refreshed.ok ? await refreshed.json() : plans
 }
@@ -88,6 +99,11 @@ export default async function handler(request, response) {
         const plans = await backfillPlanningFromWorkouts(await result.json())
         return sendJson(response, 200, { plans: plans.map(publicPlan) })
       }
+      if (role === 'coach' && request.query?.calendar === 'true') {
+        const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
+        if (!result.ok) throw new Error(`Competition calendar GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { competitions: (await result.json()).map(publicCompetition) })
+      }
       if (role === 'coach' && request.query?.history === 'true') {
         const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
         if (!result.ok) throw new Error(`Workout history GET failed: ${result.status} ${await result.text()}`)
@@ -111,6 +127,17 @@ export default async function handler(request, response) {
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'save-competition') {
+        const body = request.body
+        const startDate = String(body.startDate || ''), endDate = String(body.endDate || startDate), title = String(body.title || '').trim()
+        const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, namn och minst en grupp.' })
+        const payload = { start_date: startDate, end_date: endDate, title: title.slice(0, 120), category: String(body.category || '').slice(0, 80) || null, location: String(body.location || '').slice(0, 120) || null, target_groups: targetGroups, notes: String(body.notes || '').slice(0, 500) || null, updated_at: new Date().toISOString() }
+        const endpoint = body.id ? `competition_calendar?id=eq.${body.id}` : 'competition_calendar'
+        const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        if (!result.ok) throw new Error(`Competition save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { competition: publicCompetition((await result.json())[0]) })
+      }
       if (request.body?.action === 'save-plan') {
         const body = request.body
         const date = String(body.date || '')
@@ -159,6 +186,13 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'DELETE') {
+      if (request.query?.calendar === 'true') {
+        const id = String(request.query?.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const result = await supabaseRequest(`competition_calendar?id=eq.${id}`, { method: 'DELETE' })
+        if (!result.ok) throw new Error(`Competition DELETE failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { ok: true })
+      }
       if (request.query?.planning === 'true') {
         const id = String(request.query?.id || '')
         if (!id) return sendJson(response, 400, { error: 'Planeringsaktivitet saknas.' })

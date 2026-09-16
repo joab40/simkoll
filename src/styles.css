@@ -1040,6 +1040,18 @@ button { cursor: pointer; }
 .planning-type-competition { background: #fff0d8; color: #98641b; }
 .planning-type-strength { background: #e8e5f7; color: #5b4b93; }
 .planning-type-dryland { background: #e1f1e7; color: #39734f; }
+.competition-form { display: grid; gap: 14px; padding: 20px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; }
+.competition-form h2 { margin: 0; }
+.competition-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.competition-form fieldset { border: 0; padding: 0; margin: 0; }
+.competition-form legend { font-weight: 800; margin-bottom: 8px; }
+.competition-group-checkboxes { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.competition-group-checkboxes label { display: flex; align-items: center; gap: 7px; }
+.competition-calendar-list { display: grid; gap: 10px; margin-top: 4px; }
+.competition-calendar-list article { display: flex; justify-content: space-between; gap: 15px; padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
+.competition-calendar-list h2 { margin: 3px 0; }
+.competition-calendar-list p { margin: 3px 0; color: var(--muted); }
+.competition-calendar-list small { color: var(--muted); }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }
