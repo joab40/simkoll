@@ -1043,6 +1043,15 @@ button { cursor: pointer; }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }
+.planning-editor-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 18px; background: rgba(18, 45, 48, .42); }
+.planning-editor { width: min(100%, 520px); max-height: 90vh; overflow: auto; display: grid; gap: 14px; padding: 22px; background: var(--paper); border-radius: 20px; box-shadow: 0 18px 50px rgba(18, 45, 48, .2); }
+.planning-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.planning-editor-head h2 { margin: 0; }
+.planning-editor fieldset { margin: 0; padding: 0; border: 0; }
+.planning-editor legend { margin-bottom: 8px; font-weight: 800; }
+.planning-type-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.planning-type-buttons button { padding: 11px 8px; border: 1px solid #dbe8e5; border-radius: 11px; background: #f7fbf9; color: var(--ink); font-weight: 700; cursor: pointer; }
+.planning-type-buttons button.active { border-color: var(--teal); background: #e2f1ed; color: var(--teal); }
 @media (max-width: 520px) { .planning-summary { grid-template-columns: 1fr 1fr; } .planning-summary > div:last-child { grid-column: 1 / -1; } .planning-day > header { align-items: flex-start; flex-direction: column; gap: 7px; } }
 .tempus-results { display: grid; gap: 7px; margin-top: 12px; }
 .tempus-results > strong { font-size: 13px; }
