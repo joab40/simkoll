@@ -1072,6 +1072,9 @@ button { cursor: pointer; }
 .settings-saved { color: #39804b; font-weight: 700; }
 .settings-note { color: var(--muted); font-size: 12px; }
 .swimmer-planning-list { display: grid; gap: 10px; }
+.swimmer-planning { width: min(100% - 36px, 760px); margin: 0 auto; padding: 30px 0 60px; }
+.swimmer-planning .back-button { margin-bottom: 18px; }
+.swimmer-planning .period-heading { margin-bottom: 20px; }
 .swimmer-planning-list article { padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .swimmer-planning-list h2 { margin: 3px 0; }
 .swimmer-planning-list p { color: var(--muted); }
