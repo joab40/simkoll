@@ -1059,6 +1059,17 @@ button { cursor: pointer; }
 .competition-add-card { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; overflow: hidden; }
 .competition-add-card > summary { padding: 15px 18px; color: var(--teal); font-weight: 800; cursor: pointer; }
 .competition-add-card .competition-form { border: 0; border-top: 1px solid #e5efed; border-radius: 0; }
+.webapp-settings { display: grid; gap: 16px; }
+.settings-card { padding: 20px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; }
+.settings-card h2 { margin: 0 0 12px; }
+.settings-list { display: grid; gap: 8px; }
+.settings-list label { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid #e8f0ee; cursor: pointer; }
+.settings-list label span { display: grid; gap: 2px; }
+.settings-list small { color: var(--muted); font-size: 11px; }
+.settings-list input { width: 19px; height: 19px; accent-color: var(--teal); }
+.settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.settings-saved { color: #39804b; font-weight: 700; }
+.settings-note { color: var(--muted); font-size: 12px; }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }

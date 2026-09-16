@@ -55,6 +55,11 @@ export default async function handler(request, response) {
   const role = getRole(code)
   try {
     if (request.method === 'GET') {
+      if (request.query?.settings === 'true' && role === 'coach') {
+        const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+        const value = result.ok ? (await result.json())[0]?.setting_value : null
+        return sendJson(response, 200, { settings: value || { swimmer: {}, coach: {} } })
+      }
       if (request.query?.talks === 'true') {
         if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null), globalEnabled: await talksEnabled() })
         const profile = await getSessionProfile(request)
@@ -69,6 +74,12 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST' && role === 'coach') {
       const action = request.body?.action
+      if (action === 'save-settings' || action === 'reset-settings') {
+        const value = action === 'reset-settings' ? { swimmer: {}, coach: {} } : (request.body.settings || { swimmer: {}, coach: {} })
+        const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: value, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Webapp settings save failed: ${result.status}`)
+        return sendJson(response, 200, { settings: value })
+      }
       if (action === 'create-talk' || action === 'update-talk') {
         const id = String(request.body.id || ''), profileId = String(request.body.profileId || ''), body = request.body
         const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status: body.status || 'completed', enabled: body.enabled !== false, swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
