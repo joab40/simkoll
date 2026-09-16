@@ -1024,7 +1024,10 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const [competitionResults, setCompetitionResults] = useState([])
   const [competitionLoading, setCompetitionLoading] = useState(false)
   const [talksGlobalEnabled, setTalksGlobalEnabled] = useState(true)
+  const [navigationSettings, setNavigationSettings] = useState({ overview: {}, coach: {} })
   useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setNavigationSettings(data.settings || { overview: {}, coach: {} })).catch(() => {}) }, [code])
+  const overviewVisible = (key) => key === 'today' || key === 'settings' || navigationSettings.overview?.[key] !== false
   const toggleAllTalks = async () => { try { const next = !talksGlobalEnabled; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-talk-global', enabled: next }) }); setTalksGlobalEnabled(next) } catch (error) { window.alert(error.message) } }
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
   const previousWeek = previousWeekRange()
@@ -1045,13 +1048,13 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
             <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><span className="desktop-tab-label">Idag</span><span className="mobile-tab-label">Idag</span></button>
-            <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
-            <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Pass</span><span className="mobile-tab-label">Pass</span></button>
-            <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}><span className="desktop-tab-label">Planering</span><span className="mobile-tab-label">Plan</span></button>
-            <button className={view === 'competition-calendar' ? 'active' : ''} onClick={() => setView('competition-calendar')}><span className="desktop-tab-label">Tävlingar</span><span className="mobile-tab-label">Tävling</span></button>
-            <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}><span className="desktop-tab-label">Inställningar</span><span className="mobile-tab-label">Inställn.</span></button>
-            <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}><span className="desktop-tab-label">Meddelanden</span><span className="mobile-tab-label">Meddelanden</span></button>
-            <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}><span className="desktop-tab-label">Veckomöte</span><span className="mobile-tab-label">Möte</span></button>
+            {overviewVisible('swimmers') && <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>}
+            {overviewVisible('workout') && <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Pass</span><span className="mobile-tab-label">Pass</span></button>}
+            {overviewVisible('planning') && <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}><span className="desktop-tab-label">Planering</span><span className="mobile-tab-label">Plan</span></button>}
+            {overviewVisible('competition-calendar') && <button className={view === 'competition-calendar' ? 'active' : ''} onClick={() => setView('competition-calendar')}><span className="desktop-tab-label">Tävlingar</span><span className="mobile-tab-label">Tävling</span></button>}
+            {overviewVisible('settings') && <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}><span className="desktop-tab-label">Inställningar</span><span className="mobile-tab-label">Inställn.</span></button>}
+            {overviewVisible('community') && <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}><span className="desktop-tab-label">Meddelanden</span><span className="mobile-tab-label">Meddelanden</span></button>}
+            {overviewVisible('meeting') && <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}><span className="desktop-tab-label">Veckomöte</span><span className="mobile-tab-label">Möte</span></button>}
           </div></div>
           <details className="coach-tools-menu legacy-tools"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
             <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}><span className="desktop-tab-label">Grupptrend</span><span className="mobile-tab-label">Trend</span></button>
