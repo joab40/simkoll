@@ -67,6 +67,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
   const [talksEnabled, setTalksEnabled] = useState(false)
+  const [planningEnabled, setPlanningEnabled] = useState(false)
 
   useEffect(() => {
     if (!auth) return
@@ -108,6 +109,7 @@ function App() {
     if (!auth || !profile) return
     apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false)).catch(() => {})
   }, [auth, profile])
+  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => setPlanningEnabled(data.settings?.swimmer?.planning === true)).catch(() => setPlanningEnabled(false)) }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
@@ -137,6 +139,7 @@ function App() {
     setNotifications([])
     setTraining(null)
     setTalksEnabled(true)
+    setPlanningEnabled(false)
     setScreen('home')
   }
 
@@ -148,11 +151,12 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} talksEnabled={talksEnabled} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
+    <Shell profile={profile} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'vanda' && <Vandningsmastaren code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'alltime-games' && <AllTimeGames code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'planning' && <SwimmerPlanning code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
       {screen === 'account' && <AccountChoice
         onAnonymous={() => { setProfile(null); setScreen('home') }}
@@ -310,12 +314,18 @@ function Login({ onLogin }) {
   )
 }
 
-function Shell({ children, profile, talksEnabled, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
+function SwimmerPlanning({ code, onBack }) {
+  const [plans, setPlans] = useState([])
+  useEffect(() => { apiRequest('/api/workouts?planning=true', code).then((data) => setPlans(data.plans || [])).catch(() => {}) }, [code])
+  return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>Veckans plan</h1><small>Planerade aktiviteter för din grupp.</small></div></div>{plans.length ? <div className="swimmer-planning-list">{plans.slice(0, 30).map((plan) => <article key={plan.id}><p className="eyebrow">{plan.date}</p><h2>{plan.title}</h2><p>{plan.activityType === 'swim' ? '🏊 Simning' : plan.activityType === 'strength' ? '🏋️ Styrka' : plan.activityType === 'dryland' ? '🤸 Landträning' : '🏆 Tävling'}{plan.focus ? ` · ${plan.focus}` : ''}</p><small>{[plan.distanceMeters && `${plan.distanceMeters} m`, plan.durationMinutes && `${plan.durationMinutes} min`, plan.location].filter(Boolean).join(' · ')}</small></article>)}</div> : <p className="empty">Ingen planering publicerad ännu.</p>}</section>
+}
+
+function Shell({ children, profile, talksEnabled, planningEnabled, onPlanning, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
-      <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
+      <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && planningEnabled && <button className="menu-link" onClick={go(onPlanning)}>Veckoplanering</button>}{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
       {profile && talksEnabled && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
       {children}
     </main>
@@ -1309,7 +1319,7 @@ function CoachPlanning({ code }) {
 function WebappSettings({ code }) {
   const [settings, setSettings] = useState({ swimmer: {}, coach: {} })
   const [saved, setSaved] = useState(false)
-  const swimmerFeatures = [['workout', 'Dagens pass'], ['competition', 'Tävlingsresultat'], ['talks', 'Utvecklingssamtal'], ['games', 'Veckans spel'], ['community', 'Pepp och meddelanden']]
+  const swimmerFeatures = [['planning', 'Veckoplanering'], ['workout', 'Dagens pass'], ['competition', 'Tävlingsresultat'], ['talks', 'Utvecklingssamtal'], ['games', 'Veckans spel'], ['community', 'Pepp och meddelanden']]
   const coachFeatures = [['swimmers', 'Simmare'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingskalender'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['workout-library', 'Passbibliotek'], ['competition', 'Tävlingsresultat'], ['faq', 'FAQ'], ['legal', 'Info & villkor']]
   const overviewFeatures = [['today', 'Idag'], ['swimmers', 'Simmare'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingar'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['competition', 'Tävlingsresultat'], ['workout-library', 'Passbibliotek'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['faq', 'FAQ'], ['legal', 'Info & villkor'], ['settings', 'Inställningar']]
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setSettings(data.settings || { swimmer: {}, coach: {} })).catch(() => {}) }, [code])

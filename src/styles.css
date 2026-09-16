@@ -1071,6 +1071,10 @@ button { cursor: pointer; }
 .settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .settings-saved { color: #39804b; font-weight: 700; }
 .settings-note { color: var(--muted); font-size: 12px; }
+.swimmer-planning-list { display: grid; gap: 10px; }
+.swimmer-planning-list article { padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
+.swimmer-planning-list h2 { margin: 3px 0; }
+.swimmer-planning-list p { color: var(--muted); }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }

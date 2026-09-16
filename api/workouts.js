@@ -98,11 +98,12 @@ export default async function handler(request, response) {
     if (request.method === 'GET') {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })
-      if (role === 'coach' && request.query?.planning === 'true') {
+      if (request.query?.planning === 'true') {
         const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
         if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
         const plans = await backfillPlanningFromWorkouts(await result.json())
-        return sendJson(response, 200, { plans: plans.map(publicPlan) })
+        const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
+        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan) })
       }
       if (role === 'coach' && request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
