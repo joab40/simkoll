@@ -55,7 +55,8 @@ export default async function handler(request, response) {
   const role = getRole(code)
   try {
     if (request.method === 'GET') {
-      if (request.query?.settings === 'true' && role === 'coach') {
+      if (request.query?.settings === 'true') {
+        if (role !== 'coach' && !(await getSessionProfile(request))) return sendJson(response, 403, { error: 'Inställningar kräver inloggad profil.' })
         const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const value = result.ok ? (await result.json())[0]?.setting_value : null
         return sendJson(response, 200, { settings: value || { swimmer: {}, coach: {} } })
