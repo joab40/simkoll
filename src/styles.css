@@ -398,8 +398,9 @@ button { cursor: pointer; }
 .coach-header-menu { position: relative; }.coach-header-menu summary { list-style: none; cursor: pointer; }.coach-header-menu summary::-webkit-details-marker { display: none; }.coach-header-menu[open] summary .coach-badge { background: var(--lime); color: var(--ink); }.coach-header-menu > div { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; display: grid; gap: 4px; min-width: 180px; padding: 7px; background: var(--paper); border: 1px solid #d5e3df; border-radius: 12px; box-shadow: 0 10px 25px rgba(16,45,55,.14); }.coach-header-menu > div strong { padding: 6px 11px 3px; color: var(--teal); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }.coach-header-menu > div button { border: 0; border-radius: 8px; background: transparent; padding: 9px 11px; text-align: left; font-size: 12px; font-weight: 700; }.coach-header-menu > div button:hover { background: #edf5f2; }
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
+.workout-editor > .period-heading { align-items: flex-start; gap: 24px; margin-bottom: 28px; }
 .editor-import-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.workout-import-hint { display: block; color: var(--muted); font-size: 12px; margin-top: -7px; }
+.workout-import-hint { display: block; color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.45; }
 .workout-picker { margin: 0 0 20px; padding: 18px; background: #eef7f3; border: 1px solid #cfe4dd; border-radius: 16px; }
 .workout-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }.workout-picker h3 { margin: 0; }.workout-picker > p { color: var(--muted); margin: 6px 0 14px; }
 .workout-picker-criteria { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.workout-picker-criteria label { font-size: 11px; font-weight: 800; }.workout-picker-criteria select { margin-top: 5px; }
