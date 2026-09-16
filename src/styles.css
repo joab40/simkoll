@@ -1052,6 +1052,13 @@ button { cursor: pointer; }
 .competition-calendar-list h2 { margin: 3px 0; }
 .competition-calendar-list p { margin: 3px 0; color: var(--muted); }
 .competition-calendar-list small { color: var(--muted); }
+.calendar-group-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.calendar-group-filter > span { margin-right: 4px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.calendar-group-filter button { border: 1px solid #dbe8e5; border-radius: 999px; padding: 8px 12px; background: var(--paper); color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.calendar-group-filter button.active { border-color: var(--teal); background: #e2f1ed; color: var(--teal); }
+.competition-add-card { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; overflow: hidden; }
+.competition-add-card > summary { padding: 15px 18px; color: var(--teal); font-weight: 800; cursor: pointer; }
+.competition-add-card .competition-form { border: 0; border-top: 1px solid #e5efed; border-radius: 0; }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }
