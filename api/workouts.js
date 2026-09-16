@@ -109,7 +109,7 @@ export default async function handler(request, response) {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
         if (!result.ok) throw new Error(`Competition calendar GET failed: ${result.status} ${await result.text()}`)
         const competitions = await result.json()
-        const visible = role === 'coach' ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
+        const visible = role === 'coach' || profile?.is_test_profile ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
       }
       if (role === 'coach' && request.query?.history === 'true') {
