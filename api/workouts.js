@@ -19,6 +19,16 @@ async function syncPlanningFromWorkout(workout) {
   else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
   else if (current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
 }
+async function backfillPlanningFromWorkouts(plans) {
+  const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=200')
+  if (!workoutsResult.ok) return plans
+  const workouts = await workoutsResult.json()
+  const existingDates = new Set(plans.filter((item) => item.activity_type === 'swim').map((item) => item.plan_date))
+  await Promise.all(workouts.filter((workout) => !existingDates.has(workout.workout_date)).map((workout) => syncPlanningFromWorkout(workout)))
+  if (!workouts.some((workout) => !existingDates.has(workout.workout_date))) return plans
+  const refreshed = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
+  return refreshed.ok ? await refreshed.json() : plans
+}
 
 function parseWorkoutCsv(csv) {
   const parseCsvLine = (line) => { const cells = []; let value = ''; let quoted = false; for (let index = 0; index < line.length; index += 1) { const char = line[index]; if (char === '"' && line[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = !quoted; else if (char === ',' && !quoted) { cells.push(value.trim()); value = '' } else value += char } cells.push(value.trim()); return cells }
@@ -75,7 +85,8 @@ export default async function handler(request, response) {
       if (role === 'coach' && request.query?.planning === 'true') {
         const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
         if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { plans: (await result.json()).map(publicPlan) })
+        const plans = await backfillPlanningFromWorkouts(await result.json())
+        return sendJson(response, 200, { plans: plans.map(publicPlan) })
       }
       if (role === 'coach' && request.query?.history === 'true') {
         const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
