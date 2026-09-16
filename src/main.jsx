@@ -1300,7 +1300,7 @@ function WebappSettings({ code }) {
   const [settings, setSettings] = useState({ swimmer: {}, coach: {} })
   const [saved, setSaved] = useState(false)
   const swimmerFeatures = [['workout', 'Dagens pass'], ['competition', 'Tävlingsresultat'], ['talks', 'Utvecklingssamtal'], ['games', 'Veckans spel'], ['community', 'Pepp och meddelanden']]
-  const coachFeatures = [['swimmers', 'Simmare'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition', 'Tävlingskalender'], ['trends', 'Grupptrend'], ['talks', 'Utvecklingssamtal']]
+  const coachFeatures = [['swimmers', 'Simmare'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingskalender'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['workout-library', 'Passbibliotek'], ['competition', 'Tävlingsresultat'], ['faq', 'FAQ'], ['legal', 'Info & villkor']]
   const overviewFeatures = [['today', 'Idag'], ['swimmers', 'Simmare'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingar'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte']]
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setSettings(data.settings || { swimmer: {}, coach: {} })).catch(() => {}) }, [code])
   const toggle = (role, key) => setSettings((current) => ({ ...current, [role]: { ...current[role], [key]: current[role]?.[key] === false } }))
