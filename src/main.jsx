@@ -397,11 +397,14 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
   const nextCompetition = (competitions || []).filter((item) => item.startDate >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+  const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
+  const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && workout?.focus === 'fart' ? 'speed-focus' : ''
   return (
     <div className="page-content home">
-      <section className={`mood-hero ${energized ? 'energized' : ''}`}>
+      <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}`}>
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
+        {profile && swimmerEffects && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
         <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`}>
           {todayResponses.length ? todayResponses.map((response, index) => (
             <span className={response.feeling === 5 ? 'top-mood' : response.feeling === 4 ? 'good-mood' : ''} key={response.id} style={{ '--delay': `${index * 40}ms` }}>
@@ -413,7 +416,6 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
       </section>
 
       {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
-      {profile && swimmerEffects && <WelcomeMoment workout={workout} competition={nextCompetition} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
@@ -425,15 +427,6 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
-}
-
-function WelcomeMoment({ workout, competition }) {
-  const daysTo = competition ? Math.max(0, Math.ceil((new Date(`${competition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
-  const focus = workout?.focus
-  const focusText = focus === 'fart' ? 'Idag vässar vi farten ⚡' : ['troskel', 'syra', 'f2_spec', 'distans'].includes(focus) ? 'Kvalitet i varje längd 🎯' : ['teknik', 'aterhamtning'].includes(focus) ? 'Bra känsla före allt annat 🌱' : ''
-  if (daysTo == null && !focusText) return null
-  const raceClass = daysTo != null ? (daysTo <= 0 ? 'race-day' : daysTo <= 3 ? 'race-near' : 'race-coming') : 'focus-moment'
-  return <section className={`welcome-moment ${raceClass}`}><div className="welcome-moment-glow" /><div className="welcome-spark spark-one">✦</div><div className="welcome-spark spark-two">✦</div><div className="welcome-moment-content"><p className="eyebrow">{daysTo != null ? 'Tävlingspepp' : 'Dagens extra'}</p>{daysTo != null ? <><strong className="welcome-countdown">{daysTo === 0 ? 'Tävlingsdag!' : `${daysTo} ${daysTo === 1 ? 'dag' : 'dagar'} kvar`}</strong><span>{competition.title}</span></> : <strong>{focusText}</strong>}<small>{daysTo != null && daysTo > 0 ? 'Lugn, fokus och bra känsla hela vägen.' : daysTo === 0 ? 'Nu kör vi — du är redo! 💙' : focusText}</small></div><span className="welcome-moment-emoji">{daysTo != null && daysTo <= 1 ? '🏁' : focus === 'fart' ? '⚡' : '🌊'}</span></section>
 }
 
 function DailyProgressCard({ responses, points, onGoals }) {

@@ -61,6 +61,11 @@ button { cursor: pointer; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
+.mood-hero.race-coming { background: linear-gradient(120deg, #173e58, #4d5f9c); }
+.mood-hero.race-near { background: linear-gradient(120deg, #263d73, #805190 58%, #bb6c74); }
+.mood-hero.race-day { background: linear-gradient(120deg, #14536b, #16878b 48%, #d58a58); }
+.mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
+.mood-context { position: relative; z-index: 1; margin: -22px 0 22px; color: rgba(255,255,255,.82); font-size: 13px; font-weight: 700; }
 .mood-hero::after { content: '≈'; position: absolute; right: -20px; top: -115px; font-size: 300px; color: rgba(82,209,196,.06); transform: rotate(-12deg); }
 .mood-hero h1 { font-size: clamp(33px, 6vw, 52px); margin-bottom: 34px; }
 .emoji-cloud { min-height: 100px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; position: relative; z-index: 1; }
