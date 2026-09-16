@@ -68,6 +68,8 @@ function App() {
   const [screen, setScreen] = useState('home')
   const [talksEnabled, setTalksEnabled] = useState(false)
   const [planningEnabled, setPlanningEnabled] = useState(false)
+  const [swimmerEffects, setSwimmerEffects] = useState(true)
+  const [competitions, setCompetitions] = useState([])
 
   useEffect(() => {
     if (!auth) return
@@ -87,8 +89,8 @@ function App() {
     const loadProfileData = async () => {
       const trainingData = await apiRequest('/api/training', auth.code)
       const tomorrow = dateKey(new Date(Date.now() + 86400000))
-      const [workoutData, tomorrowData, activityData, pointsData, notificationData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] }))])
-      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setNotifications(notificationData.notifications || []); setTraining(trainingData)
+      const [workoutData, tomorrowData, activityData, pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
+      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setNotifications(notificationData.notifications || []); setTraining(trainingData); setCompetitions(competitionData.competitions || [])
     }
     loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
     const refreshOnFocus = () => { if (document.visibilityState === 'visible') loadProfileData().catch(() => {}) }
@@ -109,7 +111,7 @@ function App() {
     if (!auth || !profile) return
     apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false)).catch(() => {})
   }, [auth, profile])
-  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => setPlanningEnabled(data.settings?.swimmer?.planning === true)).catch(() => setPlanningEnabled(false)) }, [auth, profile])
+  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { setPlanningEnabled(data.settings?.swimmer?.planning === true); setSwimmerEffects(data.settings?.swimmerEffects !== false) }).catch(() => { setPlanningEnabled(false); setSwimmerEffects(true) }) }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
@@ -176,7 +178,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} swimmerEffects={swimmerEffects} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -390,10 +392,11 @@ function LegalPage({ onBack }) {
   return <div className="faq-page legal-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkoll</p><h1>Info & villkor</h1><p className="faq-intro">Här beskriver vi hur Simkoll används och hur information hanteras. Klubbens juridiska uppgifter och kontaktväg kompletteras innan skarp lansering.</p><div className="faq-list"><details open><summary>Integritet och data<span>−</span></summary><p>Simkoll samlar in svar om exempelvis energi, kroppskänsla, motivation, RPE, fartkänsla, temperatur och träningsupplevelse. Du väljer själv om ett svar ska vara anonymt eller kopplas till din profil.</p><p>Anonyma svar visas som gruppsammanställningar. Profilkopplade svar kan ses av behöriga tränare och av dig själv. Du kan be om information, rättelse eller radering av uppgifter via klubben.</p></details><details><summary>Personlig AI-analys<span>+</span></summary><p>En personlig analys aktiveras av tränare först efter att vårdnadshavare har godkänt det enligt klubbens rutin. Simmaren får sedan läsa den sparade analysen i sin profil. Funktionen är frivillig och kan stängas av.</p><p>Sammanställda träningsvärden skickas till en språkmodell. Namn, användarnamn och privata kommentarer skickas inte. Analysen är ett tränings- och samtalsstöd, inte en medicinsk bedömning eller ett automatiskt beslut. För information om OpenAI API:s datahantering, se <a href="https://platform.openai.com/docs/models/default-usage-policies-by-endpoint" target="_blank" rel="noreferrer">OpenAI:s officiella dokumentation</a>.</p></details><details><summary>AI för minderåriga<span>+</span></summary><p>För simmare under 18 år ska klubben inhämta vårdnadshavares godkännande och även informera simmaren på ett begripligt sätt. Godkännandet dokumenteras utanför eller i klubbens beslutade samtyckesflöde. Det ska gå att återkalla utan nackdelar.</p></details><details><summary>Användarvillkor<span>+</span></summary><p>Simkoll är ett frivilligt stöd för träningsfeedback och ersätter inte kontakt med tränare, vårdnadshavare eller vårdpersonal. Skriv inte diagnoser, personnummer eller andra känsliga uppgifter i fritextfält.</p><p>Pepp och meddelanden ska vara respektfulla. Olämpligt innehåll kan tas bort av tränare.</p></details><details><summary>Klubbens uppgifter<span>+</span></summary><p>Personuppgiftsansvarig, kontaktadress, lagringstid och information för minderåriga fylls i här innan appen används skarpt.</p></details></div><small className="legal-disclaimer">Detta är ett informationsutkast och bör granskas innan skarp användning.</small></section></div>
 }
 
-function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, swimmerEffects, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
+  const nextCompetition = (competitions || []).filter((item) => item.startDate >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
   return (
     <div className="page-content home">
       <section className={`mood-hero ${energized ? 'energized' : ''}`}>
@@ -410,6 +413,7 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
       </section>
 
       {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
+      {profile && swimmerEffects && <WelcomeMoment workout={workout} competition={nextCompetition} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
@@ -421,6 +425,13 @@ function Home({ responses, profile, points, notifications, onNotificationsChange
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
   )
+}
+
+function WelcomeMoment({ workout, competition }) {
+  const daysTo = competition ? Math.max(0, Math.ceil((new Date(`${competition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
+  const focus = workout?.focus
+  const focusText = focus === 'fart' ? 'Idag vässar vi farten ⚡' : ['troskel', 'syra', 'f2_spec', 'distans'].includes(focus) ? 'Kvalitet i varje längd 🎯' : ['teknik', 'aterhamtning'].includes(focus) ? 'Bra känsla före allt annat 🌱' : 'En bra dag att bygga vidare 💪'
+  return <section className={`welcome-moment ${daysTo != null && daysTo <= 3 ? 'race-near' : ''}`}><div className="welcome-moment-glow" /><div className="welcome-moment-content"><p className="eyebrow">Dagens pepp</p>{daysTo != null ? <><strong className="welcome-countdown">{daysTo === 0 ? 'Tävlingsdag!' : `${daysTo} ${daysTo === 1 ? 'dag' : 'dagar'} kvar`}</strong><span>{competition.title}</span></> : <strong>{focusText}</strong>}<small>{daysTo != null && daysTo > 0 ? 'Lugn, fokus och bra känsla hela vägen.' : focusText}</small></div><span className="welcome-moment-emoji">{daysTo != null && daysTo <= 1 ? '🏁' : focus === 'fart' ? '⚡' : '🌊'}</span></section>
 }
 
 function DailyProgressCard({ responses, points, onGoals }) {
@@ -1348,7 +1359,7 @@ function WebappSettings({ code }) {
   const save = async () => { await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-settings', settings }) }); window.dispatchEvent(new CustomEvent('simkoll-settings-updated', { detail: settings })); setSaved(true); setTimeout(() => setSaved(false), 1800) }
   const reset = async () => { const result = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset-settings' }) }); setSettings(result.settings) }
   const list = (role, features) => <div className="settings-list">{features.map(([key, label]) => <label key={key}><span><strong>{label}</strong><small>{settings[role]?.[key] === false ? 'Dold' : 'Synlig'}</small></span><input type="checkbox" checked={settings[role]?.[key] !== false} onChange={() => toggle(role, key)} /></label>)}</div>
-  return <section className="webapp-settings"><div className="period-heading"><div><p className="eyebrow">Tränarverktyg</p><h1>Webapp-inställningar</h1><small>Styr vad som syns utan att radera någon data.</small></div></div><section className="settings-card"><h2>Genvägar i översiktskortet</h2><p className="settings-help">Välj vilka genvägar som ska visas. Idag är alltid kvar som startsida.</p>{list('overview', overviewFeatures)}</section><section className="settings-card"><h2>Simmarvyn</h2>{list('swimmer', swimmerFeatures)}</section><section className="settings-card"><h2>Tränarvyns meny</h2>{list('coach', coachFeatures)}</section><div className="settings-actions"><button className="primary-button" onClick={save}>Spara inställningar</button><button className="secondary-button" onClick={reset}>Återställ standard</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div><p className="settings-note">Webapp-inställningar kan inte döljas och är alltid tillgängliga för tränare.</p></section>
+  return <section className="webapp-settings"><div className="period-heading"><div><p className="eyebrow">Tränarverktyg</p><h1>Webapp-inställningar</h1><small>Styr vad som syns utan att radera någon data.</small></div></div><section className="settings-card"><h2>Simmarnas välkomstpepp</h2><p className="settings-help">Visa tävlingsnedräkning, passpepp och diskreta färgeffekter på simmarnas startsida.</p><label className="settings-toggle-row"><span><strong>Visuella effekter</strong><small>{settings.swimmerEffects === false ? 'Avstängda för alla simmare' : 'På för alla simmare'}</small></span><input type="checkbox" checked={settings.swimmerEffects !== false} onChange={() => setSettings((current) => ({ ...current, swimmerEffects: current.swimmerEffects === false }))} /></label></section><section className="settings-card"><h2>Genvägar i översiktskortet</h2><p className="settings-help">Välj vilka genvägar som ska visas. Idag är alltid kvar som startsida.</p>{list('overview', overviewFeatures)}</section><section className="settings-card"><h2>Simmarvyn</h2>{list('swimmer', swimmerFeatures)}</section><section className="settings-card"><h2>Tränarvyns meny</h2>{list('coach', coachFeatures)}</section><div className="settings-actions"><button className="primary-button" onClick={save}>Spara inställningar</button><button className="secondary-button" onClick={reset}>Återställ standard</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div><p className="settings-note">Webapp-inställningar kan inte döljas och är alltid tillgängliga för tränare.</p></section>
 }
 
 function CompetitionCalendar({ code }) {

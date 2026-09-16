@@ -105,10 +105,12 @@ export default async function handler(request, response) {
         const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         return sendJson(response, 200, { plans: visiblePlans.map(publicPlan) })
       }
-      if (role === 'coach' && request.query?.calendar === 'true') {
+      if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
         if (!result.ok) throw new Error(`Competition calendar GET failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { competitions: (await result.json()).map(publicCompetition) })
+        const competitions = await result.json()
+        const visible = role === 'coach' ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
+        return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
       }
       if (role === 'coach' && request.query?.history === 'true') {
         const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
