@@ -1034,6 +1034,12 @@ button { cursor: pointer; }
 .planning-day > header small { color: var(--muted); }
 .planning-workout { margin-top: 10px; }
 .planning-workout h2 { margin: 0 0 8px; font-size: 17px; }
+.planning-activity-title { display: flex; align-items: center; gap: 8px; }
+.planning-activity-title h2 { margin-bottom: 0; }
+.planning-type { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #e7f0ee; color: var(--teal); font-size: 11px; font-weight: 800; }
+.planning-type-competition { background: #fff0d8; color: #98641b; }
+.planning-type-strength { background: #e8e5f7; color: #5b4b93; }
+.planning-type-dryland { background: #e1f1e7; color: #39734f; }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }

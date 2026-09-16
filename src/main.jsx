@@ -1248,7 +1248,7 @@ function AiInsightCard({ title = 'Veckans tränarsammanfattning', insight, creat
 }
 
 function CoachPlanning({ code }) {
-  const [workouts, setWorkouts] = useState([])
+  const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [weekOffset, setWeekOffset] = useState(0)
@@ -1257,8 +1257,8 @@ function CoachPlanning({ code }) {
   useEffect(() => {
     setLoading(true)
     setError('')
-    apiRequest('/api/workouts?history=true', code)
-      .then((data) => setWorkouts(data.workouts || []))
+    apiRequest('/api/workouts?planning=true', code)
+      .then((data) => setPlans(data.plans || []))
       .catch((requestError) => setError(requestError.message || 'Kunde inte hämta planeringen.'))
       .finally(() => setLoading(false))
   }, [code])
@@ -1278,32 +1278,40 @@ function CoachPlanning({ code }) {
     const date = new Date(monday)
     date.setDate(monday.getDate() + index)
     const key = dateKey(date)
-    const workout = workouts.find((item) => item.date === key && (group === 'all' || item.targetGroups?.includes(group)))
-    return { date, key, workout }
-  }), [group, monday, workouts])
-  const totalMeters = days.reduce((sum, day) => sum + (Number(day.workout?.distanceMeters) || 0), 0)
-  const totalMinutes = days.reduce((sum, day) => sum + (Number(day.workout?.durationMinutes) || 0), 0)
+    const activities = plans.filter((item) => item.date === key && (group === 'all' || item.targetGroups?.includes(group)))
+    return { date, key, activities }
+  }), [group, monday, plans])
+  const totalMeters = days.reduce((sum, day) => sum + day.activities.filter((item) => item.activityType === 'swim').reduce((inner, item) => inner + (Number(item.distanceMeters) || 0), 0), 0)
+  const totalMinutes = days.reduce((sum, day) => sum + day.activities.reduce((inner, item) => inner + (Number(item.durationMinutes) || 0), 0), 0)
   const weekLabel = `${monday.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${days[6].date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
   const focusLabel = (focus) => WORKOUT_FOCUSES.find(([value]) => value === focus)?.[1] || 'Ingen inriktning'
   const groupLabel = (value) => ({ ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }[value] || value)
-  const editWorkout = async (workout, date) => {
-    const title = window.prompt('Rubrik för passet', workout?.title || '')
+  const editPlan = async (plan, date) => {
+    const activityType = window.prompt('Aktivitet: swim, strength, dryland eller competition', plan?.activityType || 'swim')
+    if (activityType == null) return
+    const title = window.prompt('Rubrik', plan?.title || '')
     if (title == null) return
-    const content = window.prompt('Kort beskrivning eller huvudserie', workout?.content || '')
-    if (content == null) return
-    const focus = window.prompt(`Huvudinriktning (kod):\n${WORKOUT_FOCUSES.map(([value, label]) => `${value} = ${label}`).join('\n')}`, workout?.focus || '')
+    const focus = window.prompt(`Huvudinriktning (för simning):\n${WORKOUT_FOCUSES.map(([value, label]) => `${value} = ${label}`).join('\n')}`, plan?.focus || '')
     if (focus == null) return
-    const distanceMeters = window.prompt('Distans i meter (valfritt)', workout?.distanceMeters || '')
+    const distanceMeters = window.prompt('Distans i meter (endast simning)', plan?.distanceMeters || '')
     if (distanceMeters == null) return
-    const durationMinutes = window.prompt('Tidsåtgång i minuter (valfritt)', workout?.durationMinutes || '')
+    const swimTiming = activityType === 'swim' ? window.prompt('Simpassets tid (morgon eller eftermiddag)', plan?.durationMinutes === 90 ? 'morgon' : 'eftermiddag') : ''
+    if (activityType === 'swim' && swimTiming == null) return
+    const defaultDuration = plan?.durationMinutes || (activityType === 'swim' ? swimTiming.toLowerCase().includes('morgon') ? 90 : 120 : '')
+    const durationMinutes = window.prompt('Tidsåtgång i minuter', defaultDuration)
     if (durationMinutes == null) return
+    const location = window.prompt('Plats (valfritt)', plan?.location || '')
+    if (location == null) return
+    const notes = window.prompt('Kort kommentar (valfritt)', plan?.notes || '')
+    if (notes == null) return
     try {
-      const result = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...workout, date, title: title.trim(), content: content.trim(), focus: focus.trim(), distanceMeters, durationMinutes, targetGroups: workout?.targetGroups?.length ? workout.targetGroups : group === 'all' ? ['ungdom_orange', 'ungdom_svart', 'junior'] : [group] }) })
-      setWorkouts((current) => [result.workout, ...current.filter((item) => item.date !== date)])
+      const result = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-plan', id: plan?.id, date, activityType: activityType.trim(), title: title.trim(), focus: focus.trim(), distanceMeters, durationMinutes, location: location.trim(), notes: notes.trim(), targetGroups: plan?.targetGroups?.length ? plan.targetGroups : group === 'all' ? ['ungdom_orange', 'ungdom_svart', 'junior'] : [group] }) })
+      setPlans((current) => plan ? current.map((item) => item.id === plan.id ? result.plan : item) : [...current, result.plan])
     } catch (requestError) { window.alert(requestError.message) }
   }
 
-  return <section className="coach-planning"><div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Veckans träningsplan</h1><small>{weekLabel} · {group === 'all' ? 'Alla grupper' : groupLabel(group)}</small></div><div className="big-count"><strong>{days.filter((day) => day.workout).length}</strong><span>pass</span></div></div><div className="planning-controls"><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.max(-4, value - 1))}>← Föregående vecka</button><button className="secondary-button" onClick={() => setWeekOffset(0)}>Den här veckan</button><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.min(4, value + 1))}>Nästa vecka →</button><label>Grupp<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label></div>{loading ? <p className="empty">Hämtar veckoplanering…</p> : error ? <p className="form-error">{error}</p> : <><div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>meter</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.filter((day) => day.workout).length}/7</strong><span>dagar med pass</span></div></div><div className="planning-day-list">{days.map((day) => <article className={`planning-day${day.workout ? ' has-workout' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}</small></div>{day.workout && <span className="workout-focus-pill">{focusLabel(day.workout.focus)}</span>}</header>{day.workout ? <div className="planning-workout"><h2>{day.workout.title || 'Planerat pass'}</h2><div className="workout-library-stats"><span>{day.workout.distanceMeters ? `${Number(day.workout.distanceMeters).toLocaleString('sv-SE')} m` : 'Meter saknas'}</span><span>{day.workout.durationMinutes ? `${day.workout.durationMinutes} min` : 'Tid saknas'}</span>{day.workout.targetGroups?.length > 0 && <span>{day.workout.targetGroups.map(groupLabel).join(' · ')}</span>}</div>{day.workout.note && <p>{day.workout.note}</p>}<button type="button" className="text-button planning-edit" onClick={() => editWorkout(day.workout, day.key)}>Redigera</button></div> : <div className="planning-empty"><span>Inget publicerat pass</span><button type="button" className="text-button" onClick={() => editWorkout(null, day.key)}>+ Lägg till pass</button></div>}</article>)}</div></>}</section>
+  const typeLabel = (type) => ({ swim: 'Simning', strength: 'Styrka', dryland: 'Landträning', competition: 'Tävling' }[type] || type)
+  return <section className="coach-planning"><div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Veckans grundplan</h1><small>{weekLabel} · {group === 'all' ? 'Alla grupper' : groupLabel(group)}</small></div><div className="big-count"><strong>{days.reduce((sum, day) => sum + day.activities.length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-controls"><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.max(-4, value - 1))}>← Föregående vecka</button><button className="secondary-button" onClick={() => setWeekOffset(0)}>Den här veckan</button><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.min(4, value + 1))}>Nästa vecka →</button><label>Grupp<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label></div>{loading ? <p className="empty">Hämtar veckoplanering…</p> : error ? <p className="form-error">{error}</p> : <><div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.reduce((sum, day) => sum + day.activities.length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-day-list">{days.map((day) => <article className={`planning-day${day.activities.length ? ' has-workout' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}</small></div><button type="button" className="text-button" onClick={() => editPlan(null, day.key)}>+ Lägg till</button></header>{day.activities.length ? day.activities.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<button type="button" className="text-button planning-edit" onClick={() => editPlan(plan, day.key)}>Redigera</button></div>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article>)}</div></>}</section>
 }
 
 function WorkoutLibrary({ code, responses }) {

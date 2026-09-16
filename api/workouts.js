@@ -5,6 +5,9 @@ function publicWorkout(item) {
   if (!item) return null
   return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
 }
+function publicPlan(item) {
+  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', updatedAt: item.updated_at }
+}
 
 function parseWorkoutCsv(csv) {
   const parseCsvLine = (line) => { const cells = []; let value = ''; let quoted = false; for (let index = 0; index < line.length; index += 1) { const char = line[index]; if (char === '"' && line[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = !quoted; else if (char === ',' && !quoted) { cells.push(value.trim()); value = '' } else value += char } cells.push(value.trim()); return cells }
@@ -58,6 +61,11 @@ export default async function handler(request, response) {
     if (request.method === 'GET') {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })
+      if (role === 'coach' && request.query?.planning === 'true') {
+        const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
+        if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { plans: (await result.json()).map(publicPlan) })
+      }
       if (role === 'coach' && request.query?.history === 'true') {
         const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
         if (!result.ok) throw new Error(`Workout history GET failed: ${result.status} ${await result.text()}`)
@@ -81,6 +89,19 @@ export default async function handler(request, response) {
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'save-plan') {
+        const body = request.body
+        const date = String(body.date || '')
+        const activityType = String(body.activityType || '')
+        const title = String(body.title || '').trim()
+        const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['swim', 'strength', 'dryland', 'competition'].includes(activityType) || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, aktivitet, rubrik och minst en grupp.' })
+        const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, updated_at: new Date().toISOString() }
+        const endpoint = body.id ? `training_plans?id=eq.${body.id}` : 'training_plans'
+        const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        if (!result.ok) throw new Error(`Training plan save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
+      }
       if (request.body?.action === 'import-sheet') {
         const sheetUrl = String(request.body.url || '')
         const match = sheetUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
@@ -114,6 +135,13 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'DELETE') {
+      if (request.query?.planning === 'true') {
+        const id = String(request.query?.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Planeringsaktivitet saknas.' })
+        const result = await supabaseRequest(`training_plans?id=eq.${id}`, { method: 'DELETE' })
+        if (!result.ok) throw new Error(`Training plan DELETE failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { ok: true })
+      }
       const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const result = await supabaseRequest(`daily_workouts?workout_date=eq.${date}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Workout DELETE failed: ${result.status} ${await result.text()}`)
