@@ -1018,6 +1018,9 @@ button { cursor: pointer; }
 .coach-planning { display: grid; gap: 18px; }
 .coach-planning .period-heading { margin-bottom: 0; }
 .coach-planning .period-heading small { color: var(--muted); }
+.planning-controls { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
+.planning-controls label { display: grid; gap: 5px; margin-left: auto; color: var(--muted); font-size: 12px; }
+.planning-controls select { min-width: 155px; }
 .planning-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .planning-summary > div { display: grid; gap: 3px; padding: 15px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .planning-summary strong { font-size: 22px; color: var(--teal); }
@@ -1032,7 +1035,8 @@ button { cursor: pointer; }
 .planning-workout { margin-top: 10px; }
 .planning-workout h2 { margin: 0 0 8px; font-size: 17px; }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
-.planning-empty { margin: 9px 0 0; color: var(--muted); font-size: 13px; }
+.planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
+.planning-edit { margin-top: 10px; padding: 0; }
 @media (max-width: 520px) { .planning-summary { grid-template-columns: 1fr 1fr; } .planning-summary > div:last-child { grid-column: 1 / -1; } .planning-day > header { align-items: flex-start; flex-direction: column; gap: 7px; } }
 .tempus-results { display: grid; gap: 7px; margin-top: 12px; }
 .tempus-results > strong { font-size: 13px; }
