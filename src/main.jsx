@@ -1286,19 +1286,26 @@ function CoachPlanning({ code }) {
   const weekLabel = `${monday.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${days[6].date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
   const focusLabel = (focus) => WORKOUT_FOCUSES.find(([value]) => value === focus)?.[1] || 'Ingen inriktning'
   const groupLabel = (value) => ({ ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }[value] || value)
+  const choosePlanningValue = (label, options, current = '') => {
+    const menu = options.map((option, index) => `${index + 1}. ${option.label}`).join('\n')
+    const answer = window.prompt(`${label}\n\n${menu}\n\nSkriv nummer eller eget värde.`, current)
+    if (answer == null) return null
+    const selected = options[Number(answer) - 1]
+    return selected ? selected.value : answer.trim()
+  }
   const editPlan = async (plan, date) => {
-    const activityType = window.prompt('Aktivitet: swim, strength, dryland eller competition', plan?.activityType || 'swim')
+    const activityType = choosePlanningValue('Aktivitet', [{ value: 'swim', label: 'Simning' }, { value: 'strength', label: 'Styrketräning' }, { value: 'dryland', label: 'Landträning' }, { value: 'competition', label: 'Tävling' }], plan?.activityType === 'swim' ? '1' : plan?.activityType || '1')
     if (activityType == null) return
     const title = window.prompt('Rubrik', plan?.title || '')
     if (title == null) return
-    const focus = window.prompt(`Huvudinriktning (för simning):\n${WORKOUT_FOCUSES.map(([value, label]) => `${value} = ${label}`).join('\n')}`, plan?.focus || '')
+    const focus = choosePlanningValue('Huvudinriktning (för simning)', WORKOUT_FOCUSES.map(([value, label]) => ({ value, label })), plan?.focus || '')
     if (focus == null) return
-    const distanceMeters = window.prompt('Distans i meter (endast simning)', plan?.distanceMeters || '')
+    const distanceMeters = choosePlanningValue('Distans i meter (endast simning)', [2000, 3000, 4000, 5000, 6000, 7000].map((value) => ({ value: String(value), label: `${value.toLocaleString('sv-SE')} meter` })), plan?.distanceMeters ? String(plan.distanceMeters) : '')
     if (distanceMeters == null) return
     const swimTiming = activityType === 'swim' ? window.prompt('Simpassets tid (morgon eller eftermiddag)', plan?.durationMinutes === 90 ? 'morgon' : 'eftermiddag') : ''
     if (activityType === 'swim' && swimTiming == null) return
     const defaultDuration = plan?.durationMinutes || (activityType === 'swim' ? swimTiming.toLowerCase().includes('morgon') ? 90 : 120 : '')
-    const durationMinutes = window.prompt('Tidsåtgång i minuter', defaultDuration)
+    const durationMinutes = choosePlanningValue('Tidsåtgång', [{ value: '60', label: '1 timme' }, { value: '90', label: '1,5 timmar' }, { value: '120', label: '2 timmar' }], String(defaultDuration || ''))
     if (durationMinutes == null) return
     const location = window.prompt('Plats (valfritt)', plan?.location || '')
     if (location == null) return
