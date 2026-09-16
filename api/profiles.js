@@ -54,6 +54,11 @@ export default async function handler(request, response) {
     }
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
+        if (request.query?.groups === 'true') {
+          const result = await supabaseRequest('training_groups?select=*&order=active.desc,name.asc')
+          if (!result.ok) throw new Error(`Training groups GET failed: ${result.status} ${await result.text()}`)
+          return sendJson(response, 200, { groups: await result.json() })
+        }
         if (request.query?.attendance === 'true') {
           const date = String(request.query.date || '').slice(0, 10)
           const slot = ['morning_swim', 'afternoon_swim'].includes(request.query.slot) ? request.query.slot : null
@@ -177,11 +182,47 @@ export default async function handler(request, response) {
     if (action === 'set-training-group') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra träningsgrupp.' })
       const profileId = String(request.body.profileId || '')
-      const allowed = ['ungdom_orange', 'ungdom_svart', 'junior']
       const trainingGroup = request.body.trainingGroup ? String(request.body.trainingGroup) : null
-      if (!profileId || (trainingGroup && !allowed.includes(trainingGroup))) return sendJson(response, 400, { error: 'Ogiltig träningsgrupp.' })
+      if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
+      if (trainingGroup) {
+        const groupResult = await supabaseRequest(`training_groups?id=eq.${encodeURIComponent(trainingGroup)}&active=eq.true&select=id&limit=1`)
+        if (!groupResult.ok || !(await groupResult.json()).length) return sendJson(response, 400, { error: 'Ogiltig eller arkiverad träningsgrupp.' })
+      }
       const updated = await updateProfile(profileId, { training_group: trainingGroup })
       return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
+    if (action === 'create-group') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan skapa grupper.' })
+      const name = String(request.body.name || '').trim()
+      if (!name || name.length > 80) return sendJson(response, 400, { error: 'Gruppnamnet måste vara 1–80 tecken.' })
+      const id = String(request.body.id || name).toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48)
+      if (!id) return sendJson(response, 400, { error: 'Gruppnamnet kunde inte användas.' })
+      const result = await supabaseRequest('training_groups', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ id, name, active: true }) })
+      if (!result.ok) {
+        if (result.status === 409) return sendJson(response, 409, { error: 'En grupp med det namnet finns redan.' })
+        throw new Error(`Training group insert failed: ${result.status} ${await result.text()}`)
+      }
+      return sendJson(response, 201, { group: (await result.json())[0] })
+    }
+
+    if (action === 'update-group') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra grupper.' })
+      const id = String(request.body.id || '').trim()
+      const name = String(request.body.name || '').trim()
+      if (!id || !name || name.length > 80) return sendJson(response, 400, { error: 'Grupp och namn saknas.' })
+      const updated = await supabaseRequest(`training_groups?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name, updated_at: new Date().toISOString() }) })
+      if (!updated.ok) throw new Error(`Training group update failed: ${updated.status} ${await updated.text()}`)
+      return sendJson(response, 200, { group: (await updated.json())[0] || null })
+    }
+
+    if (action === 'archive-group') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan arkivera grupper.' })
+      const id = String(request.body.id || '').trim()
+      if (!id) return sendJson(response, 400, { error: 'Grupp saknas.' })
+      const updated = await supabaseRequest(`training_groups?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }) })
+      if (!updated.ok) throw new Error(`Training group archive failed: ${updated.status} ${await updated.text()}`)
+      return sendJson(response, 200, { group: (await updated.json())[0] || null })
     }
 
     if (action === 'set-ai-analysis-status') {

@@ -1142,3 +1142,26 @@ button { cursor: pointer; }
  .talk-switch { border: 0; border-radius: 999px; padding: 8px 13px; background: #e8eeec; color: #637275; font-weight: 800; cursor: pointer; }
 .talk-switch.on { background: #dff4d2; color: #33703c; }
 .global-talk-setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -12px 0 18px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f7fbf9; }.global-talk-setting span { display: grid; gap: 3px; }.global-talk-setting small { color: var(--muted); }
+.coach-groups { display: grid; gap: 16px; }
+.group-form { display: grid; gap: 12px; }
+.group-form h2, .group-form p { margin: 0; }
+.group-form p { color: var(--muted); font-size: 13px; }
+.group-form-row { display: flex; gap: 10px; align-items: center; }
+.group-form-row input { flex: 1; min-width: 0; }
+.group-grid { display: grid; gap: 12px; }
+.group-card { overflow: hidden; }
+.group-card > summary, .archived-groups > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; cursor: pointer; list-style: none; }
+.group-card > summary::-webkit-details-marker, .archived-groups > summary::-webkit-details-marker { display: none; }
+.group-card > summary > span:first-child { display: grid; gap: 3px; }
+.group-card > summary small { color: var(--muted); font-weight: 400; }
+.group-members { display: grid; gap: 8px; padding: 0 16px 16px; }
+.group-member { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid #e5efed; }
+.group-member select { width: min(48%, 220px); }
+.profile-chip { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.profile-chip b { font-size: 22px; }
+.danger-text { color: #a04d48; padding: 4px 0; text-align: left; }
+.unassigned-card { display: grid; gap: 8px; }
+.unassigned-card h2, .unassigned-card p { margin: 0; }
+.archived-groups { color: var(--muted); }
+.archived-groups > span { display: inline-block; margin: 0 0 12px 16px; font-size: 13px; }
+@media (max-width: 560px) { .group-form-row { align-items: stretch; flex-direction: column; } .group-form-row .primary-button { width: 100%; } .group-member { align-items: flex-start; flex-direction: column; } .group-member select { width: 100%; } }
