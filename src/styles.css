@@ -1014,6 +1014,25 @@ button { cursor: pointer; }
 .workout-library-details aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .workout-library-title { display: flex; justify-content: space-between; gap: 12px; }.workout-incomplete-flag { color: #c55252; font-size: 24px; }.workout-library-list article.incomplete { border-color: #e6bcbc; }.workout-edit-button { margin: 10px 0 14px; }
 .workout-library-stats { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.coach-planning { display: grid; gap: 18px; }
+.coach-planning .period-heading { margin-bottom: 0; }
+.coach-planning .period-heading small { color: var(--muted); }
+.planning-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.planning-summary > div { display: grid; gap: 3px; padding: 15px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
+.planning-summary strong { font-size: 22px; color: var(--teal); }
+.planning-summary span { color: var(--muted); font-size: 12px; }
+.planning-day-list { display: grid; gap: 10px; }
+.planning-day { padding: 15px 16px; background: #f7fbf9; border: 1px solid #e1ece9; border-radius: 14px; }
+.planning-day.has-workout { background: var(--paper); border-color: #cde4df; }
+.planning-day > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.planning-day > header > div { display: grid; gap: 2px; }
+.planning-day > header strong { text-transform: capitalize; }
+.planning-day > header small { color: var(--muted); }
+.planning-workout { margin-top: 10px; }
+.planning-workout h2 { margin: 0 0 8px; font-size: 17px; }
+.planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
+.planning-empty { margin: 9px 0 0; color: var(--muted); font-size: 13px; }
+@media (max-width: 520px) { .planning-summary { grid-template-columns: 1fr 1fr; } .planning-summary > div:last-child { grid-column: 1 / -1; } .planning-day > header { align-items: flex-start; flex-direction: column; gap: 7px; } }
 .tempus-results { display: grid; gap: 7px; margin-top: 12px; }
 .tempus-results > strong { font-size: 13px; }
 .tempus-results > div { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 13px; }

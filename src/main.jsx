@@ -1048,6 +1048,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><span className="desktop-tab-label">Idag</span><span className="mobile-tab-label">Idag</span></button>
             <button className={view === 'swimmers' ? 'active' : ''} onClick={() => setView('swimmers')}><span className="desktop-tab-label">Simmare</span><span className="mobile-tab-label">Simmare</span>{pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>
             <button className={view === 'workout' ? 'active' : ''} onClick={() => setView('workout')}><span className="desktop-tab-label">Pass</span><span className="mobile-tab-label">Pass</span></button>
+            <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}><span className="desktop-tab-label">Planering</span><span className="mobile-tab-label">Plan</span></button>
             <button className={view === 'community' ? 'active' : ''} onClick={() => setView('community')}><span className="desktop-tab-label">Meddelanden</span><span className="mobile-tab-label">Meddelanden</span></button>
             <button className={view === 'meeting' ? 'active' : ''} onClick={() => setView('meeting')}><span className="desktop-tab-label">Veckomöte</span><span className="mobile-tab-label">Möte</span></button>
           </div></div>
@@ -1088,6 +1089,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <CoachCommunity code={code} profiles={profiles} />
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} responses={responses} />
+        ) : view === 'planning' ? (
+          <CoachPlanning code={code} />
         ) : view === 'workout-library' ? (
           <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
@@ -1242,6 +1245,40 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
 
 function AiInsightCard({ title = 'Veckans tränarsammanfattning', insight, createdAt, loading, error, onGenerate, swimmerView = false }) {
   return <section className="ai-insight-card"><div className="ai-insight-header"><div><p className="eyebrow">{swimmerView ? 'Din personliga analys' : 'AI-stöd för tränaren'}</p><h2>{title}</h2>{createdAt && <small>Senast skapad {new Date(createdAt).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</small>}</div>{onGenerate && <button className="secondary-button" onClick={onGenerate} disabled={loading}>{loading ? 'Analyserar…' : insight ? 'Skapa ny analys' : 'Skapa analys'}</button>}</div>{error && <p className="form-error">{error}</p>}{insight ? <div className="ai-insight-body"><p>{insight.summary}</p>{insight.positives?.length > 0 && <div><strong>Det ser bra ut</strong>{insight.positives.map((item) => <span key={item}>✓ {item}</span>)}</div>}{insight.attention?.length > 0 && <div><strong>Följ upp</strong>{insight.attention.map((item) => <span key={item}>! {item}</span>)}</div>}{insight.limitations?.length > 0 && <small>Begränsningar: {insight.limitations.join(' · ')}</small>}</div> : <p className="ai-insight-empty">Ingen sparad analys för den valda perioden ännu.</p>}</section>
+}
+
+function CoachPlanning({ code }) {
+  const [workouts, setWorkouts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    apiRequest('/api/workouts?history=true', code)
+      .then((data) => setWorkouts(data.workouts || []))
+      .catch((requestError) => setError(requestError.message || 'Kunde inte hämta planeringen.'))
+      .finally(() => setLoading(false))
+  }, [code])
+
+  const monday = useMemo(() => {
+    const value = new Date()
+    value.setHours(0, 0, 0, 0)
+    value.setDate(value.getDate() - ((value.getDay() + 6) % 7))
+    return value
+  }, [])
+  const days = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday)
+    date.setDate(monday.getDate() + index)
+    const key = dateKey(date)
+    return { date, key, workout: workouts.find((item) => item.date === key) }
+  }), [monday, workouts])
+  const totalMeters = days.reduce((sum, day) => sum + (Number(day.workout?.distanceMeters) || 0), 0)
+  const totalMinutes = days.reduce((sum, day) => sum + (Number(day.workout?.durationMinutes) || 0), 0)
+  const weekLabel = `${monday.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${days[6].date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
+  const focusLabel = (focus) => WORKOUT_FOCUSES.find(([value]) => value === focus)?.[1] || 'Ingen inriktning'
+
+  return <section className="coach-planning"><div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Veckans träningsplan</h1><small>{weekLabel}</small></div><div className="big-count"><strong>{days.filter((day) => day.workout).length}</strong><span>pass</span></div></div>{loading ? <p className="empty">Hämtar veckoplanering…</p> : error ? <p className="form-error">{error}</p> : <><div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>meter</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.filter((day) => day.workout).length}/7</strong><span>dagar med pass</span></div></div><div className="planning-day-list">{days.map((day) => <article className={`planning-day${day.workout ? ' has-workout' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}</small></div>{day.workout && <span className="workout-focus-pill">{focusLabel(day.workout.focus)}</span>}</header>{day.workout ? <div className="planning-workout"><h2>{day.workout.title || 'Planerat pass'}</h2><div className="workout-library-stats"><span>{day.workout.distanceMeters ? `${Number(day.workout.distanceMeters).toLocaleString('sv-SE')} m` : 'Meter saknas'}</span><span>{day.workout.durationMinutes ? `${day.workout.durationMinutes} min` : 'Tid saknas'}</span>{day.workout.targetGroups?.length > 0 && <span>{day.workout.targetGroups.join(', ')}</span>}</div>{day.workout.note && <p>{day.workout.note}</p>}</div> : <p className="planning-empty">Inget publicerat pass</p>}</article>)}</div></>}</section>
 }
 
 function WorkoutLibrary({ code, responses }) {
