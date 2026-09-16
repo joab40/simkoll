@@ -377,6 +377,7 @@ button { cursor: pointer; }
 .coach-content { width: min(100% - 36px, 1120px); margin: 0 auto; padding: 48px 0 70px; }
 .coach-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
 .coach-heading h1 { font-size: clamp(38px, 6vw, 55px); margin: 0; }
+.coach-overview-card { padding: 20px 22px; margin-bottom: 24px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 18px; }
 .usage-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 10px; background: #e0eeea; border-radius: 13px; padding: 12px 15px; }
 .usage-stat { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
 .usage-divider { flex: 0 0 auto; }
