@@ -1053,7 +1053,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const scopedResponses = view === 'today' ? todayResponses : previousWeekResponses
 
   const previousWeekLabel = `${previousWeek.start.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${previousWeek.end.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
-  const openViewFromMenu = (nextView) => { setView(nextView); const menu = document.querySelector('.coach-header-menu'); if (menu) menu.open = false }
+  const openViewFromMenu = (nextView) => { setView(nextView); if (nextView === 'competition') loadCompetitionResults(); const menu = document.querySelector('.coach-header-menu'); if (menu) menu.open = false }
 
   return (
     <main className="coach-shell">
@@ -1061,7 +1061,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
-            {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => setView(item.key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>)}
+            {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => { setView(item.key); if (item.key === 'competition') loadCompetitionResults() }}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>)}
           </div></div>
           <details className="coach-tools-menu legacy-tools"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
             <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}><span className="desktop-tab-label">Grupptrend</span><span className="mobile-tab-label">Trend</span></button>
