@@ -187,6 +187,7 @@ function App() {
       {screen === 'checkin' && (
         <CheckIn
           hasProfile={Boolean(profile)}
+          competitionToday={Boolean(profile && competitions.some((item) => item.startDate === todayKey()))}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
             const result = await apiRequest('/api/responses', auth.code, {
@@ -886,13 +887,15 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
   )
 }
 
-function CheckIn({ hasProfile, onBack, onSubmit }) {
+function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const typeQuestions = form.type ? getQuestions(form.type) : []
-  const total = 2 + typeQuestions.length
+  const raceQuestions = competitionToday && hasProfile ? [{ key: 'body', title: 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: 'Hur redo känns du för att tävla?', hint: '1 = inte redo · 5 = helt redo', kind: 'scale', count: 5, left: 'Inte redo', right: 'Redo' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }] : []
+  const questions = [...raceQuestions, ...typeQuestions]
+  const total = 2 + questions.length
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const next = () => setStep((current) => current + 1)
@@ -933,7 +936,7 @@ function CheckIn({ hasProfile, onBack, onSubmit }) {
       </Question>
     )
   } else {
-    const question = typeQuestions[step - 2]
+    const question = questions[step - 2]
     content = (
       <Question title={question.title} hint={question.hint}>
         {question.kind === 'scale' && (
@@ -953,6 +956,7 @@ function CheckIn({ hasProfile, onBack, onSubmit }) {
             ))}
           </div>
         )}
+        {question.kind === 'concern' && <div className="concern-choice"><button type="button" onClick={() => { update('raceConcern', 'sick_or_pain'); next() }}>⚠️ Jag känner mig sjuk eller har ont</button><button type="button" onClick={() => { update('raceConcern', 'none'); next() }}>Nej, inget särskilt</button></div>}
         {question.kind === 'comment' && (
           <div className="comment-box">
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
@@ -1833,7 +1837,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
   }, [])
-  const signalFor = (item) => item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
+  const signalFor = (item) => item.raceConcern === 'sick_or_pain' ? '⚠️ Sjuk eller ont inför tävling' : item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
 
   if (!responses.length) {
     return <EmptyPeriod title={title} periodLabel={periodLabel} />

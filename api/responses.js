@@ -11,6 +11,7 @@ function validate(body) {
   if (!Number.isInteger(body.feeling) || body.feeling < 1 || body.feeling > 5) return false
   if (body.pass != null && ![1, 3, 5].includes(body.pass)) return false
   if (body.setup != null && ![1, 3, 5].includes(body.setup)) return false
+  if (body.raceConcern != null && !['sick_or_pain', 'none'].includes(body.raceConcern)) return false
   return Object.entries(numberFields).every(([key, [min, max]]) =>
     body[key] == null || (Number.isInteger(body[key]) && body[key] >= min && body[key] <= max)
   )
@@ -31,6 +32,7 @@ function toDatabase(response, profileId) {
     setup_rating: response.setup ?? null,
     comment: response.comment?.trim().slice(0, 300) || null,
     profile_id: profileId || null,
+    race_concern: response.raceConcern || null,
   }
 }
 
@@ -51,6 +53,7 @@ function fromDatabase(response, includeDetails) {
     setup: response.setup_rating,
     comment: response.comment || '',
     profileId: response.profile_id || null,
+    raceConcern: response.race_concern || null,
   }
 }
 
