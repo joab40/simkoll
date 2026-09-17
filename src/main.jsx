@@ -68,6 +68,7 @@ function App() {
   const [screen, setScreen] = useState('home')
   const [talksEnabled, setTalksEnabled] = useState(false)
   const [planningEnabled, setPlanningEnabled] = useState(false)
+  const [starsEnabled, setStarsEnabled] = useState(true)
   const [appFeedbackEnabled, setAppFeedbackEnabled] = useState(true)
   const [swimmerEffects, setSwimmerEffects] = useState(true)
   const [competitions, setCompetitions] = useState([])
@@ -112,7 +113,7 @@ function App() {
     if (!auth || !profile) return
     apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false)).catch(() => {})
   }, [auth, profile])
-  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { setPlanningEnabled(data.settings?.swimmer?.planning === true); setAppFeedbackEnabled(data.settings?.swimmer?.appFeedback !== false); setSwimmerEffects(data.settings?.swimmerEffects !== false) }).catch(() => { setPlanningEnabled(false); setAppFeedbackEnabled(true); setSwimmerEffects(true) }) }, [auth, profile])
+  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { setPlanningEnabled(data.settings?.swimmer?.planning === true); setAppFeedbackEnabled(data.settings?.swimmer?.appFeedback !== false); setStarsEnabled(data.settings?.swimmer?.stars !== false); setSwimmerEffects(data.settings?.swimmerEffects !== false) }).catch(() => { setPlanningEnabled(false); setAppFeedbackEnabled(true); setStarsEnabled(true); setSwimmerEffects(true) }) }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
@@ -179,7 +180,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -411,7 +412,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, swimmerEffects, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
@@ -434,7 +435,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
           )) : <p>Inga svar ännu – bli först!</p>}
         </div>
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count">● {activeProfilesToday} profiler inne idag</span>}</div>
-        {profile && <StarProgress stars={stars} />}
+        {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
 
       {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
@@ -444,7 +445,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
-      {profile && <WeeklySwimCard training={training} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
+      {profile && <WeeklySwimCard training={training} showStars={starsEnabled} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard onOpen={onGame} onVanda={onVanda} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
@@ -628,7 +629,7 @@ const WEEK_SLOTS = [
   { key: 'dryland', short: 'Land', icon: '🤸' }, { key: 'afternoon_swim', short: 'Eftermiddag', icon: '🌇' },
 ]
 
-function WeeklySwimCard({ training, onOpen, onToggle, onPlan }) {
+function WeeklySwimCard({ training, showStars, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState('')
   const [cheer, setCheer] = useState('')
   const [localSessions, setLocalSessions] = useState(null)
@@ -651,9 +652,9 @@ function WeeklySwimCard({ training, onOpen, onToggle, onPlan }) {
   const togglePlan = async (date, slot, checked) => { const key = `plan-${date}-${slot}`; const previous = localPlans || []; const next = checked ? [...previous.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, weekStart: dateKey(start) }] : previous.filter((item) => !(item.date === date && item.slot === slot)); setLocalPlans(next); setSaving(key); try { const result = await onPlan(date, slot, checked); setCheer(result?.message || (checked ? 'Passet är planerat! 🗓️' : 'Planeringen är uppdaterad.')) } catch (error) { setLocalPlans(previous); window.alert(error.message) } finally { setSaving('') } }
   const percentage = goal ? Math.round((completed / goal.target) * 100) : null
   return <section className="weekly-training-card">
-    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small><StarProgress stars={stars} /></div><button onClick={onOpen}>Mina mål →</button></div>
+    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <StarProgress stars={stars} />}</div><button onClick={onOpen}>Mina mål →</button></div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
-    <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför alla planerade simpass under månaden.</small></details>
+    {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför alla planerade simpass under månaden.</small></details>}
     {cheer && <div className="cheer-message"><span>✨</span><strong>{cheer}</strong><button onClick={() => setCheer('')}>×</button></div>}
     <p className="plan-hint">◆ Planerat · ✓ Genomfört</p><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const planned = plannedSessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; const planKey = `plan-${key}`; return <div className="week-cell" key={day.date}><button type="button" className={`plan-toggle ${planned ? 'planned' : ''}`} disabled={day.date < today || saving === planKey} onClick={() => togglePlan(day.date, slot.key, !planned)} aria-label={`${planned ? 'Ta bort' : 'Planera'} ${slot.short} ${day.date}`}>{planned ? '◆' : saving === planKey ? '…' : '◆'}</button><label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''}`}><input type="checkbox" disabled={day.future || saving === key} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} /><i>{marked ? '✓' : saving === key ? '…' : ''}</i></label></div> })}</div>)}</div>
   </section>
@@ -1392,7 +1393,7 @@ function CoachPlanning({ code }) {
 function WebappSettings({ code }) {
   const [settings, setSettings] = useState({ swimmer: {}, coach: {} })
   const [saved, setSaved] = useState(false)
-  const swimmerFeatures = [['planning', 'Veckoplanering'], ['workout', 'Dagens pass'], ['competition', 'Tävlingsresultat'], ['talks', 'Utvecklingssamtal'], ['games', 'Veckans spel'], ['community', 'Pepp och meddelanden']]
+  const swimmerFeatures = [['planning', 'Veckoplanering'], ['workout', 'Dagens pass'], ['competition', 'Tävlingsresultat'], ['talks', 'Utvecklingssamtal'], ['games', 'Veckans spel'], ['community', 'Pepp och meddelanden'], ['stars', 'Träningsstjärnor']]
   const coachFeatures = [['swimmers', 'Simmare'], ['groups', 'Grupper'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingskalender'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['workout-library', 'Passbibliotek'], ['competition', 'Tävlingsresultat'], ['faq', 'FAQ'], ['legal', 'Info & villkor']]
   const overviewFeatures = [['today', 'Idag'], ['swimmers', 'Simmare'], ['groups', 'Grupper'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingar'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['competition', 'Tävlingsresultat'], ['workout-library', 'Passbibliotek'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['app-feedback', 'Appfeedback'], ['faq', 'FAQ'], ['legal', 'Info & villkor'], ['settings', 'Inställningar']]
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setSettings(data.settings || { swimmer: {}, coach: {} })).catch(() => {}) }, [code])
