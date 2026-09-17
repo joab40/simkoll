@@ -50,6 +50,14 @@ export default async function handler(request, response) {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
       if (profile) await touchProfileActivity(profile.id)
+      if (role === 'coach' && request.query?.appFeedback === 'true') {
+        const result = await supabaseRequest('app_feedback?select=rating,best_area,improve_area,feature_request,comment,created_at&order=created_at.desc&limit=1000')
+        if (!result.ok) throw new Error(`App feedback GET failed: ${result.status} ${await result.text()}`)
+        const rows = await result.json()
+        const counts = { ratings: {}, bestAreas: {}, improveAreas: {}, featureRequests: {} }
+        rows.forEach((item) => { if (item.rating) counts.ratings[item.rating] = (counts.ratings[item.rating] || 0) + 1; if (item.best_area) counts.bestAreas[item.best_area] = (counts.bestAreas[item.best_area] || 0) + 1; if (item.improve_area) counts.improveAreas[item.improve_area] = (counts.improveAreas[item.improve_area] || 0) + 1; if (item.feature_request) counts.featureRequests[item.feature_request] = (counts.featureRequests[item.feature_request] || 0) + 1 })
+        return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: rows.filter((item) => item.comment?.trim()).map((item) => ({ comment: item.comment.trim(), createdAt: item.created_at })).slice(0, 100) })
+      }
       const [postsResult, groupResult, profiles, messagesResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=100'),
@@ -88,6 +96,19 @@ export default async function handler(request, response) {
       })
       if (!result.ok) throw new Error(`Post insert failed: ${result.status} ${await result.text()}`)
       return sendJson(response, 201, { ok: true })
+    }
+
+    if (request.method === 'POST' && role !== 'coach') {
+      if (request.body?.action === 'app-feedback') {
+        const profile = await getSessionProfile(request)
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att lämna appfeedback.' })
+        const rating = Number(request.body.rating)
+        const allowed = (value, list) => value == null || value === '' || list.includes(String(value))
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5 || !allowed(request.body.bestArea, ['checkin', 'goals', 'games', 'planning', 'messages', 'other']) || !allowed(request.body.improveArea, ['speed', 'design', 'content', 'features', 'other']) || !allowed(request.body.featureRequest, ['statistics', 'games', 'messages', 'planning', 'other'])) return sendJson(response, 400, { error: 'Välj giltiga svar.' })
+        const result = await supabaseRequest('app_feedback', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ profile_id: profile.id, rating, best_area: request.body.bestArea || null, improve_area: request.body.improveArea || null, feature_request: request.body.featureRequest || null, comment: String(request.body.comment || '').trim().slice(0, 500) || null }) })
+        if (!result.ok) throw new Error(`App feedback POST failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 201, { ok: true })
+      }
     }
 
     if (request.method === 'POST') {
