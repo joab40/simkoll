@@ -80,7 +80,8 @@ async function createAiInsight(request, response) {
   const volumeRows = safe.trend.filter((item) => item.distanceMeters != null || item.durationMinutes != null)
   const volumeSplit = Math.max(1, Math.floor(volumeRows.length / 2))
   safe.volumeRecentVsEarlier = { earlierMeters: volumeRows.slice(0, volumeSplit).reduce((sum, item) => sum + (item.distanceMeters || 0), 0) || null, recentMeters: volumeRows.slice(-volumeSplit).reduce((sum, item) => sum + (item.distanceMeters || 0), 0) || null, earlierMinutes: volumeRows.slice(0, volumeSplit).reduce((sum, item) => sum + (item.durationMinutes || 0), 0) || null, recentMinutes: volumeRows.slice(-volumeSplit).reduce((sum, item) => sum + (item.durationMinutes || 0), 0) || null, passesEarlier: volumeRows.slice(0, volumeSplit).length, passesRecent: volumeRows.slice(-volumeSplit).length }
-  safe.dataQuality = { passesWithMetersButNoResponses: safe.trend.filter((item) => item.distanceMeters > 0 && !item.count).length, passesWithResponses: safe.trend.filter((item) => item.count > 0).length, passesTotal: safe.trend.length }
+  const experienceKeys = ['feeling', 'body', 'rpe', 'speedFeeling', 'passRating']
+  safe.dataQuality = { passesWithMetersButNoResponses: safe.trend.filter((item) => item.distanceMeters > 0 && (!item.count || !experienceKeys.some((key) => Number(item[key]) > 0))).length, passesWithResponses: safe.trend.filter((item) => item.count > 0).length, passesTotal: safe.trend.length }
   const prompt = `Du är ett försiktigt men noggrant analysstöd för simtränare. Analysera endast datan nedan och skriv på svenska. Målet är en användbar tränarbild, inte en allmän pepptext.
 
 Arbeta i denna ordning:
