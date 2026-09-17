@@ -73,7 +73,9 @@ export async function awardArtifact(profileId, artifactKey) {
   })
   if (!result.ok) throw new Error(`Artifact insert failed: ${result.status}`)
   const inserted = await result.json()
-  if (inserted.length) await awardPoints(profileId, 'artifact', 5, artifact.id)
+  // awardPoints är idempotent via (profile_id, event_type, source_key),
+  // så även redan tilldelade artefakter får en eventuell saknad poänghändelse.
+  await awardPoints(profileId, 'artifact', 5, artifact.id)
 }
 
 function readCookie(request, name) {

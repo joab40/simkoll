@@ -111,7 +111,8 @@ export default async function handler(request, response) {
         const result = await supabaseRequest('profile_artifacts?on_conflict=profile_id,artifact_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify({ profile_id: profileId, artifact_id: artifact.id, source: 'coach' }) })
         if (!result.ok) throw new Error(`Artifact grant failed: ${result.status} ${await result.text()}`)
         const inserted = await result.json()
-        if (inserted.length) await awardPoints(profileId, 'artifact', 5, artifact.id)
+        // Idempotent: återförsök kan reparera en artefakt som sparats utan poäng.
+        await awardPoints(profileId, 'artifact', 5, artifact.id)
         return sendJson(response, 201, { ok: true, alreadyAssigned: !inserted.length })
       }
       if (action === 'add-level') {
