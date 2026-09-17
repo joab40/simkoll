@@ -182,6 +182,7 @@ export default async function handler(request, response) {
         } else {
           const result = await supabaseRequest(`planned_training_sessions?${filter}`, { method: 'DELETE' })
           if (!result.ok) throw new Error(`Plan delete failed: ${result.status}`)
+          return sendJson(response, 200, { ok: true, message: 'Planeringen är uppdaterad.' })
         }
         const planned = await supabaseRequest(`planned_training_sessions?profile_id=eq.${profile.id}&week_start=eq.${weekStart}&select=planned_date`)
         if (!planned.ok) throw new Error('Plan lookup failed')
