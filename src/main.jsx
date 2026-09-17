@@ -89,9 +89,10 @@ function App() {
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setTomorrowWorkout(null); setWorkoutLocked(false); return }
     const loadProfileData = async () => {
-      const trainingData = await apiRequest('/api/training', auth.code)
       const tomorrow = dateKey(new Date(Date.now() + 86400000))
-      const [workoutData, tomorrowData, activityData, pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
+      // Starta alla oberoende hämtningar samtidigt. Tidigare blockerade
+      // /api/training resten av simmarvyn eftersom det hämtades först.
+      const [trainingData, workoutData, tomorrowData, activityData, pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
       setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setNotifications(notificationData.notifications || []); setTraining(trainingData); setCompetitions(competitionData.competitions || [])
     }
     loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
@@ -104,7 +105,6 @@ function App() {
   useEffect(() => {
     if (!auth || !profile) return undefined
     const refresh = () => apiRequest('/api/notifications', auth.code).then((data) => setNotifications(data.notifications || [])).catch(() => {})
-    refresh()
     const timer = window.setInterval(refresh, 30000)
     return () => window.clearInterval(timer)
   }, [auth, profile])
