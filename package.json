@@ -1,7 +1,7 @@
 {
   "name": "simkoll",
   "private": true,
-  "version": "2.93.3",
+  "version": "2.93.4",
   "type": "module",
   "scripts": {
     "dev": "vite",

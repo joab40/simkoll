@@ -836,7 +836,8 @@ button { cursor: pointer; }
 .trend-bars { min-height: 235px; display: flex; align-items: stretch; gap: 5px; overflow-x: auto; border-bottom: 1px solid #dce7e4; padding: 12px 2px 0; }
 .trend-bars > div { flex: 1 0 38px; display: grid; grid-template-rows: 180px 23px 17px; text-align: center; }
 .trend-bars > div > div { display: flex; align-items: end; justify-content: center; gap: 3px; }
-.trend-bars i { width: 10px; min-height: 2px; max-height: 90%; border-radius: 5px 5px 1px 1px; background: var(--aqua); }
+.trend-bars i { position: relative; width: 10px; min-height: 2px; max-height: 90%; border-radius: 5px 5px 1px 1px; background: var(--aqua); cursor: help; }
+.trend-bars i:hover::after { content: attr(title); position: absolute; z-index: 5; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%); width: max-content; max-width: 140px; padding: 5px 7px; border-radius: 7px; background: var(--ink); color: #fff; font-size: 10px; line-height: 1.2; white-space: nowrap; pointer-events: none; box-shadow: 0 4px 12px rgba(16, 48, 54, .18); }
 .trend-bars i.body-bar { background: var(--lime); }
 .trend-bars small { color: var(--muted); font-size: 8px; white-space: nowrap; }
 .trend-bars b { color: var(--muted); font-size: 8px; font-weight: 500; }
