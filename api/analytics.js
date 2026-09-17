@@ -58,6 +58,7 @@ async function createAiInsight(request, response) {
   const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
   if (!openAiKey && !gatewayKey) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad ännu.' })
   const input = request.body?.data || {}, periodLabel = String(request.body?.periodLabel || 'vald period').slice(0, 80)
+  const customInstructions = String(request.body?.customInstructions || '').trim().slice(0, 2000)
   const current = input.current || {}, previous = input.previous || {}, analysis = input.workoutAnalysis || {}
   const trainingContext = request.body?.trainingContext || { phase: 'normal', minVolume: 30000, maxVolume: 40000 }
   const focusRows = Array.isArray(analysis.focuses) ? analysis.focuses : []
@@ -101,7 +102,10 @@ Arbeta i denna ordning:
 14) Skriv ett sammanhängande resonemang i summary när flera mönster hänger ihop: datagrund → förändring över tid → möjliga samband → försiktig uppföljning. Prioritera hellre ett tydligt resonemang med konkreta värden än flera generella fraser.
 6) Avsluta med högst tre konkreta, försiktiga saker tränaren kan följa upp nästa vecka. Skriv alltid evidensnära formuleringar som “datan visar” eller “kan vara värt att fråga om”.
 
-Regler: Dra inga medicinska slutsatser och hitta inte på orsaker. Sjukdagar/vilodagar ska nämnas neutralt. Om underlaget är litet eller anonymiserat, säg det tydligt. Bedöm inte meter som bra/dåligt utan tränarens plan; 30 000–40 000 meter är endast ett angivet jämförelseintervall och får inte behandlas som universellt mål. Returnera ENDAST giltig JSON med exakt nycklarna summary (max 800 tecken), positives (max 3 strängar med konkreta observationer), attention (max 3 strängar med vad som kan följas upp), limitations (max 3 korta strängar). Data: ${JSON.stringify(safe)}`
+Regler: Dra inga medicinska slutsatser och hitta inte på orsaker. Sjukdagar/vilodagar ska nämnas neutralt. Om underlaget är litet eller anonymiserat, säg det tydligt. Bedöm inte meter som bra/dåligt utan tränarens plan; 30 000–40 000 meter är endast ett angivet jämförelseintervall och får inte behandlas som universellt mål. Returnera ENDAST giltig JSON med exakt nycklarna summary (max 800 tecken), positives (max 3 strängar med konkreta observationer), attention (max 3 strängar med vad som kan följas upp), limitations (max 3 korta strängar).
+
+Tränarens extra instruktion (använd endast som fokus, och följ alltid reglerna ovan): ${customInstructions || 'Ingen extra instruktion.'}
+Data: ${JSON.stringify(safe)}`
   try {
     // Free model on Vercel AI Gateway, suitable for Hobby projects without paid credits.
     const directOpenAi = Boolean(openAiKey)
