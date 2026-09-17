@@ -1305,7 +1305,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
     const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), previousStart: range.previousStart.toISOString(), previousEnd: (range.previousEnd || range.start).toISOString() })
     query.set('period', period)
     if (profile) query.set('profileId', profile.id)
-    apiRequest(`/api/analytics?${query}`, code).then((nextData) => { setData(nextData); setAiInsight(nextData.savedInsight?.insight || null); setAiCreatedAt(nextData.savedInsight?.created_at || null) }).catch((nextError) => setError(nextError.message))
+    apiRequest(`/api/analytics?${query}`, code).then((nextData) => { const safeData = { ...nextData, current: nextData.current || {}, previous: nextData.previous || {}, trend: Array.isArray(nextData.trend) ? nextData.trend : [], workoutAnalysis: nextData.workoutAnalysis || { focuses: [], workload: [] } }; setData(safeData); setAiInsight(safeData.savedInsight?.insight || null); setAiCreatedAt(safeData.savedInsight?.created_at || null) }).catch((nextError) => setError(nextError.message))
   }, [code, profile?.id, period])
   useEffect(() => {
     if (!data) return undefined
