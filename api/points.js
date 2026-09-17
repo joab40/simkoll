@@ -115,6 +115,22 @@ export default async function handler(request, response) {
         await awardPoints(profileId, 'artifact', 5, artifact.id)
         return sendJson(response, 201, { ok: true, alreadyAssigned: !inserted.length })
       }
+      if (action === 'revoke-artifact') {
+        const profileId = String(request.body?.profileId || ''), artifactKey = String(request.body?.artifactKey || '')
+        if (!profileId || !artifactKey) return sendJson(response, 400, { error: 'Välj simmare och artefakt.' })
+        const catalogResult = await supabaseRequest(`artifact_catalog?artifact_key=eq.${artifactKey}&select=id&limit=1`)
+        if (!catalogResult.ok) throw new Error(`Artifact lookup failed: ${catalogResult.status}`)
+        const artifact = (await catalogResult.json())[0]
+        if (!artifact) return sendJson(response, 404, { error: 'Artefakten kunde inte hittas.' })
+        const assignment = await supabaseRequest(`profile_artifacts?profile_id=eq.${profileId}&artifact_id=eq.${artifact.id}&select=id&limit=1`)
+        if (!assignment.ok) throw new Error(`Artifact assignment lookup failed: ${assignment.status}`)
+        if (!(await assignment.json()).length) return sendJson(response, 404, { error: 'Artefakten är inte tilldelad.' })
+        const pointsResult = await supabaseRequest(`point_events?profile_id=eq.${profileId}&event_type=eq.artifact&source_key=eq.${artifact.id}`, { method: 'DELETE' })
+        if (!pointsResult.ok) throw new Error(`Artifact points revoke failed: ${pointsResult.status} ${await pointsResult.text()}`)
+        const deleteResult = await supabaseRequest(`profile_artifacts?profile_id=eq.${profileId}&artifact_id=eq.${artifact.id}`, { method: 'DELETE' })
+        if (!deleteResult.ok) throw new Error(`Artifact revoke failed: ${deleteResult.status} ${await deleteResult.text()}`)
+        return sendJson(response, 200, { ok: true })
+      }
       if (action === 'add-level') {
         const name = String(request.body.name || '').trim(), emoji = String(request.body.emoji || '').trim(), minPoints = Number(request.body.minPoints)
         if (!name || name.length > 30 || !emoji || emoji.length > 16 || !Number.isInteger(minPoints) || minPoints < 1 || minPoints > 100000) return sendJson(response, 400, { error: 'Kontrollera den nya nivån.' })
