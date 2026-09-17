@@ -92,8 +92,13 @@ function App() {
       const tomorrow = dateKey(new Date(Date.now() + 86400000))
       // Starta alla oberoende hämtningar samtidigt. Tidigare blockerade
       // /api/training resten av simmarvyn eftersom det hämtades först.
-      const [trainingData, workoutData, tomorrowData, activityData, pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
-      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setPoints(pointsData); setNotifications(notificationData.notifications || []); setTraining(trainingData); setCompetitions(competitionData.competitions || [])
+      const [trainingData, workoutData, tomorrowData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code)])
+      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setTraining(trainingData)
+      // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
+      const [pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
+      if (pointsData) setPoints(pointsData)
+      setNotifications(notificationData.notifications || [])
+      setCompetitions(competitionData.competitions || [])
     }
     loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
     const refreshOnFocus = () => { if (document.visibilityState === 'visible') loadProfileData().catch(() => {}) }
