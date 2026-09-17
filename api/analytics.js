@@ -223,7 +223,7 @@ export default async function handler(request, response) {
     return sendJson(response, 200, {
       current: metrics(currentResponses, currentSessions, currentActivities, privateView),
       previous: metrics(previousResponses, previousSessions, previousActivities, privateView),
-      trend: [...buckets.entries()].map(([date, rows]) => ({ date, count: rows.length, feeling: privateView || rows.length >= 3 ? mean(rows, 'feeling') : null, body: privateView || rows.length >= 3 ? mean(rows, 'body') : null, rpe: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'rpe') : null })),
+      trend: [...buckets.entries()].map(([date, rows]) => ({ date, count: rows.length, feeling: privateView || rows.length >= 3 ? mean(rows, 'feeling') : null, body: privateView || rows.length >= 3 ? mean(rows, 'body') : null, rpe: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'rpe') : null, speedFeeling: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'speed_feeling') : null, passRating: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'pass_rating') : null })),
       recent: privateView ? currentResponses.filter((item) => item.comment).slice(-10).reverse().map((item) => ({ date: item.created_at, feeling: item.feeling, comment: item.comment })) : [],
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
       goalProgress, currentWeekGoal, crossProgress, currentCrossGoals,

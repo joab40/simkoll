@@ -844,6 +844,14 @@ button { cursor: pointer; }
 .chart-legend span { display: flex; align-items: center; gap: 5px; }
 .chart-legend i { width: 9px; height: 9px; border-radius: 3px; background: var(--aqua); }
 .chart-legend span:last-child i { background: var(--lime); }
+.trend-bars i.rpe-bar { background: #f59e9e; }
+.trend-bars i.speed-bar { background: #9b8cff; }
+.trend-bars i.pass-bar { background: #f0b45b; }
+.chart-legend i.legend-feeling { background: var(--aqua); }
+.chart-legend i.legend-body { background: var(--lime); }
+.chart-legend i.legend-rpe { background: #f59e9e; }
+.chart-legend i.legend-speed { background: #9b8cff; }
+.chart-legend i.legend-pass { background: #f0b45b; }
 .training-summary > div { display: grid; gap: 8px; }
 .training-summary > div > p { display: grid; grid-template-columns: 32px 1fr; margin: 0; background: #edf5f2; border-radius: 11px; padding: 12px; }
 .training-summary p > span { grid-row: span 2; font-size: 24px; }
