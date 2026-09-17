@@ -132,7 +132,7 @@ export default async function handler(request, response) {
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
-      supabaseRequest(`daily_workouts?select=workout_date,focus,distance_meters,duration_minutes&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc&limit=1000`),
+      supabaseRequest(`daily_workouts?select=workout_date,title,focus,distance_meters,duration_minutes&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc&limit=1000`),
     ])
     if (![responsesResult, sessionsResult, activityResult, workoutsResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
     let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json(), workouts = await workoutsResult.json()
@@ -220,10 +220,29 @@ export default async function handler(request, response) {
       const activeCross = crossGoals.find((goal) => goal.start_date <= today && (!goal.end_date || goal.end_date >= today))
       if (activeCross) currentCrossGoals = Object.fromEntries([['strength', activeCross.strength_sessions_per_week], ['dryland', activeCross.dryland_sessions_per_week]].map(([type, target]) => { const completed = sessions.filter((session) => session.activity_type === type && session.session_date >= currentMonday && session.session_date < addDays(currentMonday, 7)).length; return [type, { target, completed, remaining: Math.max(0, target - completed), percentage: target ? Math.round((completed / target) * 100) : 0 }] }))
     }
+    const trendPasses = currentWorkouts.map((workout) => {
+      const rows = currentResponses.filter((item) => stockholmKey(item.created_at) === workout.workout_date)
+      const afterRows = rows.filter((item) => item.day_type === 'after')
+      const enoughResponses = privateView || rows.length >= 3
+      return {
+        date: workout.workout_date,
+        count: rows.length,
+        title: workout.title || 'Träningspass',
+        focus: workoutFocusLabel[workout.focus] || workout.focus || null,
+        distanceMeters: Number(workout.distance_meters || 0) || null,
+        durationMinutes: Number(workout.duration_minutes || 0) || null,
+        feeling: enoughResponses ? mean(rows, 'feeling') : null,
+        body: enoughResponses ? mean(rows, 'body') : null,
+        rpe: enoughResponses ? mean(afterRows, 'rpe') : null,
+        speedFeeling: enoughResponses ? mean(afterRows, 'speed_feeling') : null,
+        passRating: enoughResponses ? mean(afterRows, 'pass_rating') : null,
+      }
+    })
+    workoutAnalysis.trend = trendPasses
     return sendJson(response, 200, {
       current: metrics(currentResponses, currentSessions, currentActivities, privateView),
       previous: metrics(previousResponses, previousSessions, previousActivities, privateView),
-      trend: [...buckets.entries()].map(([date, rows]) => ({ date, count: rows.length, feeling: privateView || rows.length >= 3 ? mean(rows, 'feeling') : null, body: privateView || rows.length >= 3 ? mean(rows, 'body') : null, rpe: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'rpe') : null, speedFeeling: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'speed_feeling') : null, passRating: privateView || rows.length >= 3 ? mean(rows.filter((item) => item.day_type === 'after'), 'pass_rating') : null })),
+      trend: trendPasses,
       recent: privateView ? currentResponses.filter((item) => item.comment).slice(-10).reverse().map((item) => ({ date: item.created_at, feeling: item.feeling, comment: item.comment })) : [],
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
       goalProgress, currentWeekGoal, crossProgress, currentCrossGoals,
