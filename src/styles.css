@@ -852,6 +852,11 @@ button { cursor: pointer; }
 .chart-legend i.legend-rpe { background: #f59e9e; }
 .chart-legend i.legend-speed { background: #9b8cff; }
 .chart-legend i.legend-pass { background: #f0b45b; }
+.trend-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--muted); font-size: 11px; }
+.trend-controls label { display: inline-flex; align-items: center; gap: 3px; color: var(--ink); }
+.trend-controls input { accent-color: var(--teal); }
+.trend-card.hide-trend-feeling .feeling-bar, .trend-card.hide-trend-body .body-bar, .trend-card.hide-trend-rpe .rpe-bar, .trend-card.hide-trend-speed .speed-bar, .trend-card.hide-trend-pass .pass-bar { display: none; }
+.trend-card.hide-trend-feeling .legend-feeling, .trend-card.hide-trend-body .legend-body, .trend-card.hide-trend-rpe .legend-rpe, .trend-card.hide-trend-speed .legend-speed, .trend-card.hide-trend-pass .legend-pass { opacity: .3; }
 .training-summary > div { display: grid; gap: 8px; }
 .training-summary > div > p { display: grid; grid-template-columns: 32px 1fr; margin: 0; background: #edf5f2; border-radius: 11px; padding: 12px; }
 .training-summary p > span { grid-row: span 2; font-size: 24px; }
