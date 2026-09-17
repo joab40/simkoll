@@ -1167,7 +1167,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} responses={responses} />
         ) : view === 'planning' ? (
-          <CoachPlanning code={code} />
+          <><SportAdminImport code={code} /><CoachPlanning code={code} /></>
         ) : view === 'competition-calendar' ? (
           <CompetitionCalendar code={code} />
         ) : view === 'settings' ? (
@@ -1363,6 +1363,10 @@ function CoachPlanning({ code }) {
   const [error, setError] = useState('')
   const [weekOffset, setWeekOffset] = useState(0)
   const [group, setGroup] = useState('all')
+  const [sportAdmin, setSportAdmin] = useState({ activities: [], fetchedAt: null })
+  const [sportAdminLoading, setSportAdminLoading] = useState(false)
+  const [sportAdminError, setSportAdminError] = useState('')
+  const importSportAdmin = async () => { setSportAdminLoading(true); setSportAdminError(''); try { setSportAdmin(await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sportadmin-calendar' }) })) } catch (error) { setSportAdminError(error.message || 'Kunde inte läsa SportAdmin-kalendern.') } finally { setSportAdminLoading(false) } }
 
   useEffect(() => {
     setLoading(true)
@@ -1398,6 +1402,12 @@ function CoachPlanning({ code }) {
   const groupLabel = (value) => ({ ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }[value] || value)
   const typeLabel = (type) => ({ swim: 'Simning', strength: 'Styrka', dryland: 'Landträning', competition: 'Tävling' }[type] || type)
   return <section className="coach-planning"><div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Veckans grundplan</h1><small>{weekLabel} · {group === 'all' ? 'Alla grupper' : groupLabel(group)}</small></div><div className="big-count"><strong>{days.reduce((sum, day) => sum + day.activities.length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-controls"><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.max(-4, value - 1))}>← Föregående vecka</button><button className="secondary-button" onClick={() => setWeekOffset(0)}>Den här veckan</button><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.min(4, value + 1))}>Nästa vecka →</button><label>Grupp<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label></div>{loading ? <p className="empty">Hämtar veckoplanering…</p> : error ? <p className="form-error">{error}</p> : <><div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.reduce((sum, day) => sum + day.activities.length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-day-list">{days.map((day) => <article className={`planning-day${day.activities.length ? ' has-workout' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}</small></div><PlanningEditButton code={code} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current, saved])} label="+ Lägg till" /></header>{day.activities.length ? day.activities.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<PlanningEditButton code={code} plan={plan} date={day.key} group={group} onSaved={(saved) => setPlans((current) => current.map((item) => item.id === saved.id ? saved : item))} /></div>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article>)}</div></>}</section>
+}
+
+function SportAdminImport({ code }) {
+  const [data, setData] = useState({ activities: [], fetchedAt: null }), [loading, setLoading] = useState(false), [error, setError] = useState('')
+  const importCalendar = async () => { setLoading(true); setError(''); try { setData(await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sportadmin-calendar' }) })) } catch (requestError) { setError(requestError.message || 'Kunde inte läsa SportAdmin-kalendern.') } finally { setLoading(false) } }
+  return <section className="sportadmin-import"><button type="button" className="secondary-button" onClick={importCalendar} disabled={loading}>📅 {loading ? 'Läser kalender…' : 'Testa SportAdmin-kalender'}</button>{data.fetchedAt && <small>Hämtad {new Date(data.fetchedAt).toLocaleString('sv-SE')}</small>}{error && <small className="form-error">{error}</small>}{data.activities.length > 0 && <div><strong>{data.activities.length} aktiviteter hittades</strong>{data.activities.slice(0, 12).map((item) => <p key={item.id}>{item.date}{item.time ? ` · ${item.time}` : ''} · {item.title}{item.location ? ` · ${item.location}` : ''}</p>)}</div>}</section>
 }
 
 function WebappSettings({ code }) {

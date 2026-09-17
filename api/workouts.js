@@ -12,6 +12,23 @@ function publicCompetition(item) {
   return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', updatedAt: item.updated_at }
 }
 
+function parseSportAdminIcs(source) {
+  const lines = String(source || '').replace(/\r\n[ \t]/g, '').split(/\r?\n/), events = []
+  let event = null
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') { event = {}; continue }
+    if (line === 'END:VEVENT') { if (event?.date && event.title) events.push({ ...event, id: `sportadmin-${events.length}-${event.date}-${event.title}` }); event = null; continue }
+    if (!event) continue
+    const separator = line.indexOf(':'); if (separator < 0) continue
+    const key = line.slice(0, separator).split(';')[0], value = line.slice(separator + 1).replace(/\\n/g, '\n').replace(/\\,/g, ',').trim()
+    if (key === 'SUMMARY') event.title = value
+    if (key === 'LOCATION') event.location = value
+    if (key === 'DESCRIPTION') event.notes = value
+    if (key === 'DTSTART') { const match = value.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?/); if (match) { event.date = `${match[1]}-${match[2]}-${match[3]}`; event.time = match[4] ? `${match[4]}:${match[5]}` : '' } }
+  }
+  return events.slice(0, 300)
+}
+
 async function syncPlanningFromWorkout(workout) {
   const date = workout.workout_date
   const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&limit=1`)
@@ -169,6 +186,11 @@ export default async function handler(request, response) {
         const fallback = parseWorkoutCsv(text)
         const draft = await improveWorkoutWithAi(text, fallback)
         return sendJson(response, 200, { draft })
+      }
+      if (request.body?.action === 'import-sportadmin-calendar') {
+        const source = await fetch('https://portalweb.sportadmin.se/webcal?id=745c5643-5d4c-43c2-a7f3-a92e2846c145')
+        if (!source.ok) return sendJson(response, 502, { error: `SportAdmin-kalendern svarade med ${source.status}.` })
+        return sendJson(response, 200, { activities: parseSportAdminIcs(await source.text()), source: 'SportAdmin Webcal', fetchedAt: new Date().toISOString() })
       }
       const date = String(request.body?.date || stockholmDate())
       const title = String(request.body?.title || '').trim()
