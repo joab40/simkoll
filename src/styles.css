@@ -849,6 +849,11 @@ button { cursor: pointer; }
 .trend-bars i.speed-bar { background: #9b8cff; }
 .trend-bars i.pass-bar { background: #f0b45b; }
 .trend-line-section { margin: 16px 0 22px; }
+.trend-line-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; }
+.trend-line-filter strong { width: 100%; color: var(--muted); font-size: 11px; }
+.trend-line-filter button { border: 1px solid #d8e7e4; border-radius: 999px; padding: 5px 8px; background: #fff; color: var(--muted); font-size: 10px; cursor: pointer; }
+.trend-line-filter button.active { border-color: var(--ink); color: var(--ink); background: #eef8f5; }
+.trend-line-filter i { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; }
 .trend-line-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 8px 0; color: var(--muted); font-size: 11px; }
 .trend-line-legend span, .trend-hover-card span { display: inline-flex; align-items: center; gap: 5px; }
 .trend-line-legend i, .trend-hover-card i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
