@@ -79,7 +79,7 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages })
     }
 
-    if (request.method === 'POST' && role === 'coach') {
+    if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
       if (request.body?.action === 'message') {
         const recipientId = String(request.body?.recipientId || ''), content = String(request.body?.content || '').trim()
         if (!recipientId || !content || content.length > 1000) return sendJson(response, 400, { error: 'Välj simmare och skriv ett meddelande på högst 1000 tecken.' })
@@ -98,14 +98,20 @@ export default async function handler(request, response) {
       return sendJson(response, 201, { ok: true })
     }
 
-    if (request.method === 'POST' && role !== 'coach') {
+    if (request.method === 'POST' && role === 'coach' && request.body?.action === 'reset-app-feedback') {
+      const result = await supabaseRequest('app_feedback?id=not.is.null', { method: 'DELETE' })
+      if (!result.ok) throw new Error(`App feedback reset failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { ok: true })
+    }
+
+    if (request.method === 'POST' && (role === 'coach' || role === 'swimmer')) {
       if (request.body?.action === 'app-feedback') {
-        const profile = await getSessionProfile(request)
-        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att lämna appfeedback.' })
+        const profile = role === 'coach' ? null : await getSessionProfile(request)
+        if (role === 'swimmer' && !profile) return sendJson(response, 403, { error: 'Logga in på din profil för att lämna appfeedback.' })
         const rating = Number(request.body.rating)
         const allowed = (value, list) => value == null || value === '' || list.includes(String(value))
         if (!Number.isInteger(rating) || rating < 1 || rating > 5 || !allowed(request.body.bestArea, ['checkin', 'goals', 'games', 'planning', 'messages', 'other']) || !allowed(request.body.improveArea, ['speed', 'design', 'content', 'features', 'other']) || !allowed(request.body.featureRequest, ['statistics', 'games', 'messages', 'planning', 'other'])) return sendJson(response, 400, { error: 'Välj giltiga svar.' })
-        const result = await supabaseRequest('app_feedback', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ profile_id: profile.id, rating, best_area: request.body.bestArea || null, improve_area: request.body.improveArea || null, feature_request: request.body.featureRequest || null, comment: String(request.body.comment || '').trim().slice(0, 500) || null }) })
+        const result = await supabaseRequest('app_feedback', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ profile_id: profile?.id || null, submitted_by_role: role, rating, best_area: request.body.bestArea || null, improve_area: request.body.improveArea || null, feature_request: request.body.featureRequest || null, comment: String(request.body.comment || '').trim().slice(0, 500) || null }) })
         if (!result.ok) throw new Error(`App feedback POST failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 201, { ok: true })
       }
