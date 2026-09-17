@@ -597,7 +597,7 @@ function Simpaus({ code, onBack }) {
       if (!game.running) { draw(); return }
       const delta = Math.min(.035, (time - (game.last || time)) / 1000); game.last = time; game.time = time / 1000; game.velocity += 920 * delta; game.y += game.velocity * delta; game.spawn = (game.spawn || 0) - delta
       if (game.spawn <= 0) { game.obstacles.push({ x: width + 10, width: 42, gap: 110 + Math.random() * 190, size: 66 }); game.spawn = 1.45 }
-      game.obstacles.forEach((obstacle) => { obstacle.x -= 145 * delta; if (!obstacle.passed && obstacle.x + obstacle.width < 56) { obstacle.passed = true; game.score += 1; setScore(game.score) } })
+      ;(game.obstacles || []).forEach((obstacle) => { obstacle.x -= 145 * delta; if (!obstacle.passed && obstacle.x + obstacle.width < 56) { obstacle.passed = true; game.score += 1; setScore(game.score) } })
       game.obstacles = game.obstacles.filter((obstacle) => obstacle.x + obstacle.width > -10)
       const hit = game.y < 14 || game.y > height - 8 || game.obstacles.some((obstacle) => obstacle.x < 68 && obstacle.x + obstacle.width > 40 && (game.y < obstacle.gap - obstacle.size || game.y > obstacle.gap + obstacle.size))
       draw()
@@ -1101,7 +1101,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
       button.onclick = () => { setView('settings'); const details = menu.parentElement; if (details) details.open = false }
       menu.insertBefore(button, menu.lastElementChild); added.push(button)
     }
-    return () => added.forEach((button) => button.remove())
+    return () => (added || []).forEach((button) => button.remove())
   }, [])
   const overviewVisible = (key) => key === 'today' || navigationSettings.overview?.[key] !== false
   const overviewItems = [{ key: 'today', label: 'Idag', mobile: 'Idag' }, { key: 'swimmers', label: 'Simmare', mobile: 'Simmare' }, { key: 'workout', label: 'Pass', mobile: 'Pass' }, { key: 'planning', label: 'Planering', mobile: 'Plan' }, { key: 'competition-calendar', label: 'Tävlingar', mobile: 'Tävling' }, { key: 'community', label: 'Meddelanden', mobile: 'Meddelanden' }, { key: 'meeting', label: 'Veckomöte', mobile: 'Möte' }, { key: 'trends', label: 'Grupptrend', mobile: 'Trend' }, { key: 'history', label: 'Historik', mobile: 'Historik' }, { key: 'week', label: 'Förra veckan', mobile: 'Förra veckan' }, { key: 'talks', label: 'Utvecklingssamtal', mobile: 'Samtal' }, { key: 'competition', label: 'Tävlingsresultat', mobile: 'Resultat' }, { key: 'workout-library', label: 'Passbibliotek', mobile: 'Bibliotek' }, { key: 'goals', label: 'Utvecklingsmål', mobile: 'Mål' }, { key: 'programs', label: 'Träningsprogram', mobile: 'Program' }, { key: 'rewards', label: 'Poäng & nivåer', mobile: 'Poäng' }, { key: 'groups', label: 'Grupper', mobile: 'Grupper' }, { key: 'app-feedback', label: 'Appfeedback', mobile: 'Feedback' }, { key: 'faq', label: 'FAQ', mobile: 'FAQ' }, { key: 'legal', label: 'Info & villkor', mobile: 'Info' }, { key: 'settings', label: 'Inställningar', mobile: 'Inställn.' }]
