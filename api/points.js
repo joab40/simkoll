@@ -98,6 +98,19 @@ export default async function handler(request, response) {
         const teamBonus = await awardTeamGameBonus(key)
         return sendJson(response, 200, { ...(await monthlyGameLeaderboard(profile.id, key)), teamBonus })
       }
+      if (action === 'sync-stars') {
+        const profile = await getSessionProfile(request)
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil.' })
+        const stars = request.body?.stars && typeof request.body.stars === 'object' ? request.body.stars : {}
+        const awards = [
+          ['weekly_plan_star', stars.weeklyPlan, String(request.body.weekStart || '')],
+          ['cross_goals_star', stars.crossGoals, String(request.body.goalKey || 'current')],
+          ['swim_goal_star', stars.swimGoal, String(request.body.goalKey || 'current')],
+          ['monthly_swim_star', stars.monthlySwim, String(request.body.month || '')],
+        ]
+        for (const [eventType, earned, sourceKey] of awards) if (earned && sourceKey) await awardPoints(profile.id, eventType, 1, sourceKey)
+        return sendJson(response, 200, { ok: true })
+      }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
       if (action === 'grant-artifact') {
         const profileId = String(request.body?.profileId || ''), artifactKey = String(request.body?.artifactKey || '')
