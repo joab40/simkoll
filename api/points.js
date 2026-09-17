@@ -125,8 +125,8 @@ export default async function handler(request, response) {
         const assignment = await supabaseRequest(`profile_artifacts?profile_id=eq.${profileId}&artifact_id=eq.${artifact.id}&select=id&limit=1`)
         if (!assignment.ok) throw new Error(`Artifact assignment lookup failed: ${assignment.status}`)
         if (!(await assignment.json()).length) return sendJson(response, 404, { error: 'Artefakten är inte tilldelad.' })
-        const pointsResult = await supabaseRequest(`point_events?profile_id=eq.${profileId}&event_type=eq.artifact&source_key=eq.${artifact.id}`, { method: 'DELETE' })
-        if (!pointsResult.ok) throw new Error(`Artifact points revoke failed: ${pointsResult.status} ${await pointsResult.text()}`)
+        // Behåll poänghändelsen i historiken. Återkallning tar bara bort
+        // artefakten och ska aldrig ge simmaren poängavdrag.
         const deleteResult = await supabaseRequest(`profile_artifacts?profile_id=eq.${profileId}&artifact_id=eq.${artifact.id}`, { method: 'DELETE' })
         if (!deleteResult.ok) throw new Error(`Artifact revoke failed: ${deleteResult.status} ${await deleteResult.text()}`)
         return sendJson(response, 200, { ok: true })

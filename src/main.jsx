@@ -1762,7 +1762,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   }
   const revokeArtifact = async (profile, artifact) => {
     const key = `${profile.id}-${artifact.artifact_key}`
-    if (!window.confirm(`Återkalla ${artifact.name} från ${profile.displayName}? Artefakten och dess 5 poäng tas bort.`)) return
+    if (!window.confirm(`Återkalla ${artifact.name} från ${profile.displayName}? Artefakten tas bort, men intjänade poäng påverkas inte.`)) return
     setArtifactStatus((current) => ({ ...current, [key]: 'Återkallar…' }))
     try {
       await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'revoke-artifact', profileId: profile.id, artifactKey: artifact.artifact_key }) })
