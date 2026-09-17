@@ -1310,7 +1310,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false 
   useEffect(() => {
     if (!data) return undefined
     const card = document.querySelector('.trend-card'); if (!card || card.querySelector('.trend-controls')) return undefined
-    const controls = document.createElement('div'); controls.className = 'trend-controls'; controls.innerHTML = '<span>Visa:</span>'
+    const controls = document.createElement('div'); controls.className = 'trend-controls'; controls.innerHTML = '<span>Visa:</span>';
     [['feeling', 'Känsla'], ['body', 'Kropp'], ['rpe', 'RPE'], ['speed', 'Fartkänsla'], ['pass', 'Passet']].forEach(([key, label]) => { const item = document.createElement('label'); const input = document.createElement('input'); input.type = 'checkbox'; input.checked = true; input.addEventListener('change', () => card.classList.toggle(`hide-trend-${key}`, !input.checked)); item.append(input, ` ${label}`); controls.append(item) })
     card.insertBefore(controls, card.firstChild)
     return () => controls.remove()
