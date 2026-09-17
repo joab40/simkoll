@@ -1206,3 +1206,4 @@ button { cursor: pointer; }
 .star-progress span.earned { color: #ffd166; text-shadow: 0 0 10px rgba(255,209,102,.35); transform: scale(1.05); }
 .weekly-training-card .star-progress span { color: #b9c3d6; }
 .weekly-training-card .star-progress span.earned { color: #e0a92f; text-shadow: none; }
+.swimmer-stars { color: #c89428; font-weight: 800; white-space: nowrap; }

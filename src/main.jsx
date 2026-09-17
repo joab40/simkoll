@@ -370,6 +370,7 @@ const HELP_TEXT = {
   'Poäng och nivå': 'Visar aktivitet och positiva bidrag i Simkoll, inte simförmåga.',
   'Trend': 'Ett mönster över flera svar. En enstaka skattning ska inte övertolkas.',
   'Personlig AI-analys': 'En sparad, tränarskapad sammanfattning av dina egna träningsdata. Den är ett samtalsstöd – inte en diagnos eller ett automatiskt betyg.',
+  'Träningsstjärnor': 'Fyra små delmål som visar goda träningsvanor: planera veckan, ha överenskomna mål för simning, styrka och landträning samt genomföra alla planerade simpass under månaden. Varje stjärna ger 1 poäng när den låses upp. Grå stjärna betyder att villkoret inte är uppfyllt ännu.',
 }
 
 const FAQ_SCALES = {
@@ -395,12 +396,12 @@ function LegalPage({ onBack }) {
   return <div className="faq-page legal-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkoll</p><h1>Info & villkor</h1><p className="faq-intro">Här beskriver vi hur Simkoll används och hur information hanteras. Klubbens juridiska uppgifter och kontaktväg kompletteras innan skarp lansering.</p><div className="faq-list"><details open><summary>Integritet och data<span>−</span></summary><p>Simkoll samlar in svar om exempelvis energi, kroppskänsla, motivation, RPE, fartkänsla, temperatur och träningsupplevelse. Du väljer själv om ett svar ska vara anonymt eller kopplas till din profil.</p><p>Anonyma svar visas som gruppsammanställningar. Profilkopplade svar kan ses av behöriga tränare och av dig själv. Du kan be om information, rättelse eller radering av uppgifter via klubben.</p></details><details><summary>Personlig AI-analys<span>+</span></summary><p>En personlig analys aktiveras av tränare först efter att vårdnadshavare har godkänt det enligt klubbens rutin. Simmaren får sedan läsa den sparade analysen i sin profil. Funktionen är frivillig och kan stängas av.</p><p>Sammanställda träningsvärden skickas till en språkmodell. Namn, användarnamn och privata kommentarer skickas inte. Analysen är ett tränings- och samtalsstöd, inte en medicinsk bedömning eller ett automatiskt beslut. För information om OpenAI API:s datahantering, se <a href="https://platform.openai.com/docs/models/default-usage-policies-by-endpoint" target="_blank" rel="noreferrer">OpenAI:s officiella dokumentation</a>.</p></details><details><summary>AI för minderåriga<span>+</span></summary><p>För simmare under 18 år ska klubben inhämta vårdnadshavares godkännande och även informera simmaren på ett begripligt sätt. Godkännandet dokumenteras utanför eller i klubbens beslutade samtyckesflöde. Det ska gå att återkalla utan nackdelar.</p></details><details><summary>Användarvillkor<span>+</span></summary><p>Simkoll är ett frivilligt stöd för träningsfeedback och ersätter inte kontakt med tränare, vårdnadshavare eller vårdpersonal. Skriv inte diagnoser, personnummer eller andra känsliga uppgifter i fritextfält.</p><p>Pepp och meddelanden ska vara respektfulla. Olämpligt innehåll kan tas bort av tränare.</p></details><details><summary>Klubbens uppgifter<span>+</span></summary><p>Personuppgiftsansvarig, kontaktadress, lagringstid och information för minderåriga fylls i här innan appen används skarpt.</p></details></div><small className="legal-disclaimer">Detta är ett informationsutkast och bör granskas innan skarp användning.</small></section></div>
 }
 
-function currentStarState(training) {
+function currentStarState(training, profileId) {
   const today = todayKey(), start = weekStart(), week = dateKey(start), month = today.slice(0, 7)
-  const plans = training?.plannedSessions || [], sessions = training?.sessions || []
+  const plans = (training?.plannedSessions || []).filter((item) => !profileId || item.profileId === profileId), sessions = (training?.sessions || []).filter((item) => !profileId || item.profileId === profileId)
   const plannedWeek = plans.filter((item) => item.weekStart === week)
-  const goal = currentSeasonGoal(training)
-  const cross = training?.crossGoals?.find((item) => item.startDate <= today && (!item.endDate || item.endDate >= today))
+  const goal = (training?.seasonGoals || []).find((item) => (!profileId || item.profileId === profileId) && item.active && item.startDate <= today && item.endDate >= today) || (training?.seasonGoals || []).find((item) => (!profileId || item.profileId === profileId) && item.active)
+  const cross = (training?.crossGoals || []).find((item) => (!profileId || item.profileId === profileId) && item.startDate <= today && (!item.endDate || item.endDate >= today))
   const plannedMonthSwims = plans.filter((item) => String(item.date || '').startsWith(month) && String(item.slot || '').includes('swim'))
   const completedMonthSwims = new Set(sessions.filter((item) => item.type === 'swim' && String(item.date || '').startsWith(month)).map((item) => `${item.date}-${item.slot || ''}`))
   const monthlySwim = plannedMonthSwims.length > 0 && plannedMonthSwims.every((item) => completedMonthSwims.has(`${item.date}-${item.slot || ''}`))
@@ -1828,6 +1829,8 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const todayItem = items.filter((item) => dateKey(responseDate(item)) === todayKey()).sort((a, b) => responseDate(b) - responseDate(a))[0]
         const after = items.filter((item) => item.type === 'after')
         const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
+        const profileStars = currentStarState(training, profile.id)
+        const starCount = [profileStars.weeklyPlan, profileStars.crossGoals, profileStars.swimGoal, profileStars.monthlySwim].filter(Boolean).length
         const earnedArtifacts = artifactAssignments.filter((item) => item.profile_id === profile.id).map((item) => artifactCatalog.find((artifact) => artifact.id === item.artifact_id)).filter(Boolean)
         const weekStartDate = dateKey(weekStart(new Date()))
         const profileSessions = training?.sessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
@@ -1852,7 +1855,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
           <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
             <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
-            <div className="swimmer-card-meta"><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
+            <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
           </button>
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
