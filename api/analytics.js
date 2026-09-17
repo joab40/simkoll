@@ -81,6 +81,8 @@ Arbeta i denna ordning:
 3) Jämför passinriktningar mot upplevelsen. Lyft bara mönster som faktiskt stöds av flera svar eller flera pass, till exempel om fart/tröskel/syra återkommande har högre RPE än teknik/återhämtning.
 4) Relatera RPE till fartkänsla, kropp och passbetyg. Notera avvikande kombinationer som kan vara värda ett samtal, men påstå aldrig orsak.
 5) Ta med temperatur när den finns och skilj tydligt på observerat värde och tolkning.
+6) Resonera särskilt kring fartkänslan: jämför den med RPE, kropp, passbetyg, temperatur, passets inriktning, meter och tidsåtgång. Beskriv möjliga samband som hypoteser (”samvarierar med”, ”kan vara värt att undersöka”), aldrig som bevisad påverkan. Lyft bara ett samband om det syns i minst tre observationer eller återkommer i flera liknande pass.
+7) Skilj mellan pass som upplevs jobbiga på ett planerat sätt och signaler som kan behöva följas upp. En hög RPE under fart/tröskel/syra kan vara förväntad; en låg fartkänsla tillsammans med tung kropp eller sämre passbetyg är däremot en möjlig uppföljningspunkt.
 6) Avsluta med högst tre konkreta, försiktiga saker tränaren kan följa upp nästa vecka. Skriv alltid evidensnära formuleringar som “datan visar” eller “kan vara värt att fråga om”.
 
 Regler: Dra inga medicinska slutsatser och hitta inte på orsaker. Sjukdagar/vilodagar ska nämnas neutralt. Om underlaget är litet eller anonymiserat, säg det tydligt. Bedöm inte meter som bra/dåligt utan tränarens plan; 30 000–40 000 meter är endast ett angivet jämförelseintervall och får inte behandlas som universellt mål. Returnera ENDAST giltig JSON med exakt nycklarna summary (max 450 tecken), positives (max 3 strängar med konkreta observationer), attention (max 3 strängar med vad som kan följas upp), limitations (max 3 korta strängar). Data: ${JSON.stringify(safe)}`
@@ -246,6 +248,7 @@ export default async function handler(request, response) {
         body: enoughResponses ? mean(rows, 'body') : null,
         rpe: enoughResponses ? mean(afterRows, 'rpe') : null,
         speedFeeling: enoughResponses ? mean(afterRows, 'speed_feeling') : null,
+        temperature: enoughResponses ? mean(afterRows, 'temperature') : null,
         passRating: enoughResponses ? mean(afterRows, 'pass_rating') : null,
       }
     })
