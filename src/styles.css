@@ -688,6 +688,7 @@ button { cursor: pointer; }
 .week-cell .plan-toggle { border: 0; border-radius: 6px; background: transparent; color: #9bb2ac; font-size: 10px; cursor: pointer; }
 .week-cell .plan-toggle.planned { background: #dcebb0; color: #627e1d; }
 .week-cell .plan-toggle:disabled { opacity: .35; cursor: not-allowed; }
+.week-cell .plan-toggle.planned:disabled { opacity: 1; }
 .week-cell label { min-height: 32px !important; background: transparent !important; }
 .cross-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .cross-progress > div { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: center; background: #edf5f2; border-radius: 11px; padding: 11px; }
