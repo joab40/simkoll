@@ -60,6 +60,7 @@ function App() {
   const [tomorrowWorkout, setTomorrowWorkout] = useState(null)
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
+  const [activityDates, setActivityDates] = useState([])
   const [points, setPoints] = useState(null)
   const [notifications, setNotifications] = useState([])
   const [training, setTraining] = useState(null)
@@ -92,8 +93,8 @@ function App() {
       const tomorrow = dateKey(new Date(Date.now() + 86400000))
       // Starta alla oberoende hämtningar samtidigt. Tidigare blockerade
       // /api/training resten av simmarvyn eftersom det hämtades först.
-      const [trainingData, workoutData, tomorrowData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code)])
-      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setTraining(trainingData)
+      const [trainingData, workoutData, tomorrowData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity?streak=true', auth.code)])
+      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
       // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
       const [pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
       if (pointsData) setPoints(pointsData)
@@ -185,7 +186,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -422,9 +423,9 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
-  const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
+  const activeDates = new Set(activityDates?.length ? activityDates : responses.map((item) => dateKey(responseDate(item))))
   let streak = 0; const streakCursor = new Date()
   while (activeDates.has(dateKey(streakCursor))) { streak += 1; streakCursor.setDate(streakCursor.getDate() - 1) }
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
