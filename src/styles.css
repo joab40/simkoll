@@ -74,12 +74,13 @@ button { cursor: pointer; }
 .mood-hero.race-coming { background: linear-gradient(120deg, #173e58, #4d5f9c); }
 .mood-hero.race-near { background: linear-gradient(120deg, #263d73, #805190 58%, #bb6c74); }
 .mood-hero.race-day { background: linear-gradient(120deg, #14536b, #16878b 48%, #d58a58); }
-.race-day-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 9px; margin: -17px 0 17px; padding: 8px 14px; border: 1px solid rgba(255,220,129,.72); border-radius: 999px; background: linear-gradient(100deg, rgba(255,205,88,.22), rgba(255,255,255,.16), rgba(255,205,88,.22)); color: #fff1b3; font-size: 12px; font-weight: 900; letter-spacing: .18em; box-shadow: 0 0 0 1px rgba(255,220,129,.12), 0 0 22px rgba(255,194,83,.3); animation: race-day-glow 2.2s ease-in-out infinite; }
+.race-day-badge { position: absolute; z-index: 2; top: 24px; right: 24px; display: inline-flex; align-items: center; gap: 9px; margin: 0; padding: 8px 14px; border: 1px solid rgba(255,220,129,.72); border-radius: 999px; background: linear-gradient(100deg, rgba(255,205,88,.22), rgba(255,255,255,.16), rgba(255,205,88,.22)); color: #fff1b3; font-size: 12px; font-weight: 900; letter-spacing: .18em; box-shadow: 0 0 0 1px rgba(255,220,129,.12), 0 0 22px rgba(255,194,83,.3); animation: race-day-glow 2.2s ease-in-out infinite; }
 .race-day-badge span { color: #ffe083; animation: race-day-spark .9s ease-in-out infinite alternate; }
 .mood-hero.race-day::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .22; background: repeating-linear-gradient(155deg, transparent 0 42px, rgba(255,255,255,.22) 43px 44px, transparent 45px 86px); animation: race-day-lines 7s linear infinite; }
 @keyframes race-day-glow { 0%, 100% { transform: translateY(0); filter: brightness(1); } 50% { transform: translateY(-2px); filter: brightness(1.18); } }
 @keyframes race-day-spark { from { transform: scale(.9) rotate(-8deg); } to { transform: scale(1.15) rotate(8deg); } }
 @keyframes race-day-lines { from { background-position: 0 0; } to { background-position: 160px 80px; } }
+@media (max-width: 640px) { .race-day-badge { top: 17px; right: 17px; font-size: 10px; padding: 7px 10px; } }
 .mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
 .mood-context { position: relative; z-index: 1; margin: -22px 0 22px; color: rgba(255,255,255,.82); font-size: 13px; font-weight: 700; }
 .mood-hero::after { content: '≈'; position: absolute; right: -20px; top: -115px; font-size: 300px; color: rgba(82,209,196,.06); transform: rotate(-12deg); }
