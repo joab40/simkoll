@@ -120,7 +120,7 @@ export default async function handler(request, response) {
         // Ett profilinloggat "efter pass" räknas automatiskt som ett genomfört
         // simpass. Själva feedbacken kan fortfarande vara anonym (profile_id
         // på svaret är då null), men träningsräkningen kopplas till sessionen.
-        if (request.body.type === 'after') {
+        if (request.body.type === 'after' || request.body.registerTraining === true) {
           const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
           const trainingResult = await supabaseRequest('personal_training_sessions', {
             method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin' }),
