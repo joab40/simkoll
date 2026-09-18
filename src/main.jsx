@@ -521,14 +521,54 @@ const SWIM_LANES = [4, 5, 3, 6, 2, 7, 1, 8, 9, 10]
 const formatRaceTime = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }
 
 function Swimgames({ code, onBack }) {
-  const [status, setStatus] = useState('ready'); const [length, setLength] = useState(0); const [quality, setQuality] = useState(0); const [resultMs, setResultMs] = useState(null); const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 }); const raceRef = useRef({ start: 0, lastLength: -1, lastTapLength: -1, quality: 0, frame: null })
-  useEffect(() => { apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {}); return () => cancelAnimationFrame(raceRef.current.frame) }, [code])
-  const finish = (finalQuality) => { const simulated = 102000 + Math.max(0, 8 - finalQuality) * 7000; setResultMs(simulated); setStatus('over'); const score = Math.max(0, 200000 - simulated); apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'swimgames', score }) }).then(setGameData).catch(() => {}) }
-  const loop = (now) => { const race = raceRef.current; const elapsed = now - race.start; const currentLength = Math.min(8, Math.floor(elapsed / 1300)); if (currentLength !== race.lastLength) { race.lastLength = currentLength; setLength(currentLength) } if (currentLength >= 8) { finish(race.quality); return } race.frame = requestAnimationFrame(loop) }
-  const start = () => { raceRef.current = { start: performance.now(), lastLength: -1, lastTapLength: -1, quality: 0, frame: null }; setLength(0); setQuality(0); setResultMs(null); setStatus('running'); raceRef.current.frame = requestAnimationFrame(loop) }
-  const stroke = () => { if (status !== 'running') return; const race = raceRef.current; const elapsed = performance.now() - race.start; const currentLength = Math.min(7, Math.floor(elapsed / 1300)); if (currentLength <= race.lastTapLength) return; const progress = (elapsed % 1300) / 1300; const gained = progress > .72 ? (progress > .9 ? 1 : .7) : progress > .45 ? .35 : 0; race.quality += gained; race.lastTapLength = currentLength; setQuality(Number(race.quality.toFixed(1))); setLength(currentLength + 1) }
+  const [status, setStatus] = useState('ready')
+  const [length, setLength] = useState(0)
+  const [progress, setProgress] = useState(0)
+  const [quality, setQuality] = useState(0)
+  const [turnMessage, setTurnMessage] = useState('')
+  const [resultMs, setResultMs] = useState(null)
+  const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
+  const raceRef = useRef({ start: 0, lastLength: -1, lastTapLength: -1, quality: 0, frame: null })
+
+  useEffect(() => {
+    apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {})
+    return () => cancelAnimationFrame(raceRef.current.frame)
+  }, [code])
+
+  const finish = (finalQuality) => {
+    const simulated = 102000 + Math.max(0, 8 - finalQuality) * 7000
+    setResultMs(simulated); setStatus('over'); setProgress(1)
+    const score = Math.max(0, 200000 - simulated)
+    apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'swimgames', score }) }).then(setGameData).catch(() => {})
+  }
+
+  const loop = (now) => {
+    const race = raceRef.current; const elapsed = now - race.start
+    const currentLength = Math.min(8, Math.floor(elapsed / 1300)); const currentProgress = (elapsed % 1300) / 1300
+    if (currentLength !== race.lastLength) { race.lastLength = currentLength; setLength(currentLength) }
+    setProgress(currentLength >= 8 ? 1 : currentProgress)
+    if (currentLength >= 8) { finish(race.quality); return }
+    race.frame = requestAnimationFrame(loop)
+  }
+
+  const start = () => {
+    raceRef.current = { start: performance.now(), lastLength: -1, lastTapLength: -1, quality: 0, frame: null }
+    setLength(0); setProgress(0); setQuality(0); setTurnMessage(''); setResultMs(null); setStatus('running'); raceRef.current.frame = requestAnimationFrame(loop)
+  }
+
+  const stroke = () => {
+    if (status !== 'running') return
+    const race = raceRef.current; const elapsed = performance.now() - race.start; const currentLength = Math.min(7, Math.floor(elapsed / 1300))
+    if (currentLength <= race.lastTapLength) return
+    const currentProgress = (elapsed % 1300) / 1300
+    const gained = currentProgress > .82 ? 1 : currentProgress > .58 ? .5 : 0
+    race.quality += gained; race.lastTapLength = currentLength
+    setQuality(Number(race.quality.toFixed(1))); setLength(currentLength + 1); setTurnMessage(gained === 1 ? 'Snygg vändning! +1' : gained ? 'Okej vändning' : 'Lite tidig – håll rytmen')
+  }
+
   const laneEntries = Array.from({ length: 10 }, (_, index) => ({ lane: index + 1, item: gameData.leaderboard?.find((entry) => entry.rank === SWIM_LANES.indexOf(index + 1) + 1) || null }))
-  return <section className="game-page swimgames-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel · Swimgames</p><h1>Bassängracet 200 🏊</h1><p className="game-intro">Åtta längder. Håll rytmen och tryck när du når vändningen. Loppet går snabbare än verkligheten – tiden räknas ändå som ett riktigt 200-meterslopp.</p><div className={`swimgames-board ${status}`}><div className="swim-lane-list">{laneEntries.map(({ lane, item }) => <div className={`swim-lane ${lane === 4 ? 'center-lane' : ''}`} key={lane}><span>{lane}</span><div className="lane-water"><i style={{ width: status === 'running' ? `${Math.min(100, (length / 8) * 100)}%` : '0%' }} /><b>{item?.emoji || '🏊'}</b></div><strong>{item?.displayName || 'Ledig bana'}</strong><small>{item?.displayTime || '—'}</small></div>)}</div>{status !== 'running' && <div className="swimgames-overlay"><span>{status === 'over' ? '🏁' : '🏊'}</span><strong>{status === 'over' ? `Din tid ${formatRaceTime(resultMs)}` : 'Redo för start?'}</strong><small>{status === 'over' ? `Kvalitet ${quality}/8 · ${length} längder` : 'Tryck vid varje vändning för att få en bättre tid.'}</small><button className="primary-button" onClick={start}>{status === 'over' ? 'Simma igen' : 'Starta race'}</button></div>}</div>{status === 'running' && <button className="swimgames-turn" onClick={stroke}>Tryck vid vändningen · {Math.min(length + 1, 8)}/8</button>}</div><section className="game-scoreboard"><p className="eyebrow">Swimgames · all time</p><h2>200 frisim</h2><p className="game-best">Ditt bästa lopp: <strong>{gameData.ownBest ? formatRaceTime(200000 - gameData.ownBest) : '—'}</strong></p>{gameData.leaderboard?.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.displayTime}</em></article>)}</div> : <p className="empty">Ingen har simmat ännu.</p>}<small>Bana 4 är mästarbanan. Därefter placeras simmarna ut från mitten: 5, 3, 6, 2, 7, 1, 8, 9, 10.</small></section></div></section>
+  const swimmerLeft = `${Math.max(0, Math.min(94, progress * 94))}%`
+  return <section className="game-page swimgames-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel · Swimgames</p><h1>Bassängracet 200 🏊</h1><p className="game-intro"><strong>25 m bassäng × 8 längder = 200 m.</strong> Simmaren rör sig mot väggen. Tryck när den når kanten för en bra vändning.</p><div className={`swimgames-board ${status}`}><div className="swimgames-player-track"><div><strong>{status === 'running' ? `Längd ${Math.min(length + 1, 8)} av 8` : '200 m frisim'}</strong><small>{turnMessage || 'Klara för start'}</small></div><div className="player-water"><span style={{ left: swimmerLeft }}>🏊</span><i style={{ width: `${progress * 100}%` }} /></div><div className="player-distance"><span>Start</span><span>25 m</span></div></div><div className="swim-lane-list">{laneEntries.map(({ lane, item }) => <div className={`swim-lane ${lane === 4 ? 'center-lane' : ''}`} key={lane}><span>{lane}</span><div className="lane-water"><i style={{ width: status === 'running' ? `${progress * 100}%` : '0%' }} /><b style={{ left: status === 'running' ? swimmerLeft : '5px' }}>{item?.emoji || '🏊'}</b></div><strong>{item?.displayName || 'Ledig bana'}</strong><small>{item?.displayTime || '—'}</small></div>)}</div>{status !== 'running' && <div className="swimgames-overlay"><span>{status === 'over' ? '🏁' : '🏊'}</span><strong>{status === 'over' ? `Din tid ${formatRaceTime(resultMs)}` : 'Redo för start?'}</strong><small>{status === 'over' ? `Vändningskvalitet ${quality}/8` : 'Tryck åtta gånger – en gång vid varje vägg.'}</small><button className="primary-button" onClick={start}>{status === 'over' ? 'Simma igen' : 'Starta race'}</button></div>}</div>{status === 'running' && <button className="swimgames-turn" onClick={stroke}>🔄 Tryck vid väggen · {Math.min(length + 1, 8)}/8</button>}</div><section className="game-scoreboard"><p className="eyebrow">Swimgames · all time</p><h2>200 frisim</h2><p className="game-best">Ditt bästa lopp: <strong>{gameData.ownBest ? formatRaceTime(200000 - gameData.ownBest) : '—'}</strong></p>{gameData.leaderboard?.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.displayTime}</em></article>)}</div> : <p className="empty">Ingen har simmat ännu.</p>}<small>Bana 4 är mästarbanan. Därefter placeras simmarna ut från mitten: 5, 3, 6, 2, 7, 1, 8, 9, 10.</small></section></div></section>
 }
 
 const TALK_STEPS = [
