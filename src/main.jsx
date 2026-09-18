@@ -425,7 +425,7 @@ function StarProgress({ stars }) {
 
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
-  const activeDates = new Set(activityDates?.length ? activityDates : responses.map((item) => dateKey(responseDate(item))))
+  const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
   let streak = 0; const streakCursor = new Date()
   while (activeDates.has(dateKey(streakCursor))) { streak += 1; streakCursor.setDate(streakCursor.getDate() - 1) }
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
