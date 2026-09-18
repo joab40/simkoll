@@ -433,10 +433,11 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   const nextCompetition = (competitions || []).filter((item) => item.startDate >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
   const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
   const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && workout?.focus === 'fart' ? 'speed-focus' : ''
+  const raceDayActive = swimmerEffects && daysToCompetition === 0
   const stars = currentStarState(training)
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
-    <div className="page-content home">
+    <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}`}>
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}`}>
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
