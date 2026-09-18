@@ -424,6 +424,9 @@ function StarProgress({ stars }) {
 
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
+  let streak = 0; const streakCursor = new Date()
+  while (activeDates.has(dateKey(streakCursor))) { streak += 1; streakCursor.setDate(streakCursor.getDate() - 1) }
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
   const nextCompetition = (competitions || []).filter((item) => item.startDate >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
@@ -445,6 +448,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
           )) : <p>Inga svar ännu – bli först!</p>}
         </div>
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count">● {activeProfilesToday} profiler inne idag</span>}</div>
+        {profile && streak > 0 && <div className="streak-chip" title="Dagar i rad med en registrerad check-in">🔥 <strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
 

@@ -61,6 +61,8 @@ button { cursor: pointer; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
+.streak-chip { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.28); border-radius: 999px; background: rgba(255,255,255,.12); color: #fff4c2; font-size: 12px; box-shadow: 0 5px 14px rgba(0,0,0,.12); }
+.streak-chip strong { font-size: 16px; color: #fff; }
 .mood-hero.race-coming { background: linear-gradient(120deg, #173e58, #4d5f9c); }
 .mood-hero.race-near { background: linear-gradient(120deg, #263d73, #805190 58%, #bb6c74); }
 .mood-hero.race-day { background: linear-gradient(120deg, #14536b, #16878b 48%, #d58a58); }
