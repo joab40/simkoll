@@ -448,7 +448,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
           )) : <p>Inga svar ännu – bli först!</p>}
         </div>
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count">● {activeProfilesToday} profiler inne idag</span>}</div>
-        {profile && streak > 0 && <div className="streak-chip" title="Dagar i rad med en registrerad check-in">🔥 <strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
+        {profile && streak > 0 && <div className="streak-chip" style={{ '--streak-size': `${Math.min(1.8, 1 + streak * 0.025)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
 
