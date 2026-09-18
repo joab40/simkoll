@@ -1257,12 +1257,12 @@ button { cursor: pointer; }
 .archived-groups > span { display: inline-block; margin: 0 0 12px 16px; font-size: 13px; }
 @media (max-width: 560px) { .group-form-row { align-items: stretch; flex-direction: column; } .group-form-row .primary-button { width: 100%; } .group-member { align-items: flex-start; flex-direction: column; } .group-member select { width: 100%; } }
 .star-progress { display: flex; gap: .3rem; align-items: center; margin-top: .65rem; }
-.mood-hero > .star-progress { position: absolute; left: 24px; bottom: 28px; margin: 0; }
+.mood-hero > .star-progress { position: absolute; left: 24px; bottom: 34px; margin: 0; }
 .star-progress span { color: rgba(255,255,255,.45); font-size: 1.25rem; line-height: 1; transition: color .2s, transform .2s; }
 .star-progress span.earned { color: #ffd166; text-shadow: 0 0 10px rgba(255,209,102,.35); transform: scale(1.05); }
 .weekly-training-card .star-progress span { color: #b9c3d6; }
 .weekly-training-card .star-progress span.earned { color: #e0a92f; text-shadow: none; }
-@media (max-width: 640px) { .mood-hero > .star-progress { left: 17px; bottom: 20px; } }
+@media (max-width: 640px) { .mood-hero > .star-progress { left: 17px; bottom: 26px; } }
 .swimmer-stars { color: #c89428; font-weight: 800; white-space: nowrap; }
 .sportadmin-import { display: grid; gap: 7px; margin: 0 0 14px; padding: 12px; border: 1px solid #d9e6e1; border-radius: 14px; background: #f7faf8; }
 .sportadmin-import > small { color: var(--muted); font-size: 11px; }
