@@ -5,7 +5,7 @@ const stockholmDate = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe
 const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7)); return value.toISOString().slice(0, 10) }
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,game_key,created_at,profiles(display_name,emoji)'
-const SWIMGAMES_BASE = 200000
+const SWIMGAMES_BASE = 100000
 const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }
 const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
