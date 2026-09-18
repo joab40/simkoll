@@ -59,6 +59,7 @@ async function createAiInsight(request, response) {
   if (!openAiKey && !gatewayKey) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad ännu.' })
   const input = request.body?.data || {}, periodLabel = String(request.body?.periodLabel || 'vald period').slice(0, 80)
   const customInstructions = String(request.body?.customInstructions || '').trim().slice(0, 2000)
+  const guardrailOverrides = String(request.body?.guardrailOverrides || '').trim().slice(0, 2000)
   const current = input.current || {}, previous = input.previous || {}, analysis = input.workoutAnalysis || {}
   const trainingContext = request.body?.trainingContext || { phase: 'normal', minVolume: 30000, maxVolume: 40000 }
   const focusRows = Array.isArray(analysis.focuses) ? analysis.focuses : []
@@ -105,6 +106,7 @@ Arbeta i denna ordning:
 Regler: Dra inga medicinska slutsatser och hitta inte på orsaker. Sjukdagar/vilodagar ska nämnas neutralt. Om underlaget är litet eller anonymiserat, säg det tydligt. Bedöm inte meter som bra/dåligt utan tränarens plan; 30 000–40 000 meter är endast ett angivet jämförelseintervall och får inte behandlas som universellt mål. Returnera ENDAST giltig JSON med exakt nycklarna summary (max 800 tecken), positives (max 3 strängar med konkreta observationer), attention (max 3 strängar med vad som kan följas upp), limitations (max 3 korta strängar).
 
 Tränarens extra instruktion (använd endast som fokus, och följ alltid reglerna ovan): ${customInstructions || 'Ingen extra instruktion.'}
+Tillfälliga analysregler från tränaren (gäller endast denna körning): ${guardrailOverrides || 'Använd standardreglerna.'} Om tränaren har angett egna regler ska de ersätta standardens prioriteringar för detaljnivå, jämförelse, ton och fokus. Följ alltid de tekniska minimikraven: hitta inte på data, dra inga medicinska diagnoser, exponera inte personuppgifter och returnera giltig JSON.
 Data: ${JSON.stringify(safe)}`
   try {
     // Free model on Vercel AI Gateway, suitable for Hobby projects without paid credits.
