@@ -193,6 +193,23 @@ button { cursor: pointer; }
 @keyframes bubble-rise { from { transform: translateY(20px); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(-180px); opacity: 0; } }
 @keyframes reaction-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .game-page { min-height: calc(100vh - 72px); background: #eff6f4; padding: 40px max(20px, calc((100vw - 920px) / 2)) 65px; position: relative; }
+.swimgames-page { background: linear-gradient(145deg, #eaf6f4, #e8eef8); }
+.swimgames-board { position: relative; width: min(100%, 620px); overflow: hidden; border-radius: 24px; padding: 14px 12px; background: linear-gradient(165deg, #0a405c, #0b7180); box-shadow: 0 18px 38px rgba(16,45,55,.18); }
+.swim-lane { display: grid; grid-template-columns: 20px minmax(0, 1fr) minmax(90px, 130px) 58px; align-items: center; gap: 8px; min-height: 43px; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.12); color: #e7fbf6; }
+.swim-lane:last-child { border-bottom: 0; }
+.swim-lane > span { color: rgba(255,255,255,.66); font-size: 11px; text-align: center; }
+.swim-lane.center-lane { background: rgba(255,220,129,.12); border-radius: 10px; }
+.lane-water { position: relative; height: 24px; overflow: hidden; border-radius: 999px; background: repeating-linear-gradient(90deg, rgba(255,255,255,.11) 0 12px, rgba(255,255,255,.04) 12px 24px); }
+.lane-water i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #70e4db, #d4f276); opacity: .58; transition: width .15s linear; }
+.lane-water b { position: absolute; top: 1px; left: 5px; font-size: 18px; line-height: 22px; transition: left .15s linear; }
+.swim-lane strong, .swim-lane small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swim-lane strong { font-size: 11px; }
+.swim-lane small { color: #b9e8df; font-size: 11px; text-align: right; }
+.swimgames-overlay { position: absolute; inset: 14px; z-index: 2; display: grid; place-content: center; gap: 9px; padding: 24px; border-radius: 18px; background: rgba(7,39,58,.83); color: white; text-align: center; backdrop-filter: blur(5px); }
+.swimgames-overlay > span { font-size: 42px; }
+.swimgames-overlay strong { font-size: clamp(22px, 5vw, 32px); }
+.swimgames-overlay small { color: #d5efea; }
+.swimgames-turn { width: min(100%, 620px); margin-top: 12px; border: 0; border-radius: 14px; padding: 15px; background: var(--lime); color: var(--ink); font-weight: 900; font-size: 15px; }
 .game-page > .back-button { margin-bottom: 20px; }
 .game-layout { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(250px, .7fr); gap: 32px; align-items: start; }
 .game-layout h1 { font-size: clamp(36px, 6vw, 54px); margin: 0 0 12px; }
@@ -1183,6 +1200,7 @@ button { cursor: pointer; }
 .competition-results > .period-heading { align-items: flex-start; }
 .competition-results > .period-heading > .primary-button { margin-top: 4px; }
 @media (max-width: 600px) { .competition-results > .period-heading { flex-direction: column; gap: 10px; } .competition-results > .period-heading > .primary-button { width: 100%; } }
+@media (max-width: 600px) { .swim-lane { grid-template-columns: 18px minmax(0, 1fr) 52px; } .swim-lane strong { grid-column: 2; grid-row: 2; font-size: 10px; } .swim-lane small { grid-column: 3; grid-row: 2; } .lane-water { grid-column: 2 / -1; } }
 .competition-profile-card, .competition-profile-card > summary + div { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .competition-profile-card > summary { display: flex; justify-content: space-between; padding: 16px; font-weight: 700; cursor: pointer; }
 .competition-profile-card > summary > span { min-width: 0; }

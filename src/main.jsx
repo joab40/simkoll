@@ -164,6 +164,7 @@ function App() {
     <Shell profile={profile} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'vanda' && <Vandningsmastaren code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'swimgames' && <Swimgames code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'alltime-games' && <AllTimeGames code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'planning' && <SwimmerPlanning code={auth.code} onBack={() => setScreen('home')} />}
@@ -186,7 +187,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -423,7 +424,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onGame, onVanda, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onGame, onVanda, onSwimgames, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
   let streak = 0; const streakCursor = new Date()
@@ -463,7 +464,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
-      {profile && <GameCard onOpen={onGame} onVanda={onVanda} onAllTime={onAllTime} />}
+      {profile && <GameCard onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
@@ -499,8 +500,8 @@ function StartCard({ profile, onStart }) {
   return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>Hur är läget?</h2><p>Det tar mindre än 20 sekunder.</p></div><button className="primary-button" onClick={onStart}>Checka in <span>→</span></button></section>
 }
 
-function GameCard({ onOpen, onVanda, onAllTime }) {
-  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Startmästaren ↻</h2><p>Vänta på signalen och tryck så snabbt du kan.</p><div className="game-choice"><button className="primary-button" onClick={onVanda}>Spela Startmästaren →</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button><button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button></div></div></section>
+function GameCard({ onOpen, onVanda, onSwimgames, onAllTime }) {
+  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Swimgames 🏊</h2><p>200 meter frisim, åtta längder och ett snabbt race mot gruppens tider.</p><div className="game-choice"><button className="primary-button" onClick={onSwimgames}>Spela Swimgames →</button><button className="secondary-button" onClick={onVanda}>Startmästaren ↻</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button><button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button></div></div></section>
 }
 
 function AppFeedbackCard({ code, coach = false }) {
@@ -514,6 +515,20 @@ function AllTimeGames({ code, onBack }) {
   const [data, setData] = useState(null)
   useEffect(() => { apiRequest('/api/points?game=alltime', code).then(setData).catch(() => setData({ leaderboard: [] })) }, [code])
   return <section className="game-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel</p><h1>All time-topplistan 🏆</h1><p className="game-intro">En permanent ranking från alla spel över tid. Vinnaren i varje spel får 10 poäng, sedan 9–1.</p></div><section className="game-scoreboard"><p className="eyebrow">Alla spel tillsammans</p><h2>Top 10</h2>{data?.leaderboard?.length ? <div>{data.leaderboard.map((item) => <article key={item.displayName}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}</section></div></section>
+}
+
+const SWIM_LANES = [4, 5, 3, 6, 2, 7, 1, 8, 9, 10]
+const formatRaceTime = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }
+
+function Swimgames({ code, onBack }) {
+  const [status, setStatus] = useState('ready'); const [length, setLength] = useState(0); const [quality, setQuality] = useState(0); const [resultMs, setResultMs] = useState(null); const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 }); const raceRef = useRef({ start: 0, lastLength: -1, lastTapLength: -1, quality: 0, frame: null })
+  useEffect(() => { apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {}); return () => cancelAnimationFrame(raceRef.current.frame) }, [code])
+  const finish = (finalQuality) => { const simulated = 102000 + Math.max(0, 8 - finalQuality) * 7000; setResultMs(simulated); setStatus('over'); const score = Math.max(0, 200000 - simulated); apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'swimgames', score }) }).then(setGameData).catch(() => {}) }
+  const loop = (now) => { const race = raceRef.current; const elapsed = now - race.start; const currentLength = Math.min(8, Math.floor(elapsed / 1300)); if (currentLength !== race.lastLength) { race.lastLength = currentLength; setLength(currentLength) } if (currentLength >= 8) { finish(race.quality); return } race.frame = requestAnimationFrame(loop) }
+  const start = () => { raceRef.current = { start: performance.now(), lastLength: -1, lastTapLength: -1, quality: 0, frame: null }; setLength(0); setQuality(0); setResultMs(null); setStatus('running'); raceRef.current.frame = requestAnimationFrame(loop) }
+  const stroke = () => { if (status !== 'running') return; const race = raceRef.current; const elapsed = performance.now() - race.start; const currentLength = Math.min(7, Math.floor(elapsed / 1300)); if (currentLength <= race.lastTapLength) return; const progress = (elapsed % 1300) / 1300; const gained = progress > .72 ? (progress > .9 ? 1 : .7) : progress > .45 ? .35 : 0; race.quality += gained; race.lastTapLength = currentLength; setQuality(Number(race.quality.toFixed(1))); setLength(currentLength + 1) }
+  const laneEntries = Array.from({ length: 10 }, (_, index) => ({ lane: index + 1, item: gameData.leaderboard?.find((entry) => entry.rank === SWIM_LANES.indexOf(index + 1) + 1) || null }))
+  return <section className="game-page swimgames-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel · Swimgames</p><h1>Bassängracet 200 🏊</h1><p className="game-intro">Åtta längder. Håll rytmen och tryck när du når vändningen. Loppet går snabbare än verkligheten – tiden räknas ändå som ett riktigt 200-meterslopp.</p><div className={`swimgames-board ${status}`}><div className="swim-lane-list">{laneEntries.map(({ lane, item }) => <div className={`swim-lane ${lane === 4 ? 'center-lane' : ''}`} key={lane}><span>{lane}</span><div className="lane-water"><i style={{ width: status === 'running' ? `${Math.min(100, (length / 8) * 100)}%` : '0%' }} /><b>{item?.emoji || '🏊'}</b></div><strong>{item?.displayName || 'Ledig bana'}</strong><small>{item?.displayTime || '—'}</small></div>)}</div>{status !== 'running' && <div className="swimgames-overlay"><span>{status === 'over' ? '🏁' : '🏊'}</span><strong>{status === 'over' ? `Din tid ${formatRaceTime(resultMs)}` : 'Redo för start?'}</strong><small>{status === 'over' ? `Kvalitet ${quality}/8 · ${length} längder` : 'Tryck vid varje vändning för att få en bättre tid.'}</small><button className="primary-button" onClick={start}>{status === 'over' ? 'Simma igen' : 'Starta race'}</button></div>}</div>{status === 'running' && <button className="swimgames-turn" onClick={stroke}>Tryck vid vändningen · {Math.min(length + 1, 8)}/8</button>}</div><section className="game-scoreboard"><p className="eyebrow">Swimgames · all time</p><h2>200 frisim</h2><p className="game-best">Ditt bästa lopp: <strong>{gameData.ownBest ? formatRaceTime(200000 - gameData.ownBest) : '—'}</strong></p>{gameData.leaderboard?.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.displayTime}</em></article>)}</div> : <p className="empty">Ingen har simmat ännu.</p>}<small>Bana 4 är mästarbanan. Därefter placeras simmarna ut från mitten: 5, 3, 6, 2, 7, 1, 8, 9, 10.</small></section></div></section>
 }
 
 const TALK_STEPS = [
