@@ -61,9 +61,9 @@ button { cursor: pointer; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
-.streak-chip { position: relative; display: flex; width: max-content; align-items: center; gap: 5px; margin: 11px 0 0; padding: 7px 11px; border: 1px solid rgba(255,255,255,.28); border-radius: 999px; background: rgba(255,255,255,.12); color: #fff4c2; font-size: 12px; box-shadow: 0 5px 14px rgba(0,0,0,.12); }
-.streak-chip strong { font-size: 16px; color: #fff; }
-.streak-flame { display: inline-block; font-size: var(--streak-size, 1rem); transform-origin: 50% 85%; animation: streak-flame 1.15s ease-in-out infinite alternate; }
+.streak-chip { position: relative; display: flex; width: max-content; align-items: center; gap: 7px; margin: 11px 0 0 auto; padding: 0; color: #fff4c2; font-size: 12px; }
+.streak-chip strong { font-size: 17px; color: #fff; }
+.streak-flame { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,186,79,.16); font-size: var(--streak-size, 1rem); transform-origin: 50% 85%; animation: streak-flame 1.15s ease-in-out infinite alternate; box-shadow: 0 0 14px rgba(255,151,57,.22); }
 .streak-static .streak-flame { animation: none; }
 .streak-cycle-0 .streak-flame { filter: saturate(1.15); }
 .streak-cycle-1 .streak-flame { filter: hue-rotate(25deg) saturate(1.5) brightness(1.1); }
