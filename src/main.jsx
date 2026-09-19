@@ -552,8 +552,9 @@ function Swimgames({ code, onBack }) {
   const finish = (race, disqualified = false) => {
     if (disqualified) { cancelAnimationFrame(race.frame); race.frame = null; setStatus('disqualified'); setPhase('foul'); return }
     const armPenalty = Math.max(0, 8 - race.armHits) * 90
+    const speedBonus = Math.max(0, race.armHits - 8) * 140 + Math.max(0, race.maxSpeed - 80) * 8
     const startPenalty = Math.max(0, race.startReaction - 180) * 2
-    const simulated = Math.round(9000 + armPenalty + startPenalty)
+    const simulated = Math.max(1000, Math.round(9000 - speedBonus + armPenalty + startPenalty))
     setResultMs(simulated); setStatus('over'); setPhase('finish')
     if (swimmerRef.current) swimmerRef.current.style.left = '94%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '100%'; waterFillRef.current.style.marginLeft = '0' }
@@ -579,7 +580,7 @@ function Swimgames({ code, onBack }) {
   }
 
   const start = () => {
-    const race = { start: 0, goAt: 0, startReaction: 0, lastLength: -1, lastArm: 'right', lastStroke: 0, currentSpeed: 0, phase: 'idle', armHits: 0, frame: null, timers: [] }
+    const race = { start: 0, goAt: 0, startReaction: 0, lastLength: -1, lastArm: 'right', lastStroke: 0, currentSpeed: 0, maxSpeed: 0, phase: 'idle', armHits: 0, frame: null, timers: [] }
     raceRef.current = race; setLength(0); setDirection('left'); setPhase('idle'); setKickDistance(0); setQuality(0); setEnergy(72); setSpeed(0); setReactionMs(null); setStrokeSide(''); setStrokePulse(0); setTurnMessage(''); setResultMs(null); setSignal('Vissling!'); setStatus('starting')
     if (swimmerRef.current) swimmerRef.current.style.left = '0%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '0%'; waterFillRef.current.style.marginLeft = '0' }
@@ -602,7 +603,7 @@ function Swimgames({ code, onBack }) {
     if (phase === 'swim') {
       const interval = race.lastStroke ? now - race.lastStroke : 300
       const rhythmScore = Math.max(20, Math.min(100, Math.round(100 - Math.abs(interval - 105) * .42)))
-      race.lastArm = side; race.lastStroke = now; race.currentSpeed = rhythmScore; race.armHits += 1
+      race.lastArm = side; race.lastStroke = now; race.currentSpeed = rhythmScore; race.maxSpeed = Math.max(race.maxSpeed, rhythmScore); race.armHits += 1
       setStrokeSide(side); setStrokePulse((value) => value + 1); setSpeed(rhythmScore); setEnergy((value) => Math.min(100, value + 1))
       setTurnMessage(`${side === 'left' ? 'Vänster' : 'Höger'} ✓`)
     }
