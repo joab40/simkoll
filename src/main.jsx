@@ -525,18 +525,15 @@ function AllTimeGames({ code, onBack }) {
 const formatRaceTime = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }
 const formatRaceTimeMs = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
 const SWIMGAMES_LENGTHS = 1
-const SWIMGAMES_LENGTH_MS = 9000
+const SWIMGAMES_DISTANCE_METERS = 25
 
 function Swimgames({ code, onBack }) {
   const [status, setStatus] = useState('ready')
   const [length, setLength] = useState(0)
   const [direction, setDirection] = useState('left')
   const [phase, setPhase] = useState('idle')
-  const [kickDistance, setKickDistance] = useState(0)
-  const [quality, setQuality] = useState(0)
   const [turnMessage, setTurnMessage] = useState('')
   const [signal, setSignal] = useState('')
-  const [energy, setEnergy] = useState(72)
   const [speed, setSpeed] = useState(52)
   const [reactionMs, setReactionMs] = useState(null)
   const [strokeSide, setStrokeSide] = useState('')
@@ -545,7 +542,7 @@ function Swimgames({ code, onBack }) {
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
   const swimmerRef = useRef(null)
   const waterFillRef = useRef(null)
-  const raceRef = useRef({ start: 0, goAt: 0, lastLength: -1, lastArm: 'right', lastStroke: 0, currentSpeed: 0, phase: 'idle', armHits: 0, frame: null, timers: [] })
+  const raceRef = useRef({ start: 0, goAt: 0, distance: 0, pace: 2.1, lastArm: '', lastStroke: 0, frame: null, timers: [], lastTick: 0 })
 
   useEffect(() => {
     apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {})
@@ -554,12 +551,7 @@ function Swimgames({ code, onBack }) {
 
   const finish = (race, disqualified = false) => {
     if (disqualified) { cancelAnimationFrame(race.frame); race.frame = null; setStatus('disqualified'); setPhase('foul'); return }
-    const armPenalty = Math.max(0, 8 - race.armHits) * 90
-    const speedBonus = Math.max(0, race.armHits - 8) * 140 + Math.max(0, race.maxSpeed - 80) * 8
-    const startPenalty = Math.max(0, race.startReaction - 180) * 2
-    // Keep the game playful but physically plausible: a 25 m race cannot
-    // produce a two-second result even with perfect button timing.
-    const simulated = Math.max(8500, Math.round(9000 - speedBonus + armPenalty + startPenalty))
+    const simulated = Math.max(0, Math.round(performance.now() - race.start))
     setResultMs(simulated); setStatus('over'); setPhase('finish')
     if (swimmerRef.current) swimmerRef.current.style.left = '94%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '100%'; waterFillRef.current.style.marginLeft = '0' }
@@ -568,32 +560,28 @@ function Swimgames({ code, onBack }) {
   }
 
   const loop = (now) => {
-    const race = raceRef.current; const elapsed = now - race.start
-    const currentLength = Math.min(SWIMGAMES_LENGTHS, Math.floor(elapsed / SWIMGAMES_LENGTH_MS)); const currentProgress = (elapsed % SWIMGAMES_LENGTH_MS) / SWIMGAMES_LENGTH_MS
-    if (currentLength !== race.lastLength) { race.lastLength = currentLength; race.phase = 'kick'; setLength(currentLength); setDirection('left'); setKickDistance(0); setPhase('kick') }
-    if (currentLength >= SWIMGAMES_LENGTHS) { finish(race); return }
-    const nextPhase = 'swim'
-    if (nextPhase !== race.phase) { race.phase = nextPhase; setPhase(nextPhase) }
-    if (race.lastStroke) {
-      const idleSpeed = Math.max(0, race.currentSpeed - Math.floor((now - race.lastStroke) / 85))
-      if (idleSpeed !== race.currentSpeed) { race.currentSpeed = idleSpeed; setSpeed(idleSpeed) }
-    }
-    const visualProgress = currentProgress
-    if (swimmerRef.current) swimmerRef.current.style.left = `${Math.max(0, Math.min(94, visualProgress * 94))}%`
+    const race = raceRef.current; const delta = Math.min(80, now - (race.lastTick || now)); race.lastTick = now
+    race.pace = Math.max(1.15, race.pace - delta / 1000 * 0.42)
+    race.distance = Math.min(SWIMGAMES_DISTANCE_METERS, race.distance + race.pace * delta / 1000)
+    const currentProgress = race.distance / SWIMGAMES_DISTANCE_METERS
+    if (race.distance >= SWIMGAMES_DISTANCE_METERS) { finish(race); return }
+    setLength(currentProgress >= 1 ? SWIMGAMES_LENGTHS : 0)
+    setSpeed(Math.round(Math.min(100, race.pace / 3.8 * 100)))
+    if (swimmerRef.current) swimmerRef.current.style.left = `${Math.max(0, Math.min(94, currentProgress * 94))}%`
     if (waterFillRef.current) { waterFillRef.current.style.width = `${currentProgress * 100}%`; waterFillRef.current.style.marginLeft = '0' }
     race.frame = requestAnimationFrame(loop)
   }
 
   const start = () => {
-    const race = { start: 0, goAt: 0, startReaction: 0, lastLength: -1, lastArm: 'right', lastStroke: 0, currentSpeed: 0, maxSpeed: 0, phase: 'idle', armHits: 0, frame: null, timers: [] }
-    raceRef.current = race; setLength(0); setDirection('left'); setPhase('idle'); setKickDistance(0); setQuality(0); setEnergy(72); setSpeed(0); setReactionMs(null); setStrokeSide(''); setStrokePulse(0); setTurnMessage(''); setResultMs(null); setSignal('Vissling!'); setStatus('starting')
+    const race = { start: 0, goAt: 0, distance: 0, pace: 2.1, startReaction: 0, lastArm: '', lastStroke: 0, phase: 'idle', frame: null, timers: [], lastTick: 0 }
+    raceRef.current = race; setLength(0); setDirection('left'); setPhase('idle'); setSpeed(0); setReactionMs(null); setStrokeSide(''); setStrokePulse(0); setTurnMessage(''); setResultMs(null); setSignal('Vissling!'); setStatus('starting')
     if (swimmerRef.current) swimmerRef.current.style.left = '0%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '0%'; waterFillRef.current.style.marginLeft = '0' }
     race.timers.push(window.setTimeout(() => setSignal('På era platser'), 700))
     race.timers.push(window.setTimeout(() => { race.goAt = performance.now(); setSignal('GO!'); setStatus('start-go'); setPhase('start') }, 1500))
   }
 
-  const beginRace = () => { const race = raceRef.current; race.start = performance.now(); race.startReaction = race.start - race.goAt; race.phase = 'swim'; setReactionMs(Math.round(race.startReaction)); setSignal(''); setStatus('running'); setPhase('swim'); race.frame = requestAnimationFrame(loop) }
+  const beginRace = () => { const race = raceRef.current; race.start = performance.now(); race.lastTick = race.start; race.startReaction = race.start - race.goAt; race.phase = 'swim'; setReactionMs(Math.round(race.startReaction)); setSignal(''); setStatus('running'); setPhase('swim'); race.frame = requestAnimationFrame(loop) }
 
   const centerAction = () => {
     if (status === 'ready') { start(); return }
@@ -606,10 +594,11 @@ function Swimgames({ code, onBack }) {
     if (status !== 'running') return
     const race = raceRef.current; const now = performance.now()
     if (phase === 'swim') {
-      const interval = race.lastStroke ? now - race.lastStroke : 300
-      const rhythmScore = Math.max(20, Math.min(100, Math.round(100 - Math.abs(interval - 105) * .42)))
-      race.lastArm = side; race.lastStroke = now; race.currentSpeed = rhythmScore; race.maxSpeed = Math.max(race.maxSpeed, rhythmScore); race.armHits += 1
-      setStrokeSide(side); setStrokePulse((value) => value + 1); setSpeed(rhythmScore); setEnergy((value) => Math.min(100, value + 1))
+      const interval = race.lastStroke ? now - race.lastStroke : 240
+      const rhythmScore = Math.max(0, Math.min(100, Math.round(100 - Math.abs(interval - 220) * .42)))
+      const alternationBonus = race.lastArm && race.lastArm !== side ? 0.25 : 0
+      race.lastArm = side; race.lastStroke = now; race.pace = Math.min(3.8, 2.1 + rhythmScore / 100 * 1.35 + alternationBonus)
+      setStrokeSide(side); setStrokePulse((value) => value + 1); setSpeed(Math.round(Math.min(100, race.pace / 3.8 * 100)))
       setTurnMessage(`${side === 'left' ? 'Vänster' : 'Höger'} ✓`)
     }
   }

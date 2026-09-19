@@ -6,9 +6,9 @@ const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,game_key,created_at,profiles(display_name,emoji)'
 const SWIMGAMES_BASE = 100000
-// A 25 m race cannot be completed in a couple of seconds. Keep the
-// theoretical best at 8.5 s and reject older/impossible scores as well.
-const SWIMGAMES_MIN_TIME_MS = 8500
+// Keep only an anti-tampering floor. The game itself now measures the real
+// time from GO to the finish line instead of applying an artificial floor.
+const SWIMGAMES_MIN_TIME_MS = 3000
 const SWIMGAMES_MAX_SCORE = SWIMGAMES_BASE - SWIMGAMES_MIN_TIME_MS
 const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
 const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
