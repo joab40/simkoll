@@ -77,8 +77,11 @@ button { cursor: pointer; }
 .mood-hero.race-coming { background: linear-gradient(120deg, #173e58, #4d5f9c); }
 .mood-hero.race-near { background: linear-gradient(120deg, #263d73, #805190 58%, #bb6c74); }
 .mood-hero.race-day { background: radial-gradient(circle at 82% 18%, rgba(255,220,129,.18), transparent 24%), linear-gradient(120deg, #14536b, #16878b 48%, #d58a58); box-shadow: inset 0 0 42px rgba(255,219,128,.06), 0 14px 34px rgba(22,103,116,.16); }
-.race-day-badge { position: absolute; z-index: 2; top: 24px; right: 24px; display: inline-flex; align-items: center; gap: 9px; margin: 0; padding: 8px 14px; border: 1px solid rgba(255,220,129,.62); border-radius: 999px; background: rgba(255,205,88,.13); color: #fff1b3; font-size: 12px; font-weight: 900; letter-spacing: .18em; box-shadow: 0 0 0 1px rgba(255,220,129,.08), 0 0 12px rgba(255,194,83,.16); animation: race-day-glow 4s ease-in-out infinite; }
-.race-day-badge span { color: #ffe083; animation: race-day-spark .9s ease-in-out infinite alternate; }
+.race-day-badge { position: absolute; z-index: 2; top: 24px; right: 24px; display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 3px 0; color: #fff1b3; font-size: 12px; font-weight: 900; letter-spacing: .18em; text-shadow: 0 0 12px rgba(255,194,83,.5); animation: race-day-glow 4s ease-in-out infinite; }
+.race-day-badge span { color: #ffe083; }
+.race-day-badge .race-flag { position: relative; display: inline-block; width: 24px; height: 31px; transform-origin: 50% 90%; }
+.race-day-badge .race-flag::before { content: ''; position: absolute; left: 3px; top: 1px; width: 2px; height: 29px; border-radius: 2px; background: #ffe083; box-shadow: 0 0 5px rgba(255,224,131,.65); }
+.race-day-badge .race-flag i { position: absolute; left: 5px; top: 2px; width: 19px; height: 13px; display: block; background: conic-gradient(#fff 0 25%, #173e58 0 50%, #fff 0 75%, #173e58 0) 0 0 / 8px 8px; clip-path: polygon(0 0, 100% 0, 86% 100%, 0 84%); }
 .race-day-badge .race-flag-left { animation-name: race-flag-wave-left; }
 .race-day-badge .race-flag-right { animation-name: race-flag-wave-right; }
 .mood-hero.race-day::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .08; background: repeating-linear-gradient(155deg, transparent 0 42px, rgba(255,255,255,.22) 43px 44px, transparent 45px 86px); animation: race-day-lines 14s linear infinite; }
