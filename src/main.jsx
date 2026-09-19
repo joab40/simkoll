@@ -462,7 +462,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
 
-      {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
+      {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
