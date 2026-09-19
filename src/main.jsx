@@ -501,7 +501,7 @@ function StartCard({ profile, onStart }) {
 }
 
 function GameCard({ onOpen, onVanda, onSwimgames, onAllTime }) {
-  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Swimgames 🏊</h2><p>200 meter frisim, åtta längder och ett snabbt race mot gruppens tider.</p><div className="game-choice"><button className="primary-button" onClick={onSwimgames}>Spela Swimgames →</button><button className="secondary-button" onClick={onVanda}>Startmästaren ↻</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button><button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button></div></div></section>
+  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Swimgames 🏊</h2><p>25 meter frisim, en längd och ett snabbt rytm-race mot klockan.</p><div className="game-choice"><button className="primary-button" onClick={onSwimgames}>Spela Swimgames →</button><button className="secondary-button" onClick={onVanda}>Startmästaren ↻</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button><button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button></div></div></section>
 }
 
 function AppFeedbackCard({ code, coach = false }) {
@@ -518,8 +518,8 @@ function AllTimeGames({ code, onBack }) {
 }
 
 const formatRaceTime = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }
-const SWIMGAMES_LENGTHS = 2
-const SWIMGAMES_LENGTH_MS = 10000
+const SWIMGAMES_LENGTHS = 1
+const SWIMGAMES_LENGTH_MS = 9000
 
 function Swimgames({ code, onBack }) {
   const [status, setStatus] = useState('ready')
@@ -536,7 +536,7 @@ function Swimgames({ code, onBack }) {
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
   const swimmerRef = useRef(null)
   const waterFillRef = useRef(null)
-  const raceRef = useRef({ start: 0, goAt: 0, lastLength: -1, lastArm: 'right', direction: 'left', phase: 'idle', kickDistance: 0, kickDistances: [], turns: 0, turnGood: 0, armHits: 0, frame: null, timers: [] })
+  const raceRef = useRef({ start: 0, goAt: 0, lastLength: -1, lastArm: 'right', lastTap: 0, kickPairs: 0, kickTaps: 0, phase: 'idle', armHits: 0, frame: null, timers: [] })
 
   useEffect(() => {
     apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {})
@@ -545,12 +545,10 @@ function Swimgames({ code, onBack }) {
 
   const finish = (race, disqualified = false) => {
     if (disqualified) { cancelAnimationFrame(race.frame); race.frame = null; setStatus('disqualified'); setPhase('foul'); return }
-    if (race.kickDistances.length < 2) race.kickDistances.push(race.kickDistance)
-    const kickPenalty = race.kickDistances.reduce((total, distance) => total + Math.abs(10 - distance) * 240, 0)
-    const turnPenalty = race.turns ? (race.turnGood >= 1 ? 0 : 600) : 1200
-    const armPenalty = Math.max(0, 8 - race.armHits) * 260
+    const kickPenalty = Math.max(0, 8 - race.kickPairs) * 90
+    const armPenalty = Math.max(0, 8 - race.armHits) * 90
     const startPenalty = Math.max(0, race.startReaction - 180) * 2
-    const simulated = Math.round(19500 + kickPenalty + turnPenalty + armPenalty + startPenalty)
+    const simulated = Math.round(9000 + kickPenalty + armPenalty + startPenalty)
     setResultMs(simulated); setStatus('over'); setPhase('finish')
     if (swimmerRef.current) swimmerRef.current.style.left = '94%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '100%'; waterFillRef.current.style.marginLeft = '0' }
@@ -561,18 +559,18 @@ function Swimgames({ code, onBack }) {
   const loop = (now) => {
     const race = raceRef.current; const elapsed = now - race.start
     const currentLength = Math.min(SWIMGAMES_LENGTHS, Math.floor(elapsed / SWIMGAMES_LENGTH_MS)); const currentProgress = (elapsed % SWIMGAMES_LENGTH_MS) / SWIMGAMES_LENGTH_MS
-    if (currentLength !== race.lastLength) { if (race.lastLength === 0 && race.kickDistances.length === 0) race.kickDistances.push(race.kickDistance); race.lastLength = currentLength; race.direction = currentLength === 0 ? 'left' : 'right'; race.phase = 'kick'; race.kickDistance = 0; setLength(currentLength); setDirection(race.direction); setKickDistance(0); setPhase('kick') }
+    if (currentLength !== race.lastLength) { race.lastLength = currentLength; race.phase = 'kick'; setLength(currentLength); setDirection('left'); setKickDistance(0); setPhase('kick') }
     if (currentLength >= SWIMGAMES_LENGTHS) { finish(race); return }
-    const nextPhase = currentProgress < .6 ? 'kick' : currentLength === 0 && currentProgress > .75 ? 'turn' : 'swim'
+    const nextPhase = currentProgress < .5 ? 'kick' : 'swim'
     if (nextPhase !== race.phase) { race.phase = nextPhase; setPhase(nextPhase) }
-    const visualProgress = race.direction === 'left' ? 1 - currentProgress : currentProgress
+    const visualProgress = currentProgress
     if (swimmerRef.current) swimmerRef.current.style.left = `${Math.max(0, Math.min(94, visualProgress * 94))}%`
-    if (waterFillRef.current) { waterFillRef.current.style.width = `${currentProgress * 100}%`; waterFillRef.current.style.marginLeft = race.direction === 'left' ? `${(1 - currentProgress) * 100}%` : '0' }
+    if (waterFillRef.current) { waterFillRef.current.style.width = `${currentProgress * 100}%`; waterFillRef.current.style.marginLeft = '0' }
     race.frame = requestAnimationFrame(loop)
   }
 
   const start = () => {
-    const race = { start: 0, goAt: 0, startReaction: 0, lastLength: -1, lastArm: 'right', direction: 'left', phase: 'idle', kickDistance: 0, kickDistances: [], turns: 0, turnGood: 0, armHits: 0, frame: null, timers: [] }
+    const race = { start: 0, goAt: 0, startReaction: 0, lastLength: -1, lastArm: 'right', lastTap: 0, kickPairs: 0, kickTaps: 0, phase: 'idle', armHits: 0, frame: null, timers: [] }
     raceRef.current = race; setLength(0); setDirection('left'); setPhase('idle'); setKickDistance(0); setQuality(0); setEnergy(72); setSpeed(52); setTurnMessage(''); setResultMs(null); setSignal('På era platser'); setStatus('starting')
     if (swimmerRef.current) swimmerRef.current.style.left = '0%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '0%'; waterFillRef.current.style.marginLeft = '0' }
@@ -583,21 +581,21 @@ function Swimgames({ code, onBack }) {
   const beginRace = () => { const race = raceRef.current; race.start = performance.now(); race.startReaction = race.start - race.goAt; race.phase = 'kick'; setSignal(''); setStatus('running'); setPhase('kick'); race.frame = requestAnimationFrame(loop) }
 
   const armStroke = (side) => {
-    if (status !== 'running' || phase !== 'swim') return
-    const race = raceRef.current
-    if (side === race.lastArm) { setTurnMessage('Bra – växla gärna arm nästa gång'); return }
-    race.lastArm = side; race.armHits += 1; setSpeed((value) => Math.min(100, value + 3)); setEnergy((value) => Math.min(100, value + 2)); setTurnMessage(side === 'left' ? 'Vänster arm ✓' : 'Höger arm ✓')
-  }
-
-  const centerAction = () => {
     if (status === 'start-go') { beginRace(); return }
     if (status !== 'running') return
-    const race = raceRef.current
-    if (phase === 'kick') { race.kickDistance += 2.5; setKickDistance(race.kickDistance); if (race.kickDistance > 15) { finish(race, true); return } setSpeed((value) => Math.min(100, value + 2)); setEnergy((value) => Math.max(10, value - 1)); setTurnMessage(race.kickDistance <= 10 ? `${race.kickDistance} m · bra kick ✓` : `${race.kickDistance} m · nära regelgränsen`); return }
-    if (phase === 'turn') { const progress = ((performance.now() - race.start) % SWIMGAMES_LENGTH_MS) / SWIMGAMES_LENGTH_MS; race.turns += 1; race.turnGood = progress > .88 ? 1 : .5; race.kickDistances.push(race.kickDistance); setQuality(race.turnGood); setSpeed((value) => Math.min(100, value + (race.turnGood >= 1 ? 10 : 5))); setTurnMessage(race.turnGood >= 1 ? 'Bra tajmad vändning! ⚡' : 'Godkänd vändning – kör vidare') }
+    const race = raceRef.current; const now = performance.now()
+    if (phase === 'kick') {
+      race.kickTaps += 1
+      if (race.lastTap && now - race.lastTap < 220 && race.lastTapSide !== side) { race.kickPairs += 1; setTurnMessage(`Kickpar ${race.kickPairs}/8 ✓`); setSpeed((value) => Math.min(100, value + 4)); setEnergy((value) => Math.max(15, value - 1)) }
+      else setTurnMessage('Tryck vänster + höger tillsammans')
+      race.lastTap = now; race.lastTapSide = side; return
+    }
+    if (phase === 'swim') {
+      if (side !== race.lastArm) { race.lastArm = side; race.armHits += 1; setSpeed((value) => Math.min(100, value + 3)); setEnergy((value) => Math.min(100, value + 2)); setTurnMessage(side === 'left' ? 'Vänster ✓' : 'Höger ✓') }
+    }
   }
 
-  return <section className="game-page swimgames-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel · Swimgames</p><h1>Swimgames 50 🏊</h1><p className="game-intro"><strong>25 m bassäng × 2 längder = 50 m.</strong> Tajma starten, kicka upp till 15 m och sätt vändningen.</p><div className={`swimgames-board ${status}`}><div className="swimgames-player-track"><div><strong>{status === 'running' ? `Längd ${Math.min(length + 1, SWIMGAMES_LENGTHS)} av ${SWIMGAMES_LENGTHS}` : '50 m frisim'}</strong><small>{turnMessage || (phase === 'kick' ? `KICKA · ${kickDistance}/10 m` : phase === 'turn' ? 'VÄND NU!' : 'Klara för start')}</small></div><div className="player-water"><span ref={swimmerRef}>🏊</span><i ref={waterFillRef} /><b className="water-marker marker-ten">10 m</b><b className="water-marker marker-fifteen">15 m</b></div><small className="kick-rule">Kickmål 10 m · regelgräns 15 m</small><div className="player-distance"><span>{direction === 'left' ? '← Start' : 'Start →'}</span><span className="wall-label">25 m · VÄND</span></div></div>{(status === 'starting' || status === 'start-go') && <div className="swimgames-signal">🔔 <strong>{signal}</strong></div>}<div className="swim-meters"><span>⚡ Fart <b>{speed}</b></span><i><em style={{ width: `${speed}%` }} /></i><span>🔋 Energi <b>{energy}</b></span><i><em className="energy-meter" style={{ width: `${energy}%` }} /></i></div>{(status === 'ready' || status === 'over' || status === 'disqualified') && <div className="swimgames-overlay"><span>{status === 'over' ? '🏁' : status === 'disqualified' ? '🚩' : '🏊'}</span><strong>{status === 'over' ? `Din tid ${formatRaceTime(resultMs)}` : status === 'disqualified' ? 'Diskvalificerad' : 'Redo för start?'}</strong><small>{status === 'over' ? 'Start, kick och vändning påverkar tiden.' : status === 'disqualified' ? 'Undervattensfasen gick över 15 meter.' : 'Mittenknappen guidar dig genom loppets olika faser.'}</small><button className="primary-button" onClick={start}>{status === 'over' || status === 'disqualified' ? 'Simma igen' : 'Starta race'}</button></div>}</div><div className="swimgames-controls"><button disabled={status !== 'running' || phase !== 'swim'} onClick={() => armStroke('left')}>← Vänster arm</button><button className="turn" disabled={(status !== 'running' && status !== 'start-go') || (status === 'running' && !['kick', 'turn'].includes(phase))} onClick={centerAction}>◎ {status === 'start-go' ? 'GO!' : phase === 'kick' ? 'KICKA' : phase === 'turn' ? 'VÄND!' : 'Andas'}</button><button disabled={status !== 'running' || phase !== 'swim'} onClick={() => armStroke('right')}>Höger arm →</button></div></div><section className="game-scoreboard"><p className="eyebrow">Swimgames · all time</p><h2>50 frisim</h2><p className="game-best">Ditt bästa lopp: <strong>{gameData.ownBest ? formatRaceTime(100000 - gameData.ownBest) : '—'}</strong></p>{gameData.leaderboard?.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.displayTime}</em></article>)}</div> : <p className="empty">Ingen har simmat ännu.</p>}<small>Spelets perfekta riktmärke är 19,5 sekunder. Topplistan sparas över tid.</small></section></div></section>
+  return <section className="game-page swimgames-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel · Swimgames</p><h1>Swimgames 25 🏊</h1><p className="game-intro"><strong>25 m bassäng × 1 längd = 25 m.</strong> Starta med valfri knapp, kicka tillsammans under vattnet och simma sedan växelvis.</p><div className={`swimgames-board ${status}`}><div className="swimgames-player-track"><div><strong>{status === 'running' ? `Längd ${Math.min(length + 1, SWIMGAMES_LENGTHS)} av ${SWIMGAMES_LENGTHS}` : '50 m frisim'}</strong><small>{turnMessage || (phase === 'kick' ? `KICKA · ${kickDistance}/10 m` : phase === 'turn' ? 'VÄND NU!' : 'Klara för start')}</small></div><div className="player-water"><span ref={swimmerRef}>🏊</span><i ref={waterFillRef} /><b className="water-marker marker-half">12,5 m</b></div><small className="kick-rule">Kickfas · 12,5 m under vatten</small><div className="player-distance"><span>{direction === 'left' ? '← Start' : 'Start →'}</span><span className="wall-label">25 m · MÅL</span></div></div>{(status === 'starting' || status === 'start-go') && <div className="swimgames-signal">🔔 <strong>{signal}</strong></div>}<div className="swim-meters"><span>⚡ Fart <b>{speed}</b></span><i><em style={{ width: `${speed}%` }} /></i><span>🔋 Energi <b>{energy}</b></span><i><em className="energy-meter" style={{ width: `${energy}%` }} /></i></div>{(status === 'ready' || status === 'over' || status === 'disqualified') && <div className="swimgames-overlay"><span>{status === 'over' ? '🏁' : status === 'disqualified' ? '🚩' : '🏊'}</span><strong>{status === 'over' ? `Din tid ${formatRaceTime(resultMs)}` : status === 'disqualified' ? 'Diskvalificerad' : 'Redo för start?'}</strong><small>{status === 'over' ? 'Start, kick och vändning påverkar tiden.' : status === 'disqualified' ? 'Undervattensfasen gick över 15 meter.' : 'Mittenknappen guidar dig genom loppets olika faser.'}</small><button className="primary-button" onClick={start}>{status === 'over' || status === 'disqualified' ? 'Simma igen' : 'Starta race'}</button></div>}</div><div className="swimgames-controls"><button disabled={status !== "running" && status !== "start-go"} onClick={() => armStroke("left")}>← Vänster</button><button disabled={status !== "running" && status !== "start-go"} onClick={() => armStroke("right")}>Höger →</button></div></div><section className="game-scoreboard"><p className="eyebrow">Swimgames · all time</p><h2>25 frisim</h2><p className="game-best">Ditt bästa lopp: <strong>{gameData.ownBest ? formatRaceTime(100000 - gameData.ownBest) : '—'}</strong></p>{gameData.leaderboard?.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.displayTime}</em></article>)}</div> : <p className="empty">Ingen har simmat ännu.</p>}<small>Spelets perfekta riktmärke är 9 sekunder. Topplistan sparas över tid.</small></section></div></section>
 }
 
 const TALK_STEPS = [
