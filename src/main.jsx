@@ -111,6 +111,21 @@ function App() {
     return () => { window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus) }
   }, [auth, profile])
 
+  // The first swimmer response fetch is intentionally anonymized for the
+  // group view. Once a profile is restored, merge the profile's detailed
+  // responses so the status card can show the selected day type as well.
+  useEffect(() => {
+    if (!auth || !profile) return
+    apiRequest('/api/responses?mine=true', auth.code).then((data) => {
+      setResponses((current) => {
+        const own = new Map((data.responses || []).map((item) => [item.id, item]))
+        const merged = current.map((item) => own.get(item.id) || item)
+        const existing = new Set(merged.map((item) => item.id))
+        return [...merged, ...(data.responses || []).filter((item) => !existing.has(item.id))]
+      })
+    }).catch(() => {})
+  }, [auth, profile?.id])
+
   useEffect(() => {
     if (!auth || !profile) return undefined
     const refresh = () => apiRequest('/api/notifications', auth.code).then((data) => setNotifications(data.notifications || [])).catch(() => {})
