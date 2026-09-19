@@ -580,10 +580,10 @@ function Swimgames({ code, onBack }) {
 
   const start = () => {
     const race = { start: 0, goAt: 0, startReaction: 0, lastLength: -1, lastArm: 'right', lastStroke: 0, currentSpeed: 0, phase: 'idle', armHits: 0, frame: null, timers: [] }
-    raceRef.current = race; setLength(0); setDirection('left'); setPhase('idle'); setKickDistance(0); setQuality(0); setEnergy(72); setSpeed(0); setReactionMs(null); setStrokeSide(''); setStrokePulse(0); setTurnMessage(''); setResultMs(null); setSignal('På era platser'); setStatus('starting')
+    raceRef.current = race; setLength(0); setDirection('left'); setPhase('idle'); setKickDistance(0); setQuality(0); setEnergy(72); setSpeed(0); setReactionMs(null); setStrokeSide(''); setStrokePulse(0); setTurnMessage(''); setResultMs(null); setSignal('Vissling!'); setStatus('starting')
     if (swimmerRef.current) swimmerRef.current.style.left = '0%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '0%'; waterFillRef.current.style.marginLeft = '0' }
-    race.timers.push(window.setTimeout(() => setSignal('Vissling!'), 850))
+    race.timers.push(window.setTimeout(() => setSignal('På era platser'), 700))
     race.timers.push(window.setTimeout(() => { race.goAt = performance.now(); setSignal('GO!'); setStatus('start-go'); setPhase('start') }, 1500))
   }
 
