@@ -77,12 +77,14 @@ function App() {
   useEffect(() => {
     if (!auth) return
     setLoading(true)
+    // Visa dagens känslor så fort svaren är hämtade. Övrig coachdata får
+    // fortsätta laddas parallellt utan att blockera färgen i toppkortet.
+    fetchResponses(auth.code).then((nextResponses) => setResponses(nextResponses)).catch((error) => window.alert(error.message))
     Promise.all([
-      fetchResponses(auth.code),
       auth.role === 'coach' ? apiRequest('/api/profiles', auth.code) : Promise.resolve({ profiles: [], pendingProfiles: [] }),
       auth.role === 'coach' ? apiRequest('/api/activity', auth.code).then((data) => data.activeProfilesToday) : Promise.resolve(0),
     ])
-      .then(([nextResponses, profileData, activeCount]) => { setResponses(nextResponses); setProfiles(profileData.profiles); setPendingProfiles(profileData.pendingProfiles || []); setActiveProfilesToday(activeCount) })
+      .then(([profileData, activeCount]) => { setProfiles(profileData.profiles); setPendingProfiles(profileData.pendingProfiles || []); setActiveProfilesToday(activeCount) })
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [auth])
@@ -236,7 +238,7 @@ function App() {
       }} />}
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
       {screen === 'legal' && <LegalPage onBack={() => setScreen('home')} />}
-      <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>
+      <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>
     </Shell>
   )
 }
