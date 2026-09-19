@@ -448,7 +448,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}`}>
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
-        {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span>⚡</span> RACE DAY <span>⚡</span></div>}
+        {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
         {profile && swimmerEffects && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
         <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`}>
           {todayResponses.length ? todayResponses.map((response, index) => (
