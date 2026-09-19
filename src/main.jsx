@@ -461,7 +461,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
 
-      {profile && <DailyProgressCard responses={responses} activityDates={activityDates} points={points} onGoals={onGoals} />}
+      {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
@@ -476,12 +476,16 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   )
 }
 
-function DailyProgressCard({ responses, activityDates, points, onGoals }) {
-  const activeDates = new Set([...(activityDates || []), ...responses.map((item) => dateKey(responseDate(item)))])
-  let streak = 0; const cursor = new Date()
-  while (activeDates.has(dateKey(cursor))) { streak += 1; cursor.setDate(cursor.getDate() - 1) }
-  const todayDone = activeDates.has(todayKey())
-  return <section className="daily-progress-card"><div><p className="eyebrow">Din status idag</p><h2>{todayDone ? 'Du är med idag ✓' : 'Hur är läget?'}</h2><small>{todayDone ? `Du har svarat idag · ${streak} ${streak === 1 ? 'dag' : 'dagar'} i rad` : 'En snabb check-in hjälper dig och tränaren.'}</small></div><div className="daily-progress-actions">{points?.total != null && <span>⭐ {points.total} p</span>}<button onClick={onGoals}>Se mina mål →</button></div></section>
+function DailyProgressCard({ responses, points, onGoals }) {
+  const todayResponse = responses.filter((item) => dateKey(responseDate(item)) === todayKey()).sort((a, b) => responseDate(b) - responseDate(a))[0]
+  const todayDone = Boolean(todayResponse)
+  const status = todayResponse?.type === 'before' && todayResponse.speedFeeling != null && todayResponse.raceConcern != null
+    ? 'ska tävla'
+    : todayResponse?.type === 'before' ? 'ska träna'
+      : todayResponse?.type === 'after' ? 'har simmat'
+        : todayResponse?.type === 'sick' ? 'känner sig sjuk'
+          : todayResponse?.type === 'rest' ? 'vilar idag' : null
+  return <section className="daily-progress-card"><div><p className="eyebrow">Din status idag</p><h2>{todayDone ? 'Du är incheckad ✓' : 'Hur är läget?'}</h2><small>{todayDone ? `Senaste status: ${status || 'svar registrerat'}` : 'En snabb check-in hjälper dig och tränaren.'}</small></div><div className="daily-progress-actions">{points?.total != null && <span>⭐ {points.total} p</span>}<button onClick={onGoals}>Se mina mål →</button></div></section>
 }
 
 function NotificationCard({ profile, notifications, onChange, onCommunity, onGoals }) {
