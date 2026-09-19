@@ -203,7 +203,7 @@ button { cursor: pointer; }
 .player-water { position: relative; height: 35px; overflow: hidden; border-radius: 999px; background: repeating-linear-gradient(90deg, rgba(255,255,255,.15) 0 16px, rgba(255,255,255,.05) 16px 32px); contain: layout paint; }
 .player-water::after { content: ''; position: absolute; right: 8px; top: 0; bottom: 0; border-right: 3px solid rgba(255,240,170,.85); box-shadow: 0 0 12px rgba(255,220,129,.5); }
 .player-water i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #69dfd2, #d6f278); opacity: .56; transition: none; will-change: width; }
-.player-water span { position: absolute; z-index: 2; top: 3px; font-size: 25px; line-height: 28px; transition: none; will-change: left; }
+.player-water span { position: absolute; z-index: 2; top: 3px; font-size: 25px; line-height: 28px; transition: none; will-change: left; transform: scaleX(-1); }
 .swimgames-board.stroke-left .player-water span { animation: swim-stroke-left .16s ease-out; }
 .swimgames-board.stroke-right .player-water span { animation: swim-stroke-right .16s ease-out; }
 .water-marker { position: absolute; z-index: 3; top: 0; bottom: 0; display: flex; align-items: flex-end; padding: 0 0 2px 4px; border-left: 1px dashed rgba(255,255,255,.8); font-size: 9px; line-height: 11px; font-weight: 800; pointer-events: none; }
@@ -239,8 +239,8 @@ button { cursor: pointer; }
 .swimgames-controls button:active { transform: translateY(2px); background: #dff3ed; }
 .swimgames-controls button.turn { background: var(--lime); border-color: var(--lime); color: var(--ink); }
 .swimgames-controls button.stroke-active { background: #c9f05a; border-color: #c9f05a; color: var(--ink); transform: translateY(1px); }
-@keyframes swim-stroke-left { 50% { transform: translateY(-4px) rotate(-5deg); } }
-@keyframes swim-stroke-right { 50% { transform: translateY(-4px) rotate(5deg); } }
+@keyframes swim-stroke-left { 50% { transform: translateY(-4px) rotate(-5deg) scaleX(-1); } }
+@keyframes swim-stroke-right { 50% { transform: translateY(-4px) rotate(5deg) scaleX(-1); } }
 .game-page > .back-button { margin-bottom: 20px; }
 .game-layout { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(250px, .7fr); gap: 32px; align-items: start; }
 .game-layout h1 { font-size: clamp(36px, 6vw, 54px); margin: 0 0 12px; }
