@@ -557,7 +557,9 @@ function Swimgames({ code, onBack }) {
     const armPenalty = Math.max(0, 8 - race.armHits) * 90
     const speedBonus = Math.max(0, race.armHits - 8) * 140 + Math.max(0, race.maxSpeed - 80) * 8
     const startPenalty = Math.max(0, race.startReaction - 180) * 2
-    const simulated = Math.max(1000, Math.round(9000 - speedBonus + armPenalty + startPenalty))
+    // Keep the game playful but physically plausible: a 25 m race cannot
+    // produce a two-second result even with perfect button timing.
+    const simulated = Math.max(8500, Math.round(9000 - speedBonus + armPenalty + startPenalty))
     setResultMs(simulated); setStatus('over'); setPhase('finish')
     if (swimmerRef.current) swimmerRef.current.style.left = '94%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '100%'; waterFillRef.current.style.marginLeft = '0' }

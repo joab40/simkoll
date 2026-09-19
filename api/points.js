@@ -6,6 +6,10 @@ const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,game_key,created_at,profiles(display_name,emoji)'
 const SWIMGAMES_BASE = 100000
+// A 25 m race cannot be completed in a couple of seconds. Keep the
+// theoretical best at 8.5 s and reject older/impossible scores as well.
+const SWIMGAMES_MIN_TIME_MS = 8500
+const SWIMGAMES_MAX_SCORE = SWIMGAMES_BASE - SWIMGAMES_MIN_TIME_MS
 const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
 const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
@@ -28,7 +32,8 @@ async function monthlyGameLeaderboard(profileId, key = gameKey) {
   return { monthStart: start, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest: own?.score || 0 }
 }
 async function lifetimeGameLeaderboard(profileId, key = gameKey) {
-  const result = await supabaseRequest(`game_scores?game_key=eq.${key}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10000`)
+  const scoreFilter = key === 'swimgames' ? `&score=lte.${SWIMGAMES_MAX_SCORE}` : ''
+  const result = await supabaseRequest(`game_scores?game_key=eq.${key}${scoreFilter}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10000`)
   if (!result.ok) throw new Error(`Lifetime game leaderboard lookup failed: ${result.status}`)
   const best = new Map(); (await result.json()).forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) })
   const rows = [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10)
@@ -52,7 +57,7 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
 async function allTimeGameLeaderboard() {
   const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
-  const rows = await result.json(); const games = new Map()
+  const rows = (await result.json()).filter((item) => item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE); const games = new Map()
   rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
   const totals = new Map()
   games.forEach((items) => { const best = new Map(); items.forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) }); [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10).forEach((item, index) => { const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += 10 - index; totals.set(item.profile_id, current) }) })
@@ -86,6 +91,7 @@ export default async function handler(request, response) {
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
         if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
         const key = ['simpaus', 'vanda', 'swimgames'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
+        if (key === 'swimgames' && score > SWIMGAMES_MAX_SCORE) return sendJson(response, 400, { error: 'Tiden är för snabb för att vara giltig.' })
         const week = weekStart()
         const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&select=id,score&limit=1`)
         if (!existingResult.ok) throw new Error('Game score lookup failed')
