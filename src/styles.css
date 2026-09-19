@@ -69,9 +69,9 @@ button { cursor: pointer; }
 .streak-flame { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,186,79,.16); font-size: var(--streak-size, 1rem); transform-origin: 50% 85%; animation: streak-flame 1.15s ease-in-out infinite alternate; box-shadow: 0 0 14px rgba(255,151,57,.22); }
 .streak-static .streak-flame { animation: none; }
 .streak-cycle-0 .streak-flame { filter: saturate(1.15); }
-.streak-cycle-1 { color: #ffd6f5; }
-.streak-cycle-1 strong { color: #ffe3f8; }
-.streak-cycle-1 .streak-flame { background: radial-gradient(circle at 50% 70%, rgba(255,102,195,.58), rgba(120,76,255,.22) 68%, transparent); filter: hue-rotate(35deg) saturate(2.1) brightness(1.15); box-shadow: 0 0 12px rgba(255,82,193,.68), 0 0 25px rgba(121,88,255,.45); }
+.streak-cycle-1 { color: #f4dff0; }
+.streak-cycle-1 strong { color: #ffeaf8; }
+.streak-cycle-1 .streak-flame { background: rgba(178,126,221,.18); filter: hue-rotate(28deg) saturate(1.35) brightness(1.06); box-shadow: 0 0 12px rgba(180,122,224,.3); }
 .streak-cycle-2 .streak-flame { filter: hue-rotate(285deg) saturate(1.55) brightness(1.08); }
 .streak-cycle-3 .streak-flame { filter: hue-rotate(175deg) saturate(1.7) brightness(1.12); }
 .streak-cycle-4 .streak-flame { filter: hue-rotate(320deg) saturate(1.9) brightness(1.16); }
