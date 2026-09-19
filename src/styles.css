@@ -103,6 +103,7 @@ button { cursor: pointer; }
 .response-count { border-top: 1px solid rgba(255,255,255,.13); padding-top: 22px; margin-top: 24px; color: #b9cacb; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .response-count strong { color: var(--lime); font-size: 18px; margin-right: 3px; }
 .active-count { color: #d7e5e4; }
+.response-count .active-count strong { color: #d7e5e4; font-size: 18px; margin-right: 3px; }
 .active-count::first-letter { color: var(--aqua); }
 .start-card { background: var(--paper); margin: 18px 0 0; border: 1px solid #dbe6e3; border-radius: 24px; padding: 30px 34px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .workout-card { background: var(--paper); margin-top: 18px; border: 1px solid #dbe6e3; border-radius: 24px; padding: 30px 34px; display: grid; grid-template-columns: minmax(190px, .65fr) 1.35fr; gap: 35px; }
