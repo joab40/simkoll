@@ -233,7 +233,7 @@ button { cursor: pointer; }
 .swimgames-overlay small { color: #d5efea; }
 .swimgames-turn { width: min(100%, 620px); margin-top: 12px; border: 0; border-radius: 14px; padding: 15px; background: var(--lime); color: var(--ink); font-weight: 900; font-size: 15px; }
 .swimgames-controls { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 10px; width: min(100%, 760px); margin-top: 12px; }
-.swimgames-controls button { min-height: 56px; border: 1px solid #b9d5cf; border-radius: 14px; background: var(--paper); color: var(--teal); font-weight: 800; font-size: 12px; box-shadow: 0 5px 13px rgba(16,45,55,.08); }
+.swimgames-controls button { min-height: 56px; border: 1px solid #b9d5cf; border-radius: 14px; background: var(--paper); color: var(--teal); font-weight: 800; font-size: 12px; box-shadow: 0 5px 13px rgba(16,45,55,.08); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .swimgames-controls button:disabled { opacity: .42; cursor: not-allowed; box-shadow: none; }
 .swimgames-controls button:active { transform: translateY(2px); background: #dff3ed; }
 .swimgames-controls button.turn { background: var(--lime); border-color: var(--lime); color: var(--ink); }
