@@ -102,6 +102,16 @@ export default async function handler(request, response) {
         const board = key === 'swimgames' ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
         return sendJson(response, 200, { ...board, teamBonus })
       }
+      if (role === 'swimmer' && action === 'reset-game-score') {
+        const profile = await getSessionProfile(request)
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att nollställa tiden.' })
+        const key = ['simpaus', 'vanda', 'swimgames'].includes(request.body?.gameKey) ? request.body.gameKey : null
+        if (!key) return sendJson(response, 400, { error: 'Ogiltigt spel.' })
+        const deleted = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}`, { method: 'DELETE' })
+        if (!deleted.ok) throw new Error(`Game score reset failed: ${deleted.status}`)
+        const board = key === 'swimgames' ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
+        return sendJson(response, 200, board)
+      }
       if (action === 'sync-stars') {
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil.' })
