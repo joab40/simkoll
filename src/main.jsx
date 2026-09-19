@@ -428,7 +428,10 @@ function StarProgress({ stars }) {
 
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onGame, onVanda, onSwimgames, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
-  const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
+  // Daily activity is stored as a Stockholm calendar date on the server.
+  // Use it as the source of truth for streaks, while merging in responses
+  // already present in the UI so a just-submitted check-in is shown instantly.
+  const activeDates = new Set([...(activityDates || []), ...responses.map((item) => dateKey(responseDate(item)))])
   let streak = 0; const streakCursor = new Date()
   while (activeDates.has(dateKey(streakCursor))) { streak += 1; streakCursor.setDate(streakCursor.getDate() - 1) }
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
@@ -458,7 +461,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
 
-      {profile && <DailyProgressCard responses={responses} points={points} onGoals={onGoals} />}
+      {profile && <DailyProgressCard responses={responses} activityDates={activityDates} points={points} onGoals={onGoals} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
@@ -473,8 +476,8 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   )
 }
 
-function DailyProgressCard({ responses, points, onGoals }) {
-  const activeDates = new Set(responses.map((item) => dateKey(responseDate(item))))
+function DailyProgressCard({ responses, activityDates, points, onGoals }) {
+  const activeDates = new Set([...(activityDates || []), ...responses.map((item) => dateKey(responseDate(item)))])
   let streak = 0; const cursor = new Date()
   while (activeDates.has(dateKey(cursor))) { streak += 1; cursor.setDate(cursor.getDate() - 1) }
   const todayDone = activeDates.has(todayKey())
