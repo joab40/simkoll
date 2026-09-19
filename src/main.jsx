@@ -32,6 +32,7 @@ const dateKey = (date) => {
 
 const responseDate = (response) => new Date(response.createdAt)
 const todayKey = () => dateKey(new Date())
+const competitionIsToday = (item, today = todayKey()) => Boolean(item?.startDate && item.startDate <= today && (item.endDate || item.startDate) >= today)
 const average = (key, items) => {
   const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
   return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
@@ -198,7 +199,7 @@ function App() {
       {screen === 'checkin' && (
         <CheckIn
           hasProfile={Boolean(profile)}
-          competitionToday={Boolean(profile && competitions.some((item) => item.startDate === todayKey()))}
+          competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
             const result = await apiRequest('/api/responses', auth.code, {
@@ -436,7 +437,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   while (activeDates.has(dateKey(streakCursor))) { streak += 1; streakCursor.setDate(streakCursor.getDate() - 1) }
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
-  const nextCompetition = (competitions || []).filter((item) => item.startDate >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+  const nextCompetition = (competitions || []).filter((item) => (item.endDate || item.startDate) >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
   const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
   const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && workout?.focus === 'fart' ? 'speed-focus' : ''
   const raceDayActive = swimmerEffects && daysToCompetition === 0
