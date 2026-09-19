@@ -1036,6 +1036,7 @@ function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
   const [form, setForm] = useState({})
   const [competitionDecision, setCompetitionDecision] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const typeQuestions = form.type ? getQuestions(form.type) : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: 'Hur redo känns du för att tävla?', hint: '1 = inte redo · 5 = helt redo', kind: 'scale', count: 5, left: 'Inte redo', right: 'Redo' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
@@ -1046,11 +1047,13 @@ function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
   const next = () => setStep((current) => current + 1)
   const submit = async () => {
     setSubmitting(true)
+    setSubmitted(true)
     setSubmitError('')
     try {
       await onSubmit(form)
     } catch (error) {
       setSubmitError(error.message || 'Kunde inte skicka svaret. Försök igen.')
+      setSubmitted(false)
       setSubmitting(false)
     }
   }
@@ -1108,7 +1111,7 @@ function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
             {hasProfile && (form.type === 'after' || (competitionToday && competitionDecision === true && form.type === 'before')) && <div className="training-register"><label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} disabled={competitionToday && competitionDecision === true && form.type === 'before'} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>{competitionToday && competitionDecision === true && form.type === 'before' ? 'Tävlingscheck-in räknas som närvaro' : 'Registrera som simpass'}</strong><small>{competitionToday && competitionDecision === true && form.type === 'before' ? 'Ditt tävlingsdeltagande läggs i veckans simnärvaro.' : 'Läggs i din personliga veckoräknare. Feedbacken kan fortfarande vara anonym.'}</small></span></label>{form.registerTraining && !(competitionToday && competitionDecision === true && form.type === 'before') && <div className="swim-slot"><button type="button" className={form.trainingSlot === 'morning_swim' ? 'active' : ''} onClick={() => update('trainingSlot', 'morning_swim')}>🌅 Morgon</button><button type="button" className={form.trainingSlot === 'afternoon_swim' ? 'active' : ''} onClick={() => update('trainingSlot', 'afternoon_swim')}>🌇 Eftermiddag</button></div>}</div>}
             {submitError && <span className="error-text">{submitError}</span>}
-            <div><button className="skip-button" disabled={submitting} onClick={submit}>Hoppa över</button><button className="primary-button small" disabled={submitting} onClick={submit}>{submitting ? 'Skickar…' : 'Skicka →'}</button></div>
+            {submitted ? <div className="submit-confirmation" role="status"><span>✓</span><strong>Svaret sparas…</strong><small>Du kommer vidare strax.</small></div> : <div><button className="skip-button" disabled={submitting} onClick={submit}>Skicka utan kommentar</button><button className="primary-button small" disabled={submitting} onClick={submit}>Skicka svar →</button></div>}
           </div>
         )}
       </Question>
