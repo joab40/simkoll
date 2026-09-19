@@ -62,7 +62,7 @@ button { cursor: pointer; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .page-content.race-day-page { position: relative; isolation: isolate; }
-.page-content.race-day-page::before { content: ''; position: fixed; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 8%, rgba(35,142,153,.12), transparent 36%), linear-gradient(145deg, #e7f1ef, #f5eee2 58%, #e4f0ee); }
+.page-content.race-day-page::before { content: ''; position: fixed; z-index: -1; inset: 0; pointer-events: none; background: #eff6f4; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
 .streak-chip { position: relative; display: flex; width: max-content; align-items: center; gap: 7px; margin: 11px 0 0 auto; padding: 0; color: #fff4c2; font-size: 12px; }
 .streak-chip strong { font-size: 17px; color: #fff; }

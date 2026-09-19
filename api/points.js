@@ -6,7 +6,7 @@ const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,game_key,created_at,profiles(display_name,emoji)'
 const SWIMGAMES_BASE = 100000
-const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }
+const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
 const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
 const TEAM_GAME_TARGET = 10
