@@ -1039,7 +1039,7 @@ function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
   const [submitError, setSubmitError] = useState('')
   const typeQuestions = form.type ? getQuestions(form.type) : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: 'Hur redo känns du för att tävla?', hint: '1 = inte redo · 5 = helt redo', kind: 'scale', count: 5, left: 'Inte redo', right: 'Redo' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }] : []
-  const questions = [...raceQuestions, ...typeQuestions]
+  const questions = form.competition === true ? raceQuestions : typeQuestions
   const total = 2 + questions.length
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
