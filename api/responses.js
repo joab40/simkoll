@@ -128,7 +128,10 @@ export default async function handler(request, response) {
           if (!trainingResult.ok && trainingResult.status !== 409) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
         }
       }
-      return sendJson(response, 201, { response: fromDatabase(created, role === 'coach') })
+      // Return the same detailed response shape for the logged-in swimmer as
+      // for coaches, so the status card can immediately show the selected
+      // status without requiring a reload.
+      return sendJson(response, 201, { response: fromDatabase(created, role === 'coach' || Boolean(sessionProfile)) })
     }
 
     if (request.method === 'DELETE' && role === 'coach') {
