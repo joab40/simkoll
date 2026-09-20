@@ -1208,8 +1208,7 @@ function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDo
   )
 }
 
-function CoachActivitySummary({ code }) {
-  const [selectedDate, setSelectedDate] = useState(todayKey())
+function CoachActivitySummary({ code, selectedDate, onDateChange }) {
   const date = selectedDate
   const [notes, setNotes] = useState([])
   const [activities, setActivities] = useState([{ type: 'day', id: '', label: 'Dagens sammanfattning' }])
@@ -1256,13 +1255,12 @@ function CoachActivitySummary({ code }) {
       setContent(data.text || content); setMessage(data.usedAi ? 'Texten är förbättrad – kontrollera den och spara.' : 'AI-stöd är inte tillgängligt just nu. Du kan redigera texten själv.')
     } catch (error) { setMessage(error.message) } finally { setPolishing(false) }
   }
-  const shiftDate = (days) => { const next = new Date(`${date}T12:00:00`); next.setDate(next.getDate() + days); setSelectedDate(dateKey(next)) }
-  const dateLabel = new Date(`${date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Gruppens dokumentation</p><h2>{date === todayKey() ? 'Sammanfatta idag' : 'Sammanfatta vald dag'}</h2><p className="muted">Koppla texten till dagen, ett pass eller en tävling. Tidigare sammanfattningar kan öppnas och ändras.</p></div><span className="coach-note-icon">📝</span></div><div className="coach-note-date-controls"><button type="button" className="secondary-button" onClick={() => shiftDate(-1)} aria-label="Föregående dag">←</button><label><span>{dateLabel}</span><input type="date" value={date} onChange={(event) => event.target.value && setSelectedDate(event.target.value)} /></label><button type="button" className="secondary-button" onClick={() => shiftDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSelectedDate(todayKey())}>Idag</button></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-activity-summary-actions"><button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button><button type="button" className="primary-button small" onClick={save} disabled={saving || polishing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}<p className="coach-note-disclaimer">Språkmodellen får bara texten du skriver här. Kontrollera alltid förslaget innan du sparar.</p></section>
+  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Gruppens dokumentation</p><h2>{date === todayKey() ? 'Sammanfatta idag' : 'Sammanfatta vald dag'}</h2><p className="muted">Koppla texten till dagen, ett pass eller en tävling. Tidigare sammanfattningar kan öppnas och ändras.</p></div><span className="coach-note-icon">📝</span></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-activity-summary-actions"><button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button><button type="button" className="primary-button small" onClick={save} disabled={saving || polishing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}<p className="coach-note-disclaimer">Språkmodellen får bara texten du skriver här. Kontrollera alltid förslaget innan du sparar.</p></section>
 }
 
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
+  const [summaryDate, setSummaryDate] = useState(todayKey())
   const [competitionResults, setCompetitionResults] = useState([])
   const [competitionLoading, setCompetitionLoading] = useState(false)
   const [talksGlobalEnabled, setTalksGlobalEnabled] = useState(true)
@@ -1299,6 +1297,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
 
   const previousWeekLabel = `${previousWeek.start.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${previousWeek.end.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
   const openViewFromMenu = (nextView) => { setView(nextView); if (nextView === 'competition') loadCompetitionResults(); const menu = document.querySelector('.coach-header-menu'); if (menu) menu.open = false }
+  const shiftSummaryDate = (days) => { const next = new Date(`${summaryDate}T12:00:00`); next.setDate(next.getDate() + days); setSummaryDate(dateKey(next)) }
+  const summaryDateLabel = new Date(`${summaryDate}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
     <main className="coach-shell">
@@ -1323,7 +1323,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'legal' ? 'active' : ''} onClick={() => setView('legal')}><span className="desktop-tab-label">Info & villkor</span><span className="mobile-tab-label">Info</span></button>
           </div></details>
         </nav>
-        {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Idag</p><h1>Gruppens läge</h1></div><div className="usage-summary"><div className="usage-stat"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{todayResponses.length}</strong><span>incheckningar</span></div>{todayResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{todayResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka idag</span></div></>}</div></section>}
+        {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Vald dag'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{todayResponses.length}</strong><span>incheckningar</span></div>{todayResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{todayResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka idag</span></div></>}</div></section>}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'faq' ? (
@@ -1373,7 +1373,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
               ? new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
               : previousWeekLabel}
             showDays={view === 'week'}
-          />{view === 'today' && <CoachActivitySummary code={code} />}</>
+          />{view === 'today' && <CoachActivitySummary code={code} selectedDate={summaryDate} onDateChange={setSummaryDate} />}</>
         )}
         {view === 'today' && <button className="clear-button" onClick={async () => {
           if (!confirmDestructive('Alla incheckningar och all historik kommer att raderas permanent.')) return
