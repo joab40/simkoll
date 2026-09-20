@@ -1277,6 +1277,7 @@ function CoachActivitySummary({ code, selectedDate, onDateChange }) {
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const [summaryDate, setSummaryDate] = useState(todayKey())
+  const [selectedGroups, setSelectedGroups] = useState(['ungdom_orange', 'ungdom_svart', 'junior'])
   const [competitionResults, setCompetitionResults] = useState([])
   const [competitionLoading, setCompetitionLoading] = useState(false)
   const [talksGlobalEnabled, setTalksGlobalEnabled] = useState(true)
@@ -1303,11 +1304,16 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const orderedOverviewItems = orderedOverviewKeys.map((key) => overviewItems.find((item) => item.key === key)).filter(Boolean)
   const toggleAllTalks = async () => { try { const next = !talksGlobalEnabled; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-talk-global', enabled: next }) }); setTalksGlobalEnabled(next) } catch (error) { window.alert(error.message) } }
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
+  const groupOptions = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']]
+  const allGroupsSelected = selectedGroups.length === groupOptions.length
+  const groupFilteredProfiles = allGroupsSelected ? profiles : profiles.filter((profile) => selectedGroups.includes(profile.trainingGroup))
+  const groupFilteredIds = new Set(groupFilteredProfiles.map((profile) => profile.id))
+  const groupFilteredResponses = responses.filter((response) => !response.profileId ? allGroupsSelected : groupFilteredIds.has(response.profileId))
   const previousWeek = previousWeekRange()
-  const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
-  const selectedDateResponses = responses.filter((response) => dateKey(responseDate(response)) === summaryDate)
+  const todayResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const selectedDateResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === summaryDate)
   const selectedActiveProfiles = new Set(selectedDateResponses.map((item) => item.profileId).filter(Boolean)).size
-  const previousWeekResponses = responses.filter((response) => {
+  const previousWeekResponses = groupFilteredResponses.filter((response) => {
     const date = responseDate(response)
     return date >= previousWeek.start && date <= previousWeek.end
   })
@@ -1322,6 +1328,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
     <main className="coach-shell">
       <header><ClubBrand /><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
       <div className="coach-content">
+        <details className="coach-group-filter coach-group-filter-content"><summary>Grupper · {selectedGroups.length === groupOptions.length ? 'Alla' : selectedGroups.length}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details>
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
             {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => { setView(item.key); if (item.key === 'competition') loadCompetitionResults() }}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>)}
@@ -1355,15 +1362,15 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'meeting' ? (
           <WeeklyMeeting code={code} />
         ) : view === 'programs' ? (
-          <CoachPrograms code={code} profiles={profiles} />
+          <CoachPrograms code={code} profiles={groupFilteredProfiles} />
         ) : view === 'goals' ? (
-          <CoachGoals code={code} profiles={profiles} />
+          <CoachGoals code={code} profiles={groupFilteredProfiles} />
         ) : view === 'talks' ? (
-          <DevelopmentTalkCoach code={code} profiles={profiles} />
+          <DevelopmentTalkCoach code={code} profiles={groupFilteredProfiles} />
         ) : view === 'community' ? (
-          <CoachCommunity code={code} profiles={profiles} />
+          <CoachCommunity code={code} profiles={groupFilteredProfiles} />
         ) : view === 'workout' ? (
-          <WorkoutEditor code={code} responses={responses} />
+          <WorkoutEditor code={code} responses={groupFilteredResponses} />
         ) : view === 'planning' ? (
           <><SportAdminImport code={code} /><CoachPlanning code={code} /></>
         ) : view === 'competition-calendar' ? (
@@ -1371,22 +1378,22 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'settings' ? (
           <WebappSettings code={code} />
         ) : view === 'groups' ? (
-          <CoachGroups code={code} profiles={profiles} onProfilesChange={onProfilesChange} />
+          <CoachGroups code={code} profiles={groupFilteredProfiles} onProfilesChange={onProfilesChange} />
         ) : view === 'app-feedback' ? (
           <CoachAppFeedback code={code} />
         ) : view === 'workout-library' ? (
           <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
-          <Swimmers profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={responses} code={code} />
+          <Swimmers profiles={groupFilteredProfiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={groupFilteredResponses} code={code} />
         ) : view === 'competition' ? (
           <CompetitionResults profiles={profiles} results={competitionResults} loading={competitionLoading} code={code} onSync={() => { setCompetitionLoading(true); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results' }) }).then((data) => { if (data.failures?.length) window.alert(`Tempus synk: ${data.synced} sparade, ${data.failures.length} misslyckades.`); return loadCompetitionResults() }).finally(() => setCompetitionLoading(false)) }} onSyncProfile={(profileId) => { setCompetitionLoading(true); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results', profileId }) }).then((data) => { if (data.failures?.length) window.alert(`Tempus synk misslyckades: ${data.failures[0]}`); return loadCompetitionResults() }).finally(() => setCompetitionLoading(false)) }} />
         ) : view === 'history' ? (
-          <History responses={responses} />
+          <History responses={groupFilteredResponses} />
         ) : (
-          <>{view === 'today' && <AttendancePanel code={code} profiles={profiles} responses={selectedDateResponses} date={summaryDate} />}<PeriodOverview
+          <>{view === 'today' && <AttendancePanel code={code} profiles={groupFilteredProfiles} responses={selectedDateResponses} date={summaryDate} />}<PeriodOverview
             responses={view === 'today' ? selectedDateResponses : scopedResponses}
             title={view === 'today' ? (summaryDate === todayKey() ? 'Idag' : 'Vald dag') : 'Förra veckan'}
-            profiles={profiles}
+            profiles={groupFilteredProfiles}
             periodLabel={view === 'today'
               ? summaryDateLabel
               : previousWeekLabel}
