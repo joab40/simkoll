@@ -497,7 +497,14 @@ button { cursor: pointer; }
 .coach-group-filter > div strong { color: var(--teal); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .coach-group-filter > div label { display: flex; align-items: center; gap: 8px; padding: 7px 4px; font-size: 12px; font-weight: 700; }
 .coach-group-filter > div button { border: 0; border-radius: 8px; background: #edf5f2; padding: 8px; color: var(--teal); font-size: 11px; font-weight: 800; }
-.coach-group-filter-content { display: inline-block; }
+.coach-group-filter-content { position: fixed; top: 18px; right: 138px; z-index: 30; margin: 0; }
+.coach-group-filter-content > summary { background: #dff1ed; color: var(--teal); border: 0; border-radius: 20px; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+@media (max-width: 620px) {
+  .coach-group-filter-content { top: 18px; right: 112px; }
+  .coach-group-filter-content > summary { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+.coach-group-filter-header { margin: 0 0 0 auto; }
+.coach-group-filter-header > summary { background: #dff1ed; color: var(--teal); border: 0; border-radius: 20px; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
 .workout-editor > .period-heading { align-items: flex-start; gap: 24px; margin-bottom: 28px; }
