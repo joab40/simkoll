@@ -1,9 +1,10 @@
 import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { writeAiUsage } from '../server/audit.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 
-async function polishCommunityPost(content) {
+async function polishCommunityPost(request, content) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
   const prompt = `Du hjälper en simtränare att skriva ett kort meddelande till ungdoms- och juniorsimmare i ett klubbflöde. Förbättra tydlighet, flyt och ton, men behåll tränarens budskap, fakta och personliga röst.
@@ -15,9 +16,11 @@ async function polishCommunityPost(content) {
 Tränarens utkast:
 ${String(content).slice(0, 1000)}`
   try {
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.25, max_tokens: 350, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
-    if (!result.ok) return { text: content, usedAi: false }
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.25, max_tokens: 350, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'community_post', model, role: 'coach', response: null, status: 'failure', error: `HTTP ${result.status}` }); return { text: content, usedAi: false } }
     const payload = await result.json(), raw = String(payload.choices?.[0]?.message?.content || '{}')
+    await writeAiUsage(request, { feature: 'community_post', model, role: 'coach', response: payload })
     const first = raw.indexOf('{'), last = raw.lastIndexOf('}'), parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
     const text = String(parsed.text || '').trim().slice(0, 1000)
     return { text: text || content, usedAi: Boolean(text) }
@@ -108,7 +111,7 @@ export default async function handler(request, response) {
         if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på högst 1000 tecken.' })
-        return sendJson(response, 200, await polishCommunityPost(content))
+        return sendJson(response, 200, await polishCommunityPost(request, content))
       }
       if (request.body?.action === 'message') {
         const recipientId = String(request.body?.recipientId || ''), content = String(request.body?.content || '').trim()

@@ -1,4 +1,5 @@
 import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 function publicWorkout(item) {
@@ -15,7 +16,7 @@ function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
 }
 
-async function polishCoachNote(content, noteDate, activityLabel = '') {
+async function polishCoachNote(request, content, noteDate, activityLabel = '') {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
   const prompt = `Du är en erfaren simtränarassistent och redaktör. En tränare sammanfattar och analyserar en grupp ungdoms- och juniorsimmare efter ett träningspass eller en tävlingsdag. Förbättra tränarens utkast på svenska så att det blir tydligt, nyanserat och användbart för tränare och gruppens fortsatta planering.
@@ -37,9 +38,11 @@ ${String(content).slice(0, 5000)}
 
 Returnera endast JSON med exakt nyckeln text.`
   try {
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.2, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown. Du är kunnig om simträning men får aldrig hitta på fakta.' }, { role: 'user', content: prompt }] }) })
-    if (!result.ok) return { text: content, usedAi: false }
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown. Du är kunnig om simträning men får aldrig hitta på fakta.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'coach_summary', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { text: content, usedAi: false } }
     const payload = await result.json()
+    await writeAiUsage(request, { feature: 'coach_summary', model, role: 'coach', response: payload })
     const raw = String(payload.choices?.[0]?.message?.content || '{}')
     const first = raw.indexOf('{'), last = raw.lastIndexOf('}')
     const parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
@@ -127,14 +130,16 @@ function formatWorkoutLayout(content) {
   }).filter(Boolean).join('\n')
 }
 
-async function improveWorkoutWithAi(csv, fallback) {
+async function improveWorkoutWithAi(request, csv, fallback) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return fallback
   const prompt = `Du är en erfaren simtränare som redigerar ett träningspass från ett svenskt kalkylblad. Avgör själv vilken information som är viktig för att en simmare ska kunna genomföra passet och ta bort resten. Returnera endast giltig JSON utan markdown med exakt dessa nycklar: title (string max 80), content (string max 5000), coachMessage (string max 500, tom om ingen relevant information finns), distanceMeters (heltal eller null), durationMinutes (heltal eller null), focus (en av fart,troskel,syra,f2_frisim,f2_spec,distans,teknik,aterhamtning,kondition_frisim,kondition_special eller tom sträng).\n\nVIKTIGT OM URVAL:\n- Behåll insim/uppvärmning, huvudserie, teknik, ben/arm, avsim och andra delar som behövs för att förstå hela passet.\n- Leta särskilt efter rubriken "Nästa tävling". Om den finns ska du i coachMessage sammanfatta relevanta kommande tävlingar med namn, antal dagar kvar och datum. Skriv exempelvis "Kommande tävlingar:\\nSundsvall Swimgames · 4 dagar kvar · 19/09/2026". Hitta inte på uppgifter.\n- Ta bort tävlingskalendern från content, men använd den i coachMessage.\n- Ta bort datumrubriker, interna kolumnrubriker, tomma celler, summeringsrader och annan administration.\n- Gissa aldrig en serie, starttid, meter, tidsåtgång eller tävlingsuppgift.\n\nVIKTIGT OM ORDNING OCH FORMAT:\n- Behåll exakt källans ordning. Sortera aldrig serier eller starttider.\n- Starttid/startintervall ska alltid ligga på samma rad som serien den hör till.\n- Skriv avsnittsnamn på egen rad, följt av serierna på egna rader. Använd gärna formatet "## Huvudserie".\n- Använd vanlig text och separatorn " · " mellan delar på samma rad. Exempel: "8x50 frisim · fenor · start 1:00".\n- Skriv inte förklarande text utanför själva passet.\n\nKÄLLDATA (CSV):\n${csv.slice(0, 24000)}`
   try {
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: prompt }] }) })
-    if (!result.ok) return fallback
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'workout_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return fallback }
     const payload = await result.json()
+    await writeAiUsage(request, { feature: 'workout_import', model, role: 'coach', response: payload })
     const parsed = JSON.parse(payload.choices?.[0]?.message?.content || '{}')
     if (!parsed.title || !parsed.content) return fallback
     const formattedContent = formatWorkoutLayout(String(parsed.content).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').replace(/\s*·\s*/g, ' · ').trim()).filter(Boolean).join('\n'))
@@ -202,7 +207,7 @@ export default async function handler(request, response) {
         const content = String(request.body.content || '').trim()
         const noteDate = String(request.body.noteDate || stockholmDate())
         if (!content || content.length > 5000) return sendJson(response, 400, { error: 'Skriv en sammanfattning först.' })
-        const polished = await polishCoachNote(content, noteDate, String(request.body.activityLabel || '').slice(0, 120))
+        const polished = await polishCoachNote(request, content, noteDate, String(request.body.activityLabel || '').slice(0, 120))
         return sendJson(response, 200, polished)
       }
       if (request.body?.action === 'save-coach-note') {
@@ -249,7 +254,7 @@ export default async function handler(request, response) {
         if (!source.ok) return sendJson(response, 502, { error: 'Kunde inte läsa träningsmallen.' })
         const text = await source.text()
         const fallback = parseWorkoutCsv(text)
-        const draft = await improveWorkoutWithAi(text, fallback)
+        const draft = await improveWorkoutWithAi(request, text, fallback)
         return sendJson(response, 200, { draft })
       }
       if (request.body?.action === 'import-sportadmin-calendar') {

@@ -545,6 +545,15 @@ button { cursor: pointer; }
 .coach-community > form textarea:focus { border-color: var(--teal); }
 .coach-community > form > div { display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-top: 8px; }
 .coach-community > form small { color: var(--muted); }
+.audit-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.audit-ai, .audit-events { margin-top: 12px; }
+.audit-list { display: grid; gap: 7px; }
+.audit-list article { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding: 10px 0; }
+.audit-list article > div { display: grid; gap: 3px; min-width: 0; }
+.audit-list article small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-list article > span { white-space: nowrap; font-size: .82rem; font-weight: 800; }
+.audit-ok { color: #278044; }
+.audit-fail { color: #b34848; }
 .community-post-actions { flex-wrap: wrap; }
 .community-post-actions small { margin-right: auto; }
 .community-post-actions .text-button { padding-left: 0; padding-right: 0; }
@@ -1181,6 +1190,7 @@ button { cursor: pointer; }
   .season-form .wide, .program-form-grid .wide, .season-form button { grid-column: 1; }
   .new-program-goal, .review-goal { grid-template-columns: 1fr; }
   .meeting-stats, .meeting-ratings > div { grid-template-columns: repeat(2, 1fr); }
+  .audit-stats { grid-template-columns: 1fr; }
   .meeting-columns { grid-template-columns: 1fr; }
   .attendance-goal-list { grid-template-columns: 1fr; }
   .meeting-attendance .section-heading { align-items: flex-start; flex-direction: column; }

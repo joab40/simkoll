@@ -1,4 +1,5 @@
 import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile } from '../server/profile-auth.js'
 
 const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
@@ -115,8 +116,9 @@ Data: ${JSON.stringify(safe)}`
     const directOpenAi = Boolean(openAiKey)
     const model = directOpenAi ? (process.env.OPENAI_MODEL || 'gpt-4o-mini') : (process.env.AI_MODEL || 'inclusionai/ling-3.0-flash-fin-free')
     const result = await fetch(directOpenAi ? 'https://api.openai.com/v1/chat/completions' : 'https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${directOpenAi ? openAiKey : gatewayKey}` }, body: JSON.stringify({ model, temperature: 0.25, max_tokens: 1200, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown. Skriv ett konkret men nyanserat resonemang när datan räcker.' }, { role: 'user', content: prompt }] }) })
-    if (!result.ok) { const detail = (await result.text()).slice(0, 300); throw new Error(`AI Gateway request failed: ${result.status} ${detail}`) }
+    if (!result.ok) { const detail = (await result.text()).slice(0, 300); await writeAiUsage(request, { feature: 'trend_analysis', model, role: getRole(String(request.headers['x-simkoll-code'] || '')), profileId: request.body?.profileId || null, status: 'failure', error: `HTTP ${result.status}` }); throw new Error(`AI Gateway request failed: ${result.status} ${detail}`) }
     const payload = await result.json(), rawText = payload.choices?.[0]?.message?.content || ''
+    await writeAiUsage(request, { feature: 'trend_analysis', model, role: getRole(String(request.headers['x-simkoll-code'] || '')), profileId: request.body?.profileId || null, response: payload })
     // Models occasionally wrap JSON in markdown or a short explanation. Extract
     // the first complete object before parsing instead of failing the whole insight.
     const text = String(rawText).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()

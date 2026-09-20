@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto'
 import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
   hashToken, normalizeUsername, publicProfile, touchProfileActivity, validPin, validUsername, verifyPin, awardPoints,
@@ -32,7 +33,7 @@ async function runTempusCron() {
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
 const publicCoachNote = (item) => ({ id: item.id, profileId: item.profile_id, noteDate: item.note_date, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at })
 
-async function polishSwimmerNote(content, noteDate) {
+async function polishSwimmerNote(request, content, noteDate) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
   const prompt = `Du är en erfaren simtränarassistent. Förbättra en kort intern tränaranteckning om en ungdoms- eller juniorsimmare på svenska. Gör texten tydlig, saklig och respektfull.
@@ -45,9 +46,11 @@ Datum: ${noteDate}
 Tränarens anteckning:
 ${String(content).slice(0, 3000)}`
   try {
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.2, max_tokens: 500, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
-    if (!result.ok) return { text: content, usedAi: false }
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 500, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'swimmer_note', model, role: 'coach', response: null, status: 'failure', error: `HTTP ${result.status}` }); return { text: content, usedAi: false } }
     const payload = await result.json(), raw = String(payload.choices?.[0]?.message?.content || '{}')
+    await writeAiUsage(request, { feature: 'swimmer_note', model, role: 'coach', response: payload })
     const first = raw.indexOf('{'), last = raw.lastIndexOf('}'), parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
     const text = String(parsed.text || '').trim().slice(0, 3000)
     return { text: text || content, usedAi: Boolean(text) }
@@ -159,7 +162,7 @@ export default async function handler(request, response) {
       if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
       const content = String(request.body.content || '').trim(), noteDate = String(request.body.noteDate || '')
       if (!content || content.length > 3000 || !/^\d{4}-\d{2}-\d{2}$/.test(noteDate)) return sendJson(response, 400, { error: 'Skriv en anteckning och välj datum först.' })
-      return sendJson(response, 200, await polishSwimmerNote(content, noteDate))
+      return sendJson(response, 200, await polishSwimmerNote(request, content, noteDate))
     }
 
     if (action === 'save-swimmer-note' || action === 'update-swimmer-note') {
@@ -237,6 +240,7 @@ export default async function handler(request, response) {
       if (profile.approval_status === 'rejected') return sendJson(response, 403, { error: 'Profilen har inte godkänts. Prata med en tränare.' })
       await createSession(response, profile.id)
       await touchProfileActivity(profile.id)
+      await writeAuditLog(request, { eventType: 'profile_login', role: 'swimmer', profileId: profile.id, details: { username: profile.username } })
       return sendJson(response, 200, { profile: publicProfile(profile) })
     }
 
