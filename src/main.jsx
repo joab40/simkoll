@@ -1218,18 +1218,31 @@ function CoachActivitySummary({ code, selectedDate, onDateChange }) {
   const [polishing, setPolishing] = useState(false)
   const [message, setMessage] = useState('')
 
-  const load = () => Promise.all([
-    apiRequest(`/api/workouts?notes=true&date=${date}`, code),
-    apiRequest('/api/workouts?planning=true', code),
-    apiRequest('/api/workouts?calendar=true', code),
-    apiRequest(`/api/workouts?date=${date}`, code),
-  ]).then(([noteData, planData, calendarData, workoutData]) => {
-    setNotes(noteData.notes || [])
-    const planActivities = (planData.plans || []).filter((item) => item.date === date).map((item) => ({ type: item.activityType === 'competition' ? 'competition' : 'workout', id: item.id, label: `${item.activityType === 'competition' ? 'Tävling' : 'Pass'} · ${item.title}` }))
-    const competitionActivities = (calendarData.competitions || []).filter((item) => item.startDate <= date && (item.endDate || item.startDate) >= date).map((item) => ({ type: 'competition', id: item.id, label: `Tävling · ${item.title}` }))
-    const workoutActivity = workoutData.workout ? [{ type: 'workout', id: workoutData.workout.id, label: `Pass · ${workoutData.workout.title}` }] : []
-    setActivities([{ type: 'day', id: date, label: 'Dagens sammanfattning' }, ...workoutActivity, ...planActivities.filter((item) => !workoutActivity.some((workout) => workout.id === item.id)), ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
-  }).catch(() => setMessage('Kunde inte hämta tidigare sammanfattningar.'))
+  const load = async () => {
+    try {
+      const noteData = await apiRequest(`/api/workouts?notes=true&date=${date}`, code)
+      const loadedNotes = noteData.notes || []
+      setNotes(loadedNotes)
+      const dayScope = `day:${date}`
+      setScope(dayScope)
+      setContent(loadedNotes.find((item) => item.scopeKey === dayScope)?.content || '')
+      setMessage('')
+      const [planResult, calendarResult, workoutResult] = await Promise.allSettled([
+        apiRequest('/api/workouts?planning=true', code),
+        apiRequest('/api/workouts?calendar=true', code),
+        apiRequest(`/api/workouts?date=${date}`, code),
+      ])
+      const planData = planResult.status === 'fulfilled' ? planResult.value : { plans: [] }
+      const calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : { competitions: [] }
+      const workoutData = workoutResult.status === 'fulfilled' ? workoutResult.value : {}
+      const planActivities = (planData.plans || []).filter((item) => item.date === date).map((item) => ({ type: item.activityType === 'competition' ? 'competition' : 'workout', id: item.id, label: `${item.activityType === 'competition' ? 'Tävling' : 'Pass'} · ${item.title}` }))
+      const competitionActivities = (calendarData.competitions || []).filter((item) => item.startDate <= date && (item.endDate || item.startDate) >= date).map((item) => ({ type: 'competition', id: item.id, label: `Tävling · ${item.title}` }))
+      const workoutActivity = workoutData.workout ? [{ type: 'workout', id: workoutData.workout.id, label: `Pass · ${workoutData.workout.title}` }] : []
+      setActivities([{ type: 'day', id: date, label: 'Dagens sammanfattning' }, ...workoutActivity, ...planActivities.filter((item) => !workoutActivity.some((workout) => workout.id === item.id)), ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
+    } catch (error) {
+      setMessage('Kunde inte hämta sammanfattningen.')
+    }
+  }
 
   useEffect(() => { load(); setScope(`day:${date}`) }, [code, date])
   useEffect(() => {
