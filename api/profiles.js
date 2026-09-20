@@ -30,6 +30,7 @@ async function runTempusCron() {
 }
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
+const publicCoachNote = (item) => ({ id: item.id, profileId: item.profile_id, noteDate: item.note_date, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at })
 
 async function findProfile(username) {
   const result = await supabaseRequest(`profiles?username=eq.${encodeURIComponent(username)}&select=*&limit=1`)
@@ -54,6 +55,13 @@ export default async function handler(request, response) {
     }
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
+        if (request.query?.notes === 'true') {
+          const profileId = String(request.query.profileId || '')
+          if (!profileId) return sendJson(response, 400, { error: 'Simmare saknas.' })
+          const result = await supabaseRequest(`coach_swimmer_notes?profile_id=eq.${profileId}&select=*&order=note_date.desc,updated_at.desc&limit=100`)
+          if (!result.ok) throw new Error(`Swimmer notes GET failed: ${result.status} ${await result.text()}`)
+          return sendJson(response, 200, { notes: (await result.json()).map(publicCoachNote) })
+        }
         if (request.query?.groups === 'true') {
           const result = await supabaseRequest('training_groups?select=*&order=active.desc,name.asc')
           if (!result.ok) throw new Error(`Training groups GET failed: ${result.status} ${await result.text()}`)
@@ -94,6 +102,15 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+
+    if (action === 'save-swimmer-note') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan skriva observationer.' })
+      const profileId = String(request.body.profileId || ''), noteDate = String(request.body.noteDate || ''), content = String(request.body.content || '').trim()
+      if (!profileId || !/^\d{4}-\d{2}-\d{2}$/.test(noteDate) || !content || content.length > 3000) return sendJson(response, 400, { error: 'Kontrollera datum och anteckning.' })
+      const result = await supabaseRequest('coach_swimmer_notes', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ profile_id: profileId, note_date: noteDate, content, updated_at: new Date().toISOString() }) })
+      if (!result.ok) throw new Error(`Swimmer note save failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { note: publicCoachNote((await result.json())[0]) })
+    }
 
     if (action === 'set-attendance') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan registrera närvaro.' })

@@ -575,6 +575,19 @@ button { cursor: pointer; }
 .stat small { color: var(--muted); }
 .coach-card { padding: 27px 30px; }
 .coach-card h2 { font-size: 24px; margin-bottom: 22px; }
+.swimmer-notes { margin: 16px 0; padding: 15px; background: #f4f9f7; border: 1px solid #dbe9e5; border-radius: 15px; }
+.swimmer-notes-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.swimmer-notes-heading .eyebrow { margin-bottom: 3px; }
+.swimmer-notes-heading small { color: var(--muted); font-size: 10px; text-align: right; }
+.swimmer-notes form { display: flex; gap: 8px; margin-top: 10px; align-items: end; }
+.swimmer-notes form > div { display: grid; gap: 7px; flex: 1; }
+.swimmer-notes input, .swimmer-notes textarea { width: 100%; border: 1px solid #d1e1dc; border-radius: 9px; background: white; padding: 9px; outline: 0; }
+.swimmer-notes textarea { min-height: 62px; resize: vertical; }
+.swimmer-notes-list { display: grid; gap: 7px; margin-top: 12px; }
+.swimmer-notes-list article { border-top: 1px solid #dbe9e5; padding-top: 8px; }
+.swimmer-notes-list time { color: var(--teal); font-size: 11px; font-weight: 800; }
+.swimmer-notes-list p { margin: 3px 0 0; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
+@media (max-width: 620px) { .swimmer-notes form { display: grid; } .swimmer-notes form button { justify-self: start; } }
 .legal-purpose { max-width: 760px; margin: 0 auto 18px; padding: 22px; background: linear-gradient(135deg, #e7f5ef, #f8fbf5); border: 1px solid #cfe4dc; border-radius: 20px; }
 .legal-purpose h2 { margin: 4px 0 10px; }
 .legal-purpose p:not(.eyebrow) { color: #52666a; line-height: 1.6; }

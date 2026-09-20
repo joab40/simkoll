@@ -1981,6 +1981,22 @@ function WorkoutEditor({ code, responses }) {
   )
 }
 
+function SwimmerNotes({ profile, code }) {
+  const [notes, setNotes] = useState([])
+  const [date, setDate] = useState(todayKey())
+  const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState('')
+  const load = () => apiRequest(`/api/profiles?notes=true&profileId=${profile.id}`, code).then((data) => setNotes(data.notes || [])).catch(() => setStatus('Kunde inte hämta observationer.'))
+  useEffect(() => { load() }, [code, profile.id])
+  const save = async (event) => {
+    event.preventDefault(); if (!content.trim()) return
+    setSaving(true); setStatus('')
+    try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-swimmer-note', profileId: profile.id, noteDate: date, content }) }); setContent(''); setStatus('Sparad.'); await load() } catch (error) { setStatus(error.message) } finally { setSaving(false) }
+  }
+  return <section className="swimmer-notes"><div className="swimmer-notes-heading"><div><p className="eyebrow">Tränarens observationer</p><strong>Anteckningar</strong></div><small>Sparas med datum och syns bara för tränare.</small></div><form onSubmit={save}><div><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><textarea maxLength={3000} placeholder="Skriv en observation eller något att följa upp…" value={content} onChange={(event) => setContent(event.target.value)} /></div><button className="secondary-button" disabled={saving || !content.trim()}>{saving ? 'Sparar…' : 'Spara anteckning'}</button></form>{status && <small className="coach-note-status">{status}</small>}{notes.length > 0 && <div className="swimmer-notes-list">{notes.map((note) => <article key={note.id}><time>{note.noteDate}</time><p>{note.content}</p></article>)}</div>}</section>
+}
+
 function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
   const [reset, setReset] = useState(null)
   const [search, setSearch] = useState('')
@@ -2123,6 +2139,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
             {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} Att följa upp</strong><span>{signalReasons.join(' · ')}</span></div>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
+            <SwimmerNotes profile={profile} code={code} />
             <div className="tempus-edit"><div><strong>Tempus-ID</strong><small>{profile.tempusId ? 'Används i Tävlingsresultat' : 'Lägg till för att koppla resultat'}</small></div><form onSubmit={(event) => { event.preventDefault(); const value = event.currentTarget.elements.tempusId.value.trim(); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-tempus-id', profileId: profile.id, tempusId: value }) }).then(() => onProfilesChange()).catch((error) => window.alert(error.message)) }}><label><input name="tempusId" inputMode="numeric" pattern="[0-9]{1,12}" maxLength="12" defaultValue={profile.tempusId || ''} placeholder="t.ex. 273688" /></label><button type="submit">Spara</button></form></div>
             <div className="tempus-edit"><div><strong>Träningsgrupp</strong><small>Styr vilka pass simmaren ser</small></div><label><select value={profile.trainingGroup || ''} onChange={(event) => saveGroup(profile, event.target.value)}><option value="">Ingen grupp</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label>{groupStatus[profile.id] && <small>{groupStatus[profile.id]}</small>}</div>
             {earnedArtifacts.length > 0 && <div className="swimmer-artifacts" title="Tilldelade artefakter">{earnedArtifacts.map((artifact) => <span key={artifact.id} title={`${artifact.name}: ${artifact.description}`}>{artifact.emoji}</span>)}</div>}
