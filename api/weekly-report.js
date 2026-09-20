@@ -15,7 +15,7 @@ export default async function handler(request, response) {
   if (!start || !end || Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(end)) || end <= start || !/^\d{4}-\d{2}-\d{2}$/.test(startDay) || !/^\d{4}-\d{2}-\d{2}$/.test(endDay)) return sendJson(response, 400, { error: 'Ogiltig vecka.' })
   const range = `&created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}`
   try {
-    const [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult, plansResult, workoutsResult, swimGoalsResult] = await Promise.all([
+    const [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult, plansResult, workoutsResult, swimGoalsResult, profilesResult] = await Promise.all([
       supabaseRequest(`responses?select=profile_id,feeling,body,rpe,pass_rating,setup_rating,day_type${range}&limit=5000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date&activity_date=gte.${startDay}&activity_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`kudos?select=id${range}&limit=5000`),
@@ -25,14 +25,16 @@ export default async function handler(request, response) {
       supabaseRequest(`point_events?event_type=eq.personal_best&select=profile_id,points,source_key,created_at${range}&limit=1000`),
       supabaseRequest(`training_plans?select=plan_date,activity_type,distance_meters&plan_date=gte.${startDay}&plan_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`daily_workouts?select=workout_date,distance_meters&workout_date=gte.${startDay}&workout_date=lt.${endDay}&limit=1000`),
-      supabaseRequest(`season_swim_goals?select=profile_id,target_sessions_per_week,start_date,end_date,active&start_date=lte.${startDay}&end_date=gte.${startDay}&active=eq.true&limit=5000`),
+      supabaseRequest(`season_swim_goals?select=profile_id,target_sessions_per_week,start_date,end_date,active&start_date=lte.${endDay}&end_date=gte.${startDay}&active=eq.true&limit=5000`),
+      supabaseRequest('profiles?select=id,display_name,emoji,is_test_profile&order=display_name.asc&limit=5000'),
     ])
-    const results = [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult, plansResult, workoutsResult, swimGoalsResult]
+    const results = [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult, plansResult, workoutsResult, swimGoalsResult, profilesResult]
     if (!results.every((result) => result.ok)) throw new Error('Weekly report lookup failed')
     let checkins = await responsesResult.json()
     let activities = await activityResult.json()
     const kudos = await kudosResult.json()
     let sessions = await sessionsResult.json()
+    const allProfiles = await profilesResult.json()
     const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
     if (!testProfiles.ok) throw new Error('Test profile lookup failed')
     const testIds = new Set((await testProfiles.json()).map((item) => item.id))
@@ -45,12 +47,29 @@ export default async function handler(request, response) {
     const plans = await plansResult.json()
     const workouts = await workoutsResult.json()
     const swimGoals = (await swimGoalsResult.json()).filter((item) => !testIds.has(item.profile_id))
+    const reportProfiles = allProfiles.filter((item) => !item.is_test_profile && !testIds.has(item.id))
     const plannedSwimPlans = plans.filter((item) => item.activity_type === 'swim' && Number(item.distance_meters) > 0)
     const plannedDates = new Set(plannedSwimPlans.map((item) => item.plan_date))
     const offeredMeters = plannedSwimPlans.reduce((sum, item) => sum + Number(item.distance_meters || 0), 0) + workouts.filter((item) => !plannedDates.has(item.workout_date) && Number(item.distance_meters) > 0).reduce((sum, item) => sum + Number(item.distance_meters || 0), 0)
-    const expectedSwimPasses = swimGoals.reduce((sum, goal) => sum + Number(goal.target_sessions_per_week || 0), 0)
-    const completedSwimPasses = sessions.filter((item) => item.activity_type === 'swim').length
-    const attendancePercentage = expectedSwimPasses ? Math.round((completedSwimPasses / expectedSwimPasses) * 100) : null
+    const periodStart = new Date(`${startDay}T12:00:00Z`)
+    const periodEnd = new Date(`${endDay}T12:00:00Z`)
+    const attendanceProfiles = reportProfiles.map((profile) => {
+      let expected = 0
+      let completed = 0
+      for (let cursor = new Date(periodStart); cursor < periodEnd; cursor.setUTCDate(cursor.getUTCDate() + 7)) {
+        const weekStart = cursor.toISOString().slice(0, 10)
+        const weekEndDate = new Date(cursor); weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 7)
+        const weekEnd = weekEndDate.toISOString().slice(0, 10)
+        const goal = swimGoals.find((item) => item.profile_id === profile.id && item.start_date <= weekStart && item.end_date >= weekEnd)
+          || swimGoals.find((item) => item.profile_id === profile.id && item.start_date < weekEnd && item.end_date >= weekStart)
+        if (goal) expected += Number(goal.target_sessions_per_week || 0)
+        completed += sessions.filter((item) => item.profile_id === profile.id && item.activity_type === 'swim' && item.session_date >= weekStart && item.session_date < weekEnd).length
+      }
+      return { profileId: profile.id, displayName: profile.display_name, emoji: profile.emoji || '🏊', completed, expected, percentage: expected ? Math.min(100, Math.round((completed / expected) * 100)) : null }
+    })
+    const expectedSwimPasses = attendanceProfiles.reduce((sum, item) => sum + item.expected, 0)
+    const completedSwimPasses = attendanceProfiles.reduce((sum, item) => sum + item.completed, 0)
+    const attendancePercentage = expectedSwimPasses ? Math.min(100, Math.round((completedSwimPasses / expectedSwimPasses) * 100)) : null
     const after = checkins.filter((item) => item.day_type === 'after')
     const activeProfiles = new Set(activities.map((item) => item.profile_id)).size
     const activeDays = new Set(activities.map((item) => item.activity_date)).size
@@ -64,7 +83,7 @@ export default async function handler(request, response) {
       strength: sessions.filter((item) => item.activity_type === 'strength').length,
       dryland: sessions.filter((item) => item.activity_type === 'dryland').length,
       approvedGoals, personalBests: personalBests.length, feeling: average(checkins, 'feeling'), body: average(checkins, 'body'), rpe: average(after, 'rpe'), passRating: average(after, 'pass_rating'), setupRating: average(after, 'setup_rating'),
-      offeredMeters, expectedSwimPasses, completedSwimPasses, attendancePercentage, swimmersWithSwimGoal: new Set(swimGoals.map((item) => item.profile_id)).size,
+      offeredMeters, expectedSwimPasses, completedSwimPasses, attendancePercentage, attendanceProfiles, swimmersWithSwimGoal: new Set(swimGoals.map((item) => item.profile_id)).size,
       signals: { lowBody, highRpe, lowPass },
     })
   } catch (error) {
