@@ -1238,7 +1238,8 @@ function CoachActivitySummary({ code, selectedDate, onDateChange }) {
       const planActivities = (planData.plans || []).filter((item) => item.date === date).map((item) => ({ type: item.activityType === 'competition' ? 'competition' : 'workout', id: item.id, label: `${item.activityType === 'competition' ? 'Tävling' : 'Pass'} · ${item.title}` }))
       const competitionActivities = (calendarData.competitions || []).filter((item) => item.startDate <= date && (item.endDate || item.startDate) >= date).map((item) => ({ type: 'competition', id: item.id, label: `Tävling · ${item.title}` }))
       const workoutActivity = workoutData.workout ? [{ type: 'workout', id: workoutData.workout.id, label: `Pass · ${workoutData.workout.title}` }] : []
-      setActivities([{ type: 'day', id: date, label: 'Dagens sammanfattning' }, ...workoutActivity, ...planActivities.filter((item) => !workoutActivity.some((workout) => workout.id === item.id)), ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
+      const activityOptions = [{ type: 'day', id: date, label: 'Dagens sammanfattning' }, ...workoutActivity, ...planActivities, ...competitionActivities]
+      setActivities(activityOptions.filter((item, index, all) => all.findIndex((candidate) => candidate.type === item.type && candidate.label === item.label) === index))
     } catch (error) {
       setMessage('Kunde inte hämta sammanfattningen.')
     }
