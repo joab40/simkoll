@@ -476,6 +476,8 @@ button { cursor: pointer; }
 .coach-top-date-controls > button { flex: 0 0 auto; min-width: 32px; min-height: 32px; padding: 5px 9px; }
 .coach-top-date-controls input { flex: 0 0 38px; width: 38px; height: 32px; border: 1px solid #cbdcd8; border-radius: 8px; padding: 3px; background: #f2f8f6; color: transparent; color-scheme: light; }
 .coach-top-date-controls input::-webkit-calendar-picker-indicator { opacity: .9; filter: none; cursor: pointer; }
+.coach-activity-summary-actions .secondary-button:first-child { font-size: 0; }
+.coach-activity-summary-actions .secondary-button:first-child::after { content: '✨ Förbättra text med AI'; font-size: 13px; }
 .usage-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 10px; background: #e0eeea; border-radius: 13px; padding: 12px 15px; }
 .usage-stat { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
 .usage-divider { flex: 0 0 auto; }
