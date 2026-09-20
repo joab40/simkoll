@@ -1289,6 +1289,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
   const previousWeek = previousWeekRange()
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const selectedDateResponses = responses.filter((response) => dateKey(responseDate(response)) === summaryDate)
+  const selectedActiveProfiles = new Set(selectedDateResponses.map((item) => item.profileId).filter(Boolean)).size
   const previousWeekResponses = responses.filter((response) => {
     const date = responseDate(response)
     return date >= previousWeek.start && date <= previousWeek.end
@@ -1323,7 +1325,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
             <button className={view === 'legal' ? 'active' : ''} onClick={() => setView('legal')}><span className="desktop-tab-label">Info & villkor</span><span className="mobile-tab-label">Info</span></button>
           </div></details>
         </nav>
-        {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Vald dag'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{activeProfilesToday}</strong><span>aktiva profiler idag</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{todayResponses.length}</strong><span>incheckningar</span></div>{todayResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{todayResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka idag</span></div></>}</div></section>}
+        {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Vald dag'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'faq' ? (
@@ -1365,12 +1367,12 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'history' ? (
           <History responses={responses} />
         ) : (
-          <>{view === 'today' && <AttendancePanel code={code} profiles={profiles} responses={todayResponses} />}<PeriodOverview
-            responses={scopedResponses}
-            title={view === 'today' ? 'Idag' : 'Förra veckan'}
+          <>{view === 'today' && summaryDate === todayKey() && <AttendancePanel code={code} profiles={profiles} responses={todayResponses} />}<PeriodOverview
+            responses={view === 'today' ? selectedDateResponses : scopedResponses}
+            title={view === 'today' ? (summaryDate === todayKey() ? 'Idag' : 'Vald dag') : 'Förra veckan'}
             profiles={profiles}
             periodLabel={view === 'today'
-              ? new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
+              ? summaryDateLabel
               : previousWeekLabel}
             showDays={view === 'week'}
           />{view === 'today' && <CoachActivitySummary code={code} selectedDate={summaryDate} onDateChange={setSummaryDate} />}</>
