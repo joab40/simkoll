@@ -1,4 +1,4 @@
-import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 function publicWorkout(item) {
@@ -198,6 +198,7 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST') {
       if (request.body?.action === 'polish-coach-note') {
+        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body.content || '').trim()
         const noteDate = String(request.body.noteDate || stockholmDate())
         if (!content || content.length > 5000) return sendJson(response, 400, { error: 'Skriv en sammanfattning först.' })
@@ -240,6 +241,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
       }
       if (request.body?.action === 'import-sheet') {
+        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
         const sheetUrl = String(request.body.url || '')
         const match = sheetUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
         if (!match) return sendJson(response, 400, { error: 'Ange en giltig Google Sheets-länk.' })

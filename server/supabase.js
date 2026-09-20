@@ -19,6 +19,20 @@ export async function supabaseRequest(path, options = {}) {
   })
 }
 
+// AI is controlled centrally by the coach-facing webapp settings. Missing
+// settings preserve the historic default (enabled), while an explicit false
+// is a hard stop for every server-side AI endpoint.
+export async function isAiEnabled() {
+  try {
+    const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+    if (!result.ok) return true
+    const rows = await result.json()
+    return rows[0]?.setting_value?.aiEnabled !== false
+  } catch {
+    return true
+  }
+}
+
 export function getRole(code) {
   if (!process.env.SIMKOLL_SWIMMER_CODE || !process.env.SIMKOLL_COACH_CODE) return null
   if (code === process.env.SIMKOLL_COACH_CODE) return 'coach'

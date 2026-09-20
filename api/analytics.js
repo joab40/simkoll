@@ -1,4 +1,4 @@
-import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { getSessionProfile } from '../server/profile-auth.js'
 
 const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
@@ -54,6 +54,7 @@ const fallbackInsight = (data) => {
 }
 
 async function createAiInsight(request, response) {
+  if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
   const openAiKey = process.env.OPENAI_API_KEY
   const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
   if (!openAiKey && !gatewayKey) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad ännu.' })
