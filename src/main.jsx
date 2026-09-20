@@ -1211,8 +1211,8 @@ function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDo
 function CoachActivitySummary({ code, selectedDate, onDateChange }) {
   const date = selectedDate
   const [notes, setNotes] = useState([])
-  const [activities, setActivities] = useState([{ type: 'day', id: '', label: 'Dagens sammanfattning' }])
-  const [scope, setScope] = useState('day:')
+  const [activities, setActivities] = useState([{ type: 'day', id: date, label: 'Dagens sammanfattning' }])
+  const [scope, setScope] = useState(`day:${date}`)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [polishing, setPolishing] = useState(false)
@@ -1228,10 +1228,10 @@ function CoachActivitySummary({ code, selectedDate, onDateChange }) {
     const planActivities = (planData.plans || []).filter((item) => item.date === date).map((item) => ({ type: item.activityType === 'competition' ? 'competition' : 'workout', id: item.id, label: `${item.activityType === 'competition' ? 'Tävling' : 'Pass'} · ${item.title}` }))
     const competitionActivities = (calendarData.competitions || []).filter((item) => item.startDate <= date && (item.endDate || item.startDate) >= date).map((item) => ({ type: 'competition', id: item.id, label: `Tävling · ${item.title}` }))
     const workoutActivity = workoutData.workout ? [{ type: 'workout', id: workoutData.workout.id, label: `Pass · ${workoutData.workout.title}` }] : []
-    setActivities([{ type: 'day', id: '', label: `${date === todayKey() ? 'Dagens' : 'Dagens'} sammanfattning` }, ...workoutActivity, ...planActivities.filter((item) => !workoutActivity.some((workout) => workout.id === item.id)), ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
+    setActivities([{ type: 'day', id: date, label: 'Dagens sammanfattning' }, ...workoutActivity, ...planActivities.filter((item) => !workoutActivity.some((workout) => workout.id === item.id)), ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
   }).catch(() => setMessage('Kunde inte hämta tidigare sammanfattningar.'))
 
-  useEffect(() => { load(); setScope('day:') }, [code, date])
+  useEffect(() => { load(); setScope(`day:${date}`) }, [code, date])
   useEffect(() => {
     const note = notes.find((item) => item.scopeKey === scope)
     setContent(note?.content || '')
@@ -1242,7 +1242,7 @@ function CoachActivitySummary({ code, selectedDate, onDateChange }) {
     if (!content.trim()) return setMessage('Skriv något innan du sparar.')
     setSaving(true); setMessage('')
     try {
-      const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-coach-note', noteDate: date, activityType: selectedActivity.type, activityId: selectedActivity.id || null, content }) })
+      const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-coach-note', noteDate: date, activityType: selectedActivity.type, activityId: selectedActivity.type === 'day' ? null : selectedActivity.id, content }) })
       setNotes((current) => [data.note, ...current.filter((item) => item.scopeKey !== data.note.scopeKey)])
       setScope(data.note.scopeKey); setMessage('Sammanfattningen är sparad.')
     } catch (error) { setMessage(error.message) } finally { setSaving(false) }
