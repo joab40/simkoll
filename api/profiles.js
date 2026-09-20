@@ -31,6 +31,7 @@ async function runTempusCron() {
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
 const publicCoachNote = (item) => ({ id: item.id, profileId: item.profile_id, noteDate: item.note_date, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at })
+const BACKUP_TABLES = ['profiles', 'responses', 'daily_workouts', 'training_plans', 'competition_calendar', 'training_groups', 'profile_daily_activity', 'workout_unlocks', 'season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'training_programs', 'program_assignments', 'program_goals', 'development_goals', 'goal_updates', 'development_talks', 'group_pep', 'private_messages', 'community_posts', 'kudos', 'point_events', 'reward_levels', 'artifact_catalog', 'profile_artifacts', 'game_scores', 'competition_results', 'session_attendance', 'app_feedback', 'app_settings', 'ai_insights', 'coach_activity_notes', 'coach_swimmer_notes']
 
 async function findProfile(username) {
   const result = await supabaseRequest(`profiles?username=eq.${encodeURIComponent(username)}&select=*&limit=1`)
@@ -55,6 +56,16 @@ export default async function handler(request, response) {
     }
     if (request.method === 'GET') {
       if (groupRole(request) === 'coach') {
+        if (request.query?.backup === 'export') {
+          const tables = {}, warnings = []
+          for (const table of BACKUP_TABLES) {
+            const result = await supabaseRequest(`${table}?select=*&limit=100000`)
+            if (!result.ok) { warnings.push(table); continue }
+            tables[table] = await result.json()
+          }
+          const counts = Object.fromEntries(Object.entries(tables).map(([table, rows]) => [table, rows.length]))
+          return sendJson(response, 200, { format: 'simkoll-backup', formatVersion: 1, exportedAt: new Date().toISOString(), tables, counts, warnings })
+        }
         if (request.query?.notes === 'true') {
           const profileId = String(request.query.profileId || '')
           if (!profileId) return sendJson(response, 400, { error: 'Simmare saknas.' })
@@ -102,6 +113,21 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+
+    if (action === 'backup-import') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan importera en backup.' })
+      const backup = request.body?.backup
+      if (!backup || backup.format !== 'simkoll-backup' || backup.formatVersion !== 1 || !backup.tables || typeof backup.tables !== 'object') return sendJson(response, 400, { error: 'Filen är inte en giltig Simkoll-backup.' })
+      const imported = {}, warnings = []
+      for (const table of BACKUP_TABLES) {
+        const rows = Array.isArray(backup.tables[table]) ? backup.tables[table].filter((row) => row && typeof row === 'object').slice(0, 100000) : []
+        if (!rows.length) continue
+        const result = await supabaseRequest(`${table}?on_conflict=id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) })
+        if (!result.ok) warnings.push(table)
+        else imported[table] = rows.length
+      }
+      return sendJson(response, 200, { imported, warnings })
+    }
 
     if (action === 'save-swimmer-note') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan skriva observationer.' })
