@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto'
-import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
   hashToken, normalizeUsername, publicProfile, touchProfileActivity, validPin, validUsername, verifyPin, awardPoints,
@@ -31,6 +31,31 @@ async function runTempusCron() {
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
 const publicCoachNote = (item) => ({ id: item.id, profileId: item.profile_id, noteDate: item.note_date, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at })
+
+async function polishSwimmerNote(content, noteDate) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { text: content, usedAi: false }
+  const prompt = `Du är en erfaren simtränarassistent. Förbättra en kort intern tränaranteckning om en ungdoms- eller juniorsimmare på svenska. Gör texten tydlig, saklig och respektfull.
+- Behåll alla konkreta observationer och fakta.
+- Får gärna göra språket mer strukturerat, men hitta inte på orsaker, diagnoser, resultat eller egenskaper.
+- Skriv inte medicinska slutsatser. Använd “kan vara värt att följa upp” om något behöver undersökas.
+- Behåll en varm och professionell ton. Returnera endast JSON med nyckeln text.
+
+Datum: ${noteDate}
+Tränarens anteckning:
+${String(content).slice(0, 3000)}`
+  try {
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.2, max_tokens: 500, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) return { text: content, usedAi: false }
+    const payload = await result.json(), raw = String(payload.choices?.[0]?.message?.content || '{}')
+    const first = raw.indexOf('{'), last = raw.lastIndexOf('}'), parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
+    const text = String(parsed.text || '').trim().slice(0, 3000)
+    return { text: text || content, usedAi: Boolean(text) }
+  } catch (error) {
+    console.warn('Swimmer note AI fallback:', error.message)
+    return { text: content, usedAi: false }
+  }
+}
 const BACKUP_TABLES = ['profiles', 'responses', 'daily_workouts', 'training_plans', 'competition_calendar', 'training_groups', 'profile_daily_activity', 'workout_unlocks', 'season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'training_programs', 'program_assignments', 'program_goals', 'development_goals', 'goal_updates', 'development_talks', 'group_pep', 'private_messages', 'community_posts', 'kudos', 'point_events', 'reward_levels', 'artifact_catalog', 'profile_artifacts', 'game_scores', 'competition_results', 'session_attendance', 'app_feedback', 'app_settings', 'ai_insights', 'coach_activity_notes', 'coach_swimmer_notes']
 
 async function findProfile(username) {
@@ -129,13 +154,32 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { imported, warnings })
     }
 
-    if (action === 'save-swimmer-note') {
+    if (action === 'polish-swimmer-note') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan förbättra observationer.' })
+      if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+      const content = String(request.body.content || '').trim(), noteDate = String(request.body.noteDate || '')
+      if (!content || content.length > 3000 || !/^\d{4}-\d{2}-\d{2}$/.test(noteDate)) return sendJson(response, 400, { error: 'Skriv en anteckning och välj datum först.' })
+      return sendJson(response, 200, await polishSwimmerNote(content, noteDate))
+    }
+
+    if (action === 'save-swimmer-note' || action === 'update-swimmer-note') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan skriva observationer.' })
-      const profileId = String(request.body.profileId || ''), noteDate = String(request.body.noteDate || ''), content = String(request.body.content || '').trim()
+      const profileId = String(request.body.profileId || ''), noteDate = String(request.body.noteDate || ''), content = String(request.body.content || '').trim(), noteId = String(request.body.noteId || '')
       if (!profileId || !/^\d{4}-\d{2}-\d{2}$/.test(noteDate) || !content || content.length > 3000) return sendJson(response, 400, { error: 'Kontrollera datum och anteckning.' })
-      const result = await supabaseRequest('coach_swimmer_notes', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ profile_id: profileId, note_date: noteDate, content, updated_at: new Date().toISOString() }) })
+      const endpoint = action === 'update-swimmer-note' ? `coach_swimmer_notes?id=eq.${noteId}&profile_id=eq.${profileId}` : 'coach_swimmer_notes'
+      if (action === 'update-swimmer-note' && !noteId) return sendJson(response, 400, { error: 'Anteckning saknas.' })
+      const result = await supabaseRequest(endpoint, { method: action === 'update-swimmer-note' ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ profile_id: profileId, note_date: noteDate, content, updated_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error(`Swimmer note save failed: ${result.status} ${await result.text()}`)
       return sendJson(response, 200, { note: publicCoachNote((await result.json())[0]) })
+    }
+
+    if (action === 'delete-swimmer-note') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan radera observationer.' })
+      const profileId = String(request.body.profileId || ''), noteId = String(request.body.noteId || '')
+      if (!profileId || !noteId) return sendJson(response, 400, { error: 'Anteckning saknas.' })
+      const result = await supabaseRequest(`coach_swimmer_notes?id=eq.${noteId}&profile_id=eq.${profileId}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      if (!result.ok) throw new Error(`Swimmer note delete failed: ${result.status} ${await result.text()}`)
+      return sendJson(response, 200, { ok: true })
     }
 
     if (action === 'set-attendance') {

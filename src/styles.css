@@ -589,10 +589,21 @@ button { cursor: pointer; }
 .swimmer-notes form > div { display: grid; gap: 7px; flex: 1; }
 .swimmer-notes input, .swimmer-notes textarea { width: 100%; border: 1px solid #d1e1dc; border-radius: 9px; background: white; padding: 9px; outline: 0; }
 .swimmer-notes textarea { min-height: 62px; resize: vertical; }
+.swimmer-notes .note-ai-button { justify-self: start; padding: 0; font-size: .78rem; }
 .swimmer-notes-list { display: grid; gap: 7px; margin-top: 12px; }
 .swimmer-notes-list article { border-top: 1px solid #dbe9e5; padding-top: 8px; }
-.swimmer-notes-list time { color: var(--teal); font-size: 11px; font-weight: 800; }
+.swimmer-notes-list details { border-radius: 10px; }
+.swimmer-notes-list summary { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; cursor: pointer; list-style: none; }
+.swimmer-notes-list summary::-webkit-details-marker { display: none; }
+.swimmer-notes-list summary::before { content: '›'; color: var(--teal); font-size: 18px; font-weight: 800; transform: translateY(-1px); }
+.swimmer-notes-list details[open] summary::before { transform: rotate(90deg); }
+.swimmer-notes-list summary time { color: var(--teal); font-size: 11px; font-weight: 800; }
+.swimmer-notes-list summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .swimmer-notes-list p { margin: 3px 0 0; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
+.swimmer-note-actions, .swimmer-note-edit > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; align-items: center; }
+.swimmer-note-edit { display: grid; gap: 7px; margin-top: 8px; }
+.swimmer-note-edit input, .swimmer-note-edit textarea { width: 100%; }
+.notes-empty { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
 @media (max-width: 620px) { .swimmer-notes form { display: grid; } .swimmer-notes form button { justify-self: start; } }
 .legal-purpose { max-width: 760px; margin: 0 auto 18px; padding: 22px; background: linear-gradient(135deg, #e7f5ef, #f8fbf5); border: 1px solid #cfe4dc; border-radius: 20px; }
 .legal-purpose h2 { margin: 4px 0 10px; }

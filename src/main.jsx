@@ -2048,6 +2048,9 @@ function SwimmerNotes({ profile, code }) {
   const [date, setDate] = useState(todayKey())
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [editDraft, setEditDraft] = useState({ date: '', content: '' })
   const [status, setStatus] = useState('')
   const load = () => apiRequest(`/api/profiles?notes=true&profileId=${profile.id}`, code).then((data) => setNotes(data.notes || [])).catch(() => setStatus('Kunde inte hämta observationer.'))
   useEffect(() => { load() }, [code, profile.id])
@@ -2056,7 +2059,32 @@ function SwimmerNotes({ profile, code }) {
     setSaving(true); setStatus('')
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-swimmer-note', profileId: profile.id, noteDate: date, content }) }); setContent(''); setStatus('Sparad.'); await load() } catch (error) { setStatus(error.message) } finally { setSaving(false) }
   }
-  return <section className="swimmer-notes"><div className="swimmer-notes-heading"><div><p className="eyebrow">Tränarens observationer</p><strong>Anteckningar</strong></div><small>Sparas med datum och syns bara för tränare.</small></div><form onSubmit={save}><div><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><textarea maxLength={3000} placeholder="Skriv en observation eller något att följa upp…" value={content} onChange={(event) => setContent(event.target.value)} /></div><button className="secondary-button" disabled={saving || !content.trim()}>{saving ? 'Sparar…' : 'Spara anteckning'}</button></form>{status && <small className="coach-note-status">{status}</small>}{notes.length > 0 && <div className="swimmer-notes-list">{notes.map((note) => <article key={note.id}><time>{note.noteDate}</time><p>{note.content}</p></article>)}</div>}</section>
+  const improve = async (text, noteDate, onResult) => {
+    if (!text.trim()) return
+    setPolishing(true); setStatus('Förbättrar text…')
+    try { const result = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'polish-swimmer-note', noteDate, content: text }) }); onResult(result.text || text); setStatus(result.usedAi ? 'Texten är förbättrad – kontrollera den före sparning.' : 'Texten kunde inte förbättras just nu.') } catch (error) { setStatus(error.message) } finally { setPolishing(false) }
+  }
+  const startEdit = (note) => { setEditing(note.id); setEditDraft({ date: note.noteDate, content: note.content }); setStatus('') }
+  const saveEdit = async () => {
+    if (!editDraft.content.trim()) return
+    setSaving(true); setStatus('')
+    try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-swimmer-note', noteId: editing, profileId: profile.id, noteDate: editDraft.date, content: editDraft.content }) }); setEditing(null); setStatus('Anteckningen är uppdaterad.'); await load() } catch (error) { setStatus(error.message) } finally { setSaving(false) }
+  }
+  const remove = async (note) => {
+    if (!confirmDestructive('Anteckningen tas bort permanent.')) return
+    setSaving(true); setStatus('')
+    try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-swimmer-note', noteId: note.id, profileId: profile.id }) }); setStatus('Anteckningen är raderad.'); await load() } catch (error) { setStatus(error.message) } finally { setSaving(false) }
+  }
+  return (
+    <section className="swimmer-notes">
+      <div className="swimmer-notes-heading"><div><p className="eyebrow">Tränarens observationer</p><strong>Anteckningar</strong></div><small>Sparas med datum och syns bara för tränare.</small></div>
+      <form onSubmit={save}><div><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><textarea maxLength={3000} placeholder="Skriv en observation eller något att följa upp…" value={content} onChange={(event) => setContent(event.target.value)} /><button type="button" className="text-button note-ai-button" disabled={polishing || !content.trim()} onClick={() => improve(content, date, setContent)}>✨ Förbättra text med AI</button></div><button className="secondary-button" disabled={saving || polishing || !content.trim()}>{saving ? 'Sparar…' : 'Spara anteckning'}</button></form>
+      {status && <small className="coach-note-status">{status}</small>}
+      {notes.length > 0 ? <div className="swimmer-notes-list">{notes.map((note) => <article key={note.id}><details><summary><time>{note.noteDate}</time><span>{note.content.slice(0, 90)}{note.content.length > 90 ? '…' : ''}</span></summary>
+        {editing === note.id ? <div className="swimmer-note-edit"><input type="date" value={editDraft.date} onChange={(event) => setEditDraft({ ...editDraft, date: event.target.value })} /><textarea maxLength={3000} value={editDraft.content} onChange={(event) => setEditDraft({ ...editDraft, content: event.target.value })} /><div><button type="button" className="text-button" disabled={polishing || !editDraft.content.trim()} onClick={() => improve(editDraft.content, editDraft.date, (text) => setEditDraft((current) => ({ ...current, content: text })))}>✨ Förbättra text med AI</button><button type="button" className="secondary-button" disabled={saving} onClick={saveEdit}>Spara ändring</button><button type="button" className="text-button" onClick={() => setEditing(null)}>Avbryt</button></div></div> : <><p>{note.content}</p><div className="swimmer-note-actions"><button type="button" className="text-button" onClick={() => startEdit(note)}>Redigera</button><button type="button" className="text-button danger-text" disabled={saving} onClick={() => remove(note)}>Radera</button></div></>}
+      </details></article>)}</div> : <p className="notes-empty">Inga sparade anteckningar ännu.</p>}
+    </section>
+  )
 }
 
 function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code }) {
