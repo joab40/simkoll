@@ -94,6 +94,16 @@ export default async function handler(request, response) {
           const counts = Object.fromEntries(Object.entries(tables).map(([table, rows]) => [table, rows.length]))
           return sendJson(response, 200, { format: 'simkoll-backup', formatVersion: 1, exportedAt: new Date().toISOString(), tables, counts, warnings })
         }
+        if (request.query?.audit === 'true') {
+          const [logsResult, usageResult] = await Promise.all([
+            supabaseRequest('audit_logs?select=id,event_type,role,status,details,created_at&order=created_at.desc&limit=300'),
+            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=300'),
+          ])
+          if (!logsResult.ok || !usageResult.ok) throw new Error('Audit lookup failed')
+          const logs = await logsResult.json(), aiUsage = await usageResult.json()
+          const totals = aiUsage.reduce((sum, item) => ({ calls: sum.calls + 1, successful: sum.successful + (item.status === 'success' ? 1 : 0), promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0) }), { calls: 0, successful: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 })
+          return sendJson(response, 200, { logs, aiUsage, totals })
+        }
         if (request.query?.notes === 'true') {
           const profileId = String(request.query.profileId || '')
           if (!profileId) return sendJson(response, 400, { error: 'Simmare saknas.' })

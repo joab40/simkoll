@@ -1626,7 +1626,7 @@ function CoachGroups({ code, profiles, onProfilesChange }) {
 function AuditLogs({ code }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  useEffect(() => { apiRequest('/api/audit', code).then(setData).catch((nextError) => setError(nextError.message)) }, [code])
+  useEffect(() => { apiRequest('/api/profiles?audit=true', code).then(setData).catch((nextError) => setError(nextError.message)) }, [code])
   if (error) return <EmptyPeriod title={error} periodLabel="Loggar" />
   if (!data) return <section className="empty-period"><span>◷</span><h2>Hämtar loggar…</h2></section>
   const eventLabels = { group_login: 'Gruppkod inloggad', profile_login: 'Simmare loggade in', 'ai:trend_analysis': 'AI trendanalys' }
