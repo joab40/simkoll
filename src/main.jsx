@@ -222,7 +222,10 @@ function App() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ...response, identified }),
             })
-            setResponses((current) => [...current, result.response])
+            // Anonymous responses intentionally come back without details
+            // from the API. Keep the selected type in this session so the
+            // swimmer still gets useful confirmation in the status card.
+            setResponses((current) => [...current, { ...result.response, ...response }])
             // Show confirmation as soon as the response is persisted. The
             // surrounding dashboard data can refresh without blocking the UI.
             setScreen('thanks')
