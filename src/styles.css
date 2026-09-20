@@ -471,9 +471,11 @@ button { cursor: pointer; }
 .coach-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
 .coach-heading h1 { font-size: clamp(38px, 6vw, 55px); margin: 0; }
 .coach-overview-card { padding: 20px 22px; margin-bottom: 24px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 18px; }
-.coach-top-date-controls { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: capitalize; }
-.coach-top-date-controls input { width: 38px; height: 32px; border: 1px solid #d6e2df; border-radius: 8px; padding: 3px; background: white; color: transparent; }
-.coach-top-date-controls input::-webkit-calendar-picker-indicator { opacity: .75; }
+.coach-top-date-controls { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; min-width: 0; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: capitalize; }
+.coach-top-date-controls > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coach-top-date-controls > button { flex: 0 0 auto; min-width: 32px; min-height: 32px; padding: 5px 9px; }
+.coach-top-date-controls input { flex: 0 0 38px; width: 38px; height: 32px; border: 1px solid #cbdcd8; border-radius: 8px; padding: 3px; background: #f2f8f6; color: transparent; color-scheme: light; }
+.coach-top-date-controls input::-webkit-calendar-picker-indicator { opacity: .9; filter: none; cursor: pointer; }
 .usage-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 10px; background: #e0eeea; border-radius: 13px; padding: 12px 15px; }
 .usage-stat { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
 .usage-divider { flex: 0 0 auto; }
