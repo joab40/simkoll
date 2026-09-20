@@ -11,6 +11,28 @@ function publicPlan(item) {
 function publicCompetition(item) {
   return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', updatedAt: item.updated_at }
 }
+function publicCoachNote(item) {
+  return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
+}
+
+async function polishCoachNote(content, noteDate, activityLabel = '') {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { text: content, usedAi: false }
+  const prompt = `Du är ett varsamt redigeringsstöd för en simtränare. Förbättra tränarens korta dagssammanfattning på svenska. Behåll alla fakta, siffror och nyanser som finns i utkastet. Hitta inte på resultat, orsaker, namn eller medicinska slutsatser. Lägg inte till information som inte står i texten. Gör texten tydlig och professionell men fortfarande personlig, gärna med en kort rubrik och 2–4 korta stycken eller punkter. Om texten är kort ska den förbli kort.\nDatum: ${noteDate}\nAktivitet: ${activityLabel || 'dagens aktivitet'}\nUtkast:\n${String(content).slice(0, 5000)}\nReturnera endast JSON med exakt nyckeln text.`
+  try {
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.15, max_tokens: 700, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) return { text: content, usedAi: false }
+    const payload = await result.json()
+    const raw = String(payload.choices?.[0]?.message?.content || '{}')
+    const first = raw.indexOf('{'), last = raw.lastIndexOf('}')
+    const parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
+    const text = String(parsed.text || '').trim().slice(0, 5000)
+    return { text: text || content, usedAi: Boolean(text) }
+  } catch (error) {
+    console.warn('Coach note AI fallback:', error.message)
+    return { text: content, usedAi: false }
+  }
+}
 
 function parseSportAdminIcs(source) {
   const lines = String(source || '').replace(/\r\n[ \t]/g, '').split(/\r?\n/), events = []
@@ -129,6 +151,12 @@ export default async function handler(request, response) {
         const visible = role === 'coach' || profile?.is_test_profile ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
       }
+      if (role === 'coach' && request.query?.notes === 'true') {
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
+        const result = await supabaseRequest(`coach_activity_notes?note_date=eq.${date}&select=*&order=updated_at.desc&limit=100`)
+        if (!result.ok) throw new Error(`Coach notes GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { notes: (await result.json()).map(publicCoachNote) })
+      }
       if (role === 'coach' && request.query?.history === 'true') {
         const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
         if (!result.ok) throw new Error(`Workout history GET failed: ${result.status} ${await result.text()}`)
@@ -152,6 +180,24 @@ export default async function handler(request, response) {
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'polish-coach-note') {
+        const content = String(request.body.content || '').trim()
+        const noteDate = String(request.body.noteDate || stockholmDate())
+        if (!content || content.length > 5000) return sendJson(response, 400, { error: 'Skriv en sammanfattning först.' })
+        const polished = await polishCoachNote(content, noteDate, String(request.body.activityLabel || '').slice(0, 120))
+        return sendJson(response, 200, polished)
+      }
+      if (request.body?.action === 'save-coach-note') {
+        const noteDate = String(request.body.noteDate || '')
+        const activityType = String(request.body.activityType || 'day')
+        const activityId = request.body.activityId ? String(request.body.activityId) : null
+        const content = String(request.body.content || '').trim()
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(noteDate) || !['day', 'workout', 'competition'].includes(activityType) || !content || content.length > 5000) return sendJson(response, 400, { error: 'Kontrollera datum och sammanfattning.' })
+        const scopeKey = `${activityType}:${activityId || noteDate}`
+        const result = await supabaseRequest('coach_activity_notes?on_conflict=scope_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ note_date: noteDate, activity_type: activityType, activity_id: activityId, scope_key: scopeKey, content, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Coach note save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { note: publicCoachNote((await result.json())[0]) })
+      }
       if (request.body?.action === 'save-competition') {
         const body = request.body
         const startDate = String(body.startDate || ''), endDate = String(body.endDate || startDate), title = String(body.title || '').trim()

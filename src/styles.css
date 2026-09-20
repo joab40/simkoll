@@ -554,6 +554,17 @@ button { cursor: pointer; }
 .stat small { color: var(--muted); }
 .coach-card { padding: 27px 30px; }
 .coach-card h2 { font-size: 24px; margin-bottom: 22px; }
+.coach-activity-summary { margin-top: 18px; }
+.coach-activity-summary-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.coach-activity-summary-head h2 { margin: 3px 0 6px; }
+.coach-note-icon { font-size: 32px; }
+.coach-activity-summary label { display: grid; gap: 7px; margin: 18px 0 10px; font-weight: 700; }
+.coach-activity-summary select { border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 11px 12px; outline: 0; }
+.coach-activity-summary textarea { width: 100%; min-height: 140px; resize: vertical; border: 1.5px solid #d6e2df; border-radius: 13px; background: white; padding: 13px 14px; line-height: 1.55; outline: 0; }
+.coach-activity-summary textarea:focus, .coach-activity-summary select:focus { border-color: var(--teal); box-shadow: 0 0 0 4px rgba(15,110,112,.07); }
+.coach-activity-summary-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 10px; }
+.coach-note-status { display: block; margin-top: 10px; color: var(--teal); }
+.coach-note-disclaimer { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
 .distribution { height: 230px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; border-top: 1px solid #e4ece9; padding-top: 22px; }
 .distribution-item { display: grid; grid-template-rows: 40px 1fr 24px 18px; justify-items: center; height: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; border-radius: 10px; }
 .distribution-item:hover, .distribution-item.selected { background: #edf6f3; }

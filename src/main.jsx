@@ -1208,6 +1208,54 @@ function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDo
   )
 }
 
+function CoachActivitySummary({ code }) {
+  const date = todayKey()
+  const [notes, setNotes] = useState([])
+  const [activities, setActivities] = useState([{ type: 'day', id: '', label: 'Dagens sammanfattning' }])
+  const [scope, setScope] = useState('day:')
+  const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const load = () => Promise.all([
+    apiRequest(`/api/workouts?notes=true&date=${date}`, code),
+    apiRequest('/api/workouts?planning=true', code),
+    apiRequest('/api/workouts?calendar=true', code),
+  ]).then(([noteData, planData, calendarData]) => {
+    setNotes(noteData.notes || [])
+    const planActivities = (planData.plans || []).filter((item) => item.date === date).map((item) => ({ type: item.activityType === 'competition' ? 'competition' : 'workout', id: item.id, label: `${item.activityType === 'competition' ? 'Tävling' : 'Pass'} · ${item.title}` }))
+    const competitionActivities = (calendarData.competitions || []).filter((item) => item.startDate <= date && (item.endDate || item.startDate) >= date).map((item) => ({ type: 'competition', id: item.id, label: `Tävling · ${item.title}` }))
+    setActivities([{ type: 'day', id: '', label: 'Dagens sammanfattning' }, ...planActivities, ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
+  }).catch(() => setMessage('Kunde inte hämta tidigare sammanfattningar.'))
+
+  useEffect(() => { load() }, [code])
+  useEffect(() => {
+    const note = notes.find((item) => item.scopeKey === scope)
+    setContent(note?.content || '')
+    setMessage('')
+  }, [scope, notes])
+  const selectedActivity = activities.find((item) => `${item.type}:${item.id}` === scope) || activities[0]
+  const save = async () => {
+    if (!content.trim()) return setMessage('Skriv något innan du sparar.')
+    setSaving(true); setMessage('')
+    try {
+      const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-coach-note', noteDate: date, activityType: selectedActivity.type, activityId: selectedActivity.id || null, content }) })
+      setNotes((current) => [data.note, ...current.filter((item) => item.scopeKey !== data.note.scopeKey)])
+      setScope(data.note.scopeKey); setMessage('Sammanfattningen är sparad.')
+    } catch (error) { setMessage(error.message) } finally { setSaving(false) }
+  }
+  const polish = async () => {
+    if (!content.trim()) return setMessage('Skriv några stödord först.')
+    setPolishing(true); setMessage('Förbättrar texten…')
+    try {
+      const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'polish-coach-note', noteDate: date, activityLabel: selectedActivity.label, content }) })
+      setContent(data.text || content); setMessage(data.usedAi ? 'Texten är förbättrad – kontrollera den och spara.' : 'AI-stöd är inte tillgängligt just nu. Du kan redigera texten själv.')
+    } catch (error) { setMessage(error.message) } finally { setPolishing(false) }
+  }
+  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Dagens dokumentation</p><h2>Sammanfatta dagen</h2><p className="muted">Spara en kort bild av träningen eller tävlingen. Du kan ändra texten senare.</p></div><span className="coach-note-icon">📝</span></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-activity-summary-actions"><button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button><button type="button" className="primary-button small" onClick={save} disabled={saving || polishing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}<p className="coach-note-disclaimer">Språkmodellen får bara texten du skriver här. Kontrollera alltid förslaget innan du sparar.</p></section>
+}
+
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const [competitionResults, setCompetitionResults] = useState([])
@@ -1320,7 +1368,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
               ? new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
               : previousWeekLabel}
             showDays={view === 'week'}
-          /></>
+          />{view === 'today' && <CoachActivitySummary code={code} />}</>
         )}
         {view === 'today' && <button className="clear-button" onClick={async () => {
           if (!confirmDestructive('Alla incheckningar och all historik kommer att raderas permanent.')) return
