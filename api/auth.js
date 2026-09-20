@@ -6,7 +6,10 @@ export default async function handler(request, response) {
   if (!isDatabaseConfigured()) return sendJson(response, 503, { error: 'Databasen är inte konfigurerad.' })
 
   const role = getRole(String(request.body?.code || ''))
-  if (!role) return sendJson(response, 401, { error: 'Koden stämmer inte. Försök igen.' })
+  if (!role) {
+    await writeAuditLog(request, { eventType: 'group_login', status: 'failure', details: { login: 'group-code' } })
+    return sendJson(response, 401, { error: 'Koden stämmer inte. Försök igen.' })
+  }
   await writeAuditLog(request, { eventType: 'group_login', role, details: { login: 'group-code' } })
   return sendJson(response, 200, { role })
 }

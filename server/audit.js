@@ -10,7 +10,11 @@ const ipHash = (request) => {
 
 export async function writeAuditLog(request, { eventType, role = null, profileId = null, status = 'success', details = {} }) {
   try {
-    const result = await supabaseRequest('audit_logs', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ event_type: eventType, role, profile_id: profileId, status, ip_hash: ipHash(request), details }) })
+    const country = String(request.headers['x-vercel-ip-country'] || '').slice(0, 8) || null
+    const region = String(request.headers['x-vercel-ip-country-region'] || '').slice(0, 40) || null
+    const location = country || region ? { country, region } : undefined
+    const storedDetails = location ? { ...details, location } : details
+    const result = await supabaseRequest('audit_logs', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ event_type: eventType, role, profile_id: profileId, status, ip_hash: ipHash(request), details: storedDetails }) })
     if (!result.ok) console.warn('Audit log failed:', result.status)
   } catch (error) { console.warn('Audit log unavailable:', error.message) }
 }
