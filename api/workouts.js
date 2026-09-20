@@ -18,9 +18,26 @@ function publicCoachNote(item) {
 async function polishCoachNote(content, noteDate, activityLabel = '') {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
-  const prompt = `Du är ett varsamt redigeringsstöd för en simtränare. Förbättra tränarens korta dagssammanfattning på svenska. Behåll alla fakta, siffror och nyanser som finns i utkastet. Hitta inte på resultat, orsaker, namn eller medicinska slutsatser. Lägg inte till information som inte står i texten. Gör texten tydlig och professionell men fortfarande personlig, gärna med en kort rubrik och 2–4 korta stycken eller punkter. Om texten är kort ska den förbli kort.\nDatum: ${noteDate}\nAktivitet: ${activityLabel || 'dagens aktivitet'}\nUtkast:\n${String(content).slice(0, 5000)}\nReturnera endast JSON med exakt nyckeln text.`
+  const prompt = `Du är en erfaren simtränarassistent och redaktör. En tränare sammanfattar och analyserar en grupp ungdoms- och juniorsimmare efter ett träningspass eller en tävlingsdag. Förbättra tränarens utkast på svenska så att det blir tydligt, nyanserat och användbart för tränare och gruppens fortsatta planering.
+
+Gör så här:
+- Behåll alla konkreta fakta, siffror, observationer och namn som finns i utkastet.
+- Tolka tränarens stödord när det är rimligt: koppla till exempel ihop passets inriktning, teknisk kvalitet, fart, RPE/upplevd ansträngning, återhämtning, närvaro och gruppens energi om tränaren nämner sådant.
+- Formulera försiktiga slutsatser och mönster som hypoteser, till exempel “det kan tyda på…” eller “det är värt att följa upp…”. Gör inte en gissning till ett faktum.
+- Lyft gärna vad som fungerade bra, vad som kan utvecklas och vad tränaren kan ta med till nästa pass.
+- Använd simspecifika ord korrekt, till exempel insim, huvudserie, fart, tröskel, teknik, starter, vändningar, undervattensarbete och återhämtning.
+- Skriv som en professionell men mänsklig tränare, inte som en myndighetsrapport. En kort rubrik följd av 2–5 tydliga stycken eller punktlistor fungerar bra.
+- Hitta aldrig på tider, meter, resultat, orsaker, sjukdomar eller individuella egenskaper som inte finns i texten. Dra inga medicinska slutsatser.
+- Om underlaget är tunt, skriv hellre “utifrån dagens anteckningar” än att fylla i med antaganden.
+
+Datum: ${noteDate}
+Aktivitet: ${activityLabel || 'dagens aktivitet'}
+Tränarens utkast:
+${String(content).slice(0, 5000)}
+
+Returnera endast JSON med exakt nyckeln text.`
   try {
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.15, max_tokens: 700, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.2, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown. Du är kunnig om simträning men får aldrig hitta på fakta.' }, { role: 'user', content: prompt }] }) })
     if (!result.ok) return { text: content, usedAi: false }
     const payload = await result.json()
     const raw = String(payload.choices?.[0]?.message?.content || '{}')
