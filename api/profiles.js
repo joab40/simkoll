@@ -250,7 +250,7 @@ export default async function handler(request, response) {
       if (profile.approval_status === 'rejected') return sendJson(response, 403, { error: 'Profilen har inte godkänts. Prata med en tränare.' })
       await createSession(response, profile.id)
       await touchProfileActivity(profile.id)
-      await writeAuditLog(request, { eventType: 'profile_login', role: 'swimmer', profileId: profile.id, details: { username: profile.username } })
+      await writeAuditLog(request, { eventType: 'profile_login', role: 'swimmer', profileId: profile.id, details: { alias: profile.display_name || profile.username } })
       return sendJson(response, 200, { profile: publicProfile(profile) })
     }
 
