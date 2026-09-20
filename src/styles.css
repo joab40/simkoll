@@ -545,6 +545,9 @@ button { cursor: pointer; }
 .coach-community > form textarea:focus { border-color: var(--teal); }
 .coach-community > form > div { display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-top: 8px; }
 .coach-community > form small { color: var(--muted); }
+.community-post-actions { flex-wrap: wrap; }
+.community-post-actions small { margin-right: auto; }
+.community-post-actions .text-button { padding-left: 0; padding-right: 0; }
 .coach-feed { margin-top: 25px; display: grid; gap: 7px; }
 .coach-feed article { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; border-top: 1px solid #e1eae7; padding: 13px 0; }
 .coach-feed article > span { font-size: 26px; }

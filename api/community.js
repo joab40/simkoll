@@ -1,7 +1,31 @@
-import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
+
+async function polishCommunityPost(content) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { text: content, usedAi: false }
+  const prompt = `Du hjälper en simtränare att skriva ett kort meddelande till ungdoms- och juniorsimmare i ett klubbflöde. Förbättra tydlighet, flyt och ton, men behåll tränarens budskap, fakta och personliga röst.
+- Lägg till en varm tränare-till-simmare-känsla bara när det passar.
+- Undvik klyschor, överdrivet pepp, utropstecken och barnsligt språk.
+- Hitta inte på tider, tävlingar, resultat, krav eller annan information.
+- Ändra inte innehållet mer än nödvändigt. Returnera endast JSON med nyckeln text.
+
+Tränarens utkast:
+${String(content).slice(0, 1000)}`
+  try {
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.25, max_tokens: 350, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) return { text: content, usedAi: false }
+    const payload = await result.json(), raw = String(payload.choices?.[0]?.message?.content || '{}')
+    const first = raw.indexOf('{'), last = raw.lastIndexOf('}'), parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
+    const text = String(parsed.text || '').trim().slice(0, 1000)
+    return { text: text || content, usedAi: Boolean(text) }
+  } catch (error) {
+    console.warn('Community post AI fallback:', error.message)
+    return { text: content, usedAi: false }
+  }
+}
 
 export const KUDOS_TEMPLATES = {
   great_job: 'Grymt jobbat idag! 💪',
@@ -80,6 +104,12 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
+      if (request.body?.action === 'polish-community-post') {
+        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const content = String(request.body?.content || '').trim()
+        if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på högst 1000 tecken.' })
+        return sendJson(response, 200, await polishCommunityPost(content))
+      }
       if (request.body?.action === 'message') {
         const recipientId = String(request.body?.recipientId || ''), content = String(request.body?.content || '').trim()
         if (!recipientId || !content || content.length > 1000) return sendJson(response, 400, { error: 'Välj simmare och skriv ett meddelande på högst 1000 tecken.' })
