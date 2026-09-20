@@ -1381,7 +1381,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'history' ? (
           <History responses={responses} />
         ) : (
-          <>{view === 'today' && summaryDate === todayKey() && <AttendancePanel code={code} profiles={profiles} responses={todayResponses} />}<PeriodOverview
+          <>{view === 'today' && <AttendancePanel code={code} profiles={profiles} responses={selectedDateResponses} date={summaryDate} />}<PeriodOverview
             responses={view === 'today' ? selectedDateResponses : scopedResponses}
             title={view === 'today' ? (summaryDate === todayKey() ? 'Idag' : 'Vald dag') : 'Förra veckan'}
             profiles={profiles}
@@ -1401,13 +1401,13 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   )
 }
 
-function AttendancePanel({ code, profiles, responses }) {
+function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const [open, setOpen] = useState(false)
   const [group, setGroup] = useState('all')
   const [attendance, setAttendance] = useState({})
   const [loading, setLoading] = useState(false)
   const [sortPresent, setSortPresent] = useState(false)
-  const date = todayKey()
+  const date = selectedDate || todayKey()
   const [slot, setSlot] = useState(new Date().getHours() < 13 ? 'morning_swim' : 'afternoon_swim')
   useEffect(() => { apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [code, date, slot])
   const groupOrder = { ungdom_orange: 1, ungdom_svart: 2, junior: 3 }
