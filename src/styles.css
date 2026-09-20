@@ -503,8 +503,11 @@ button { cursor: pointer; }
   .coach-group-filter-content { top: 18px; right: 112px; }
   .coach-group-filter-content > summary { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
-.coach-group-filter-header { margin: 0 0 0 auto; }
+.coach-group-filter-header { margin: 0 12px 0 auto; align-self: center; transform: translateY(1px); }
 .coach-group-filter-header > summary { background: #dff1ed; color: var(--teal); border: 0; border-radius: 20px; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+@media (max-width: 620px) {
+  .coach-group-filter-header { margin-right: 7px; }
+}
 .tab-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border-radius: 10px; background: #e46f58; color: white; font-size: 10px; margin-left: 6px; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
 .workout-editor > .period-heading { align-items: flex-start; gap: 24px; margin-bottom: 28px; }
