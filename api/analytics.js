@@ -70,6 +70,7 @@ async function createAiInsight(request, response) {
     period: periodLabel,
     current: { checkins: cleanNumber(current.checkins), activeDays: cleanNumber(current.activeDays), sickDays: cleanNumber(current.sickDays), restDays: cleanNumber(current.restDays), feeling: cleanNumber(current.feeling), body: cleanNumber(current.body), rpe: cleanNumber(current.rpe), speedFeeling: cleanNumber(current.speedFeeling), passRating: cleanNumber(current.passRating), swimSessions: cleanNumber(current.swimSessions), strengthSessions: cleanNumber(current.strengthSessions), drylandSessions: cleanNumber(current.drylandSessions), sickAndRestInstruction: 'Sjukdagar och vilodagar är registrerade statusar och ska alltid beskrivas neutralt om värdet är större än 0.' },
     previous: { feeling: cleanNumber(previous.feeling), body: cleanNumber(previous.body), rpe: cleanNumber(previous.rpe), passRating: cleanNumber(previous.passRating), swimSessions: cleanNumber(previous.swimSessions), strengthSessions: cleanNumber(previous.strengthSessions), drylandSessions: cleanNumber(previous.drylandSessions), sickDays: cleanNumber(previous.sickDays), restDays: cleanNumber(previous.restDays) },
+    documentation: Array.isArray(input.documentation) ? input.documentation.slice(0, 100).map((item) => ({ date: String(item.date || '').slice(0, 10), activity: String(item.activity || '').slice(0, 80), text: String(item.text || '').slice(0, 2000) })).filter((item) => item.date && item.text) : [],
     volume: { workouts: focusRows.reduce((sum, item) => sum + (Number(item.workouts) || 0), 0), distanceMeters: volume || null, durationMinutes: duration || null },
     trainingContext: { phase: String(trainingContext.phase || 'normal').slice(0, 30), minVolume: cleanNumber(Number(trainingContext.minVolume)), maxVolume: cleanNumber(Number(trainingContext.maxVolume)) },
     workouts: focusRows.slice(0, 20).map((item) => ({ label: String(item.label || '').slice(0, 40), workouts: cleanNumber(item.workouts), distance: cleanNumber(item.distance), duration: cleanNumber(item.duration), feeling: cleanNumber(item.feeling), body: cleanNumber(item.body), rpe: cleanNumber(item.rpe), rpeSpread: cleanNumber(item.rpeSpread), speedFeeling: cleanNumber(item.speedFeeling), temperature: cleanNumber(item.temperature), passRating: cleanNumber(item.passRating), responseCount: cleanNumber(item.responseCount) })),
@@ -162,16 +163,18 @@ export default async function handler(request, response) {
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
     const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
-    const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult] = await Promise.all([
+    const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, notesResult] = await Promise.all([
       supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       supabaseRequest(`daily_workouts?select=workout_date,title,focus,distance_meters,duration_minutes&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc&limit=1000`),
+      role === 'coach' ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
     ])
     if (![responsesResult, sessionsResult, activityResult, workoutsResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
     let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json(), workouts = await workoutsResult.json()
+    const coachDocumentation = role === 'coach' && notesResult?.ok ? (await notesResult.json()).map((item) => ({ date: item.note_date, activity: item.activity_type === 'workout' ? 'Pass' : item.activity_type === 'competition' ? 'Tävling' : 'Dagens sammanfattning', text: String(item.content || '').slice(0, 2000) })).filter((item) => item.text) : []
     if (!profileId) {
       const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
       if (!testProfiles.ok) throw new Error('Test profile lookup failed')
@@ -284,6 +287,7 @@ export default async function handler(request, response) {
       privacyLimited: !privateView && currentResponses.length > 0 && currentResponses.length < 3,
       goalProgress, currentWeekGoal, crossProgress, currentCrossGoals,
       workoutAnalysis,
+      documentation: role === 'coach' ? coachDocumentation : [],
       savedInsight: savedResult.ok && (role !== 'swimmer' || sessionProfile?.ai_analysis_status === 'approved') ? (await savedResult.json())[0] || null : null,
     })
   } catch (error) {
