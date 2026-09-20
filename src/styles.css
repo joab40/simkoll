@@ -575,6 +575,9 @@ button { cursor: pointer; }
 .stat small { color: var(--muted); }
 .coach-card { padding: 27px 30px; }
 .coach-card h2 { font-size: 24px; margin-bottom: 22px; }
+.legal-purpose { max-width: 760px; margin: 0 auto 18px; padding: 22px; background: linear-gradient(135deg, #e7f5ef, #f8fbf5); border: 1px solid #cfe4dc; border-radius: 20px; }
+.legal-purpose h2 { margin: 4px 0 10px; }
+.legal-purpose p:not(.eyebrow) { color: #52666a; line-height: 1.6; }
 .coach-activity-summary { margin-top: 18px; }
 .coach-activity-summary-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
 .coach-activity-summary-head h2 { margin: 3px 0 6px; }

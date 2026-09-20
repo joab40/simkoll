@@ -256,7 +256,7 @@ function App() {
         setScreen('account')
       }} />}
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
-      {screen === 'legal' && <LegalPage onBack={() => setScreen('home')} />}
+      {screen === 'legal' && <><LegalPurpose /><LegalPage onBack={() => setScreen('home')} /></>}
       <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>
     </Shell>
   )
@@ -420,6 +420,10 @@ function HelpTip({ term }) {
 
 function Faq({ role, onBack }) {
   return <div className="faq-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkolls mätningar</p><h1>Vad betyder det?</h1><p className="faq-intro">Svaren beskriver simmarens egen upplevelse. De är ett stöd för samtal och träningsplanering, inte ett prov eller en medicinsk bedömning.</p><section className="faq-install"><p className="eyebrow">Gör Simkoll lätt att hitta</p><h2>Lägg till på hemskärmen</h2><p>En genväg gör det enklare att öppna rätt sida och använda din sparade profil.</p><details><summary>iPhone eller iPad<span>+</span></summary><ol><li>Öppna Simkoll i Safari.</li><li>Tryck på dela-symbolen.</li><li>Välj <strong>Lägg till på hemskärmen</strong>.</li><li>Tryck <strong>Lägg till</strong>.</li></ol></details><details><summary>Android<span>+</span></summary><ol><li>Öppna Simkoll i Chrome.</li><li>Tryck på de tre prickarna.</li><li>Välj <strong>Lägg till på startskärmen</strong> eller <strong>Installera app</strong>.</li><li>Bekräfta.</li></ol></details><small>Webbläsaren måste alltid fråga dig först — Simkoll kan inte skapa genvägen automatiskt.</small></section><div className="faq-list">{Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}</div>{role === 'coach' && <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Tolka med nyfikenhet</h2><ul><li>Titta efter återkommande mönster, inte enstaka svar.</li><li>RPE är individuell och ska inte användas för att jämföra simmare.</li><li>Hög RPE är inte automatiskt negativt när passet var planerat att vara hårt.</li><li>Låg energi eller tung kropp är en signal att fråga – inte en diagnos.</li><li>Kombinera alltid appens data med samtal och egna observationer.</li><li>Gruppvärden visas först när minst tre svar finns.</li></ul></section>}</section></div>
+}
+
+function LegalPurpose() {
+  return <section className="legal-purpose"><p className="eyebrow">Kort om Simkoll</p><h2>En app med simmaren i fokus</h2><p>Simkoll gör det enkelt för simmare att checka in, berätta hur träningen känns och följa sin egen utveckling över tid. För tränaren samlar appen återkoppling, träningsdata och planering på ett ställe, så att passen kan följas upp och utvecklas tillsammans med gruppen.</p><p>Simkoll är ett tränarstöd och ett verktyg för reflektion och dialog. Det är inte en medicinsk bedömning, ett automatiskt uttagningssystem eller ett beslutssystem. Appen ersätter inte tränarens omdöme, samtal med simmaren eller kontakt med vårdnadshavare och vårdpersonal.</p></section>
 }
 
 function LegalPage({ onBack }) {
@@ -1361,7 +1365,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'faq' ? (
           <Faq role="coach" />
         ) : view === 'legal' ? (
-          <LegalPage />
+          <><LegalPurpose /><LegalPage /></>
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} />
         ) : view === 'rewards' ? (
