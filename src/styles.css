@@ -558,6 +558,11 @@ button { cursor: pointer; }
 .coach-activity-summary-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
 .coach-activity-summary-head h2 { margin: 3px 0 6px; }
 .coach-note-icon { font-size: 32px; }
+.coach-note-date-controls { display: flex; align-items: center; gap: 8px; margin: 17px 0 4px; flex-wrap: wrap; }
+.coach-note-date-controls label { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; }
+.coach-note-date-controls label span { text-transform: capitalize; }
+.coach-note-date-controls input { width: 42px; height: 34px; border: 1px solid #d6e2df; border-radius: 8px; padding: 4px; background: white; color: transparent; }
+.coach-note-date-controls input::-webkit-calendar-picker-indicator { opacity: .75; }
 .coach-activity-summary label { display: grid; gap: 7px; margin: 18px 0 10px; font-weight: 700; }
 .coach-activity-summary select { border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 11px 12px; outline: 0; }
 .coach-activity-summary textarea { width: 100%; min-height: 140px; resize: vertical; border: 1.5px solid #d6e2df; border-radius: 13px; background: white; padding: 13px 14px; line-height: 1.55; outline: 0; }

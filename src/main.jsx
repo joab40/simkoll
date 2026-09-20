@@ -1209,7 +1209,8 @@ function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDo
 }
 
 function CoachActivitySummary({ code }) {
-  const date = todayKey()
+  const [selectedDate, setSelectedDate] = useState(todayKey())
+  const date = selectedDate
   const [notes, setNotes] = useState([])
   const [activities, setActivities] = useState([{ type: 'day', id: '', label: 'Dagens sammanfattning' }])
   const [scope, setScope] = useState('day:')
@@ -1222,14 +1223,16 @@ function CoachActivitySummary({ code }) {
     apiRequest(`/api/workouts?notes=true&date=${date}`, code),
     apiRequest('/api/workouts?planning=true', code),
     apiRequest('/api/workouts?calendar=true', code),
-  ]).then(([noteData, planData, calendarData]) => {
+    apiRequest(`/api/workouts?date=${date}`, code),
+  ]).then(([noteData, planData, calendarData, workoutData]) => {
     setNotes(noteData.notes || [])
     const planActivities = (planData.plans || []).filter((item) => item.date === date).map((item) => ({ type: item.activityType === 'competition' ? 'competition' : 'workout', id: item.id, label: `${item.activityType === 'competition' ? 'Tävling' : 'Pass'} · ${item.title}` }))
     const competitionActivities = (calendarData.competitions || []).filter((item) => item.startDate <= date && (item.endDate || item.startDate) >= date).map((item) => ({ type: 'competition', id: item.id, label: `Tävling · ${item.title}` }))
-    setActivities([{ type: 'day', id: '', label: 'Dagens sammanfattning' }, ...planActivities, ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
+    const workoutActivity = workoutData.workout ? [{ type: 'workout', id: workoutData.workout.id, label: `Pass · ${workoutData.workout.title}` }] : []
+    setActivities([{ type: 'day', id: '', label: `${date === todayKey() ? 'Dagens' : 'Dagens'} sammanfattning` }, ...workoutActivity, ...planActivities.filter((item) => !workoutActivity.some((workout) => workout.id === item.id)), ...competitionActivities.filter((item) => !planActivities.some((plan) => plan.id === item.id))])
   }).catch(() => setMessage('Kunde inte hämta tidigare sammanfattningar.'))
 
-  useEffect(() => { load() }, [code])
+  useEffect(() => { load(); setScope('day:') }, [code, date])
   useEffect(() => {
     const note = notes.find((item) => item.scopeKey === scope)
     setContent(note?.content || '')
@@ -1253,7 +1256,9 @@ function CoachActivitySummary({ code }) {
       setContent(data.text || content); setMessage(data.usedAi ? 'Texten är förbättrad – kontrollera den och spara.' : 'AI-stöd är inte tillgängligt just nu. Du kan redigera texten själv.')
     } catch (error) { setMessage(error.message) } finally { setPolishing(false) }
   }
-  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Dagens dokumentation</p><h2>Sammanfatta dagen</h2><p className="muted">Spara en kort bild av träningen eller tävlingen. Du kan ändra texten senare.</p></div><span className="coach-note-icon">📝</span></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-activity-summary-actions"><button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button><button type="button" className="primary-button small" onClick={save} disabled={saving || polishing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}<p className="coach-note-disclaimer">Språkmodellen får bara texten du skriver här. Kontrollera alltid förslaget innan du sparar.</p></section>
+  const shiftDate = (days) => { const next = new Date(`${date}T12:00:00`); next.setDate(next.getDate() + days); setSelectedDate(dateKey(next)) }
+  const dateLabel = new Date(`${date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Gruppens dokumentation</p><h2>{date === todayKey() ? 'Sammanfatta idag' : 'Sammanfatta vald dag'}</h2><p className="muted">Koppla texten till dagen, ett pass eller en tävling. Tidigare sammanfattningar kan öppnas och ändras.</p></div><span className="coach-note-icon">📝</span></div><div className="coach-note-date-controls"><button type="button" className="secondary-button" onClick={() => shiftDate(-1)} aria-label="Föregående dag">←</button><label><span>{dateLabel}</span><input type="date" value={date} onChange={(event) => event.target.value && setSelectedDate(event.target.value)} /></label><button type="button" className="secondary-button" onClick={() => shiftDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSelectedDate(todayKey())}>Idag</button></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-activity-summary-actions"><button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button><button type="button" className="primary-button small" onClick={save} disabled={saving || polishing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}<p className="coach-note-disclaimer">Språkmodellen får bara texten du skriver här. Kontrollera alltid förslaget innan du sparar.</p></section>
 }
 
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
