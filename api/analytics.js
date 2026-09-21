@@ -167,7 +167,7 @@ export default async function handler(request, response) {
     const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
     const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, notesResult] = await Promise.all([
       supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
-      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
+      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date,session_slot${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
@@ -210,20 +210,22 @@ export default async function handler(request, response) {
       const afterRows = dayRows.filter((item) => item.day_type === 'after')
       const enoughResponses = privateView || dayRows.length >= 3
       const key = workout.focus || 'utan_fokus'
-      const entry = workoutFocusMap.get(key) || { focus: key, label: workoutFocusLabel[key] || 'Ingen inriktning', workouts: 0, distance: 0, duration: 0, responseDays: 0, responseCount: 0, feeling: [], body: [], rpe: [], speedFeeling: [], temperature: [], passRating: [] }
-      entry.workouts += 1; entry.distance += Number(workout.distance_meters || 0); entry.duration += Number(workout.duration_minutes || 0); entry.responseCount += dayRows.length
+      const daySwimSlots = new Set(currentSessions.filter((session) => session.activity_type === 'swim' && session.session_date === workout.workout_date).map((session) => session.session_slot).filter(Boolean))
+      const sessionCount = daySwimSlots.size || 1
+      const entry = workoutFocusMap.get(key) || { focus: key, label: workoutFocusLabel[key] || 'Ingen inriktning', workouts: 0, sessions: 0, distance: 0, duration: 0, responseDays: 0, responseCount: 0, feeling: [], body: [], rpe: [], speedFeeling: [], temperature: [], passRating: [] }
+      entry.workouts += 1; entry.sessions += sessionCount; entry.distance += Number(workout.distance_meters || 0); entry.duration += Number(workout.duration_minutes || 0); entry.responseCount += dayRows.length
       if (dayRows.length) entry.responseDays += 1
       if (enoughResponses) { entry.feeling.push(...dayRows.map((item) => item.feeling).filter((value) => typeof value === 'number')); entry.body.push(...dayRows.map((item) => item.body).filter((value) => typeof value === 'number')); entry.rpe.push(...afterRows.map((item) => item.rpe).filter((value) => typeof value === 'number')); entry.speedFeeling.push(...afterRows.map((item) => item.speed_feeling).filter((value) => typeof value === 'number')); entry.temperature.push(...afterRows.map((item) => item.temperature).filter((value) => typeof value === 'number')); entry.passRating.push(...afterRows.map((item) => item.pass_rating).filter((value) => typeof value === 'number')) }
       workoutFocusMap.set(key, entry)
     })
-    const workoutFocus = [...workoutFocusMap.values()].map((item) => ({ focus: item.focus, label: item.label, workouts: item.workouts, distance: item.distance || null, duration: item.duration || null, responseDays: item.responseDays, responseCount: item.responseCount, feeling: meanValues(item.feeling), body: meanValues(item.body), rpe: meanValues(item.rpe), speedFeeling: meanValues(item.speedFeeling), temperature: meanValues(item.temperature), passRating: meanValues(item.passRating), rpeSpread: spread(item.rpe) }))
+    const workoutFocus = [...workoutFocusMap.values()].map((item) => ({ focus: item.focus, label: item.label, workouts: item.workouts, sessions: item.sessions, distance: item.distance || null, duration: item.duration || null, responseDays: item.responseDays, responseCount: item.responseCount, feeling: meanValues(item.feeling), body: meanValues(item.body), rpe: meanValues(item.rpe), speedFeeling: meanValues(item.speedFeeling), temperature: meanValues(item.temperature), passRating: meanValues(item.passRating), rpeSpread: spread(item.rpe) }))
     const workloadMap = new Map()
     currentWorkouts.forEach((workout) => { const date = new Date(`${workout.workout_date}T12:00:00Z`), monday = new Date(date); monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7)); const key = monday.toISOString().slice(0, 10); const entry = workloadMap.get(key) || { weekStart: key, workouts: 0, distance: 0, duration: 0 }; entry.workouts += 1; entry.distance += Number(workout.distance_meters || 0); entry.duration += Number(workout.duration_minutes || 0); workloadMap.set(key, entry) })
     const rpeValues = currentResponses.filter((item) => item.day_type === 'after' && typeof item.rpe === 'number').map((item) => item.rpe)
     const hardSessions = rpeValues.filter((value) => value >= 8).length
     const volumeMeters = currentWorkouts.reduce((sum, item) => sum + Number(item.distance_meters || 0), 0)
     const durationMinutes = currentWorkouts.reduce((sum, item) => sum + Number(item.duration_minutes || 0), 0)
-    const workoutAnalysis = { focuses: workoutFocus, workload: [...workloadMap.values()], summary: { workouts: currentWorkouts.length, volumeMeters: volumeMeters || null, durationMinutes: durationMinutes || null, rpe: meanValues(rpeValues), hardResponses: hardSessions, responseCount: currentResponses.length, load: durationMinutes && rpeValues.length ? Math.round(durationMinutes * meanValues(rpeValues)) : null } }
+    const workoutAnalysis = { focuses: workoutFocus, workload: [...workloadMap.values()], summary: { workouts: currentWorkouts.length, registeredSessions: currentSessions.length, volumeMeters: volumeMeters || null, durationMinutes: durationMinutes || null, rpe: meanValues(rpeValues), hardResponses: hardSessions, responseCount: currentResponses.length, load: durationMinutes && rpeValues.length ? Math.round(durationMinutes * meanValues(rpeValues)) : null } }
     let goalProgress = null, currentWeekGoal = null, crossProgress = null, currentCrossGoals = null
     if (profileId) {
       const goals = await goalsResult.json(), today = requestToday, currentMonday = requestMonday
@@ -265,6 +267,7 @@ export default async function handler(request, response) {
       const rows = currentResponses.filter((item) => stockholmKey(item.created_at) === workout.workout_date)
       const afterRows = rows.filter((item) => item.day_type === 'after')
       const enoughResponses = privateView || rows.length >= 3
+      const sessionSlots = [...new Set(currentSessions.filter((session) => session.activity_type === 'swim' && session.session_date === workout.workout_date).map((session) => session.session_slot).filter(Boolean))]
       return {
         date: workout.workout_date,
         count: rows.length,
@@ -272,6 +275,7 @@ export default async function handler(request, response) {
         focus: workoutFocusLabel[workout.focus] || workout.focus || null,
         distanceMeters: Number(workout.distance_meters || 0) || null,
         durationMinutes: Number(workout.duration_minutes || 0) || null,
+        sessionSlots,
         feeling: enoughResponses ? mean(rows, 'feeling') : null,
         body: enoughResponses ? mean(rows, 'body') : null,
         rpe: enoughResponses ? mean(afterRows, 'rpe') : null,
