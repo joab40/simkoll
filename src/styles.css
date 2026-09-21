@@ -554,6 +554,11 @@ button { cursor: pointer; }
 .audit-list article > span { white-space: nowrap; font-size: .82rem; font-weight: 800; }
 .audit-ok { color: #278044; }
 .audit-fail { color: #b34848; }
+.audit-events .audit-list { max-height: 360px; overflow-y: auto; padding: 0 10px 0 0; scrollbar-gutter: stable; }
+.audit-events .audit-list article { padding: 7px 0; gap: 8px; }
+.audit-events .audit-list article strong { font-size: .9rem; }
+.audit-events .audit-list article small { font-size: .76rem; }
+.audit-events .audit-list article > span { font-size: .75rem; }
 .community-post-actions { flex-wrap: wrap; }
 .community-post-actions small { margin-right: auto; }
 .community-post-actions .text-button { padding-left: 0; padding-right: 0; }
@@ -1200,6 +1205,7 @@ button { cursor: pointer; }
   .new-program-goal, .review-goal { grid-template-columns: 1fr; }
   .meeting-stats, .meeting-ratings > div { grid-template-columns: repeat(2, 1fr); }
   .audit-stats { grid-template-columns: 1fr; }
+  .audit-events .audit-list { max-height: 300px; }
   .meeting-columns { grid-template-columns: 1fr; }
   .attendance-goal-list { grid-template-columns: 1fr; }
   .meeting-attendance-summary { padding: 18px; align-items: flex-start; }
