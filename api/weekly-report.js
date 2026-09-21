@@ -83,6 +83,9 @@ export default async function handler(request, response) {
     const expectedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.expected, 0)
     const completedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.completed, 0)
     const attendancePercentage = expectedSwimPasses ? Math.min(100, Math.round((completedSwimPasses / expectedSwimPasses) * 100)) : null
+    const estimatedMeters = offeredMeters && attendancePercentage != null
+      ? Math.round((offeredMeters * attendancePercentage / 100) / 100) * 100
+      : null
     const after = checkins.filter((item) => item.day_type === 'after')
     const activeProfiles = new Set(activities.map((item) => item.profile_id)).size
     const activeDays = new Set(activities.map((item) => item.activity_date)).size
@@ -96,7 +99,7 @@ export default async function handler(request, response) {
       strength: sessions.filter((item) => item.activity_type === 'strength').length,
       dryland: sessions.filter((item) => item.activity_type === 'dryland').length,
       approvedGoals, personalBests: personalBests.length, feeling: average(checkins, 'feeling'), body: average(checkins, 'body'), rpe: average(after, 'rpe'), passRating: average(after, 'pass_rating'), setupRating: average(after, 'setup_rating'),
-      offeredMeters, expectedSwimPasses, completedSwimPasses, attendancePercentage, attendanceProfiles, swimmersWithSwimGoal: new Set(swimGoals.map((item) => item.profile_id)).size,
+      offeredMeters, estimatedMeters, expectedSwimPasses, completedSwimPasses, attendancePercentage, attendanceProfiles, swimmersWithSwimGoal: new Set(swimGoals.map((item) => item.profile_id)).size,
       signals: { lowBody, highRpe, lowPass },
     })
   } catch (error) {
