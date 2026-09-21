@@ -77,8 +77,11 @@ export default async function handler(request, response) {
       }
       return { profileId: profile.id, displayName: profile.display_name, emoji: profile.emoji || '🏊', completed, expected, percentage: expected ? Math.min(100, Math.round((completed / expected) * 100)) : null }
     })
-    const expectedSwimPasses = attendanceProfiles.reduce((sum, item) => sum + item.expected, 0)
-    const completedSwimPasses = attendanceProfiles.reduce((sum, item) => sum + item.completed, 0)
+    // Compare only profiles with an agreed swim target. Completed sessions from
+    // profiles without a target must not inflate the group's percentage.
+    const goalProfiles = attendanceProfiles.filter((item) => item.expected > 0)
+    const expectedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.expected, 0)
+    const completedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.completed, 0)
     const attendancePercentage = expectedSwimPasses ? Math.min(100, Math.round((completedSwimPasses / expectedSwimPasses) * 100)) : null
     const after = checkins.filter((item) => item.day_type === 'after')
     const activeProfiles = new Set(activities.map((item) => item.profile_id)).size
