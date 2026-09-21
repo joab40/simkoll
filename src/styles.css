@@ -923,6 +923,15 @@ button { cursor: pointer; }
 .meeting-ratings > div { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meeting-ratings .stat { background: #edf5f2; }
 .meeting-attendance { margin: 12px 0; }
+.meeting-attendance { padding: 0; overflow: hidden; }
+.meeting-attendance-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; cursor: pointer; list-style: none; }
+.meeting-attendance-summary::-webkit-details-marker { display: none; }
+.meeting-attendance-summary::after { content: '＋'; color: var(--teal); font-size: 22px; line-height: 1; }
+.meeting-attendance[open] .meeting-attendance-summary::after { content: '−'; }
+.meeting-attendance-summary h2 { margin: 0; }
+.meeting-attendance-summary .eyebrow { margin-bottom: 3px; }
+.meeting-attendance-summary small { color: var(--muted); text-align: right; }
+.meeting-attendance-body { padding: 0 24px 24px; }
 .meeting-attendance .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .meeting-attendance .section-heading h2 { margin-bottom: 0; }
 .meeting-attendance .section-heading small { color: var(--muted); text-align: right; }
@@ -1193,6 +1202,9 @@ button { cursor: pointer; }
   .audit-stats { grid-template-columns: 1fr; }
   .meeting-columns { grid-template-columns: 1fr; }
   .attendance-goal-list { grid-template-columns: 1fr; }
+  .meeting-attendance-summary { padding: 18px; align-items: flex-start; }
+  .meeting-attendance-summary small { text-align: left; }
+  .meeting-attendance-body { padding: 0 18px 18px; }
   .meeting-attendance .section-heading { align-items: flex-start; flex-direction: column; }
   .meeting-attendance .section-heading small { text-align: left; }
   .reward-admin-grid { grid-template-columns: 1fr; }

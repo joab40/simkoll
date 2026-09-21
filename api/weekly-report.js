@@ -12,16 +12,18 @@ export default async function handler(request, response) {
   const end = String(request.query?.end || '')
   const startDay = String(request.query?.startDay || '')
   const endDay = String(request.query?.endDay || '')
+  const requestedProfileIds = new Set(String(request.query?.profileIds || '').split(',').map((value) => value.trim()).filter(Boolean))
+  const inSelectedGroups = (profileId) => !requestedProfileIds.size || requestedProfileIds.has(profileId)
   if (!start || !end || Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(end)) || end <= start || !/^\d{4}-\d{2}-\d{2}$/.test(startDay) || !/^\d{4}-\d{2}-\d{2}$/.test(endDay)) return sendJson(response, 400, { error: 'Ogiltig vecka.' })
   const range = `&created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}`
   try {
     const [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult, plansResult, workoutsResult, swimGoalsResult, profilesResult] = await Promise.all([
       supabaseRequest(`responses?select=profile_id,created_at,feeling,body,rpe,pass_rating,setup_rating,day_type${range}&limit=5000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date&activity_date=gte.${startDay}&activity_date=lt.${endDay}&limit=5000`),
-      supabaseRequest(`kudos?select=id${range}&limit=5000`),
+      supabaseRequest(`kudos?select=id,sender_profile_id,recipient_profile_id${range}&limit=5000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,session_date,session_slot&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
-      supabaseRequest(`program_goals?select=id,reward_points&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
-      supabaseRequest(`goal_updates?select=id,points,feedback_type${range}&author_role=eq.coach&limit=1000`),
+      supabaseRequest(`program_goals?select=id,reward_points,program_assignments(profile_id)&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
+      supabaseRequest(`goal_updates?select=id,points,feedback_type,development_goals(profile_id)${range}&author_role=eq.coach&limit=1000`),
       supabaseRequest(`point_events?event_type=eq.personal_best&select=profile_id,points,source_key,created_at${range}&limit=1000`),
       supabaseRequest(`training_plans?select=plan_date,activity_type,distance_meters&plan_date=gte.${startDay}&plan_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`daily_workouts?select=workout_date,distance_meters&workout_date=gte.${startDay}&workout_date=lt.${endDay}&limit=1000`),
@@ -32,22 +34,22 @@ export default async function handler(request, response) {
     if (!results.every((result) => result.ok)) throw new Error('Weekly report lookup failed')
     let checkins = await responsesResult.json()
     let activities = await activityResult.json()
-    const kudos = await kudosResult.json()
+    const kudos = (await kudosResult.json()).filter((item) => inSelectedGroups(item.sender_profile_id) || inSelectedGroups(item.recipient_profile_id))
     let sessions = await sessionsResult.json()
     const allProfiles = await profilesResult.json()
     const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
     if (!testProfiles.ok) throw new Error('Test profile lookup failed')
     const testIds = new Set((await testProfiles.json()).map((item) => item.id))
-    checkins = checkins.filter((item) => !testIds.has(item.profile_id))
-    activities = activities.filter((item) => !testIds.has(item.profile_id))
-    sessions = sessions.filter((item) => !testIds.has(item.profile_id))
-    const programGoals = await programGoalsResult.json()
-    const goalUpdates = await goalUpdatesResult.json()
-    const personalBests = await personalBestResult.json()
+    checkins = checkins.filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
+    activities = activities.filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
+    sessions = sessions.filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
+    const programGoals = (await programGoalsResult.json()).filter((item) => inSelectedGroups(item.program_assignments?.profile_id))
+    const goalUpdates = (await goalUpdatesResult.json()).filter((item) => inSelectedGroups(item.development_goals?.profile_id))
+    const personalBests = (await personalBestResult.json()).filter((item) => inSelectedGroups(item.profile_id))
     const plans = await plansResult.json()
     const workouts = await workoutsResult.json()
-    const swimGoals = (await swimGoalsResult.json()).filter((item) => !testIds.has(item.profile_id))
-    const reportProfiles = allProfiles.filter((item) => !item.is_test_profile && !testIds.has(item.id))
+    const swimGoals = (await swimGoalsResult.json()).filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
+    const reportProfiles = allProfiles.filter((item) => !item.is_test_profile && !testIds.has(item.id) && inSelectedGroups(item.id))
     const plannedSwimPlans = plans.filter((item) => item.activity_type === 'swim' && Number(item.distance_meters) > 0)
     const plannedDates = new Set(plannedSwimPlans.map((item) => item.plan_date))
     const offeredMeters = plannedSwimPlans.reduce((sum, item) => sum + Number(item.distance_meters || 0), 0) + workouts.filter((item) => !plannedDates.has(item.workout_date) && Number(item.distance_meters) > 0).reduce((sum, item) => sum + Number(item.distance_meters || 0), 0)
