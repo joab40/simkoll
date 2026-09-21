@@ -399,6 +399,13 @@ const HELP_TEXT = {
   'Trend': 'Ett mönster över flera svar. En enstaka skattning ska inte övertolkas.',
   'Personlig AI-analys': 'En sparad, tränarskapad sammanfattning av dina egna träningsdata. Den är ett samtalsstöd – inte en diagnos eller ett automatiskt betyg.',
   'Träningsstjärnor': 'Fyra stjärnor visar olika träningsvanor. 1) Veckan planerad: minst tre träningsdagar är planerade i Min träning den här veckan. 2) Styrka och landträning: båda målen är överenskomna och aktiva. 3) Simmål satt: ett aktivt mål för antal simpass per vecka finns. 4) Följer min simplan: under de fyra senaste avslutade veckorna har alla simpass enligt överenskommelsen genomförts, till exempel 18 av 20 = 90 %. En stjärna tänds först vid 100 %. Grå stjärna betyder att villkoret inte är uppfyllt ännu. Varje stjärna ger 1 poäng när den låses upp; poäng tas inte bort om en stjärna senare blir grå.',
+  'Aktiva profiler': 'Antal simmarprofiler som använde en profilfunktion under perioden. Testprofiler räknas inte.',
+  'Incheckningar': 'Antal svar som skickats in under perioden. En incheckning är inte automatiskt samma sak som ett genomfört pass.',
+  'Registrerad träning': 'Pass som lagts till i träningsloggen, inklusive simpass som skapats från en genomförd check-in eller tränarens närvaroregistrering.',
+  'Erbjudna simmeter': 'Summan av meter i planerade eller publicerade simpass under perioden. Det beskriver erbjuden träningsmängd, inte vad varje simmare genomförde.',
+  'Närvaro mot mål': 'Genomförda simpass jämförs med summan av simmarnas överenskomna simmål för samma period. Simmare utan simmål ingår inte i procenten. Extra pass räknas inte över 100 %.',
+  'Pepp i gruppen': 'Antal peppmeddelanden som skickats i gruppen under perioden.',
+  'Personbästa': 'Antal nya personbästa från Tempus som registrerats under perioden.',
 }
 
 const FAQ_SCALES = {
