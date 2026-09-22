@@ -54,6 +54,26 @@ Returnera endast JSON med exakt nyckeln text.`
   }
 }
 
+async function transcribeAudio(request, dataUrl, mimeType) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { error: 'OPENAI_API_KEY saknas.' }
+  const encoded = String(dataUrl || '').split(',')[1]
+  if (!encoded || encoded.length > 5_500_000) return { error: 'Ljudfilen är för stor. Spela in en kortare sammanfattning.' }
+  try {
+    const bytes = Buffer.from(encoded, 'base64')
+    const model = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe'
+    const form = new FormData()
+    form.append('file', new Blob([bytes], { type: mimeType || 'audio/webm' }), 'coach-summary.webm')
+    form.append('model', model)
+    form.append('language', 'sv')
+    const result = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'audio_transcription', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Transkriberingen kunde inte genomföras.' } }
+    const payload = await result.json()
+    await writeAiUsage(request, { feature: 'audio_transcription', model, role: 'coach', response: payload })
+    return { text: String(payload.text || '').trim() }
+  } catch (error) { console.warn('Audio transcription failed:', error.message); return { error: 'Transkriberingen kunde inte läsas.' } }
+}
+
 async function polishWorkoutContent(request, content, title = '', focus = '') {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
@@ -236,6 +256,12 @@ export default async function handler(request, response) {
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'transcribe-audio') {
+        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const dataUrl = String(request.body.dataUrl || '')
+        if (!dataUrl.startsWith('data:audio/')) return sendJson(response, 400, { error: 'Ljudfilen saknas.' })
+        return sendJson(response, 200, await transcribeAudio(request, dataUrl, String(request.body.mimeType || 'audio/webm')))
+      }
       if (request.body?.action === 'polish-workout-content') {
         if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body.content || '').trim()

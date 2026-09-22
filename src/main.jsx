@@ -1236,6 +1236,9 @@ function CoachActivitySummary({ code, selectedDate, onDateChange, aiEnabled = tr
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const recorderRef = useRef(null)
   const [message, setMessage] = useState('')
 
   const load = async () => {
@@ -1290,7 +1293,34 @@ function CoachActivitySummary({ code, selectedDate, onDateChange, aiEnabled = tr
       setContent(data.text || content); setMessage(data.usedAi ? 'Texten är förbättrad – kontrollera den och spara.' : 'AI-stöd är inte tillgängligt just nu. Du kan redigera texten själv.')
     } catch (error) { setMessage(error.message) } finally { setPolishing(false) }
   }
-  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Gruppens dokumentation</p><h2>{date === todayKey() ? 'Sammanfatta idag' : 'Sammanfatta vald dag'}</h2><p className="muted">Koppla texten till dagen, ett pass eller en tävling. Tidigare sammanfattningar kan öppnas och ändras.</p></div><span className="coach-note-icon">📝</span></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-activity-summary-actions">{aiEnabled ? <button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button> : <small className="settings-note">AI-stöd är avstängt</small>}<button type="button" className="primary-button small" onClick={save} disabled={saving || polishing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}{aiEnabled && <p className="coach-note-disclaimer">Språkmodellen får bara texten du skriver här. Kontrollera alltid förslaget innan du sparar.</p>}</section>
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return setMessage('Den här webbläsaren stöder inte ljudinspelning.')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type)) || ''
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      const chunks = []
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        const reader = new FileReader()
+        reader.onload = async () => {
+          setTranscribing(true); setMessage('Transkriberar inspelningen…')
+          try {
+            const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transcribe-audio', dataUrl: reader.result, mimeType: blob.type }) })
+            if (data.error) throw new Error(data.error)
+            setContent((current) => current.trim() ? `${current.trim()}\n\n${data.text || ''}`.trim() : (data.text || ''))
+            setMessage(data.text ? 'Transkriberingen är klar – kontrollera texten före sparning.' : 'Inget tal kunde urskiljas.')
+          } catch (error) { setMessage(error.message) } finally { setTranscribing(false) }
+        }
+        reader.readAsDataURL(blob)
+      }
+      recorderRef.current = recorder; recorder.start(); setRecording(true); setMessage('Spelar in… tryck på stoppa när du är klar.')
+    } catch (error) { setMessage(error.name === 'NotAllowedError' ? 'Mikrofontillstånd nekades. Tillåt mikrofonen i webbläsaren.' : 'Kunde inte starta inspelningen.') }
+  }
+  const stopRecording = () => { recorderRef.current?.stop(); recorderRef.current = null; setRecording(false) }
+  return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Gruppens dokumentation</p><h2>{date === todayKey() ? 'Sammanfatta idag' : 'Sammanfatta vald dag'}</h2><p className="muted">Koppla texten till dagen, ett pass eller en tävling. Tidigare sammanfattningar kan öppnas och ändras.</p></div><span className="coach-note-icon">📝</span></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-recording-actions"><button type="button" className={recording ? 'recording-button' : 'secondary-button'} onClick={recording ? stopRecording : startRecording} disabled={transcribing || polishing || saving}>{recording ? '⏹ Stoppa inspelning' : '🎙️ Spela in sammanfattning'}</button>{transcribing && <small>Bearbetar ljudet…</small>}</div><div className="coach-activity-summary-actions">{aiEnabled ? <button type="button" className="secondary-button" onClick={polish} disabled={polishing || saving || recording || transcribing}>{polishing ? 'Förbättrar…' : '✨ Förbättra med språkmodell'}</button> : <small className="settings-note">AI-stöd är avstängt</small>}<button type="button" className="primary-button small" onClick={save} disabled={saving || polishing || recording || transcribing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}{aiEnabled && <p className="coach-note-disclaimer">Ljudet används bara för transkribering och sparas inte i Simkoll. Kontrollera alltid texten före sparning.</p>}</section>
 }
 
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {

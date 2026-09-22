@@ -641,6 +641,9 @@ button { cursor: pointer; }
 .coach-activity-summary select { border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 11px 12px; outline: 0; }
 .coach-activity-summary textarea { width: 100%; min-height: 140px; resize: vertical; border: 1.5px solid #d6e2df; border-radius: 13px; background: white; padding: 13px 14px; line-height: 1.55; outline: 0; }
 .coach-activity-summary textarea:focus, .coach-activity-summary select:focus { border-color: var(--teal); box-shadow: 0 0 0 4px rgba(15,110,112,.07); }
+.coach-recording-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.recording-button { border: 1px solid #c45151; background: #fff0f0; color: #a93636; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 700; }
+.coach-recording-actions small { color: var(--muted); }
 .coach-activity-summary-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 10px; }
 .coach-note-status { display: block; margin-top: 10px; color: var(--teal); }
 .coach-note-disclaimer { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
