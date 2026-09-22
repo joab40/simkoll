@@ -1,4 +1,4 @@
-import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
@@ -261,26 +261,26 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST') {
       if (request.body?.action === 'transcribe-audio') {
-        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const dataUrl = String(request.body.dataUrl || '')
         if (!dataUrl.startsWith('data:audio/')) return sendJson(response, 400, { error: 'Ljudfilen saknas.' })
         return sendJson(response, 200, await transcribeAudio(request, dataUrl, String(request.body.mimeType || 'audio/webm')))
       }
       if (request.body?.action === 'polish-workout-content') {
-        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body.content || '').trim()
         if (!content || content.length > 5000) return sendJson(response, 400, { error: 'Skriv in huvudserien först.' })
         return sendJson(response, 200, await polishWorkoutContent(request, content, String(request.body.title || '').slice(0, 80), String(request.body.focus || '').slice(0, 80)))
       }
       if (request.body?.action === 'interpret-workout-image') {
-        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const fileData = String(request.body.fileData || '')
         const mimeType = String(request.body.mimeType || '')
         if (!fileData.startsWith('data:image/') || fileData.length > 8_000_000) return sendJson(response, 400, { error: 'Bilden saknas eller är för stor. Välj en bild under cirka 6 MB.' })
         return sendJson(response, 200, await interpretWorkoutAttachment(request, fileData, mimeType, String(request.body.fileName || '').slice(0, 120)))
       }
       if (request.body?.action === 'polish-coach-note') {
-        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body.content || '').trim()
         const noteDate = String(request.body.noteDate || stockholmDate())
         if (!content || content.length > 5000) return sendJson(response, 400, { error: 'Skriv en sammanfattning först.' })
@@ -323,7 +323,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
       }
       if (request.body?.action === 'import-sheet') {
-        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const sheetUrl = String(request.body.url || '')
         const match = sheetUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
         if (!match) return sendJson(response, 400, { error: 'Ange en giltig Google Sheets-länk.' })

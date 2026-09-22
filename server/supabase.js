@@ -33,6 +33,25 @@ export async function isAiEnabled() {
   }
 }
 
+export async function aiAvailability() {
+  try {
+    const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+    const settings = result.ok ? (await result.json())[0]?.setting_value || {} : {}
+    if (settings.aiEnabled === false) return { allowed: false, reason: 'disabled' }
+    const limit = Math.max(0, Number(settings.aiMonthlyTokenLimit || 0))
+    if (!limit) return { allowed: true, limit: 0, used: 0 }
+    const start = new Date()
+    start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0)
+    const usage = await supabaseRequest(`ai_usage_logs?created_at=gte.${encodeURIComponent(start.toISOString())}&select=total_tokens&limit=10000`)
+    const rows = usage.ok ? await usage.json() : []
+    const used = rows.reduce((sum, row) => sum + Number(row.total_tokens || 0), 0)
+    return used >= limit ? { allowed: false, reason: 'limit', limit, used } : { allowed: true, limit, used }
+  } catch {
+    // A missing settings table must not accidentally take down AI features.
+    return { allowed: true, limit: 0, used: 0 }
+  }
+}
+
 export function getRole(code) {
   if (!process.env.SIMKOLL_SWIMMER_CODE || !process.env.SIMKOLL_COACH_CODE) return null
   if (code === process.env.SIMKOLL_COACH_CODE) return 'coach'

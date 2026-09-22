@@ -550,6 +550,24 @@ button { cursor: pointer; }
 .coach-community > form small { color: var(--muted); }
 .audit-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .audit-ai, .audit-events { margin-top: 12px; }
+.audit-month { margin-top: 12px; }
+.audit-month-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.audit-month-heading h2 { margin:0; }
+.audit-month-heading > strong { color:var(--accent); font-size:1.1rem; }
+.audit-month-metrics { display:flex; flex-wrap:wrap; gap:14px; margin:10px 0 14px; color:var(--muted); font-size:13px; }
+.audit-month-metrics b { color:var(--ink); }
+.audit-month-metrics small { flex-basis:100%; }
+.audit-model-list { display:grid; gap:8px; }
+.audit-model-list article { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; }
+.audit-model-list strong, .audit-model-list small { display:block; }
+.audit-model-list small { color:var(--muted); margin-top:3px; }
+.audit-model-list span { white-space:nowrap; font-weight:700; }
+.ai-token-limit { margin-top:14px; }
+.ai-token-limit input { width:130px; }
+.settings-field { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.settings-field span { display:grid; gap:3px; }
+.settings-field small { color:var(--muted); font-size:12px; }
+.settings-field input { border:1px solid var(--line); border-radius:10px; padding:9px 10px; background:var(--surface); color:var(--ink); }
 .audit-list { display: grid; gap: 7px; }
 .audit-list article { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding: 10px 0; }
 .audit-list article > div { display: grid; gap: 3px; min-width: 0; }

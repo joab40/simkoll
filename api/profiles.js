@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto'
-import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
+import { estimatedCostUsd } from '../server/ai-costs.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
   hashToken, normalizeUsername, publicProfile, touchProfileActivity, validPin, validUsername, verifyPin, awardPoints,
@@ -97,12 +98,19 @@ export default async function handler(request, response) {
         if (request.query?.audit === 'true') {
           const [logsResult, usageResult] = await Promise.all([
             supabaseRequest('audit_logs?select=id,event_type,role,status,details,created_at&order=created_at.desc&limit=300'),
-            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=300'),
+            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
           ])
           if (!logsResult.ok || !usageResult.ok) throw new Error('Audit lookup failed')
           const logs = await logsResult.json(), aiUsage = await usageResult.json()
           const totals = aiUsage.reduce((sum, item) => ({ calls: sum.calls + 1, successful: sum.successful + (item.status === 'success' ? 1 : 0), promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0) }), { calls: 0, successful: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 })
-          return sendJson(response, 200, { logs, aiUsage, totals })
+          const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0)
+          const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+          const settings = settingsResult.ok ? (await settingsResult.json())[0]?.setting_value || {} : {}
+          const tokenLimit = Math.max(0, Number(settings.aiMonthlyTokenLimit || 0))
+          const monthRows = aiUsage.filter((item) => item.created_at && new Date(item.created_at) >= monthStart)
+          const month = monthRows.reduce((sum, item) => ({ calls: sum.calls + 1, promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0), estimatedCostUsd: sum.estimatedCostUsd + (estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) || 0), pricedCalls: sum.pricedCalls + (estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) == null ? 0 : 1) }), { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0, pricedCalls: 0 })
+          const byModel = Object.values(monthRows.reduce((all, item) => { const key = item.model || 'Okänd modell'; const cost = estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }); all[key] ||= { model: key, calls: 0, totalTokens: 0, estimatedCostUsd: 0, pricedCalls: 0 }; all[key].calls += 1; all[key].totalTokens += Number(item.total_tokens || 0); if (cost != null) { all[key].estimatedCostUsd += cost; all[key].pricedCalls += 1 }; return all }, {})).sort((a, b) => b.totalTokens - a.totalTokens)
+          return sendJson(response, 200, { logs, aiUsage, totals, month: { ...month, tokenLimit, monthStart: monthStart.toISOString(), byModel } })
         }
         if (request.query?.notes === 'true') {
           const profileId = String(request.query.profileId || '')
@@ -169,7 +177,7 @@ export default async function handler(request, response) {
 
     if (action === 'polish-swimmer-note') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan förbättra observationer.' })
-      if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+      const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
       const content = String(request.body.content || '').trim(), noteDate = String(request.body.noteDate || '')
       if (!content || content.length > 3000 || !/^\d{4}-\d{2}-\d{2}$/.test(noteDate)) return sendJson(response, 400, { error: 'Skriv en anteckning och välj datum först.' })
       return sendJson(response, 200, await polishSwimmerNote(request, content, noteDate))

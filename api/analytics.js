@@ -1,4 +1,4 @@
-import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile } from '../server/profile-auth.js'
 
@@ -55,7 +55,7 @@ const fallbackInsight = (data) => {
 }
 
 async function createAiInsight(request, response) {
-  if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+  const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
   const openAiKey = process.env.OPENAI_API_KEY
   const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
   if (!openAiKey && !gatewayKey) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad ännu.' })

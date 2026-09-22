@@ -1,4 +1,4 @@
-import { getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
+import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
@@ -86,7 +86,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: rows.filter((item) => item.comment?.trim()).map((item) => ({ comment: item.comment.trim(), createdAt: item.created_at })).slice(0, 100) })
       }
       const [postsResult, groupResult, profiles, messagesResult] = await Promise.all([
-        supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at&order=created_at.desc&limit=100'),
+        supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=100'),
         loadProfiles(),
         role === 'coach'
@@ -94,7 +94,7 @@ export default async function handler(request, response) {
           : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
       ])
       if (!postsResult.ok || !groupResult.ok || !messagesResult.ok) throw new Error('Community feed failed')
-      const posts = (await postsResult.json()).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
+      const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
       const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender)
       let privateKudos = []
       if (profile) {
@@ -108,7 +108,7 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
       if (request.body?.action === 'polish-community-post') {
-        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på högst 1000 tecken.' })
         return sendJson(response, 200, await polishCommunityPost(request, content))
@@ -195,9 +195,12 @@ export default async function handler(request, response) {
 
     if (request.method === 'DELETE' && role === 'coach') {
       const id = String(request.query?.id || '')
-      const result = await supabaseRequest(`community_posts?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
+      if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
+      const result = await supabaseRequest(`community_posts?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error(`Post delete failed: ${result.status}`)
-      return sendJson(response, 200, { ok: true })
+      const deleted = await result.json().catch(() => [])
+      if (!deleted.length) return sendJson(response, 404, { error: 'Meddelandet finns inte längre.' })
+      return sendJson(response, 200, { ok: true, deletedId: id })
     }
 
     return sendJson(response, 405, { error: 'Method not allowed' })
