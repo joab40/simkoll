@@ -144,6 +144,10 @@ export default async function handler(request, response) {
       }
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 401, { error: 'Inte inloggad.' })
+      // A saved profile session is restored automatically after the group code
+      // login. Log that restore as a profile login as well; otherwise the
+      // audit view only shows manual username/PIN logins.
+      await writeAuditLog(request, { eventType: 'profile_login', role: 'swimmer', profileId: profile.id, details: { alias: profile.display_name || profile.username, login: 'remembered-session' } })
       if (request.query?.competitionResults === 'true') {
         const result = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&select=*&order=result_date.desc&limit=1000`)
         if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
