@@ -633,11 +633,11 @@ button { cursor: pointer; }
 .swimmer-notes-list { display: grid; gap: 7px; margin-top: 12px; }
 .swimmer-notes-list article { border-top: 1px solid #dbe9e5; padding-top: 8px; }
 .swimmer-notes-list details { border-radius: 10px; }
-.swimmer-notes-list summary { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; cursor: pointer; list-style: none; }
+.swimmer-notes-list summary { display: grid; grid-template-columns: 18px minmax(92px, auto) minmax(0, 1fr); gap: 8px; align-items: baseline; cursor: pointer; list-style: none; }
 .swimmer-notes-list summary::-webkit-details-marker { display: none; }
 .swimmer-notes-list summary::before { content: '›'; color: var(--teal); font-size: 18px; font-weight: 800; transform: translateY(-1px); }
 .swimmer-notes-list details[open] summary::before { transform: rotate(90deg); }
-.swimmer-notes-list summary time { color: var(--teal); font-size: 11px; font-weight: 800; }
+.swimmer-notes-list summary time { color: var(--teal); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .swimmer-notes-list summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .swimmer-notes-list p { margin: 3px 0 0; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
 .swimmer-note-actions, .swimmer-note-edit > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; align-items: center; }
