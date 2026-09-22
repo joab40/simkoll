@@ -21,8 +21,11 @@ export async function writeAuditLog(request, { eventType, role = null, profileId
 
 export async function writeAiUsage(request, { feature, model, role = null, profileId = null, response = null, status = 'success', error = null }) {
   const usage = response?.usage || {}
+  const promptTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0)
+  const completionTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0)
+  const totalTokens = Number(usage.total_tokens ?? (promptTokens + completionTokens))
   try {
-    const result = await supabaseRequest('ai_usage_logs', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ feature, model, role, profile_id: profileId, status, prompt_tokens: Number(usage.prompt_tokens || 0), completion_tokens: Number(usage.completion_tokens || 0), total_tokens: Number(usage.total_tokens || 0), error_message: error ? String(error).slice(0, 300) : null }) })
+    const result = await supabaseRequest('ai_usage_logs', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ feature, model, role, profile_id: profileId, status, prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: totalTokens, error_message: error ? String(error).slice(0, 300) : null }) })
     if (!result.ok) console.warn('AI usage log failed:', result.status)
   } catch (logError) { console.warn('AI usage log unavailable:', logError.message) }
 }

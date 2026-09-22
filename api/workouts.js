@@ -248,6 +248,48 @@ ${sourceText.slice(0, 26000)}`
   } catch (error) { console.warn('Workout generation failed:', error.message); return { error: 'Passförslaget kunde inte tolkas. Försök igen.' } }
 }
 
+const mapCompetitionEvent = (item) => ({ id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: item.gender || 'Alla', ageClass: item.age_class || 'Alla åldrar', distanceMeters: item.distance_meters || null, stroke: item.stroke, label: item.label })
+
+function responseOutputText(payload) {
+  if (typeof payload?.output_text === 'string') return payload.output_text
+  return (payload?.output || []).flatMap((item) => item.content || []).map((item) => item.text || '').join('')
+}
+
+async function interpretCompetitionProgram(request, options = {}) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { error: 'OPENAI_API_KEY saknas.' }
+  const dataUrl = String(options.fileData || '')
+  const mimeType = String(options.mimeType || '')
+  const fileName = String(options.fileName || 'grenprogram').slice(0, 120)
+  if (!dataUrl.startsWith('data:') || dataUrl.length > 12_000_000) return { error: 'Filen saknas eller är för stor. Välj en fil under cirka 9 MB.' }
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const prompt = `Du tolkar ett svenskt tävlingsprogram för simning. Plocka endast ut grenordningen som simmare behöver välja mellan. Returnera strikt JSON utan markdown med exakt nyckeln events, en array.
+
+Varje event ska ha: eventOrder (heltal), eventNumber (sträng), gender (Dam, Herr eller Alla), ageClass (exempelvis 13–14 år, Junior eller Alla åldrar), distanceMeters (heltal eller null), stroke (Frisim, Ryggsim, Bröstsim, Fjärilsim, Medley eller Annat), label (kort tydlig svensk text).
+
+Regler:
+- Behåll ordningen från dokumentet.
+- Ta inte med heat, startlistor, deltagarnamn, tider eller resultat.
+- Om kön eller åldersklass inte uttryckligen står: använd Alla.
+- Gissa aldrig grennummer, ålder, distans eller simsätt. Om något är oklart, använd Annat och behåll den läsbara texten i label.
+- En rad ska bli ett event. Slå inte ihop olika kön eller åldersklasser.
+
+Dokument: ${fileName}`
+  const content = [{ type: 'input_text', text: prompt }]
+  if (mimeType.startsWith('image/')) content.push({ type: 'input_image', image_url: dataUrl, detail: 'high' })
+  else content.push({ type: 'input_file', filename: fileName, file_data: dataUrl })
+  try {
+    const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 1800, text: { format: { type: 'json_object' } } }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Grenprogrammet kunde inte tolkas just nu.' } }
+    const payload = await result.json()
+    await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
+    const parsed = JSON.parse(responseOutputText(payload) || '{}')
+    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => ({ eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), gender: ['Dam', 'Herr', 'Alla'].includes(item.gender) ? item.gender : 'Alla', ageClass: String(item.ageClass || 'Alla åldrar').slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: String(item.label || '').slice(0, 120) })).filter((item) => item.label).slice(0, 300) : []
+    if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
+    return { events }
+  } catch (error) { console.warn('Competition program import failed:', error.message); return { error: 'Grenprogrammet kunde inte tolkas.' } }
+}
+
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
@@ -269,6 +311,25 @@ export default async function handler(request, response) {
         const competitions = await result.json()
         const visible = role === 'coach' || profile?.is_test_profile ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
+      }
+      if (request.query?.program === 'true') {
+        const competitionId = String(request.query.id || '')
+        if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const eventsResult = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}&select=*&order=event_order.asc`)
+        if (!eventsResult.ok) throw new Error(`Competition events GET failed: ${eventsResult.status}`)
+        const entryQuery = role === 'coach' ? `competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&select=*&order=created_at.asc` : profile ? `competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${profile.id}&select=*&order=created_at.asc` : null
+        const entriesResult = entryQuery ? await supabaseRequest(entryQuery) : null
+        if (entriesResult && !entriesResult.ok) throw new Error(`Competition entries GET failed: ${entriesResult.status}`)
+        const entries = entriesResult ? await entriesResult.json() : []
+        let publicEntries = entries
+        if (role === 'coach' && entries.length) {
+          const ids = [...new Set(entries.map((entry) => entry.profile_id).filter(Boolean))]
+          const profilesResult = await supabaseRequest(`profiles?id=in.(${ids.map(encodeURIComponent).join(',')})&select=id,display_name,emoji`)
+          const profiles = profilesResult.ok ? await profilesResult.json() : []
+          const profileMap = new Map(profiles.map((item) => [item.id, item]))
+          publicEntries = entries.map((entry) => ({ ...entry, profileName: profileMap.get(entry.profile_id)?.display_name || 'Simmare', profileEmoji: profileMap.get(entry.profile_id)?.emoji || '🏊' }))
+        }
+        return sendJson(response, 200, { events: (await eventsResult.json()).map(mapCompetitionEvent), entries: publicEntries })
       }
       if (role === 'coach' && request.query?.notes === 'true') {
         const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
@@ -296,9 +357,22 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { workout: publicWorkout(workout), locked: false })
     }
 
-    if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
-
     if (request.method === 'POST') {
+      if (request.body?.action === 'save-competition-entry' || request.body?.action === 'submit-competition-entries') {
+        const swimmer = role === 'coach' ? null : await getSessionProfile(request)
+        if (!swimmer) return sendJson(response, 403, { error: 'Logga in med en simmarprofil först.' })
+        const competitionId = String(request.body.competitionId || '')
+        const eventIds = Array.isArray(request.body.eventIds) ? [...new Set(request.body.eventIds.map(String))].slice(0, 30) : []
+        if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const existing = await supabaseRequest(`competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${encodeURIComponent(swimmer.id)}`, { method: 'DELETE' })
+        if (!existing.ok) throw new Error(`Competition entries reset failed: ${existing.status}`)
+        if (!eventIds.length) return sendJson(response, 200, { entries: [], status: request.body.action === 'submit-competition-entries' ? 'submitted' : 'draft' })
+        const status = request.body.action === 'submit-competition-entries' ? 'submitted' : 'draft'
+        const insert = await supabaseRequest('competition_entries', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(eventIds.map((eventId) => ({ competition_id: competitionId, event_id: eventId, profile_id: swimmer.id, status, submitted_at: status === 'submitted' ? new Date().toISOString() : null }))) })
+        if (!insert.ok) throw new Error(`Competition entries insert failed: ${insert.status} ${await insert.text()}`)
+        return sendJson(response, 200, { entries: await insert.json(), status })
+      }
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
       if (request.body?.action === 'transcribe-audio') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const dataUrl = String(request.body.dataUrl || '')
@@ -377,6 +451,18 @@ export default async function handler(request, response) {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         if (!Array.isArray(request.body.library) || !request.body.library.length) return sendJson(response, 400, { error: 'Välj eller hämta minst ett tidigare pass först.' })
         return sendJson(response, 200, await generateWorkoutFromLibrary(request, request.body))
+      }
+      if (request.body?.action === 'import-competition-program') {
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const competitionId = String(request.body.competitionId || '')
+        if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const parsed = await interpretCompetitionProgram(request, request.body)
+        if (parsed.error) return sendJson(response, 422, parsed)
+        const remove = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}`, { method: 'DELETE' })
+        if (!remove.ok) throw new Error(`Competition events reset failed: ${remove.status}`)
+        const insert = await supabaseRequest('competition_events', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(parsed.events.map((item) => ({ competition_id: competitionId, event_order: item.eventOrder, event_number: item.eventNumber || null, gender: item.gender, age_class: item.ageClass, distance_meters: item.distanceMeters, stroke: item.stroke, label: item.label }))) })
+        if (!insert.ok) throw new Error(`Competition events insert failed: ${insert.status} ${await insert.text()}`)
+        return sendJson(response, 200, { events: (await insert.json()).map(mapCompetitionEvent) })
       }
       if (request.body?.action === 'import-sportadmin-calendar') {
         const source = await fetch('https://portalweb.sportadmin.se/webcal?id=745c5643-5d4c-43c2-a7f3-a92e2846c145')

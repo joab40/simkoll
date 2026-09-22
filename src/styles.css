@@ -533,6 +533,17 @@ button { cursor: pointer; }
 .workout-generator-grid label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .workout-generator-grid select { width: 100%; }
 @media (max-width: 720px) { .workout-generator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.competition-program { margin-top: 12px; padding-top: 10px; border-top: 1px solid #dbe9e5; }
+.competition-program summary { cursor: pointer; color: var(--teal); font-weight: 800; font-size: 13px; }
+.competition-program-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
+.competition-program-actions input[type=file] { display: none; }
+.competition-event-list { display: grid; gap: 5px; max-height: 260px; overflow-y: auto; }
+.competition-event-list span { padding: 7px 9px; border-radius: 8px; background: #f1f8f5; font-size: 12px; }
+.swimmer-competition-link { margin: .5rem auto 0; display: block; }
+.competition-entry-list { display: grid; gap: .65rem; margin: 1rem 0; }
+.competition-entry-list label { display: flex; gap: .7rem; align-items: center; padding: .85rem 1rem; border: 1px solid #dbe4ef; border-radius: 14px; background: #fff; }
+.competition-entry-list label span { display: grid; gap: .15rem; }
+.competition-entry-list label small { color: var(--muted); }
 .workout-editor form { display: grid; gap: 18px; }
 .workout-editor label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
 .workout-editor label > small { color: var(--muted); font-weight: 400; }
