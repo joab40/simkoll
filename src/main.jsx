@@ -960,9 +960,6 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [polishing, setPolishing] = useState(false)
-  const [recording, setRecording] = useState(false)
-  const [transcribing, setTranscribing] = useState(false)
-  const recorderRef = useRef(null)
 
   const load = async () => {
     const cacheBust = `?feed=${Date.now()}`
@@ -2063,6 +2060,9 @@ function WorkoutEditor({ code, responses, aiEnabled = true }) {
   const [form, setForm] = useState({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
   const [loading, setLoading] = useState(true)
   const [polishing, setPolishing] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const recorderRef = useRef(null)
   const [saved, setSaved] = useState(false)
   const [library, setLibrary] = useState([])
   const [libraryOpen, setLibraryOpen] = useState(false)
