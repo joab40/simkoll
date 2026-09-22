@@ -209,6 +209,45 @@ async function improveWorkoutWithAi(request, csv, fallback) {
   }
 }
 
+async function generateWorkoutFromLibrary(request, options = {}) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { error: 'OPENAI_API_KEY saknas.' }
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const focus = String(options.focus || '').slice(0, 80)
+  const groupLabels = Array.isArray(options.groups) ? options.groups.slice(0, 3).join(', ') : ''
+  const distance = Number(options.distanceMeters || 0)
+  const duration = Number(options.durationMinutes || 0)
+  const rpe = String(options.rpe || '6–7').slice(0, 20)
+  const library = Array.isArray(options.library) ? options.library.slice(0, 8) : []
+  const sourceText = library.map((item, index) => `PASS ${index + 1}\nRubrik: ${String(item.title || '').slice(0, 100)}\nInriktning: ${String(item.focus || '').slice(0, 80)}\nMeter: ${item.distanceMeters || 'saknas'}\nTid: ${item.durationMinutes || 'saknas'} min\nPassbetyg: ${item.pass ?? 'saknas'} / 5\nRPE: ${item.rpe ?? 'saknas'} / 10\nInnehåll:\n${String(item.content || '').slice(0, 4500)}`).join('\n\n')
+  const prompt = `Du är en erfaren svensk simtränare. Skapa ett förslag på ett nytt simpass genom att kombinera bra idéer från tidigare genomförda pass i biblioteket. Detta är ett redigerbart utkast för tränaren, inte ett publicerat pass.
+
+Krav:
+- Huvudinriktning: ${focus || 'välj en rimlig inriktning utifrån underlaget'}
+- Grupper: ${groupLabels || 'alla grupper'}
+- Önskad distans: ${distance || 'anpassa efter underlaget'} meter
+- Tidsåtgång: ${duration || 'anpassa efter underlaget'} minuter
+- Mål-RPE: ${rpe}
+- Prioritera alltid tidigare pass med högt passbetyg. Använd RPE som näst viktigaste kvalitetsfilter och håll belastningen rimlig för vald tid och distans.
+- Ta med tydliga starttider på serierna. Om underlaget innehåller starttider, använd dem som förebild; skapa annars realistiska, tydligt markerade startintervall som passar serien.
+- Behåll simspecifik struktur med insim, teknik/ben/arm när det passar, huvudserie och avsim. Använd klamrar och indrag på ett lättläst sätt.
+- Hitta inte på ett exakt tidigare resultat eller påstå att passet är evidensbaserat. Gör inga medicinska slutsatser.
+
+Returnera strikt JSON med exakt nycklarna: title, content, distanceMeters, durationMinutes, focus, note. title max 80 tecken, content max 5000 tecken, note max 500 tecken. note ska kort ange vilka tidigare pass eller egenskaper som inspirerat förslaget.
+
+TIDIGARE PASS:
+${sourceText.slice(0, 26000)}`
+  try {
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.35, max_tokens: 1400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON utan markdown och får aldrig hitta på uppgifter från tidigare pass.' }, { role: 'user', content: prompt }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'workout_generation', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Passförslaget kunde inte skapas just nu.' } }
+    const payload = await result.json()
+    await writeAiUsage(request, { feature: 'workout_generation', model, role: 'coach', response: payload })
+    const parsed = JSON.parse(payload.choices?.[0]?.message?.content || '{}')
+    if (!parsed.content) return { error: 'AI:n returnerade inget passförslag.' }
+    return { draft: { title: String(parsed.title || `Förslag · ${focus || 'simning'}`).slice(0, 80), content: formatWorkoutLayout(String(parsed.content).slice(0, 5000)), note: String(parsed.note || '').slice(0, 500), focus: String(parsed.focus || focus).slice(0, 80), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : (distance || ''), durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : (duration || '') } }
+  } catch (error) { console.warn('Workout generation failed:', error.message); return { error: 'Passförslaget kunde inte tolkas. Försök igen.' } }
+}
+
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
@@ -333,6 +372,11 @@ export default async function handler(request, response) {
         const fallback = parseWorkoutCsv(text)
         const draft = await improveWorkoutWithAi(request, text, fallback)
         return sendJson(response, 200, { draft })
+      }
+      if (request.body?.action === 'generate-from-library') {
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
+        if (!Array.isArray(request.body.library) || !request.body.library.length) return sendJson(response, 400, { error: 'Välj eller hämta minst ett tidigare pass först.' })
+        return sendJson(response, 200, await generateWorkoutFromLibrary(request, request.body))
       }
       if (request.body?.action === 'import-sportadmin-calendar') {
         const source = await fetch('https://portalweb.sportadmin.se/webcal?id=745c5643-5d4c-43c2-a7f3-a92e2846c145')

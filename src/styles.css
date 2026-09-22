@@ -527,6 +527,12 @@ button { cursor: pointer; }
 .workout-picker-criteria { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.workout-picker-criteria label { font-size: 11px; font-weight: 800; }.workout-picker-criteria select { margin-top: 5px; }
 .workout-focus-preference { display: flex; flex-direction: column; gap: 5px; max-width: 320px; margin-top: 12px; font-size: 11px; font-weight: 800; }.workout-focus-preference select { margin-top: 2px; }
 .workout-picker-list { display: grid; gap: 7px; margin-top: 15px; }.workout-picker-list button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 13px; border: 1px solid #d6e6e1; border-radius: 11px; background: white; }.workout-picker-list span { display: grid; gap: 3px; }.workout-picker-list small { color: var(--muted); }.workout-picker-list b { color: var(--teal); white-space: nowrap; }
+.workout-generator { margin: 0 0 20px; }
+.workout-generator h3 { margin: 0; }
+.workout-generator-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.workout-generator-grid label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.workout-generator-grid select { width: 100%; }
+@media (max-width: 720px) { .workout-generator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .workout-editor form { display: grid; gap: 18px; }
 .workout-editor label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
 .workout-editor label > small { color: var(--muted); font-weight: 400; }
