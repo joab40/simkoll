@@ -175,14 +175,15 @@ function formatWorkoutLayout(content) {
   const section = /^(insim|uppvärmning|huvudserie|serie|ben|arm|spec|teknik|fart|avsim|nedvarvning|styrka)\b/i
   let inSection = false
   let lastSection = ''
-  return String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
-    const clean = line.replace(/^#+\s*/, '').replace(/^[-•]\s*/, '')
+  return String(content || '').split(/\r?\n/).map((line) => line.replace(/\t/g, '  ').replace(/\s+$/, '')).filter((line) => line.trim()).map((line) => {
+    const leading = line.match(/^\s*/)?.[0] || ''
+    const clean = line.trim().replace(/^#+\s*/, '').replace(/^[-•]\s*/, '')
     if (section.test(clean) || (/^[^·]{1,42}:$/.test(clean) && !/\d/.test(clean))) {
       const heading = clean.replace(/:$/, '')
       if (heading.toLowerCase() === lastSection) return ''
       lastSection = heading.toLowerCase(); inSection = true; return heading
     }
-    return inSection ? `  ${clean}` : clean
+    return `${leading || (inSection ? '  ' : '')}${clean}`
   }).filter(Boolean).join('\n')
 }
 
@@ -192,7 +193,8 @@ async function improveWorkoutWithAi(request, csv, fallback) {
   const prompt = `Du är en erfaren simtränare som redigerar ett träningspass från ett svenskt kalkylblad. Avgör själv vilken information som är viktig för att en simmare ska kunna genomföra passet och ta bort resten. Returnera endast giltig JSON utan markdown med exakt dessa nycklar: title (string max 80), content (string max 5000), coachMessage (string max 500, tom om ingen relevant information finns), distanceMeters (heltal eller null), durationMinutes (heltal eller null), focus (en av fart,troskel,syra,f2_frisim,f2_spec,distans,teknik,aterhamtning,kondition_frisim,kondition_special eller tom sträng).\n\nVIKTIGT OM URVAL:\n- Behåll insim/uppvärmning, huvudserie, teknik, ben/arm, avsim och andra delar som behövs för att förstå hela passet.\n- Leta särskilt efter rubriken "Nästa tävling". Om den finns ska du i coachMessage sammanfatta relevanta kommande tävlingar med namn, antal dagar kvar och datum. Skriv exempelvis "Kommande tävlingar:\\nSundsvall Swimgames · 4 dagar kvar · 19/09/2026". Hitta inte på uppgifter.\n- Ta bort tävlingskalendern från content, men använd den i coachMessage.\n- Ta bort datumrubriker, interna kolumnrubriker, tomma celler, summeringsrader och annan administration.\n- Gissa aldrig en serie, starttid, meter, tidsåtgång eller tävlingsuppgift.\n\nVIKTIGT OM ORDNING OCH FORMAT:\n- Behåll exakt källans ordning. Sortera aldrig serier eller starttider.\n- Starttid/startintervall ska alltid ligga på samma rad som serien den hör till.\n- Skriv avsnittsnamn på egen rad, följt av serierna på egna rader. Använd gärna formatet "## Huvudserie".\n- Använd vanlig text och separatorn " · " mellan delar på samma rad. Exempel: "8x50 frisim · fenor · start 1:00".\n- Skriv inte förklarande text utanför själva passet.\n\nKÄLLDATA (CSV):\n${csv.slice(0, 24000)}`
   try {
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: prompt }] }) })
+    const enrichedPrompt = `${prompt}\n\nExtra layoutregler: Tolk 2x/3x och klamrar som blockstruktur, inte som löptext. Skriv exempelvis "3 x [" på egen rad och behåll blockets rader indragna med två blanksteg tills klammern stängs. Behåll även underblock som 2x inne i större block. Om flera celler hör till samma serie ska de ligga på samma rad med " · ". En starttid ska alltid ligga sist på serien den hör till och får aldrig bli en fristående rad. Behåll exakt ordning och skilj större avsnitt tydligt.`
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 900, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: enrichedPrompt }] }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'workout_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return fallback }
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'workout_import', model, role: 'coach', response: payload })
