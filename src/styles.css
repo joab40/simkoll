@@ -122,6 +122,9 @@ button { cursor: pointer; }
 .workout-content-collapsed::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 42px; background: linear-gradient(transparent, #fff); pointer-events: none; }
 .workout-body > p { white-space: pre-wrap; line-height: 1.65; color: #40575c; }
 .workout-content { display: grid; gap: 7px; color: #40575c; }
+.workout-ai-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.workout-upload-button { position: relative; overflow: hidden; }
+.workout-upload-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .workout-content h4 { margin: 13px 0 2px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .workout-content h4:first-child { margin-top: 0; }
 .workout-set { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 11px; background: #f3f8f6; border-radius: 10px; line-height: 1.45; font-size: 14px; }

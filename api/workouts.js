@@ -54,6 +54,40 @@ Returnera endast JSON med exakt nyckeln text.`
   }
 }
 
+async function polishWorkoutContent(request, content, title = '', focus = '') {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { text: content, usedAi: false }
+  const prompt = 'Du är en erfaren svensk simtränare och redaktör. Förbättra formateringen av följande simträningspass. Behåll exakt alla fakta, meter, tider, intervall, simsätt och instruktioner. Hitta aldrig på eller ta bort träningsinnehåll. Behåll 2x/3x, klamrar, parenteser och indrag. Rubriker som BEN:, ARM:, INSIM:, SPEC:, HUVUDSERIE: och AVSIM: ska stå på egna rader. Lägg varje serie på en egen rad och starttider sist på samma rad som serien. Använd vanliga radbrytningar, inte markdown-tabeller. Returnera endast passtexten.\n\nRubrik: ' + title + '\nInriktning: ' + focus + '\nRåtext:\n' + String(content).slice(0, 5000)
+  try {
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.1, max_tokens: 1200, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Returnera alltid strikt JSON med exakt nyckeln text.' }, { role: 'user', content: `${prompt}\n\nReturnera JSON: {"text":"..."}` }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'workout_text_polish', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { text: content, usedAi: false } }
+    const payload = await result.json()
+    await writeAiUsage(request, { feature: 'workout_text_polish', model, role: 'coach', response: payload })
+    const raw = String(payload.choices?.[0]?.message?.content || '{}'), first = raw.indexOf('{'), last = raw.lastIndexOf('}')
+    const parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
+    const text = String(parsed.text || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, 5000)
+    return { text: text || content, usedAi: Boolean(text) }
+  } catch (error) { console.warn('Workout text AI fallback:', error.message); return { text: content, usedAi: false } }
+}
+
+async function interpretWorkoutAttachment(request, fileData, mimeType, fileName = '') {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { error: 'OPENAI_API_KEY saknas.' }
+  if (!/^image\/(png|jpe?g|webp)$/i.test(mimeType)) return { error: 'Bildtolkning stöder PNG, JPG och WebP. För dokument: kopiera texten till huvudserien eller använd Google Drive-importen.' }
+  const prompt = 'Tolka bilden av ett svenskt simträningspass. Returnera strikt JSON med title, content, note, distanceMeters, durationMinutes och focus. Behåll alla serier, 2x/3x-klamrar, indrag, starttider och ordningen. Skriv content som ren text med rubriker på egna rader och varje serie på egen rad. Hitta inte på något som inte syns. Skriv kommande tävlingar i note om de syns. Filnamn: ' + fileName
+  try {
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 1400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: fileData, detail: 'high' } }] }] }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'workout_image_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Bildtolkningen kunde inte genomföras.' } }
+    const payload = await result.json()
+    await writeAiUsage(request, { feature: 'workout_image_import', model, role: 'coach', response: payload })
+    const raw = String(payload.choices?.[0]?.message?.content || '{}'), first = raw.indexOf('{'), last = raw.lastIndexOf('}')
+    const parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
+    return { draft: { title: String(parsed.title || 'Importerat träningspass').slice(0, 80), content: String(parsed.content || '').slice(0, 5000), note: String(parsed.note || '').slice(0, 500), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : '', durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : '', focus: typeof parsed.focus === 'string' ? parsed.focus : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] } }
+  } catch (error) { console.warn('Workout image AI fallback:', error.message); return { error: 'Bildtolkningen kunde inte läsas.' } }
+}
+
 function parseSportAdminIcs(source) {
   const lines = String(source || '').replace(/\r\n[ \t]/g, '').split(/\r?\n/), events = []
   let event = null
@@ -202,6 +236,19 @@ export default async function handler(request, response) {
     if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'polish-workout-content') {
+        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const content = String(request.body.content || '').trim()
+        if (!content || content.length > 5000) return sendJson(response, 400, { error: 'Skriv in huvudserien först.' })
+        return sendJson(response, 200, await polishWorkoutContent(request, content, String(request.body.title || '').slice(0, 80), String(request.body.focus || '').slice(0, 80)))
+      }
+      if (request.body?.action === 'interpret-workout-image') {
+        if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const fileData = String(request.body.fileData || '')
+        const mimeType = String(request.body.mimeType || '')
+        if (!fileData.startsWith('data:image/') || fileData.length > 8_000_000) return sendJson(response, 400, { error: 'Bilden saknas eller är för stor. Välj en bild under cirka 6 MB.' })
+        return sendJson(response, 200, await interpretWorkoutAttachment(request, fileData, mimeType, String(request.body.fileName || '').slice(0, 120)))
+      }
       if (request.body?.action === 'polish-coach-note') {
         if (!(await isAiEnabled())) return sendJson(response, 403, { error: 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body.content || '').trim()
