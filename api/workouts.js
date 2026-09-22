@@ -263,7 +263,7 @@ async function interpretCompetitionProgram(request, options = {}) {
   const fileName = String(options.fileName || 'grenprogram').slice(0, 120)
   if (!dataUrl.startsWith('data:') || dataUrl.length > 12_000_000) return { error: 'Filen saknas eller är för stor. Välj en fil under cirka 9 MB.' }
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-  const prompt = `Du tolkar ett svenskt tävlingsprogram för simning. Plocka endast ut grenordningen som simmare behöver välja mellan. Returnera strikt JSON utan markdown med exakt nyckeln events, en array.
+  const prompt = `Du är en noggrann tävlingssekreterare för svensk simning. Läs hela det bifogade tävlingsprogrammet, även tabeller och sidbrytningar. Plocka ut varje valbar gren i den ordning den förekommer. Arbeta hellre långsamt och komplett än snabbt och ofullständigt.
 
 Varje event ska ha: eventOrder (heltal), eventNumber (sträng), gender (Dam, Herr eller Alla), ageClass (exempelvis 13–14 år, Junior eller Alla åldrar), distanceMeters (heltal eller null), stroke (Frisim, Ryggsim, Bröstsim, Fjärilsim, Medley eller Annat), label (kort tydlig svensk text).
 
@@ -272,14 +272,18 @@ Regler:
 - Ta inte med heat, startlistor, deltagarnamn, tider eller resultat.
 - Om kön eller åldersklass inte uttryckligen står: använd Alla.
 - Gissa aldrig grennummer, ålder, distans eller simsätt. Om något är oklart, använd Annat och behåll den läsbara texten i label.
-- En rad ska bli ett event. Slå inte ihop olika kön eller åldersklasser.
+- En rad eller tabellrad ska bli ett event. Slå inte ihop olika kön eller åldersklasser.
+- Om samma grennummer återkommer för olika klasser ska de bli separata event.
+- Läs inte in sidhuvuden, heat, startlistor, deltagarnamn, tider eller resultat.
+- Kontrollera innan du svarar att eventOrder är stigande och att varje label är läsbar på svenska.
 
 Dokument: ${fileName}`
   const content = [{ type: 'input_text', text: prompt }]
   if (mimeType.startsWith('image/')) content.push({ type: 'input_image', image_url: dataUrl, detail: 'high' })
   else content.push({ type: 'input_file', filename: fileName, file_data: dataUrl })
   try {
-    const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 1800, text: { format: { type: 'json_object' } } }) })
+    const eventSchema = { type: 'object', additionalProperties: false, properties: { eventOrder: { type: 'integer' }, eventNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] }, gender: { anyOf: [{ type: 'string', enum: ['Dam', 'Herr', 'Alla'] }, { type: 'null' }] }, ageClass: { anyOf: [{ type: 'string' }, { type: 'null' }] }, distanceMeters: { anyOf: [{ type: 'integer' }, { type: 'null' }] }, stroke: { type: 'string' }, label: { type: 'string' } }, required: ['eventOrder', 'eventNumber', 'gender', 'ageClass', 'distanceMeters', 'stroke', 'label'] }
+    const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 5000, text: { format: { type: 'json_schema', name: 'competition_program', strict: true, schema: { type: 'object', additionalProperties: false, properties: { events: { type: 'array', items: eventSchema } }, required: ['events'] } } } }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Grenprogrammet kunde inte tolkas just nu.' } }
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
