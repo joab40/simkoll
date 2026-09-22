@@ -623,11 +623,13 @@ button { cursor: pointer; }
 .swimmer-notes-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
 .swimmer-notes-heading .eyebrow { margin-bottom: 3px; }
 .swimmer-notes-heading small { color: var(--muted); font-size: 10px; text-align: right; }
-.swimmer-notes form { display: flex; gap: 8px; margin-top: 10px; align-items: end; }
+.swimmer-notes form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; margin-top: 10px; align-items: end; }
 .swimmer-notes form > div { display: grid; gap: 7px; flex: 1; }
 .swimmer-notes input, .swimmer-notes textarea { width: 100%; border: 1px solid #d1e1dc; border-radius: 9px; background: white; padding: 9px; outline: 0; }
 .swimmer-notes textarea { min-height: 62px; resize: vertical; }
 .swimmer-notes .note-ai-button { justify-self: start; padding: 0; font-size: .78rem; }
+.swimmer-note-tools { display:flex !important; flex-wrap:wrap; gap:10px; align-items:center; }
+.swimmer-notes form > button { white-space:nowrap; }
 .swimmer-notes-list { display: grid; gap: 7px; margin-top: 12px; }
 .swimmer-notes-list article { border-top: 1px solid #dbe9e5; padding-top: 8px; }
 .swimmer-notes-list details { border-radius: 10px; }
@@ -642,7 +644,7 @@ button { cursor: pointer; }
 .swimmer-note-edit { display: grid; gap: 7px; margin-top: 8px; }
 .swimmer-note-edit input, .swimmer-note-edit textarea { width: 100%; }
 .notes-empty { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
-@media (max-width: 620px) { .swimmer-notes form { display: grid; } .swimmer-notes form button { justify-self: start; } }
+@media (max-width: 620px) { .swimmer-notes form { grid-template-columns: 1fr; } .swimmer-notes form > button { justify-self: start; } }
 .legal-purpose { max-width: 760px; margin: 0 auto 18px; padding: 22px; background: linear-gradient(135deg, #e7f5ef, #f8fbf5); border: 1px solid #cfe4dc; border-radius: 20px; }
 .legal-purpose h2 { margin: 4px 0 10px; }
 .legal-purpose p:not(.eyebrow) { color: #52666a; line-height: 1.6; }

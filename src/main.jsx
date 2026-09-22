@@ -2160,6 +2160,9 @@ function SwimmerNotes({ profile, code }) {
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const recorderRef = useRef(null)
   const [editing, setEditing] = useState(null)
   const [editDraft, setEditDraft] = useState({ date: '', content: '' })
   const [status, setStatus] = useState('')
@@ -2175,6 +2178,33 @@ function SwimmerNotes({ profile, code }) {
     setPolishing(true); setStatus('Förbättrar text…')
     try { const result = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'polish-swimmer-note', noteDate, content: text }) }); onResult(result.text || text); setStatus(result.usedAi ? 'Texten är förbättrad – kontrollera den före sparning.' : 'Texten kunde inte förbättras just nu.') } catch (error) { setStatus(error.message) } finally { setPolishing(false) }
   }
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return setStatus('Den här webbläsaren stöder inte ljudinspelning.')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type)) || ''
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      const chunks = []
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        const reader = new FileReader()
+        reader.onload = async () => {
+          setTranscribing(true); setStatus('Transkriberar inspelningen…')
+          try {
+            const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transcribe-audio', dataUrl: reader.result, mimeType: blob.type }) })
+            if (data.error) throw new Error(data.error)
+            setContent((current) => current.trim() ? `${current.trim()}\n\n${data.text || ''}`.trim() : (data.text || ''))
+            setStatus(data.text ? 'Transkriberingen är klar – kontrollera texten före sparning.' : 'Inget tal kunde urskiljas.')
+          } catch (error) { setStatus(error.message) } finally { setTranscribing(false) }
+        }
+        reader.readAsDataURL(blob)
+      }
+      recorderRef.current = recorder; recorder.start(); setRecording(true); setStatus('Spelar in… tryck på stoppa när du är klar.')
+    } catch (error) { setStatus(error.name === 'NotAllowedError' ? 'Mikrofontillstånd nekades. Tillåt mikrofonen i webbläsaren.' : 'Kunde inte starta inspelningen.') }
+  }
+  const stopRecording = () => { recorderRef.current?.stop(); recorderRef.current = null; setRecording(false) }
   const startEdit = (note) => { setEditing(note.id); setEditDraft({ date: note.noteDate, content: note.content }); setStatus('') }
   const saveEdit = async () => {
     if (!editDraft.content.trim()) return
@@ -2189,7 +2219,7 @@ function SwimmerNotes({ profile, code }) {
   return (
     <section className="swimmer-notes">
       <div className="swimmer-notes-heading"><div><p className="eyebrow">Tränarens observationer</p><strong>Anteckningar</strong></div><small>Sparas med datum och syns bara för tränare.</small></div>
-      <form onSubmit={save}><div><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><textarea maxLength={3000} placeholder="Skriv en observation eller något att följa upp…" value={content} onChange={(event) => setContent(event.target.value)} /><button type="button" className="text-button note-ai-button" disabled={polishing || !content.trim()} onClick={() => improve(content, date, setContent)}>✨ Förbättra text med AI</button></div><button className="secondary-button" disabled={saving || polishing || !content.trim()}>{saving ? 'Sparar…' : 'Spara anteckning'}</button></form>
+      <form onSubmit={save}><div><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><textarea maxLength={3000} placeholder="Skriv en observation eller något att följa upp…" value={content} onChange={(event) => setContent(event.target.value)} /><div className="swimmer-note-tools">{recording ? <button type="button" className="recording-button" onClick={stopRecording} disabled={transcribing}>⏹ Stoppa inspelning</button> : <button type="button" className="text-button note-ai-button" onClick={startRecording} disabled={polishing || transcribing}>🎙️ Läs in med röst</button>}<button type="button" className="text-button note-ai-button" disabled={polishing || transcribing || !content.trim()} onClick={() => improve(content, date, setContent)}>✨ Förbättra text med AI</button></div></div><button className="secondary-button" disabled={saving || polishing || recording || transcribing || !content.trim()}>{saving ? 'Sparar…' : transcribing ? 'Transkriberar…' : 'Spara anteckning'}</button></form>
       {status && <small className="coach-note-status">{status}</small>}
       {notes.length > 0 ? <div className="swimmer-notes-list">{notes.map((note) => <article key={note.id}><details><summary><time>{note.noteDate}</time><span>{note.content.slice(0, 90)}{note.content.length > 90 ? '…' : ''}</span></summary>
         {editing === note.id ? <div className="swimmer-note-edit"><input type="date" value={editDraft.date} onChange={(event) => setEditDraft({ ...editDraft, date: event.target.value })} /><textarea maxLength={3000} value={editDraft.content} onChange={(event) => setEditDraft({ ...editDraft, content: event.target.value })} /><div><button type="button" className="text-button" disabled={polishing || !editDraft.content.trim()} onClick={() => improve(editDraft.content, editDraft.date, (text) => setEditDraft((current) => ({ ...current, content: text })))}>✨ Förbättra text med AI</button><button type="button" className="secondary-button" disabled={saving} onClick={saveEdit}>Spara ändring</button><button type="button" className="text-button" onClick={() => setEditing(null)}>Avbryt</button></div></div> : <><p>{note.content}</p><div className="swimmer-note-actions"><button type="button" className="text-button" onClick={() => startEdit(note)}>Redigera</button><button type="button" className="text-button danger-text" disabled={saving} onClick={() => remove(note)}>Radera</button></div></>}
