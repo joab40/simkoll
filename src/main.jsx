@@ -960,6 +960,9 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [polishing, setPolishing] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const recorderRef = useRef(null)
 
   const load = async () => {
     const cacheBust = `?feed=${Date.now()}`
@@ -2073,6 +2076,37 @@ function WorkoutEditor({ code, responses, aiEnabled = true }) {
 
   const importTextFile = async (event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (!/\.(txt|csv|md)$/i.test(file.name) && !/^text\//i.test(file.type)) { window.alert('Välj en text-, CSV- eller Markdown-fil.'); return } const reader = new FileReader(); reader.onload = async () => { setLoading(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'polish-workout-content', content: String(reader.result || ''), title: file.name.replace(/\.[^.]+$/, ''), focus: form.focus }) }); setForm((current) => ({ ...current, title: current.title || file.name.replace(/\.[^.]+$/, ''), content: data.text || String(reader.result || '') })); setSaved(false) } catch (error) { window.alert(error.message) } finally { setLoading(false) } }; reader.readAsText(file) }
 
+  const startWorkoutRecording = async () => {
+    if (!aiEnabled) return window.alert('AI-stöd är avstängt i webapp-inställningarna.')
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return window.alert('Den här webbläsaren stöder inte ljudinspelning.')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type)) || ''
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      const chunks = []
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        const reader = new FileReader()
+        reader.onload = async () => {
+          setTranscribing(true)
+          try {
+            const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transcribe-audio', dataUrl: reader.result, mimeType: blob.type }) })
+            if (data.error) throw new Error(data.error)
+            setForm((current) => ({ ...current, content: current.content?.trim() ? `${current.content.trim()}\n\n${data.text || ''}`.trim() : (data.text || '') }))
+            setSaved(false)
+          } catch (error) { window.alert(error.message) } finally { setTranscribing(false) }
+        }
+        reader.readAsDataURL(blob)
+      }
+      recorderRef.current = recorder
+      recorder.start()
+      setRecording(true)
+    } catch (error) { window.alert(error.name === 'NotAllowedError' ? 'Mikrofontillstånd nekades. Tillåt mikrofonen i webbläsaren.' : 'Kunde inte starta inspelningen.') }
+  }
+  const stopWorkoutRecording = () => { recorderRef.current?.stop(); recorderRef.current = null; setRecording(false) }
+
   useEffect(() => {
     setLoading(true)
     apiRequest(`/api/workouts?date=${date}`, code)
@@ -2112,7 +2146,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true }) {
         <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
         <div className="workout-meta-fields"><label>Huvudinriktning<select value={form.focus || ''} onChange={(event) => { setSaved(false); setForm({ ...form, focus: event.target.value }) }}><option value="">Välj inriktning…</option>{WORKOUT_FOCUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Längd (meter)<input type="number" min="1" max="50000" placeholder="t.ex. 4000" value={form.distanceMeters ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, distanceMeters: event.target.value }) }} /></label><label>Tidsåtgång (minuter)<input type="number" min="1" max="600" placeholder="t.ex. 75" value={form.durationMinutes ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, durationMinutes: event.target.value }) }} /></label></div>
         <fieldset className="workout-groups"><legend>Passet gäller för</legend><div>{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, label]) => <label key={value}><input type="checkbox" checked={(form.targetGroups || []).includes(value)} onChange={(event) => { setSaved(false); const groups = new Set(form.targetGroups || []); event.target.checked ? groups.add(value) : groups.delete(value); setForm({ ...form, targetGroups: [...groups] }) }} />{label}</label>)}</div><small>Välj en eller flera grupper. Passet visas bara för valda grupper.</small></fieldset>
-        <label>Huvudserie<textarea required maxLength="5000" placeholder={'Till exempel:\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /><div className="workout-ai-actions">{aiEnabled && <button type="button" className="secondary-button" onClick={polishContent} disabled={polishing || loading || !form.content?.trim()}>{polishing ? 'Förbättrar…' : '✨ Förbättra träningspass med AI'}</button>}<label className="secondary-button workout-upload-button">🖼️ Tolka bild av pass<input type="file" accept="image/png,image/jpeg,image/webp" onChange={importImage} disabled={loading || polishing} /></label></div><small className="settings-note">AI:n försöker behålla 2×/3×-klamrar, indrag och starttider. Kontrollera alltid texten före publicering.</small></label>
+        <label>Huvudserie<textarea required maxLength="5000" placeholder={'Till exempel:\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /><div className="workout-ai-actions">{aiEnabled && <button type="button" className="secondary-button" onClick={polishContent} disabled={polishing || loading || recording || transcribing || !form.content?.trim()}>{polishing ? 'Förbättrar…' : '✨ Förbättra träningspass med AI'}</button>}{aiEnabled && <button type="button" className={recording ? 'recording-button' : 'secondary-button'} onClick={recording ? stopWorkoutRecording : startWorkoutRecording} disabled={loading || polishing || transcribing}>{recording ? '⏹ Stoppa inspelning' : transcribing ? 'Transkriberar…' : '🎙️ Läs in med röst'}</button>}<label className="secondary-button workout-upload-button">🖼️ Tolka bild av pass<input type="file" accept="image/png,image/jpeg,image/webp" onChange={importImage} disabled={loading || polishing || recording || transcribing} /></label></div><small className="settings-note">Du kan läsa in passet med rösten. Kontrollera alltid texten och formateringen före publicering.</small></label>
         <label>Meddelande till simmarna <small>Frivilligt</small><textarea className="short" maxLength="500" placeholder="Fokus för dagen eller något att tänka på…" value={form.note || ''} onChange={(event) => { setSaved(false); setForm({ ...form, note: event.target.value }) }} /></label>
         <div className="editor-actions">{form.id && <button type="button" className="delete-workout" onClick={remove}>Ta bort passet</button>}<span>{saved ? '✓ Sparat och publicerat' : ''}</span><button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : 'Publicera passet →'}</button></div>
       </form>
