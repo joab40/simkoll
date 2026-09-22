@@ -63,7 +63,9 @@ async function transcribeAudio(request, dataUrl, mimeType) {
     const bytes = Buffer.from(encoded, 'base64')
     const model = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe'
     const form = new FormData()
-    form.append('file', new Blob([bytes], { type: mimeType || 'audio/webm' }), 'coach-summary.webm')
+    const audioType = mimeType || 'audio/webm'
+    const extension = audioType.includes('mp4') ? 'mp4' : audioType.includes('ogg') ? 'ogg' : audioType.includes('wav') ? 'wav' : 'webm'
+    form.append('file', new Blob([bytes], { type: audioType }), `coach-summary.${extension}`)
     form.append('model', model)
     form.append('language', 'sv')
     const result = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form })
