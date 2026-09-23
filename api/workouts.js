@@ -315,8 +315,13 @@ Dokument: ${fileName}`
       const detectedSession = rawLabel.match(/\b(pass\s*[1-9]\d*|förmiddag|eftermiddag|finalpass)\b/i)?.[1] || ''
       if (explicitSession || detectedSession) currentSessionLabel = (explicitSession || detectedSession).slice(0, 60)
       const sessionLabel = currentSessionLabel
-      const itemType = ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race'
-      return { eventOrder: index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: item.entryAllowed !== false && itemType !== 'pause' && itemType !== 'award' && itemType !== 'info', gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
+      const normalizedLabel = rawLabel.toLocaleLowerCase('sv-SE')
+      const clearlyInformation = /\b(paus|lunch|rast|samling|invigning|prisutdelning|prisutdelningar|försäljning|insimning)\b/.test(normalizedLabel)
+      const clearlyRace = /\b\d{2,4}\s*m\b/.test(normalizedLabel) || /\b(frisim|ryggsim|bröstsim|fjärilsim|medley)\b/.test(normalizedLabel)
+      let itemType = ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race'
+      if (clearlyInformation) itemType = /\b(prisutdelning|prisutdelningar)\b/.test(normalizedLabel) ? 'award' : 'info'
+      else if (clearlyRace) itemType = 'race'
+      return { eventOrder: index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: itemType === 'race' && item.entryAllowed !== false, gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
     }).filter((item) => item.label).slice(0, 300) : []
     if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
     return { events }
