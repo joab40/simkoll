@@ -374,7 +374,6 @@ function Shell({ children, profile, talksEnabled, planningEnabled, onPlanning, o
   const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
-      {profile && onCompetitions && <button className="menu-link swimmer-competition-link" onClick={go(onCompetitions)}>Tävlingsgrenar</button>}
       <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && planningEnabled && <button className="menu-link" onClick={go(onPlanning)}>Veckoplanering</button>}{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
       {profile && talksEnabled && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
       {children}
