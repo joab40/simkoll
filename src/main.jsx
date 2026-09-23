@@ -1452,7 +1452,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'competition-calendar' ? (
           <CompetitionCalendar code={code} />
         ) : view === 'competition-entries' ? (
-          <CompetitionSubmissionManager code={code} />
+          <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} /></CompetitionSubmissionBoundary>
         ) : view === 'settings' ? (
           <WebappSettings code={code} />
         ) : view === 'groups' ? (
@@ -1820,6 +1820,12 @@ function CoachCompetitionEntries({ code }) {
   const safeEntries = Array.isArray(data.entries) ? data.entries : []
   const submitted = safeEntries.filter((entry) => entry.status === 'submitted')
   return <section className="competition-submissions"><div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Se vilka grenar simmarna har skickat in.</small></div></div>{competitions.length ? <label className="settings-field"><strong>Välj tävling</strong><select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label> : <p className="empty">Inga tävlingar är skapade ännu.</p>}{loading ? <p className="empty">Hämtar anmälningar…</p> : data.events.length ? <div className="competition-submission-list">{data.events.map((event) => { const names = submitted.filter((entry) => entry.event_id === event.id || entry.eventId === event.id); return <article key={event.id}><div><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender || 'Alla'} · {event.ageClass || 'Alla åldrar'}</small></div><span>{names.length ? names.map((entry) => `${entry.profileEmoji || '🏊'} ${entry.profileName || 'Simmare'}`).join(', ') : 'Ingen inskickad ännu'}</span></article> })}</div> : <p className="empty">Tävlingsprogrammet är inte inläst ännu.</p>}</section>
+}
+
+class CompetitionSubmissionBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() { return this.state.error ? <section className="empty-period"><span>⚠️</span><h2>Tävlingsanmälningar kunde inte visas</h2><p>{this.state.error.message || 'Ett oväntat fel uppstod.'}</p><button className="secondary-button" onClick={() => this.setState({ error: null })}>Försök igen</button></section> : this.props.children }
 }
 
 function CompetitionSubmissionManager({ code }) {
