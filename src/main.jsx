@@ -1402,6 +1402,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
     <main className="coach-shell">
       <header><ClubBrand /><details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groupOptions.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('logs')}>Loggar</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
       <div className="coach-content">
+        <button className="competition-submissions-link" type="button" onClick={() => openViewFromMenu('competition-entries')}>🏁 Tävlingsanmälningar</button>
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
             {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => { setView(item.key); if (item.key === 'competition') loadCompetitionResults() }}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>)}
@@ -1450,6 +1451,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <><SportAdminImport code={code} /><CoachPlanning code={code} /></>
         ) : view === 'competition-calendar' ? (
           <CompetitionCalendar code={code} />
+        ) : view === 'competition-entries' ? (
+          <CoachCompetitionEntries code={code} />
         ) : view === 'settings' ? (
           <WebappSettings code={code} />
         ) : view === 'groups' ? (
@@ -1807,6 +1810,17 @@ function WebappSettings({ code }) {
 }
 
 /* PROGRAM_IMPORT_DRAFT_START
+function CoachCompetitionEntries({ code }) {
+  const [competitions, setCompetitions] = useState([])
+  const [selectedId, setSelectedId] = useState('')
+  const [data, setData] = useState({ events: [], entries: [] })
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { apiRequest('/api/workouts?calendar=true', code).then((result) => { const list = result.competitions || []; setCompetitions(list); if (list[0]) setSelectedId(list[0].id) }).catch(() => {}).finally(() => setLoading(false)) }, [code])
+  useEffect(() => { if (!selectedId) return; setLoading(true); apiRequest(`/api/workouts?program=true&id=${selectedId}`, code).then(setData).catch(() => setData({ events: [], entries: [] })).finally(() => setLoading(false)) }, [code, selectedId])
+  const submitted = data.entries.filter((entry) => entry.status === 'submitted')
+  return <section className="competition-submissions"><div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Se vilka grenar simmarna har skickat in.</small></div></div>{competitions.length ? <label className="settings-field"><strong>Välj tävling</strong><select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label> : <p className="empty">Inga tävlingar är skapade ännu.</p>}{loading ? <p className="empty">Hämtar anmälningar…</p> : data.events.length ? <div className="competition-submission-list">{data.events.map((event) => { const names = submitted.filter((entry) => entry.event_id === event.id || entry.eventId === event.id); return <article key={event.id}><div><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender || 'Alla'} · {event.ageClass || 'Alla åldrar'}</small></div><span>{names.length ? names.map((entry) => `${entry.profileEmoji || '🏊'} ${entry.profileName || 'Simmare'}`).join(', ') : 'Ingen inskickad ännu'}</span></article> })}</div> : <p className="empty">Tävlingsprogrammet är inte inläst ännu.</p>}</section>
+}
+
 function CompetitionCalendarProgram({ code }) {
   const [competitions, setCompetitions] = useState([])
   const [programs, setPrograms] = useState({})

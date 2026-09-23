@@ -540,6 +540,12 @@ button { cursor: pointer; }
 .competition-event-list { display: grid; gap: 5px; max-height: 260px; overflow-y: auto; }
 .competition-event-list span { padding: 7px 9px; border-radius: 8px; background: #f1f8f5; font-size: 12px; }
 .swimmer-competition-link { margin: .5rem auto 0; display: block; }
+.competition-submissions-link { margin: 0 0 12px; }
+.competition-submission-list { display: grid; gap: 10px; margin-top: 16px; }
+.competition-submission-list article { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 14px 16px; background: #fff; border: 1px solid #dbe9e5; border-radius: 14px; }
+.competition-submission-list article div { display: grid; gap: 3px; }
+.competition-submission-list small { color: var(--muted); }
+.competition-submission-list article > span { text-align: right; font-size: 13px; }
 .competition-entry-list { display: grid; gap: .65rem; margin: 1rem 0; }
 .competition-entry-list label { display: flex; gap: .7rem; align-items: center; padding: .85rem 1rem; border: 1px solid #dbe4ef; border-radius: 14px; background: #fff; }
 .competition-entry-list label span { display: grid; gap: .15rem; }
