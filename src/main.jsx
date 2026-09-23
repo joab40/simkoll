@@ -1450,7 +1450,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'planning' ? (
           <><SportAdminImport code={code} /><CoachPlanning code={code} /></>
         ) : view === 'competition-calendar' ? (
-          <CompetitionCalendar code={code} />
+          <CompetitionSubmissionBoundary><CompetitionCalendar code={code} /></CompetitionSubmissionBoundary>
         ) : view === 'competition-entries' ? (
           <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} /></CompetitionSubmissionBoundary>
         ) : view === 'settings' ? (
