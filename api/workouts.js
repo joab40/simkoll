@@ -323,10 +323,32 @@ Dokument: ${fileName}`
       let itemType = ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race'
       if (clearlyInformation) itemType = /\b(prisutdelning|prisutdelningar)\b/.test(normalizedLabel) ? 'award' : 'info'
       else if (clearlyRace) itemType = 'race'
-      return { eventOrder: index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: itemType === 'race' && item.entryAllowed !== false, gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
+      return { eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: itemType === 'race' && item.entryAllowed !== false, gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
     }).filter((item) => item.label).slice(0, 300) : []
     if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
-    return { events }
+    // A second, focused pass catches schedule rows that a large event extraction
+    // may otherwise skip (especially the first pause or rows between tables).
+    try {
+      const scheduleItemSchema = { type: 'object', additionalProperties: false, properties: { eventOrder: { type: 'integer' }, sessionLabel: { anyOf: [{ type: 'string' }, { type: 'null' }] }, itemType: { type: 'string', enum: ['pause', 'award', 'info'] }, entryAllowed: { type: 'boolean' }, label: { type: 'string' } }, required: ['eventOrder', 'sessionLabel', 'itemType', 'entryAllowed', 'label'] }
+      const schedulePrompt = `Läs hela tävlingsprogrammet och leta ENDAST efter tids- och informationsrader som inte är tävlingsgrenar. Ta med varje paus, lunch, rast, samling, invigning, prisutdelning, finalpass och passrubrik. Ta särskilt med en paus som ligger före gren 1 och alla pauser mellan tabeller. Returnera en rad per träff i dokumentets ordning. eventOrder ska vara radens ungefärliga ordning i hela dokumentet, sessionLabel ska vara exempelvis Pass 1, Pass 2, Förmiddag eller Eftermiddag om det framgår, annars null. Använd itemType pause för paus/lunch/rast/samling, award för prisutdelning och info för passrubrik eller annan information. Returnera aldrig tävlingsgrenar här. Om inga sådana rader finns, returnera en tom lista. Filnamn: ${fileName}`
+      const scheduleContent = [{ type: 'input_text', text: schedulePrompt }]
+      if (mimeType.startsWith('image/')) scheduleContent.push({ type: 'input_image', image_url: dataUrl, detail: 'high' })
+      else scheduleContent.push({ type: 'input_file', filename: fileName, file_data: dataUrl })
+      const scheduleResult = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content: scheduleContent }], max_output_tokens: 2200, text: { format: { type: 'json_schema', name: 'competition_schedule_rows', strict: true, schema: { type: 'object', additionalProperties: false, properties: { items: { type: 'array', items: scheduleItemSchema } }, required: ['items'] } } } }) })
+      if (scheduleResult.ok) {
+        const schedulePayload = await scheduleResult.json()
+        await writeAiUsage(request, { feature: 'competition_schedule_import', model, role: 'coach', response: schedulePayload })
+        const schedule = JSON.parse(responseOutputText(schedulePayload) || '{}')
+        const scheduleRows = Array.isArray(schedule.items) ? schedule.items.map((item) => ({ eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : 9999, eventNumber: '', sessionLabel: String(item.sessionLabel || '').slice(0, 60), itemType: ['pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'info', entryAllowed: false, gender: 'Alla', ageClass: 'Alla åldrar', distanceMeters: null, stroke: 'Annat', label: String(item.label || '').trim().slice(0, 120) })).filter((item) => item.label) : []
+        for (const row of scheduleRows) {
+          const duplicate = events.some((event) => event.itemType !== 'race' && event.label.toLocaleLowerCase('sv-SE') === row.label.toLocaleLowerCase('sv-SE'))
+          if (!duplicate) events.push(row)
+        }
+      }
+    } catch (scheduleError) {
+      console.warn('Competition schedule extraction fallback:', scheduleError.message)
+    }
+    return { events: events.sort((a, b) => a.eventOrder - b.eventOrder).map((item, index) => ({ ...item, eventOrder: index + 1 })) }
   } catch (error) { console.warn('Competition program import failed:', error.message); return { error: 'Grenprogrammet kunde inte tolkas.' } }
 }
 
