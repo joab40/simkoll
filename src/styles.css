@@ -555,6 +555,9 @@ button { cursor: pointer; }
 .competition-entry-list label { display: flex; gap: .7rem; align-items: center; padding: .85rem 1rem; border: 1px solid #dbe4ef; border-radius: 14px; background: #fff; }
 .competition-entry-list label span { display: grid; gap: .15rem; }
 .competition-entry-list label small { color: var(--muted); }
+.competition-entry-list label.competition-info-row { background: #f1f3f2; border-color: #dfe7e4; opacity: .9; }
+.competition-entry-list label.competition-info-row input { display: none; }
+.competition-entry-list label.competition-info-row strong::before { content: 'ℹ️ '; }
 .workout-editor form { display: grid; gap: 18px; }
 .workout-editor label { display: flex; flex-direction: column; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
 .workout-editor label > small { color: var(--muted); font-weight: 400; }
