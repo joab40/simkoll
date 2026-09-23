@@ -544,7 +544,9 @@ button { cursor: pointer; }
 .competition-import-button.is-importing .competition-import-icon { animation: competition-import-pulse .85s ease-in-out infinite alternate; }
 @keyframes competition-import-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes competition-import-pulse { from { transform: scale(.9) rotate(-5deg); opacity: .7; } to { transform: scale(1.12) rotate(5deg); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .competition-import-button.is-importing, .competition-import-button.is-importing .competition-import-icon { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .competition-import-button.is-importing, .competition-import-button.is-importing .competition-import-icon, .ai-working, .ai-working::after { animation: none; } }
+.ai-working { position: relative; overflow: hidden; background: linear-gradient(110deg, #d9f3ea 0%, #f8fffc 45%, #d9f3ea 75%) !important; background-size: 220% 100%; color: #0b5f5a !important; animation: competition-import-shimmer 1.5s ease-in-out infinite; cursor: wait !important; }
+.ai-working::after { content: '✦'; display: inline-block; margin-left: .35rem; animation: competition-import-pulse .85s ease-in-out infinite alternate; }
 .competition-event-list { display: grid; gap: 5px; max-height: 260px; overflow-y: auto; }
 .competition-event-list span { padding: 7px 9px; border-radius: 8px; background: #f1f8f5; font-size: 12px; }
 .swimmer-competition-link { margin: .5rem auto 0; display: block; }
