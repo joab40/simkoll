@@ -1826,7 +1826,8 @@ function CoachCompetitionEntries({ code }) {
 class CompetitionSubmissionBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  render() { return this.state.error ? <section className="empty-period"><span>⚠️</span><h2>Tävlingsanmälningar kunde inte visas</h2><p>{this.state.error.message || 'Ett oväntat fel uppstod.'}</p><button className="secondary-button" onClick={() => this.setState({ error: null })}>Försök igen</button></section> : this.props.children }
+  componentDidCatch(error) { console.error('Competition submission view failed:', error) }
+  render() { return this.state.error ? <section className="empty-period"><span>⚠️</span><h2>Tävlingsanmälningarna kunde inte visas</h2><p>{this.state.error.message || 'Ett oväntat fel uppstod.'}</p><small>Öppna webbläsarens konsol om felet behöver felsökas vidare.</small><button className="secondary-button" onClick={() => this.setState({ error: null })}>Försök igen</button></section> : this.props.children }
 }
 
 function CompetitionSubmissionManager({ code }) {
