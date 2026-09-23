@@ -306,7 +306,18 @@ Dokument: ${fileName}`
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
     const parsed = JSON.parse(responseOutputText(payload) || '{}')
-    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => { const rawLabel = String(item.label || '').slice(0, 120); const gender = ['Dam', 'Herr', 'D', 'H', 'Alla'].includes(item.gender) && item.gender !== 'Alla' ? item.gender : (/(^|[\s/·])H([\s/·]|$)/i.test(rawLabel) ? 'H' : /(^|[\s/·])D([\s/·]|$)/i.test(rawLabel) ? 'D' : 'Alla'); const ageClass = String(item.ageClass || '').trim() || (rawLabel.match(/(^|[\s/·])([A-E](?:[A-E]|\s*[–-]\s*[A-E])*)(?=[\s/·]|$)/i)?.[2] || 'Alla åldrar'); const sessionLabel = String(item.sessionLabel || '').trim().slice(0, 60); return { eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType: ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race', entryAllowed: item.entryAllowed !== false && item.itemType !== 'pause' && item.itemType !== 'award' && item.itemType !== 'info', gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) } }).filter((item) => item.label).slice(0, 300) : []
+    let currentSessionLabel = ''
+    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => {
+      const rawLabel = String(item.label || '').slice(0, 120)
+      const gender = ['Dam', 'Herr', 'D', 'H', 'Alla'].includes(item.gender) && item.gender !== 'Alla' ? item.gender : (/(^|[\s/·])H([\s/·]|$)/i.test(rawLabel) ? 'H' : /(^|[\s/·])D([\s/·]|$)/i.test(rawLabel) ? 'D' : 'Alla')
+      const ageClass = String(item.ageClass || '').trim() || (rawLabel.match(/(^|[\s/·])([A-E](?:[A-E]|\s*[–-]\s*[A-E])*)(?=[\s/·]|$)/i)?.[2] || 'Alla åldrar')
+      const explicitSession = String(item.sessionLabel || '').trim().slice(0, 60)
+      const detectedSession = rawLabel.match(/\b(pass\s*[1-9]\d*|förmiddag|eftermiddag|finalpass)\b/i)?.[1] || ''
+      if (explicitSession || detectedSession) currentSessionLabel = (explicitSession || detectedSession).slice(0, 60)
+      const sessionLabel = currentSessionLabel
+      const itemType = ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race'
+      return { eventOrder: index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: item.entryAllowed !== false && itemType !== 'pause' && itemType !== 'award' && itemType !== 'info', gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
+    }).filter((item) => item.label).slice(0, 300) : []
     if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
     return { events }
   } catch (error) { console.warn('Competition program import failed:', error.message); return { error: 'Grenprogrammet kunde inte tolkas.' } }
