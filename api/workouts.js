@@ -255,6 +255,15 @@ function responseOutputText(payload) {
   return (payload?.output || []).flatMap((item) => item.content || []).map((item) => item.text || '').join('')
 }
 
+function cleanCompetitionLabel(label, gender, ageClass) {
+  let text = String(label || '').replace(/\b(\S+)\s+\1\b/gi, '$1').replace(/\s{2,}/g, ' ').trim()
+  for (const token of [gender, ageClass]) {
+    const value = String(token || '').trim()
+    if (value && !['Alla', 'Alla åldrar'].includes(value) && value.length <= 24) text = text.replace(new RegExp(`(^|[ ·,/])${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=($|[ ·,/:]))`, 'gi'), '$1').replace(/\s{2,}/g, ' ').trim()
+  }
+  return text || String(label || '').trim()
+}
+
 async function interpretCompetitionProgram(request, options = {}) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { error: 'OPENAI_API_KEY saknas.' }
@@ -291,7 +300,7 @@ Dokument: ${fileName}`
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
     const parsed = JSON.parse(responseOutputText(payload) || '{}')
-    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => ({ eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), itemType: ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race', entryAllowed: item.entryAllowed !== false && item.itemType !== 'pause' && item.itemType !== 'award' && item.itemType !== 'info', gender: ['Dam', 'Herr', 'D', 'H', 'Alla'].includes(item.gender) ? item.gender : 'Alla', ageClass: String(item.ageClass || 'Alla åldrar').slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: String(item.label || '').slice(0, 120) })).filter((item) => item.label).slice(0, 300) : []
+    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => { const gender = ['Dam', 'Herr', 'D', 'H', 'Alla'].includes(item.gender) ? item.gender : 'Alla'; const ageClass = String(item.ageClass || 'Alla åldrar').slice(0, 60); return { eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), itemType: ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race', entryAllowed: item.entryAllowed !== false && item.itemType !== 'pause' && item.itemType !== 'award' && item.itemType !== 'info', gender, ageClass, distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(String(item.label || '').slice(0, 120), gender, ageClass) } }).filter((item) => item.label).slice(0, 300) : []
     if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
     return { events }
   } catch (error) { console.warn('Competition program import failed:', error.message); return { error: 'Grenprogrammet kunde inte tolkas.' } }
