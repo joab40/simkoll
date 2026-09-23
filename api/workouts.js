@@ -212,7 +212,10 @@ async function improveWorkoutWithAi(request, csv, fallback) {
 async function generateWorkoutFromLibrary(request, options = {}) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { error: 'OPENAI_API_KEY saknas.' }
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  // Competition programs contain dense tables and schedule rows. Keep a
+  // dedicated model override so this extraction can use a stronger model
+  // without changing the model used by the rest of the app.
+  const model = process.env.OPENAI_COMPETITION_MODEL || 'gpt-4o'
   const focus = String(options.focus || '').slice(0, 80)
   const groupLabels = Array.isArray(options.groups) ? options.groups.slice(0, 3).join(', ') : ''
   const distance = Number(options.distanceMeters || 0)
@@ -294,6 +297,7 @@ Regler:
 - Rader som innehåller paus, lunch, samling, invigning, finalpass eller prisutdelning ska tas med som pause/award/info och ha entryAllowed=false. De ska inte kunna väljas av simmare.
 - Ta med informationsrader även om de ligger före den första grenen eller mellan två tabeller. En första paus får aldrig hoppas över bara för att den saknar grennummer.
 - Hämta pauser och prisutdelningar endast från tävlingens officiella gren-/tidsschema och endast när raden uttryckligen anger paus, lunch, samling eller prisutdelning. Leta inte efter liknande ord i sidhuvud, allmän information, fotnoter eller andra delar av dokumentet.
+- Om schemat exempelvis visar “Gren 10”, därefter “Paus” eller “Prisceremoni”, och sedan nästa gren, ska pausen/prisutdelningen sparas som en egen informationsrad mellan grenarna. Den får inte ersätta gren 10 eller nästa gren.
 - Om dokumentet delar upp tävlingen i pass/sessioner, till exempel “Pass 1”, “Pass 2”, “Pass 3”, “Förmiddag”, “Eftermiddag” eller “Finalpass”, ska sessionLabel sättas och återanvändas på efterföljande rader tills nästa passrubrik. Pauser och prisutdelningar ska också få rätt sessionLabel.
 - Läs hela dokumentet till sista sidan och kontrollera särskilt de sista grenarna innan du svarar. Avsluta inte listan tidigt och slå inte ihop flera rader för att spara plats.
 - Kontrollera innan du svarar att eventOrder är stigande och att varje label är läsbar på svenska.
