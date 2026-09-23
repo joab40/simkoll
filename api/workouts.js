@@ -10,7 +10,7 @@ function publicPlan(item) {
   return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
 }
 function publicCompetition(item) {
-  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', updatedAt: item.updated_at }
+  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, updatedAt: item.updated_at }
 }
 function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
@@ -371,7 +371,7 @@ export default async function handler(request, response) {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
         if (!result.ok) throw new Error(`Competition calendar GET failed: ${result.status} ${await result.text()}`)
         const competitions = await result.json()
-        const visible = role === 'coach' || profile?.is_test_profile || !profile?.training_group ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
+        const visible = role === 'coach' || profile?.is_test_profile || !profile?.training_group ? competitions : competitions.filter((item) => (!item.target_groups?.length || item.target_groups.includes(profile.training_group)) && item.entries_open === true)
         return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
       }
       if (request.query?.program === 'true') {
@@ -494,6 +494,14 @@ export default async function handler(request, response) {
         const endpoint = body.id ? `competition_calendar?id=eq.${body.id}` : 'competition_calendar'
         const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Competition save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { competition: publicCompetition((await result.json())[0]) })
+      }
+      if (request.body?.action === 'set-competition-entries-open') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan publicera grenanmälan.' })
+        const competitionId = String(request.body.competitionId || '')
+        if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ entries_open: request.body.open === true, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Competition publication update failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { competition: publicCompetition((await result.json())[0]) })
       }
       if (request.body?.action === 'save-plan') {
