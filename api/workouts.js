@@ -248,7 +248,7 @@ ${sourceText.slice(0, 26000)}`
   } catch (error) { console.warn('Workout generation failed:', error.message); return { error: 'Passförslaget kunde inte tolkas. Försök igen.' } }
 }
 
-const mapCompetitionEvent = (item) => ({ id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: item.gender || 'Alla', ageClass: item.age_class || 'Alla åldrar', distanceMeters: item.distance_meters || null, stroke: item.stroke, label: item.label })
+const mapCompetitionEvent = (item) => ({ id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: item.gender || 'Alla', ageClass: item.age_class || 'Alla åldrar', distanceMeters: item.distance_meters || null, stroke: item.stroke, label: item.label, itemType: item.item_type || 'race', entryAllowed: item.entry_allowed !== false })
 
 function responseOutputText(payload) {
   if (typeof payload?.output_text === 'string') return payload.output_text
@@ -263,18 +263,21 @@ async function interpretCompetitionProgram(request, options = {}) {
   const fileName = String(options.fileName || 'grenprogram').slice(0, 120)
   if (!dataUrl.startsWith('data:') || dataUrl.length > 12_000_000) return { error: 'Filen saknas eller är för stor. Välj en fil under cirka 9 MB.' }
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-  const prompt = `Du är en noggrann tävlingssekreterare för svensk simning. Läs hela det bifogade tävlingsprogrammet, även tabeller och sidbrytningar. Plocka ut varje valbar gren i den ordning den förekommer. Arbeta hellre långsamt och komplett än snabbt och ofullständigt.
+  const prompt = `Du är en noggrann tävlingssekreterare för svensk simning. Läs hela det bifogade tävlingsprogrammet, även tabeller och sidbrytningar. Plocka ut varje gren samt viktiga informationsrader i den ordning de förekommer. Arbeta hellre långsamt och komplett än snabbt och ofullständigt.
 
-Varje event ska ha: eventOrder (heltal), eventNumber (sträng), gender (Dam, Herr eller Alla), ageClass (exempelvis 13–14 år, Junior eller Alla åldrar), distanceMeters (heltal eller null), stroke (Frisim, Ryggsim, Bröstsim, Fjärilsim, Medley eller Annat), label (kort tydlig svensk text).
+Varje rad ska ha: eventOrder (heltal), eventNumber (sträng eller null), itemType (race, pause, award eller info), entryAllowed (boolean), gender (Dam, Herr, D, H eller Alla), ageClass (exempelvis A, B, C, D, E, 13–14 år, Junior eller Alla åldrar), distanceMeters (heltal eller null), stroke (Frisim, Ryggsim, Bröstsim, Fjärilsim, Medley eller Annat), label (kort tydlig svensk text).
 
 Regler:
 - Behåll ordningen från dokumentet.
 - Ta inte med heat, startlistor, deltagarnamn, tider eller resultat.
-- Om kön eller åldersklass inte uttryckligen står: använd Alla.
+- Tolka H som Herr och D som Dam när dokumentet använder dessa för kön. Behåll H/D i label om sammanhanget är oklart.
+- A, B, C, D och E är klassbeteckningar. Använd dokumentets bokstav i ageClass om åldersintervallet inte uttryckligen kan läsas säkert. Använd inte standardåldrar som fakta när dokumentet anger en annan definition.
+- Om kön eller åldersklass saknas: använd Alla respektive Alla åldrar, men behåll eventuell klassbokstav i label.
 - Gissa aldrig grennummer, ålder, distans eller simsätt. Om något är oklart, använd Annat och behåll den läsbara texten i label.
 - En rad eller tabellrad ska bli ett event. Slå inte ihop olika kön eller åldersklasser.
 - Om samma grennummer återkommer för olika klasser ska de bli separata event.
 - Läs inte in sidhuvuden, heat, startlistor, deltagarnamn, tider eller resultat.
+- Rader som innehåller paus, lunch, samling, invigning, finalpass eller prisutdelning ska tas med som pause/award/info och ha entryAllowed=false. De ska inte kunna väljas av simmare.
 - Kontrollera innan du svarar att eventOrder är stigande och att varje label är läsbar på svenska.
 
 Dokument: ${fileName}`
@@ -282,13 +285,13 @@ Dokument: ${fileName}`
   if (mimeType.startsWith('image/')) content.push({ type: 'input_image', image_url: dataUrl, detail: 'high' })
   else content.push({ type: 'input_file', filename: fileName, file_data: dataUrl })
   try {
-    const eventSchema = { type: 'object', additionalProperties: false, properties: { eventOrder: { type: 'integer' }, eventNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] }, gender: { anyOf: [{ type: 'string', enum: ['Dam', 'Herr', 'Alla'] }, { type: 'null' }] }, ageClass: { anyOf: [{ type: 'string' }, { type: 'null' }] }, distanceMeters: { anyOf: [{ type: 'integer' }, { type: 'null' }] }, stroke: { type: 'string' }, label: { type: 'string' } }, required: ['eventOrder', 'eventNumber', 'gender', 'ageClass', 'distanceMeters', 'stroke', 'label'] }
+    const eventSchema = { type: 'object', additionalProperties: false, properties: { eventOrder: { type: 'integer' }, eventNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] }, itemType: { type: 'string', enum: ['race', 'pause', 'award', 'info'] }, entryAllowed: { type: 'boolean' }, gender: { anyOf: [{ type: 'string', enum: ['Dam', 'Herr', 'D', 'H', 'Alla'] }, { type: 'null' }] }, ageClass: { anyOf: [{ type: 'string' }, { type: 'null' }] }, distanceMeters: { anyOf: [{ type: 'integer' }, { type: 'null' }] }, stroke: { type: 'string' }, label: { type: 'string' } }, required: ['eventOrder', 'eventNumber', 'itemType', 'entryAllowed', 'gender', 'ageClass', 'distanceMeters', 'stroke', 'label'] }
     const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 5000, text: { format: { type: 'json_schema', name: 'competition_program', strict: true, schema: { type: 'object', additionalProperties: false, properties: { events: { type: 'array', items: eventSchema } }, required: ['events'] } } } }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Grenprogrammet kunde inte tolkas just nu.' } }
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
     const parsed = JSON.parse(responseOutputText(payload) || '{}')
-    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => ({ eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), gender: ['Dam', 'Herr', 'Alla'].includes(item.gender) ? item.gender : 'Alla', ageClass: String(item.ageClass || 'Alla åldrar').slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: String(item.label || '').slice(0, 120) })).filter((item) => item.label).slice(0, 300) : []
+    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => ({ eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), itemType: ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race', entryAllowed: item.entryAllowed !== false && item.itemType !== 'pause' && item.itemType !== 'award' && item.itemType !== 'info', gender: ['Dam', 'Herr', 'D', 'H', 'Alla'].includes(item.gender) ? item.gender : 'Alla', ageClass: String(item.ageClass || 'Alla åldrar').slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: String(item.label || '').slice(0, 120) })).filter((item) => item.label).slice(0, 300) : []
     if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
     return { events }
   } catch (error) { console.warn('Competition program import failed:', error.message); return { error: 'Grenprogrammet kunde inte tolkas.' } }
@@ -464,7 +467,7 @@ export default async function handler(request, response) {
         if (parsed.error) return sendJson(response, 422, parsed)
         const remove = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}`, { method: 'DELETE' })
         if (!remove.ok) throw new Error(`Competition events reset failed: ${remove.status}`)
-        const insert = await supabaseRequest('competition_events', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(parsed.events.map((item) => ({ competition_id: competitionId, event_order: item.eventOrder, event_number: item.eventNumber || null, gender: item.gender, age_class: item.ageClass, distance_meters: item.distanceMeters, stroke: item.stroke, label: item.label }))) })
+        const insert = await supabaseRequest('competition_events', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(parsed.events.map((item) => ({ competition_id: competitionId, event_order: item.eventOrder, event_number: item.eventNumber || null, item_type: item.itemType, entry_allowed: item.entryAllowed, gender: item.gender, age_class: item.ageClass, distance_meters: item.distanceMeters, stroke: item.stroke, label: item.label }))) })
         if (!insert.ok) throw new Error(`Competition events insert failed: ${insert.status} ${await insert.text()}`)
         return sendJson(response, 200, { events: (await insert.json()).map(mapCompetitionEvent) })
       }
