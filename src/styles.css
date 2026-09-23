@@ -537,6 +537,14 @@ button { cursor: pointer; }
 .competition-program summary { cursor: pointer; color: var(--teal); font-weight: 800; font-size: 13px; }
 .competition-program-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
 .competition-program-actions input[type=file] { display: none; }
+.competition-import-button { position: relative; overflow: hidden; }
+.competition-import-label { display: inline-flex; align-items: center; gap: 7px; }
+.competition-import-icon { display: inline-grid; place-items: center; min-width: 1.2em; }
+.competition-import-button.is-importing { color: #0b5f5a; background: linear-gradient(110deg, #d9f3ea 0%, #f8fffc 45%, #d9f3ea 75%); background-size: 220% 100%; animation: competition-import-shimmer 1.5s ease-in-out infinite; box-shadow: 0 0 0 3px rgba(34, 164, 136, .12); cursor: wait; }
+.competition-import-button.is-importing .competition-import-icon { animation: competition-import-pulse .85s ease-in-out infinite alternate; }
+@keyframes competition-import-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes competition-import-pulse { from { transform: scale(.9) rotate(-5deg); opacity: .7; } to { transform: scale(1.12) rotate(5deg); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .competition-import-button.is-importing, .competition-import-button.is-importing .competition-import-icon { animation: none; } }
 .competition-event-list { display: grid; gap: 5px; max-height: 260px; overflow-y: auto; }
 .competition-event-list span { padding: 7px 9px; border-radius: 8px; background: #f1f8f5; font-size: 12px; }
 .swimmer-competition-link { margin: .5rem auto 0; display: block; }
