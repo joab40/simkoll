@@ -248,7 +248,7 @@ ${sourceText.slice(0, 26000)}`
   } catch (error) { console.warn('Workout generation failed:', error.message); return { error: 'Passförslaget kunde inte tolkas. Försök igen.' } }
 }
 
-const mapCompetitionEvent = (item) => ({ id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: `Kön: ${item.gender || 'Alla'}`, ageClass: `Klass: ${item.age_class || 'Alla åldrar'}`, distanceMeters: item.distance_meters || null, stroke: item.stroke, label: item.label, itemType: item.item_type || 'race', entryAllowed: item.entry_allowed !== false })
+const mapCompetitionEvent = (item) => ({ id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: `Kön: ${item.gender === 'Dam' ? 'Damer' : item.gender === 'Herr' ? 'Herrar' : item.gender || 'Alla'}`, ageClass: `Klass: ${item.age_class || 'Alla åldrar'}`, distanceMeters: item.distance_meters || null, stroke: item.stroke, label: item.label, itemType: item.item_type || 'race', entryAllowed: item.entry_allowed !== false })
 
 function responseOutputText(payload) {
   if (typeof payload?.output_text === 'string') return payload.output_text
@@ -280,7 +280,7 @@ Regler:
 - Behåll ordningen från dokumentet.
 - Ta inte med heat, startlistor, deltagarnamn, tider eller resultat.
 - Tolka H som Herr och D som Dam när dokumentet använder dessa för kön. Behåll H/D i label om sammanhanget är oklart.
-- A, B, C, D och E är klassbeteckningar. Kombinationer och intervall som ABC, ABCD, A–D och A-D ska bevaras som en sammanhållen ageClass om åldersintervallet inte uttryckligen kan läsas säkert. Använd inte standardåldrar som fakta när dokumentet anger en annan definition.
+- A, B, C, D och E är klassbeteckningar. Om dokumentet uttryckligen visar klassens åldersintervall ska du översätta till en läsbar text, exempelvis “13–14 år”. När kön och ålder är säkra ska ageClass bli exempelvis “13–14 år”, så att presentationen kan visa “Damer 13–14 år”. Kombinationer och intervall som ABC, ABCD, A–D och A-D ska annars bevaras som en sammanhållen ageClass. Använd inte standardåldrar som fakta när dokumentet anger en annan definition.
 - Om kön eller åldersklass saknas: använd Alla respektive Alla åldrar, men behåll eventuell klassbokstav i label.
 - Gissa aldrig grennummer, ålder, distans eller simsätt. Om något är oklart, använd Annat och behåll den läsbara texten i label.
 - En rad eller tabellrad ska bli ett event. Slå inte ihop olika kön eller åldersklasser.
