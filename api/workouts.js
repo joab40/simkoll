@@ -292,7 +292,9 @@ Regler:
 - Om samma grennummer återkommer för olika klasser ska de bli separata event.
 - Läs inte in sidhuvuden, heat, startlistor, deltagarnamn, tider eller resultat.
 - Rader som innehåller paus, lunch, samling, invigning, finalpass eller prisutdelning ska tas med som pause/award/info och ha entryAllowed=false. De ska inte kunna väljas av simmare.
+- Ta med informationsrader även om de ligger före den första grenen eller mellan två tabeller. En första paus får aldrig hoppas över bara för att den saknar grennummer.
 - Om dokumentet delar upp tävlingen i pass/sessioner, till exempel “Pass 1”, “Pass 2”, “Pass 3”, “Förmiddag”, “Eftermiddag” eller “Finalpass”, ska sessionLabel sättas och återanvändas på efterföljande rader tills nästa passrubrik. Pauser och prisutdelningar ska också få rätt sessionLabel.
+- Läs hela dokumentet till sista sidan och kontrollera särskilt de sista grenarna innan du svarar. Avsluta inte listan tidigt och slå inte ihop flera rader för att spara plats.
 - Kontrollera innan du svarar att eventOrder är stigande och att varje label är läsbar på svenska.
 
 Dokument: ${fileName}`
@@ -301,7 +303,7 @@ Dokument: ${fileName}`
   else content.push({ type: 'input_file', filename: fileName, file_data: dataUrl })
   try {
     const eventSchema = { type: 'object', additionalProperties: false, properties: { eventOrder: { type: 'integer' }, eventNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] }, sessionLabel: { anyOf: [{ type: 'string' }, { type: 'null' }] }, itemType: { type: 'string', enum: ['race', 'pause', 'award', 'info'] }, entryAllowed: { type: 'boolean' }, gender: { anyOf: [{ type: 'string', enum: ['Dam', 'Herr', 'D', 'H', 'Alla'] }, { type: 'null' }] }, ageClass: { anyOf: [{ type: 'string' }, { type: 'null' }] }, distanceMeters: { anyOf: [{ type: 'integer' }, { type: 'null' }] }, stroke: { type: 'string' }, label: { type: 'string' } }, required: ['eventOrder', 'eventNumber', 'sessionLabel', 'itemType', 'entryAllowed', 'gender', 'ageClass', 'distanceMeters', 'stroke', 'label'] }
-    const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 5000, text: { format: { type: 'json_schema', name: 'competition_program', strict: true, schema: { type: 'object', additionalProperties: false, properties: { events: { type: 'array', items: eventSchema } }, required: ['events'] } } } }) })
+    const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 12000, text: { format: { type: 'json_schema', name: 'competition_program', strict: true, schema: { type: 'object', additionalProperties: false, properties: { events: { type: 'array', items: eventSchema } }, required: ['events'] } } } }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Grenprogrammet kunde inte tolkas just nu.' } }
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
