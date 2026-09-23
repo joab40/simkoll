@@ -298,6 +298,7 @@ Regler:
 - Ta med informationsrader även om de ligger före den första grenen eller mellan två tabeller. En första paus får aldrig hoppas över bara för att den saknar grennummer.
 - Hämta pauser och prisutdelningar endast från tävlingens officiella gren-/tidsschema och endast när raden uttryckligen anger paus, lunch, samling eller prisutdelning. Leta inte efter liknande ord i sidhuvud, allmän information, fotnoter eller andra delar av dokumentet.
 - Om schemat exempelvis visar “Gren 10”, därefter “Paus” eller “Prisceremoni”, och sedan nästa gren, ska pausen/prisutdelningen sparas som en egen informationsrad mellan grenarna. Den får inte ersätta gren 10 eller nästa gren.
+- En paus, prisutdelning eller annan informationsrad får aldrig få ett grennummer, en tävlingsdistans eller ett simsätt. Om en rad innehåller sådana tävlingsuppgifter ska den behandlas som en gren, såvida inte samma rad uttryckligen innehåller ordet paus, lunch, rast eller prisutdelning.
 - Om dokumentet delar upp tävlingen i pass/sessioner, till exempel “Pass 1”, “Pass 2”, “Pass 3”, “Förmiddag”, “Eftermiddag” eller “Finalpass”, ska sessionLabel sättas och återanvändas på efterföljande rader tills nästa passrubrik. Pauser och prisutdelningar ska också få rätt sessionLabel.
 - Läs hela dokumentet till sista sidan och kontrollera särskilt de sista grenarna innan du svarar. Avsluta inte listan tidigt och slå inte ihop flera rader för att spara plats.
 - Kontrollera innan du svarar att eventOrder är stigande och att varje label är läsbar på svenska.
@@ -325,9 +326,13 @@ Dokument: ${fileName}`
       const normalizedLabel = rawLabel.toLocaleLowerCase('sv-SE')
       const clearlyInformation = /\b(paus|lunch|rast|samling|invigning|prisutdelning|prisutdelningar|försäljning|insimning)\b/.test(normalizedLabel)
       const clearlyRace = /\b\d{2,4}\s*m\b/.test(normalizedLabel) || /\b(frisim|ryggsim|bröstsim|fjärilsim|medley)\b/.test(normalizedLabel)
+      const explicitInformation = /\b(paus|lunch|rast|samling|invigning|prisutdelning|prisutdelningar|försäljning|insimning)\b/.test(normalizedLabel)
       let itemType = ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race'
-      if (clearlyInformation) itemType = /\b(prisutdelning|prisutdelningar)\b/.test(normalizedLabel) ? 'award' : 'info'
-      else if (clearlyRace) itemType = 'race'
+      // A model sometimes inherits the previous pause label into the next
+      // numbered race. Never allow that unless the current row itself says it
+      // is a pause/information row.
+      if (!explicitInformation && (clearlyRace || item.eventNumber || Number.isInteger(item.distanceMeters) || String(item.stroke || '').toLowerCase() !== 'annat')) itemType = 'race'
+      else if (clearlyInformation) itemType = /\b(prisutdelning|prisutdelningar)\b/.test(normalizedLabel) ? 'award' : 'info'
       return { eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: itemType === 'race' && item.entryAllowed !== false, gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
     }).filter((item) => item.label).slice(0, 300) : []
     if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
