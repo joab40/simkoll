@@ -25,6 +25,12 @@ const WORKOUT_FOCUSES = [
   ['kondition_frisim', 'Kondition frisim'], ['kondition_special', 'Kondition special'], ['fart', 'Fart'], ['troskel', 'Tröskel'], ['syra', 'Syra'], ['f2_frisim', 'F2 Frisim'], ['f2_spec', 'F2 Spec'], ['distans', 'Distans'], ['teknik', 'Teknik'], ['aterhamtning', 'Återhämtning'],
 ]
 
+const GAME_CATALOG = [
+  { key: 'swimgames', title: 'Swimgames 25', emoji: '🏊', description: '25 meter frisim mot klockan.', route: 'swimgames' },
+  { key: 'vanda', title: 'Startmästaren', emoji: '↻', description: 'Träna reaktion och timing vid vändningen.', route: 'vanda' },
+  { key: 'simpaus', title: 'Vågjakten', emoji: '🌊', description: 'Håll dig mellan vågorna så länge du kan.', route: 'game' },
+]
+
 const dateKey = (date) => {
   const value = new Date(date)
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -74,6 +80,7 @@ function App() {
   const [appFeedbackEnabled, setAppFeedbackEnabled] = useState(true)
   const [swimmerEffects, setSwimmerEffects] = useState(true)
   const [competitions, setCompetitions] = useState([])
+  const [availableGames, setAvailableGames] = useState(GAME_CATALOG)
 
   useEffect(() => {
     if (!auth) return
@@ -99,10 +106,11 @@ function App() {
       const [trainingData, workoutData, tomorrowData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity?streak=true', auth.code)])
       setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
       // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
-      const [pointsData, notificationData, competitionData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] }))])
+      const [pointsData, notificationData, competitionData, gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] })), apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: GAME_CATALOG }))])
       if (pointsData) setPoints(pointsData)
       setNotifications(notificationData.notifications || [])
       setCompetitions(competitionData.competitions || [])
+      setAvailableGames(Array.isArray(gamesData.catalog) && gamesData.catalog.length ? gamesData.catalog : GAME_CATALOG)
     }
     loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
     const refreshOnFocus = () => { if (document.visibilityState === 'visible') loadProfileData().catch(() => {}) }
@@ -206,7 +214,7 @@ function App() {
         />
       )}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -472,7 +480,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onCompetitions, onGame, onVanda, onSwimgames, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onCompetitions, onGame, onVanda, onSwimgames, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
@@ -516,7 +524,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
-      {profile && <GameCard onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAllTime={onAllTime} />}
+      {profile && <GameCard games={availableGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
       {!profile && <StartCard profile={profile} onStart={onStart} />}
     </div>
@@ -564,8 +572,9 @@ function StartCard({ profile, onStart }) {
   return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>Hur är läget?</h2><p>Det tar mindre än 20 sekunder.</p></div><button className="primary-button" onClick={onStart}>Checka in <span>→</span></button></section>
 }
 
-function GameCard({ onOpen, onVanda, onSwimgames, onAllTime }) {
-  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>Swimgames 🏊</h2><p>25 meter frisim, en längd och ett snabbt rytm-race mot klockan.</p><div className="game-choice"><button className="primary-button" onClick={onSwimgames}>Spela Swimgames →</button><button className="secondary-button" onClick={onVanda}>Startmästaren ↻</button><button className="secondary-button" onClick={onOpen}>Vågjakten 🐬</button><button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button></div></div></section>
+function GameCard({ games = GAME_CATALOG, onOpen, onVanda, onSwimgames, onAllTime }) {
+  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: onOpen }
+  return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}{games.length > 0 && <button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button>}</div></div></section>
 }
 
 function AppFeedbackCard({ code, coach = false }) {
@@ -586,7 +595,7 @@ const formatRaceTimeMs = (milliseconds) => { const total = Math.max(0, Math.roun
 const SWIMGAMES_LENGTHS = 1
 const SWIMGAMES_DISTANCE_METERS = 25
 
-function Swimgames({ code, onBack }) {
+function Swimgames({ code, onBack, preview = false }) {
   const [status, setStatus] = useState('ready')
   const [length, setLength] = useState(0)
   const [direction, setDirection] = useState('left')
@@ -605,9 +614,9 @@ function Swimgames({ code, onBack }) {
   const raceRef = useRef({ start: 0, goAt: 0, distance: 0, pace: 2.1, lastArm: '', lastStroke: 0, frame: null, timers: [], lastTick: 0 })
 
   useEffect(() => {
-    apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {})
+    if (!preview) apiRequest('/api/points?game=swimgames&lifetime=true', code).then(setGameData).catch(() => {})
     return () => { cancelAnimationFrame(raceRef.current.frame); raceRef.current.timers.forEach((timer) => window.clearTimeout(timer)) }
-  }, [code])
+  }, [code, preview])
 
   const finish = (race, disqualified = false) => {
     if (disqualified) { cancelAnimationFrame(race.frame); race.frame = null; setStatus('disqualified'); setPhase('foul'); return }
@@ -616,7 +625,7 @@ function Swimgames({ code, onBack }) {
     if (swimmerRef.current) swimmerRef.current.style.left = '94%'
     if (waterFillRef.current) { waterFillRef.current.style.width = '100%'; waterFillRef.current.style.marginLeft = '0' }
     const score = Math.max(0, 100000 - simulated)
-    apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'swimgames', score }) }).then(setGameData).catch(() => {})
+    if (!preview) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'swimgames', score }) }).then(setGameData).catch(() => {})
   }
 
   const loop = (now) => {
@@ -687,7 +696,7 @@ function DevelopmentTalkSwimmer({ code, onBack }) {
   return <div className="talk-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><section className="talk-content"><p className="eyebrow">Din utveckling</p><h1>Utvecklingssamtal</h1><p className="talk-intro">En kort förberedelse inför vårt samtal. Det finns inget rätt eller fel svar.</p><div className="talk-progress"><span>{step + 1} av {TALK_STEPS.length} delar</span><i><b style={{ width: `${((step + 1) / TALK_STEPS.length) * 100}%` }} /></i></div><section className="talk-card"><h2>{current[0]} {current[1]}</h2>{current[2].map(([key, label]) => <label key={key}>{label}<textarea value={answers[key] || ''} maxLength={1000} placeholder="Skriv några rader…" onChange={(event) => update(key, event.target.value)} /></label>)}<div className="talk-actions"><button className="secondary-button" disabled={!step} onClick={() => setStep((value) => value - 1)}>← Föregående</button>{step < TALK_STEPS.length - 1 ? <button className="primary-button" onClick={() => { setStep((value) => value + 1); save() }} disabled={saving}>Nästa →</button> : <button className="primary-button" onClick={() => save('prepared')} disabled={saving}>Redo för samtalet 🙌</button>}</div>{status && <small className="talk-status">{status}</small>}</section><details className="talk-history"><summary>Tidigare samtal ({talks.length})</summary>{talks.map((item) => <p key={item.id}>{item.meetingDate} · {item.status === 'completed' ? 'Genomfört' : 'Förbereds'}</p>)}</details></section></div>
 }
 
-function Vandningsmastaren({ code, onBack }) {
+function Vandningsmastaren({ code, onBack, preview = false }) {
   const timerRef = useRef(null)
   const goAtRef = useRef(0)
   const [status, setStatus] = useState('ready')
@@ -698,13 +707,13 @@ function Vandningsmastaren({ code, onBack }) {
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
 
   useEffect(() => {
-    apiRequest('/api/points?game=vanda&lifetime=true', code).then(setGameData).catch(() => {})
+    if (!preview) apiRequest('/api/points?game=vanda&lifetime=true', code).then(setGameData).catch(() => {})
     return () => { if (timerRef.current) window.clearTimeout(timerRef.current) }
-  }, [code])
+  }, [code, preview])
 
   const finish = (finalScore, failed = false) => {
     setStatus(failed ? 'false' : 'over')
-    apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'vanda', score: finalScore }) }).then((data) => { setGameData(data); if (data.teamBonus?.unlocked) setTeamBonus(data.teamBonus) }).catch(() => {})
+    if (!preview) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'vanda', score: finalScore }) }).then((data) => { setGameData(data); if (data.teamBonus?.unlocked) setTeamBonus(data.teamBonus) }).catch(() => {})
   }
 
   const nextTurn = (nextRound, currentScore) => {
@@ -727,14 +736,14 @@ function Vandningsmastaren({ code, onBack }) {
   return <section className="game-page reaction-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Månadens spel · reaktion</p><h1>Vändningsmästaren ↻</h1><p className="game-intro">Vänta på <strong>VÄND!</strong> och tryck så snabbt du kan. Tjuvtrycker du blir rundan nollad.</p>{teamBonus && <div className="team-game-bonus">🎉 Gruppen klarade målet! Alla som deltagit får <strong>+20 poäng</strong>.</div>}<div className={`reaction-board ${status}`}><div className="pool-lanes" aria-hidden="true"><i /><i /><i /></div><span>{status === 'go' ? 'VÄND!' : status === 'waiting' ? 'Vänta…' : status === 'false' ? 'För tidigt!' : status === 'over' ? 'Bra jobbat!' : 'Redo?'}</span><small>{status === 'go' ? 'Tryck nu!' : status === 'waiting' ? `Runda ${round + 1} av 5` : status === 'false' ? 'Starta om och vänta på signalen.' : lastReaction ? `${lastReaction} ms · ${score} poäng` : 'Fem snabba vändningar.'}</small><button className="reaction-button" onClick={status === 'ready' || status === 'over' || status === 'false' ? start : turn}>{status === 'ready' ? 'Starta' : status === 'over' || status === 'false' ? 'Spela igen' : 'Tryck här!'}</button></div></div><section className="game-scoreboard"><p className="eyebrow">Månadens highscore</p><h2>Vändningslistan</h2><p className="game-best">Ditt rekord: <strong>{gameData.ownBest || 0}</strong></p>{gameData.leaderboard.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}<small>Poängen visar snabb och schysst reaktion – inte simförmåga. När 10 olika simmare har spelat får deltagarna +20 grupppoäng.</small></section></div></section>
 }
 
-function Simpaus({ code, onBack }) {
+function Simpaus({ code, onBack, preview = false }) {
   const canvasRef = useRef(null)
   const gameRef = useRef({ running: false })
   const [status, setStatus] = useState('ready')
   const [score, setScore] = useState(0)
   const [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
 
-  useEffect(() => { apiRequest('/api/points?game=simpaus&lifetime=true', code).then(setGameData).catch(() => {}) }, [code])
+  useEffect(() => { if (!preview) apiRequest('/api/points?game=simpaus&lifetime=true', code).then(setGameData).catch(() => {}) }, [code, preview])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -759,7 +768,7 @@ function Simpaus({ code, onBack }) {
       game.obstacles = game.obstacles.filter((obstacle) => obstacle.x + obstacle.width > -10)
       const hit = game.y < 14 || game.y > height - 8 || game.obstacles.some((obstacle) => obstacle.x < 68 && obstacle.x + obstacle.width > 40 && (game.y < obstacle.gap - obstacle.size || game.y > obstacle.gap + obstacle.size))
       draw()
-      if (hit) { game.running = false; setStatus('over'); apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', score: game.score }) }).then(setGameData).catch(() => {}) ; return }
+      if (hit) { game.running = false; setStatus('over'); if (!preview) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', score: game.score }) }).then(setGameData).catch(() => {}) ; return }
       frame = requestAnimationFrame(loop)
     }
     gameRef.current.loop = loop
@@ -1346,6 +1355,25 @@ function CoachActivitySummary({ code, selectedDate, onDateChange, aiEnabled = tr
   return <section className="coach-card coach-activity-summary"><div className="coach-activity-summary-head"><div><p className="eyebrow">Gruppens dokumentation</p><h2>{date === todayKey() ? 'Sammanfatta idag' : 'Sammanfatta vald dag'}</h2><p className="muted">Koppla texten till dagen, ett pass eller en tävling. Tidigare sammanfattningar kan öppnas och ändras.</p></div><span className="coach-note-icon">📝</span></div><label>Vad gäller sammanfattningen?<select value={scope} onChange={(event) => setScope(event.target.value)}>{activities.map((item) => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}</select></label><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Skriv stödord eller en kort sammanfattning…" maxLength={5000} /><div className="coach-recording-actions"><button type="button" className={recording ? 'recording-button' : transcribing ? 'secondary-button competition-import-button is-importing' : 'secondary-button'} onClick={recording ? stopRecording : startRecording} disabled={transcribing || polishing || saving}>{recording ? '⏹ Stoppa inspelning' : transcribing ? <span className="competition-import-label"><span className="competition-import-icon" aria-hidden="true">🧠</span>Transkriberar…</span> : '🎙️ Spela in sammanfattning'}</button>{transcribing && <small>Bearbetar ljudet…</small>}</div><div className="coach-activity-summary-actions">{aiEnabled ? <button type="button" className={`secondary-button competition-import-button${polishing ? ' is-importing' : ''}`} onClick={polish} disabled={polishing || saving || recording || transcribing}>{polishing ? <span className="competition-import-label"><span className="competition-import-icon" aria-hidden="true">🧠</span>Förbättrar texten…</span> : '✨ Förbättra med språkmodell'}</button> : <small className="settings-note">AI-stöd är avstängt</small>}<button type="button" className="primary-button small" onClick={save} disabled={saving || polishing || recording || transcribing}>{saving ? 'Sparar…' : 'Spara sammanfattning'}</button></div>{message && <small className="coach-note-status">{message}</small>}{aiEnabled && <p className="coach-note-disclaimer">Ljudet används bara för transkribering och sparas inte i Simkoll. Kontrollera alltid texten före sparning.</p>}</section>
 }
 
+function CoachGameLibrary({ code }) {
+  const [catalog, setCatalog] = useState(GAME_CATALOG)
+  const [schedule, setSchedule] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [testing, setTesting] = useState('')
+  useEffect(() => { apiRequest('/api/points?games=true', code).then((data) => { setCatalog(data.catalog || GAME_CATALOG); setSchedule(data.schedule || []) }).catch((error) => setMessage(error.message)).finally(() => setLoading(false)) }, [code])
+  const add = () => { const game = catalog[0]; if (!game) return; const start = todayKey(); const end = new Date(`${start}T12:00:00`); end.setDate(end.getDate() + 6); setSchedule((current) => [...current, { id: `draft-${Date.now()}`, gameKey: game.key, startDate: start, endDate: dateKey(end), published: false }]) }
+  const update = (id, key, value) => setSchedule((current) => current.map((item) => item.id === id ? { ...item, [key]: value } : item))
+  const remove = (id) => setSchedule((current) => current.filter((item) => item.id !== id))
+  const save = async () => { setSaving(true); setMessage(''); try { const data = await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-game-schedule', schedule }) }); setSchedule(data.schedule || []); setMessage('Spelplaneringen är sparad.') } catch (error) { setMessage(error.message) } finally { setSaving(false) } }
+  if (testing) {
+    const game = catalog.find((item) => item.key === testing)
+    return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div>{testing === 'swimgames' && <Swimgames code={code} onBack={() => setTesting('')} preview />}{testing === 'vanda' && <Vandningsmastaren code={code} onBack={() => setTesting('')} preview />}{testing === 'simpaus' && <Simpaus code={code} onBack={() => setTesting('')} preview />}</section>
+  }
+  return <section className="game-library"><div className="period-heading"><div><p className="eyebrow">Tränarverktyg</p><h1>Veckans spel</h1><small>Testa spelen först och planera sedan vad simmarna ska få tillgång till.</small></div><div className="big-count"><strong>{schedule.filter((item) => item.published).length}</strong><span>publicerade perioder</span></div></div><section className="settings-card game-library-catalog"><h2>Spelbibliotek</h2><p className="settings-help">Testläget använder samma spel, men sparar inga rekord eller poäng.</p><div className="game-library-list">{catalog.map((game) => <article key={game.key}><div><strong>{game.emoji} {game.title}</strong><small>{game.description}</small></div><button className="secondary-button" onClick={() => setTesting(game.key)}>Testa spelet</button></article>)}</div></section><section className="settings-card game-schedule-card"><div className="game-schedule-head"><div><h2>Planera publicering</h2><p className="settings-help">Lägg in perioder i kalendern. Avpublicerade spel syns inte för simmarna, men deras rekord finns kvar.</p></div><button className="secondary-button" onClick={add}>＋ Lägg till period</button></div>{loading ? <p className="empty">Hämtar spelplanering…</p> : schedule.length ? <div className="game-schedule-list">{schedule.map((item) => <article key={item.id}><select value={item.gameKey} onChange={(event) => update(item.id, 'gameKey', event.target.value)}>{catalog.map((game) => <option key={game.key} value={game.key}>{game.emoji} {game.title}</option>)}</select><label>Från<input type="date" value={item.startDate} onChange={(event) => update(item.id, 'startDate', event.target.value)} /></label><label>Till<input type="date" value={item.endDate} onChange={(event) => update(item.id, 'endDate', event.target.value)} /></label><label className="game-publish-toggle"><input type="checkbox" checked={item.published !== false} onChange={(event) => update(item.id, 'published', event.target.checked)} /> Publicerat</label><button className="text-button" onClick={() => remove(item.id)}>Ta bort</button></article>)}</div> : <p className="empty">Ingen period planerad ännu.</p>}<div className="settings-actions"><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara spelplanering'}</button>{message && <small className="settings-saved">{message}</small>}</div></section></section>
+}
+
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const [summaryDate, setSummaryDate] = useState(todayKey())
@@ -1358,7 +1386,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setNavigationSettings(data.settings || { overview: {}, coach: {} })).catch(() => {}) }, [code])
   useEffect(() => { const onSettings = (event) => setNavigationSettings(event.detail || { overview: {}, coach: {} }); window.addEventListener('simkoll-settings-updated', onSettings); return () => window.removeEventListener('simkoll-settings-updated', onSettings) }, [])
-  useEffect(() => { const labels = { Simmare: 'swimmers', Pass: 'workout', Meddelanden: 'community', Grupper: 'groups', Appfeedback: 'app-feedback', Loggar: 'logs', 'Veckomöte': 'meeting', Grupptrend: 'trends', Historik: 'history', 'Tävlingsresultat': 'competition', Utvecklingssamtal: 'talks', Utvecklingsmål: 'goals', 'Träningsprogram': 'programs', 'Poäng & nivåer': 'rewards', FAQ: 'faq', 'Info & villkor': 'legal' }; const menu = document.querySelector('.coach-header-menu > div'); if (!menu) return; menu.querySelectorAll('button').forEach((button) => { const key = labels[button.textContent.trim()]; if (key) button.style.display = navigationSettings.coach?.[key] === false ? 'none' : ''; }); }, [navigationSettings])
+  useEffect(() => { const labels = { Simmare: 'swimmers', Pass: 'workout', Meddelanden: 'community', Grupper: 'groups', 'Veckans spel': 'games', Appfeedback: 'app-feedback', Loggar: 'logs', 'Veckomöte': 'meeting', Grupptrend: 'trends', Historik: 'history', 'Tävlingsresultat': 'competition', Utvecklingssamtal: 'talks', Utvecklingsmål: 'goals', 'Träningsprogram': 'programs', 'Poäng & nivåer': 'rewards', FAQ: 'faq', 'Info & villkor': 'legal' }; const menu = document.querySelector('.coach-header-menu > div'); if (!menu) return; menu.querySelectorAll('button').forEach((button) => { const key = labels[button.textContent.trim()]; if (key) button.style.display = navigationSettings.coach?.[key] === false ? 'none' : ''; }); }, [navigationSettings])
   useEffect(() => {
     const menu = document.querySelector('.coach-header-menu > div')
     if (!menu) return undefined
@@ -1408,7 +1436,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
 
   return (
     <main className="coach-shell">
-      <header><ClubBrand /><details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groupOptions.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('logs')}>Loggar</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
+      <header><ClubBrand /><details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groupOptions.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('games')}>Veckans spel</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('logs')}>Loggar</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
@@ -1446,6 +1474,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           <WeeklyMeeting code={code} profiles={groupFilteredProfiles} />
         ) : view === 'programs' ? (
           <CoachPrograms code={code} profiles={groupFilteredProfiles} />
+        ) : view === 'games' ? (
+          <CoachGameLibrary code={code} />
         ) : view === 'goals' ? (
           <CoachGoals code={code} profiles={groupFilteredProfiles} />
         ) : view === 'talks' ? (
@@ -1806,7 +1836,7 @@ function WebappSettings({ code }) {
   const [settings, setSettings] = useState({ swimmer: {}, coach: {} })
   const [saved, setSaved] = useState(false)
   const swimmerFeatures = [['planning', 'Veckoplanering'], ['workout', 'Dagens pass'], ['competition', 'Tävlingsresultat'], ['talks', 'Utvecklingssamtal'], ['games', 'Veckans spel'], ['community', 'Pepp och meddelanden'], ['stars', 'Träningsstjärnor']]
-  const coachFeatures = [['swimmers', 'Simmare'], ['groups', 'Grupper'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingskalender'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['workout-library', 'Passbibliotek'], ['competition', 'Tävlingsresultat'], ['logs', 'Loggar'], ['faq', 'FAQ'], ['legal', 'Info & villkor']]
+  const coachFeatures = [['swimmers', 'Simmare'], ['groups', 'Grupper'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingskalender'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['games', 'Veckans spel'], ['rewards', 'Poäng & nivåer'], ['workout-library', 'Passbibliotek'], ['competition', 'Tävlingsresultat'], ['logs', 'Loggar'], ['faq', 'FAQ'], ['legal', 'Info & villkor']]
   const overviewFeatures = [['today', 'Idag'], ['swimmers', 'Simmare'], ['groups', 'Grupper'], ['workout', 'Pass'], ['planning', 'Planering'], ['competition-calendar', 'Tävlingar'], ['community', 'Meddelanden'], ['meeting', 'Veckomöte'], ['trends', 'Grupptrend'], ['history', 'Historik'], ['week', 'Förra veckan'], ['talks', 'Utvecklingssamtal'], ['competition', 'Tävlingsresultat'], ['workout-library', 'Passbibliotek'], ['goals', 'Utvecklingsmål'], ['programs', 'Träningsprogram'], ['rewards', 'Poäng & nivåer'], ['app-feedback', 'Appfeedback'], ['faq', 'FAQ'], ['legal', 'Info & villkor'], ['settings', 'Inställningar']]
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setSettings(data.settings || { swimmer: {}, coach: {} })).catch(() => {}) }, [code])
   const toggle = (role, key) => setSettings((current) => ({ ...current, [role]: { ...current[role], [key]: current[role]?.[key] === false } }))

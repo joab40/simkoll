@@ -14,6 +14,30 @@ const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BAS
 const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
 const TEAM_GAME_TARGET = 10
+const GAME_CATALOG = [
+  { key: 'swimgames', title: 'Swimgames 25', emoji: '🏊', description: '25 meter frisim mot klockan.', route: 'swimgames' },
+  { key: 'vanda', title: 'Startmästaren', emoji: '↻', description: 'Träna reaktion och timing vid vändningen.', route: 'vanda' },
+  { key: 'simpaus', title: 'Vågjakten', emoji: '🌊', description: 'Håll dig mellan vågorna så länge du kan.', route: 'game' },
+]
+const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const defaultGameSchedule = () => {
+  const today = stockholmDate()
+  const end = new Date(`${today}T12:00:00`)
+  end.setDate(end.getDate() + 6)
+  const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+  return GAME_CATALOG.map((game) => ({ id: scheduleId(), gameKey: game.key, startDate: today, endDate, published: true }))
+}
+async function loadGameSchedule() {
+  const result = await supabaseRequest('app_settings?setting_key=eq.game_schedule&select=setting_value&limit=1')
+  if (!result.ok) throw new Error(`Game schedule lookup failed: ${result.status}`)
+  const row = (await result.json())[0]
+  return Array.isArray(row?.setting_value?.schedule) ? row.setting_value.schedule : defaultGameSchedule()
+}
+const activeGames = (schedule, today = stockholmDate()) => schedule
+  .filter((item) => item.published !== false && item.startDate <= today && item.endDate >= today)
+  .map((item) => GAME_CATALOG.find((game) => game.key === item.gameKey))
+  .filter(Boolean)
+  .filter((game, index, list) => list.findIndex((item) => item.key === game.key) === index)
 async function awardTeamGameBonus(key) {
   const start = monthStart()
   const result = await supabaseRequest(`game_scores?game_key=eq.${key}&created_at=gte.${start}T00:00:00.000Z&select=profile_id&limit=10000`)
@@ -134,6 +158,20 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { ok: true })
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
+      if (action === 'save-game-schedule') {
+        const entries = Array.isArray(request.body?.schedule) ? request.body.schedule : []
+        const schedule = entries.map((item) => ({
+          id: String(item.id || scheduleId()),
+          gameKey: String(item.gameKey || ''),
+          startDate: String(item.startDate || ''),
+          endDate: String(item.endDate || ''),
+          published: item.published !== false,
+        })).filter((item) => GAME_CATALOG.some((game) => game.key === item.gameKey) && /^\d{4}-\d{2}-\d{2}$/.test(item.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.startDate <= item.endDate)
+        if (schedule.length > 100) return sendJson(response, 400, { error: 'Du kan planera högst 100 spelperioder.' })
+        const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ setting_key: 'game_schedule', setting_value: { schedule }, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Game schedule save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { schedule })
+      }
       if (action === 'grant-artifact') {
         const profileId = String(request.body?.profileId || ''), artifactKey = String(request.body?.artifactKey || '')
         if (!profileId || !artifactKey) return sendJson(response, 400, { error: 'Välj simmare och artefakt.' })
@@ -198,6 +236,12 @@ export default async function handler(request, response) {
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
     const requestedGame = ['simpaus', 'vanda', 'swimgames', 'alltime'].includes(request.query?.game) ? request.query.game : null
+    if (request.query?.games === 'true') {
+      const schedule = await loadGameSchedule()
+      if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })
+      if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in för att se veckans spel.' })
+      return sendJson(response, 200, { catalog: activeGames(schedule), schedule: [] })
+    }
     if (requestedGame) {
       const profile = await getSessionProfile(request)
       if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
