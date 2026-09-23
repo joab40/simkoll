@@ -538,6 +538,7 @@ button { cursor: pointer; }
 .competition-add-card > summary { cursor: pointer; color: var(--teal); font-weight: 800; }
 .competition-publish-button { margin: 12px 0 0; border: 1px solid #cfe3dc; border-radius: 10px; padding: 8px 11px; background: #eef8f4; color: #146c60; font-size: 12px; font-weight: 800; cursor: pointer; }
 .competition-publish-button.active { background: #d5f1e6; border-color: #8bcdb7; }
+.competition-submissions-button { display: block; margin: 8px 0 0; border: 0; background: transparent; color: var(--teal); padding: 0; font-size: 12px; font-weight: 800; cursor: pointer; }
 .competition-signup-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 16px 0; padding: 18px 20px; border: 1px solid #bfe5d7; border-radius: 18px; background: linear-gradient(120deg, #effbf6, #f8fffb); }
 .competition-signup-card h2, .competition-signup-card p { margin: 0; }
 .competition-signup-card p:not(.eyebrow) { margin-top: 4px; color: var(--muted); }
