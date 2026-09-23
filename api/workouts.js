@@ -374,6 +374,18 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'coach-update-competition-entry') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ändra tävlingsval.' })
+        const competitionId = String(request.body.competitionId || ''), profileId = String(request.body.profileId || '')
+        const eventIds = Array.isArray(request.body.eventIds) ? [...new Set(request.body.eventIds.map(String))].slice(0, 30) : []
+        if (!competitionId || !profileId) return sendJson(response, 400, { error: 'Tävling eller simmare saknas.' })
+        const reset = await supabaseRequest(`competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${encodeURIComponent(profileId)}`, { method: 'DELETE' })
+        if (!reset.ok) throw new Error(`Competition entries reset failed: ${reset.status}`)
+        if (!eventIds.length) return sendJson(response, 200, { entries: [] })
+        const insert = await supabaseRequest('competition_entries', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(eventIds.map((eventId) => ({ competition_id: competitionId, event_id: eventId, profile_id: profileId, status: 'submitted', submitted_at: new Date().toISOString() }))) })
+        if (!insert.ok) throw new Error(`Competition entries insert failed: ${insert.status} ${await insert.text()}`)
+        return sendJson(response, 200, { entries: await insert.json() })
+      }
       if (request.body?.action === 'save-competition-entry' || request.body?.action === 'submit-competition-entries') {
         const swimmer = role === 'coach' ? null : await getSessionProfile(request)
         if (!swimmer) return sendJson(response, 403, { error: 'Logga in med en simmarprofil först.' })
