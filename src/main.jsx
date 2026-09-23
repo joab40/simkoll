@@ -1835,7 +1835,9 @@ function CompetitionSubmissionManager({ code }) {
   const load = () => { setLoading(true); apiRequest('/api/workouts?calendar=true', code).then((result) => { const list = result.competitions || []; setCompetitions(list); if (!selectedId && list[0]) setSelectedId(list[0].id) }).catch(() => {}).finally(() => setLoading(false)) }
   useEffect(load, [code])
   useEffect(() => { if (!selectedId) return; setLoading(true); apiRequest(`/api/workouts?program=true&id=${selectedId}`, code).then((result) => { setData(result); setSelectedProfile(''); setChosen([]) }).catch(() => setData({ events: [], entries: [] })).finally(() => setLoading(false)) }, [code, selectedId])
-  const submitted = data.entries.filter((entry) => entry.status === 'submitted')
+  const safeEvents = Array.isArray(data.events) ? data.events : []
+  const safeEntries = Array.isArray(data.entries) ? data.entries : []
+  const submitted = safeEntries.filter((entry) => entry.status === 'submitted')
   const profiles = [...new Map(submitted.map((entry) => [entry.profile_id, entry])).values()]
   const selectProfile = (profileId) => { setSelectedProfile(profileId); setChosen(submitted.filter((entry) => entry.profile_id === profileId).map((entry) => entry.event_id)) }
   const save = async () => { setSaving(true); try { await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-update-competition-entry', competitionId: selectedId, profileId: selectedProfile, eventIds: chosen }) }); await new Promise((resolve) => setTimeout(resolve, 0)); const result = await apiRequest(`/api/workouts?program=true&id=${selectedId}`, code); setData(result); window.alert('Grenval sparat.') } catch (error) { window.alert(error.message) } finally { setSaving(false) } }
