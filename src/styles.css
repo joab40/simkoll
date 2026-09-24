@@ -311,6 +311,8 @@ button { cursor: pointer; }
 .aljakten-board:fullscreen canvas { width: 100%; height: 100%; object-fit: contain; }
 .aljakten-board.immersive { position: fixed; inset: 0; z-index: 1000; width: 100vw; height: 100dvh; max-height: 100dvh; aspect-ratio: auto; margin: 0; border-radius: 0; }
 .aljakten-board.immersive canvas { width: 100%; height: 100%; object-fit: contain; }
+.aljakten-page:has(.aljakten-board.immersive) .aljakten-actions { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 1001; width: auto; margin: 0; }
+.aljakten-page:has(.aljakten-board.immersive) .aljakten-actions .secondary-button { background: rgba(16,29,62,.88); border-color: rgba(255,255,255,.35); color: #fff; box-shadow: 0 5px 18px rgba(0,0,0,.22); }
 .game-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; text-align: center; background: rgba(8,35,51,.7); color: white; }
 .game-overlay > span { font-size: 43px; margin-bottom: 10px; }
 .game-overlay strong { font: 800 25px 'Manrope'; }
