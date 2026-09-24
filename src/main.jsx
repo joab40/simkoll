@@ -593,6 +593,16 @@ function GameCard({ games = GAME_CATALOG, onOpen, onVanda, onSwimgames, onAljakt
   return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}{games.length > 0 && <button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button>}</div></div></section>
 }
 
+function useLegacyGameFullscreen(selector) {
+  useEffect(() => {
+    const board = document.querySelector(selector); if (!board) return undefined
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'legacy-game-fullscreen'; button.textContent = '⛶ Fullskärm'; board.appendChild(button)
+    const update = () => { const active = document.fullscreenElement === board || document.webkitFullscreenElement === board; board.classList.toggle('legacy-game-immersive', !active && board.classList.contains('legacy-game-immersive')); button.textContent = active || board.classList.contains('legacy-game-immersive') ? '↙ Lämna fullskärm' : '⛶ Fullskärm' }
+    const toggle = async () => { try { if (document.fullscreenElement === board) await document.exitFullscreen(); else if (document.webkitFullscreenElement === board) await document.webkitExitFullscreen?.(); else if (board.requestFullscreen) await board.requestFullscreen(); else if (board.webkitRequestFullscreen) board.webkitRequestFullscreen(); else { board.classList.toggle('legacy-game-immersive'); update() } } catch { board.classList.add('legacy-game-immersive'); update() } }
+    button.addEventListener('click', toggle); document.addEventListener('fullscreenchange', update); document.addEventListener('webkitfullscreenchange', update); return () => { button.removeEventListener('click', toggle); document.removeEventListener('fullscreenchange', update); document.removeEventListener('webkitfullscreenchange', update); button.remove() }
+  }, [selector])
+}
+
 function AppFeedbackCard({ code, coach = false }) {
   const [open, setOpen] = useState(false); const [sent, setSent] = useState(false); const [form, setForm] = useState({ rating: 0, bestArea: '', improveArea: '', featureRequest: '', comment: '' }); const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const submit = async (event) => { event.preventDefault(); if (!form.rating) return; try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'app-feedback', ...form }) }); setSent(true); setOpen(false) } catch (error) { window.alert(error.message) } }
@@ -612,6 +622,7 @@ const SWIMGAMES_LENGTHS = 1
 const SWIMGAMES_DISTANCE_METERS = 25
 
 function Swimgames({ code, onBack, preview = false }) {
+  useLegacyGameFullscreen('.swimgames-board')
   const [status, setStatus] = useState('ready')
   const [length, setLength] = useState(0)
   const [direction, setDirection] = useState('left')
@@ -713,6 +724,7 @@ function DevelopmentTalkSwimmer({ code, onBack }) {
 }
 
 function Vandningsmastaren({ code, onBack, preview = false }) {
+  useLegacyGameFullscreen('.reaction-board')
   const timerRef = useRef(null)
   const goAtRef = useRef(0)
   const [status, setStatus] = useState('ready')
@@ -779,6 +791,7 @@ function Aljakten({ code, onBack, preview = false }) {
 }
 
 function Simpaus({ code, onBack, preview = false }) {
+  useLegacyGameFullscreen('.game-board:not(.aljakten-board)')
   const canvasRef = useRef(null)
   const gameRef = useRef({ running: false })
   const [status, setStatus] = useState('ready')
