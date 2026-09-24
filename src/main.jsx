@@ -512,6 +512,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
+        {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
