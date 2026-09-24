@@ -148,7 +148,7 @@ function App() {
     if (!auth || !profile) return
     apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false)).catch(() => {})
   }, [auth, profile])
-  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { setPlanningEnabled(data.settings?.swimmer?.planning === true); setAppFeedbackEnabled(data.settings?.swimmer?.appFeedback !== false); setCustomPepEnabled(data.settings?.swimmer?.customPep !== false); setStarsEnabled(data.settings?.swimmer?.stars !== false); setSwimmerEffects(data.settings?.swimmerEffects !== false); setSwimmerThemesEnabled(data.settings?.swimmerThemesEnabled !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(data.settings?.swimmerTheme) ? data.settings.swimmerTheme : 'none') }).catch(() => { setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
+  useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
@@ -511,7 +511,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
-      <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}`}>
+      <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         <p className="eyebrow light">Idag i gruppen</p>
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
