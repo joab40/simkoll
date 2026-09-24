@@ -309,6 +309,8 @@ button { cursor: pointer; }
 .aljakten-actions .secondary-button { min-height: 42px; }
 .aljakten-board:fullscreen { width: min(100vw, 560px); height: 100dvh; max-height: 100dvh; aspect-ratio: auto; margin: 0 auto; border-radius: 0; }
 .aljakten-board:fullscreen canvas { width: 100%; height: 100%; object-fit: contain; }
+.aljakten-board.immersive { position: fixed; inset: 0; z-index: 1000; width: 100vw; height: 100dvh; max-height: 100dvh; aspect-ratio: auto; margin: 0; border-radius: 0; }
+.aljakten-board.immersive canvas { width: 100%; height: 100%; object-fit: contain; }
 .game-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; text-align: center; background: rgba(8,35,51,.7); color: white; }
 .game-overlay > span { font-size: 43px; margin-bottom: 10px; }
 .game-overlay strong { font: 800 25px 'Manrope'; }
