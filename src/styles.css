@@ -607,7 +607,8 @@ button { cursor: pointer; }
 .workout-editor textarea.short { min-height: 90px; }
 .editor-actions { display: flex; justify-content: flex-end; align-items: center; gap: 15px; }
 .editor-actions > span { color: var(--teal); font-size: 12px; margin-left: auto; }
-.delete-workout { border: 0; background: transparent; color: #9b5555; font-size: 12px; }
+.delete-workout { border: 1px solid #e2b8b8; background: #fff7f7; color: #9b5555; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.delete-workout:hover { background: #ffeded; border-color: #c98989; }
 .coach-community { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 28px; }
 .coach-community > form textarea { width: 100%; min-height: 120px; resize: vertical; border: 1.5px solid #d6e2df; border-radius: 12px; padding: 14px; outline: 0; }
 .coach-community > form textarea:focus { border-color: var(--teal); }
