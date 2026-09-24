@@ -106,7 +106,7 @@ button { cursor: pointer; }
 .halloween-decor .pumpkin-left { left: 39%; bottom: 3px; font-size: 52px; opacity: .96; transform-origin: 50% 88%; animation: halloween-pumpkin-glow 3.8s ease-in-out infinite; }
 .pumpkin-right { display: none; }
 .home.theme-halloween .start-card { position: relative; overflow: hidden; border-color: #e5c8ad; }
-.home.theme-halloween .start-card::after { content: none; }
+.home.theme-halloween .start-card::after { content: '🧟‍♂️'; position: absolute; right: 18px; top: 12px; font-size: 32px; line-height: 1; opacity: .86; filter: drop-shadow(0 4px 5px rgba(54,24,34,.22)); pointer-events: none; }
 .home.theme-halloween .weekly-summary { position: relative; }
 .weekly-halloween-spider { position: absolute; right: 22px; top: 42px; font-size: 22px; transform-origin: 50% 0; animation: halloween-climbing-spider 4.5s ease-in-out infinite; filter: drop-shadow(0 3px 4px rgba(40,20,35,.2)); }
 @keyframes halloween-climbing-spider { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(7px) rotate(5deg); } }
