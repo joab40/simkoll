@@ -91,8 +91,13 @@ button { cursor: pointer; }
 @keyframes race-day-bg { from { background-position: 0% 45%; } to { background-position: 100% 55%; } }
 @media (max-width: 640px) { .race-day-badge { top: 17px; right: 17px; font-size: 10px; padding: 7px 10px; } }
 .mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
-.home.theme-halloween .mood-hero { background: radial-gradient(circle at 82% 15%, rgba(255,145,42,.28), transparent 26%), linear-gradient(120deg, #24133b, #54215f 55%, #b45a25); }
-.home.theme-halloween { background: #fff7ed; }
+.home.theme-halloween { background: radial-gradient(circle at 8% 18%, rgba(255,176,84,.12), transparent 23%), #fff8ef; }
+.home.theme-halloween .mood-hero { background: radial-gradient(circle at 84% 16%, rgba(255,157,65,.32), transparent 24%), radial-gradient(circle at 18% 90%, rgba(143,91,203,.25), transparent 30%), linear-gradient(120deg, #1e152d 0%, #352044 52%, #8a3f32 100%); box-shadow: 0 16px 38px rgba(66,34,79,.18), inset 0 1px 0 rgba(255,255,255,.08); }
+.home.theme-halloween .mood-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .32; background: radial-gradient(circle at 18% 28%, rgba(255,255,255,.16) 0 1px, transparent 2px), radial-gradient(circle at 74% 72%, rgba(255,192,122,.18) 0 1px, transparent 2px); background-size: 82px 74px, 115px 98px; animation: halloween-glow 8s ease-in-out infinite alternate; }
+.home.theme-halloween .mood-hero::after { content: '✦'; right: 22px; top: -38px; font-size: 150px; color: rgba(255,177,90,.09); transform: rotate(18deg); }
+.home.theme-halloween .primary-button { background: #9b4d36; border-color: #9b4d36; box-shadow: 0 5px 15px rgba(125,55,45,.18); }
+.home.theme-halloween .secondary-button { border-color: #dfc3ad; color: #713e4c; }
+@keyframes halloween-glow { from { opacity: .2; transform: translate3d(0, 0, 0); } to { opacity: .42; transform: translate3d(8px, -3px, 0); } }
 .home.theme-snow .mood-hero { background: radial-gradient(circle at 84% 14%, rgba(255,255,255,.35), transparent 24%), linear-gradient(120deg, #1b4d70, #5b9fc0 58%, #d7eef4); }
 .home.theme-snow { background: #f3fbff; }
 .home.theme-christmas .mood-hero { background: radial-gradient(circle at 82% 15%, rgba(255,230,165,.22), transparent 25%), linear-gradient(120deg, #174b43, #176b59 56%, #9a3440); }
