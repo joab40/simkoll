@@ -91,6 +91,12 @@ button { cursor: pointer; }
 @keyframes race-day-bg { from { background-position: 0% 45%; } to { background-position: 100% 55%; } }
 @media (max-width: 640px) { .race-day-badge { top: 17px; right: 17px; font-size: 10px; padding: 7px 10px; } }
 .mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
+.home.theme-halloween .mood-hero { background: radial-gradient(circle at 82% 15%, rgba(255,145,42,.28), transparent 26%), linear-gradient(120deg, #24133b, #54215f 55%, #b45a25); }
+.home.theme-halloween { background: #fff7ed; }
+.home.theme-snow .mood-hero { background: radial-gradient(circle at 84% 14%, rgba(255,255,255,.35), transparent 24%), linear-gradient(120deg, #1b4d70, #5b9fc0 58%, #d7eef4); }
+.home.theme-snow { background: #f3fbff; }
+.home.theme-christmas .mood-hero { background: radial-gradient(circle at 82% 15%, rgba(255,230,165,.22), transparent 25%), linear-gradient(120deg, #174b43, #176b59 56%, #9a3440); }
+.home.theme-christmas { background: #f4faf5; }
 .mood-context { position: relative; z-index: 1; margin: -22px 0 22px; color: rgba(255,255,255,.82); font-size: 13px; font-weight: 700; }
 .mood-hero::after { content: '≈'; position: absolute; right: -20px; top: -115px; font-size: 300px; color: rgba(82,209,196,.06); transform: rotate(-12deg); }
 .mood-hero h1 { font-size: clamp(33px, 6vw, 52px); margin-bottom: 34px; }
