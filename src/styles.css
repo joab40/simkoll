@@ -302,6 +302,9 @@ button { cursor: pointer; }
 .game-intro { color: var(--muted); line-height: 1.55; max-width: 460px; }
 .game-board { width: min(100%, 320px); aspect-ratio: 320 / 420; position: relative; margin-top: 22px; border-radius: 21px; overflow: hidden; box-shadow: 0 16px 34px rgba(16,45,55,.2); }
 .game-board canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+.aljakten-page { background: linear-gradient(145deg, #e8f4f7, #edf0fb); }
+.aljakten-board { width: min(100%, 390px); aspect-ratio: 3 / 4; border: 1px solid rgba(63, 140, 168, .45); background: #101d3e; box-shadow: 0 20px 44px rgba(21, 58, 94, .24), inset 0 0 0 1px rgba(255,255,255,.08); }
+.aljakten-board canvas { cursor: crosshair; touch-action: none; }
 .game-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; text-align: center; background: rgba(8,35,51,.7); color: white; }
 .game-overlay > span { font-size: 43px; margin-bottom: 10px; }
 .game-overlay strong { font: 800 25px 'Manrope'; }

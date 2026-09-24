@@ -18,6 +18,7 @@ const GAME_CATALOG = [
   { key: 'swimgames', title: 'Swimgames 25', emoji: '🏊', description: '25 meter frisim mot klockan.', route: 'swimgames' },
   { key: 'vanda', title: 'Startmästaren', emoji: '↻', description: 'Träna reaktion och timing vid vändningen.', route: 'vanda' },
   { key: 'simpaus', title: 'Vågjakten', emoji: '🌊', description: 'Håll dig mellan vågorna så länge du kan.', route: 'game' },
+  { key: 'aljakten', title: 'Åljakten', emoji: '🐍', description: 'Samla energibubblor och väx i bassängen.', route: 'aljakten' },
 ]
 const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const defaultGameSchedule = () => {
@@ -79,7 +80,7 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
+  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
   const rows = (await result.json()).filter((item) => item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE); const games = new Map()
   rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
@@ -114,7 +115,7 @@ export default async function handler(request, response) {
         const score = Number(request.body?.score)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
         if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
-        const key = ['simpaus', 'vanda', 'swimgames'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
         if (key === 'swimgames' && score > SWIMGAMES_MAX_SCORE) return sendJson(response, 400, { error: 'Tiden är för snabb för att vara giltig.' })
         const week = weekStart()
         const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&select=id,score&limit=1`)
@@ -135,7 +136,7 @@ export default async function handler(request, response) {
       if (role === 'swimmer' && action === 'reset-game-score') {
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att nollställa tiden.' })
-        const key = ['simpaus', 'vanda', 'swimgames'].includes(request.body?.gameKey) ? request.body.gameKey : null
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten'].includes(request.body?.gameKey) ? request.body.gameKey : null
         if (!key) return sendJson(response, 400, { error: 'Ogiltigt spel.' })
         const deleted = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}`, { method: 'DELETE' })
         if (!deleted.ok) throw new Error(`Game score reset failed: ${deleted.status}`)
@@ -235,7 +236,7 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
-    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'alltime'].includes(request.query?.game) ? request.query.game : null
+    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'alltime'].includes(request.query?.game) ? request.query.game : null
     if (request.query?.games === 'true') {
       const schedule = await loadGameSchedule()
       if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })
