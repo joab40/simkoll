@@ -362,7 +362,10 @@ export default async function handler(request, response) {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
         if (!result.ok) throw new Error(`Competition calendar GET failed: ${result.status} ${await result.text()}`)
         const competitions = await result.json()
-        const visible = role === 'coach' || profile?.is_test_profile || !profile?.training_group ? competitions : competitions.filter((item) => (!item.target_groups?.length || item.target_groups.includes(profile.training_group)) && item.entries_open === true)
+        // Kommande tävlingar används både för nedräkning och grenanmälan.
+        // Själva anmälan filtreras separat på entriesOpen i simmarvyn, så en
+        // stängd anmälan ska inte göra att nästa tävling försvinner helt.
+        const visible = role === 'coach' || profile?.is_test_profile || !profile?.training_group ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
       }
       if (request.query?.program === 'true') {
