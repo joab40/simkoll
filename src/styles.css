@@ -548,6 +548,9 @@ button { cursor: pointer; }
 .workout-generator-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
 .workout-generator-grid label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .workout-generator-grid select { width: 100%; }
+.workout-generator-request { display: grid; gap: 5px; margin: 14px 0; color: var(--muted); font-size: 12px; }
+.workout-generator-request textarea { min-height: 66px; resize: vertical; }
+.workout-generator-request small { color: var(--muted); font-weight: 400; }
 @media (max-width: 720px) { .workout-generator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .competition-program { margin-top: 12px; padding-top: 10px; border-top: 1px solid #dbe9e5; }
 .competition-add-card { margin: 16px 0; padding: 14px 16px; border: 1px solid #dbe9e5; border-radius: 16px; background: #f8fcfa; }

@@ -221,6 +221,7 @@ async function generateWorkoutFromLibrary(request, options = {}) {
   const distance = Number(options.distanceMeters || 0)
   const duration = Number(options.durationMinutes || 0)
   const rpe = String(options.rpe || '6–7').slice(0, 20)
+  const preference = String(options.request || '').trim().slice(0, 300)
   const library = Array.isArray(options.library) ? options.library.slice(0, 8) : []
   const sourceText = library.map((item, index) => `PASS ${index + 1}\nRubrik: ${String(item.title || '').slice(0, 100)}\nInriktning: ${String(item.focus || '').slice(0, 80)}\nMeter: ${item.distanceMeters || 'saknas'}\nTid: ${item.durationMinutes || 'saknas'} min\nPassbetyg: ${item.pass ?? 'saknas'} / 5\nRPE: ${item.rpe ?? 'saknas'} / 10\nInnehåll:\n${String(item.content || '').slice(0, 4500)}`).join('\n\n')
   const prompt = `Du är en erfaren svensk simtränare. Skapa ett förslag på ett nytt simpass genom att kombinera bra idéer från tidigare genomförda pass i biblioteket. Detta är ett redigerbart utkast för tränaren, inte ett publicerat pass.
@@ -231,7 +232,9 @@ Krav:
 - Önskad distans: ${distance || 'anpassa efter underlaget'} meter
 - Tidsåtgång: ${duration || 'anpassa efter underlaget'} minuter
 - Mål-RPE: ${rpe}
+- Tränarens frivilliga önskemål: ${preference || 'inget särskilt önskemål'}
 - Prioritera alltid tidigare pass med högt passbetyg. Använd RPE som näst viktigaste kvalitetsfilter och håll belastningen rimlig för vald tid och distans.
+- Försök följa det frivilliga önskemålet när det är förenligt med vald inriktning, distans, tidsåtgång och rimlig belastning. Önskemålet är en preferens, inte ett krav, och får inte göra att du ignorerar passbetyg eller RPE.
 - Ta med tydliga starttider på serierna. Om underlaget innehåller starttider, använd dem som förebild; skapa annars realistiska, tydligt markerade startintervall som passar serien.
 - Behåll simspecifik struktur med insim, teknik/ben/arm när det passar, huvudserie och avsim. Använd klamrar och indrag på ett lättläst sätt.
 - Hitta inte på ett exakt tidigare resultat eller påstå att passet är evidensbaserat. Gör inga medicinska slutsatser.
