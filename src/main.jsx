@@ -2638,6 +2638,8 @@ function History({ responses }) {
       <div className="history-list">
         {groups.map(([key, items]) => {
           const after = items.filter((item) => item.type === 'after')
+          const temperature = average('temperature', after)
+          const temperatureLabel = temperature === '–' ? 'temperatur' : TEMPERATURE_LABELS[Math.max(0, Math.round(Number(temperature)) - 1)] || 'temperatur'
           return (
             <article key={key} className="history-row">
               <div className="history-date"><strong>{new Date(`${key}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><span>{new Date(`${key}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
@@ -2645,6 +2647,7 @@ function History({ responses }) {
               <div><strong>{items.length}</strong><small>svar</small></div>
               <div><strong>{average('rpe', after)}</strong><small>RPE</small></div>
               <div><strong>{average('pass', after)}</strong><small>passet</small></div>
+              <div><strong>{temperature === '–' ? '–' : `${temperature}/5`}</strong><small>🌡️ {temperatureLabel}</small></div>
             </article>
           )
         })}

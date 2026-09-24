@@ -775,7 +775,7 @@ button { cursor: pointer; }
 .empty-period h2 { font-size: 29px; margin-bottom: 8px; }
 .empty-period > p:last-child { color: var(--muted); }
 .history-list { display: grid; gap: 8px; }
-.history-row { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 16px; padding: 18px 22px; display: grid; grid-template-columns: minmax(190px, 1.8fr) 1.2fr repeat(3, .65fr); align-items: center; gap: 20px; }
+.history-row { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 16px; padding: 18px 22px; display: grid; grid-template-columns: minmax(190px, 1.8fr) 1.2fr repeat(4, .65fr); align-items: center; gap: 20px; }
 .history-row > div:not(.history-date):not(.history-mood) { display: flex; flex-direction: column; }
 .history-row > div > strong { font: 700 18px 'Manrope'; }
 .history-row small, .history-date span { color: var(--muted); font-size: 11px; }
@@ -1300,7 +1300,7 @@ button { cursor: pointer; }
   .week-days small { font-size: 8px; }
   .coach-columns { grid-template-columns: 1fr; }
   .swimmer-grid { grid-template-columns: 1fr; }
-  .history-row { grid-template-columns: 1fr repeat(3, .55fr); gap: 12px; padding: 16px; }
+  .history-row { grid-template-columns: 1fr repeat(4, .55fr); gap: 12px; padding: 16px; }
   .history-date { grid-column: 1 / -1; border-bottom: 1px solid #e2ebe8; padding-bottom: 11px; }
   .history-mood { align-items: flex-start; flex-direction: column; gap: 2px; }
   .workout-editor { padding: 22px 17px; }
