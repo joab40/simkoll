@@ -537,7 +537,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
-      {profile && <WeeklySwimCard training={training} showStars={starsEnabled} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
+      {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard games={availableGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
       {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
@@ -820,7 +820,7 @@ const WEEK_SLOTS = [
   { key: 'dryland', short: 'Land', icon: '🤸' }, { key: 'afternoon_swim', short: 'Eftermiddag', icon: '🌇' },
 ]
 
-function WeeklySwimCard({ training, showStars, onOpen, onToggle, onPlan }) {
+function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState('')
   const [cheer, setCheer] = useState('')
   const [localSessions, setLocalSessions] = useState(null)
@@ -843,7 +843,7 @@ function WeeklySwimCard({ training, showStars, onOpen, onToggle, onPlan }) {
   const togglePlan = async (date, slot, checked) => { const key = `plan-${date}-${slot}`; const previous = localPlans || []; const next = checked ? [...previous.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, weekStart: dateKey(start) }] : previous.filter((item) => !(item.date === date && item.slot === slot)); setLocalPlans(next); setSaving(key); try { const result = await onPlan(date, slot, checked); setCheer(result?.message || (checked ? 'Passet är planerat! 🗓️' : 'Planeringen är uppdaterad.')) } catch (error) { setLocalPlans(previous); window.alert(error.message) } finally { setSaving('') } }
   const percentage = goal ? Math.round((completed / goal.target) * 100) : null
   return <section className="weekly-training-card">
-    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button></div>
+    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button>{halloween && <span className="weekly-halloween-spider" aria-hidden="true">🕷️</span>}</div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför simmålet under de fyra senaste avslutade veckorna.</small></details>}
     {cheer && <div className="cheer-message"><span>✨</span><strong>{cheer}</strong><button onClick={() => setCheer('')}>×</button></div>}
