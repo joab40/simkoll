@@ -84,7 +84,7 @@ function App() {
   const [swimmerThemesEnabled, setSwimmerThemesEnabled] = useState(true)
   const [swimmerTheme, setSwimmerTheme] = useState('none')
   const [competitions, setCompetitions] = useState([])
-  const [availableGames, setAvailableGames] = useState(GAME_CATALOG)
+  const [availableGames, setAvailableGames] = useState([])
 
   useEffect(() => {
     if (!auth) return
@@ -110,11 +110,11 @@ function App() {
       const [trainingData, workoutData, tomorrowData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity?streak=true', auth.code)])
       setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
       // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
-      const [pointsData, notificationData, competitionData, gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] })), apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: GAME_CATALOG }))])
+      const [pointsData, notificationData, competitionData, gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] })), apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: [] }))])
       if (pointsData) setPoints(pointsData)
       setNotifications(notificationData.notifications || [])
       setCompetitions(competitionData.competitions || [])
-      setAvailableGames(Array.isArray(gamesData.catalog) && gamesData.catalog.length ? gamesData.catalog : GAME_CATALOG)
+      setAvailableGames(Array.isArray(gamesData.catalog) ? gamesData.catalog : [])
     }
     loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
     const refreshOnFocus = () => { if (document.visibilityState === 'visible') loadProfileData().catch(() => {}) }
