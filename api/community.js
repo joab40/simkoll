@@ -193,10 +193,18 @@ export default async function handler(request, response) {
       const privateSent = await messagesSentToday('kudos', profile.id)
       const groupSent = await messagesSentToday('group_pep', profile.id)
       if (privateSent + groupSent >= 4) return sendJson(response, 429, { error: 'Du har skickat fyra peppmeddelanden idag. Du kan skicka mer imorgon!' })
+      const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+      let webappSettings = {}
+      if (settingsResult.ok) {
+        const rows = await settingsResult.json()
+        webappSettings = rows[0]?.setting_value || {}
+      }
+      const customPepEnabled = webappSettings.swimmer?.customPep !== false
       if (mode === 'group') {
         const templateKey = String(request.body?.templateKey || '')
         const customContent = String(request.body?.content || '').trim()
         if (templateKey === 'custom') {
+          if (!customPepEnabled) return sendJson(response, 403, { error: 'Egna peppmeddelanden är avstängda av tränarna.' })
           if (!customContent || customContent.length > 300) return sendJson(response, 400, { error: 'Skriv ett eget peppmeddelande på 1–300 tecken.' })
           const moderation = await moderateCustomPep(request, customContent)
           if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
@@ -213,6 +221,7 @@ export default async function handler(request, response) {
       const customContent = String(request.body?.content || '').trim()
       if (recipientId === profile.id) return sendJson(response, 400, { error: 'Välj en annan simmare.' })
       if (templateKey === 'custom') {
+        if (!customPepEnabled) return sendJson(response, 403, { error: 'Egna peppmeddelanden är avstängda av tränarna.' })
         if (!customContent || customContent.length > 300) return sendJson(response, 400, { error: 'Skriv ett eget peppmeddelande på 1–300 tecken.' })
         const moderation = await moderateCustomPep(request, customContent)
         if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
