@@ -1236,6 +1236,10 @@ button { cursor: pointer; }
   .game-schedule-list article > * { width: 100%; }
   .game-publish-toggle { padding-top: 4px; }
   .game-page { padding-top: 24px; }
+  .swimmer-planning-week-controls { display: grid; grid-template-columns: 1fr 1fr; }
+  .swimmer-planning-week-controls strong { grid-column: 1 / -1; grid-row: 1; }
+  .swimmer-planning-week-controls button:first-of-type { grid-column: 1; grid-row: 2; }
+  .swimmer-planning-week-controls button:last-of-type { grid-column: 2; grid-row: 2; }
   .game-layout { grid-template-columns: 1fr; gap: 23px; }
   .game-board { margin-left: auto; margin-right: auto; }
   .coach-private-message form { grid-template-columns: 1fr; }
@@ -1444,6 +1448,8 @@ button { cursor: pointer; }
 .swimmer-planning { width: min(100% - 36px, 760px); margin: 0 auto; padding: 30px 0 60px; }
 .swimmer-planning .back-button { margin-bottom: 18px; }
 .swimmer-planning .period-heading { margin-bottom: 20px; }
+.swimmer-planning-week-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; padding: 10px; background: #eef7f4; border: 1px solid #d5e8e2; border-radius: 14px; }
+.swimmer-planning-week-controls strong { color: var(--ink); text-align: center; white-space: nowrap; }
 .swimmer-planning-list article { padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .swimmer-planning-list h2 { margin: 3px 0; }
 .swimmer-planning-list p { color: var(--muted); }
