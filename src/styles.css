@@ -452,6 +452,7 @@ button { cursor: pointer; }
 .concern-choice button:first-child { border-color: #e6b5a6; background: #fff5f0; }
 .choice-card { width: 100%; min-height: 72px; border: 1.5px solid #d6e2df; background: white; border-radius: 15px; padding: 0 20px; display: grid; grid-template-columns: 42px 1fr auto; text-align: left; align-items: center; font-weight: 700; font-size: 16px; }
 .choice-card:hover { border-color: var(--teal); background: #f3faf8; }
+.choice-card.selected { border-color: var(--teal); background: #e9f7f2; box-shadow: 0 0 0 2px rgba(15, 110, 112, .12); }
 .choice-icon { width: 31px; height: 31px; display: grid; place-items: center; background: #e1f3ef; color: var(--teal); border-radius: 50%; }
 .feeling-grid, .thumb-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; }
 .feeling-grid button, .thumb-grid button { min-width: 0; border: 1.5px solid #d6e2df; background: white; border-radius: 17px; padding: 18px 7px 13px; }

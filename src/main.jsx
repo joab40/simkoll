@@ -223,6 +223,7 @@ function App() {
       {screen === 'checkin' && (
         <CheckIn
           hasProfile={Boolean(profile)}
+          followUp={responses.filter((item) => dateKey(responseDate(item)) === todayKey()).slice().sort((a, b) => responseDate(b) - responseDate(a))[0]?.type === 'before'}
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
@@ -1111,9 +1112,9 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
   )
 }
 
-function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
+function CheckIn({ hasProfile, competitionToday, followUp = false, onBack, onSubmit }) {
   const [step, setStep] = useState(0)
-  const [form, setForm] = useState({})
+  const [form, setForm] = useState(() => followUp ? { type: 'after' } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -1142,10 +1143,10 @@ function CheckIn({ hasProfile, competitionToday, onBack, onSubmit }) {
   if (step === 0) {
     const showCompetitionChoice = competitionToday && hasProfile && competitionDecision === null
     content = (
-      <Question title={showCompetitionChoice ? 'Ska du tävla idag?' : 'Hur ser din dag ut?'} hint={showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : 'Välj det som stämmer bäst just nu.'}>
+      <Question title={showCompetitionChoice ? 'Ska du tävla idag?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
         <div className="choice-stack">
           {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm((current) => ({ ...current, competition: true, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm((current) => ({ ...current, competition: true, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.map((type) => (
-              <button key={type.value} className="choice-card" onClick={() => { const countsAsAttendance = hasProfile && (type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before')); setForm((current) => ({ ...current, type: type.value, registerTraining: countsAsAttendance, trainingSlot: type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before') ? 'afternoon_swim' : undefined })); next() }}>
+              <button key={type.value} className={`choice-card${followUp && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && (type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before')); setForm((current) => ({ ...current, type: type.value, registerTraining: countsAsAttendance, trainingSlot: type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before') ? 'afternoon_swim' : undefined })); next() }}>
               <span className="choice-icon">{type.icon}</span>{type.title}<span>›</span>
             </button>
           ))}
