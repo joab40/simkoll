@@ -619,6 +619,11 @@ button { cursor: pointer; }
 .coach-community > form small { color: var(--muted); }
 .audit-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .audit-ai, .audit-events { margin-top: 12px; }
+.audit-period-filter { margin-top: 12px; }
+.audit-period-filter > p { margin: 0 0 9px; }
+.audit-period-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.audit-period-buttons button { border: 1px solid #d3e2de; background: #f7fbfa; color: var(--ink); border-radius: 999px; padding: 9px 13px; font: inherit; font-size: 12px; cursor: pointer; }
+.audit-period-buttons button.active { border-color: var(--teal); background: var(--teal); color: white; }
 .audit-month { margin-top: 12px; }
 .audit-month-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .audit-month-heading h2 { margin:0; }
