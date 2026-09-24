@@ -101,7 +101,7 @@ export default async function handler(request, response) {
             supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
           ])
           if (!logsResult.ok || !usageResult.ok) throw new Error('Audit lookup failed')
-          const logs = await logsResult.json(), aiUsage = await usageResult.json()
+          const logs = await logsResult.json(), aiUsage = (await usageResult.json()).map((item) => ({ ...item, estimated_cost_usd: estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) }))
           const totals = aiUsage.reduce((sum, item) => ({ calls: sum.calls + 1, successful: sum.successful + (item.status === 'success' ? 1 : 0), promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0) }), { calls: 0, successful: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 })
           const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0)
           const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
