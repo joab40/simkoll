@@ -488,6 +488,8 @@ function StarProgress({ stars }) {
 
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, appFeedbackEnabled, starsEnabled, swimmerEffects, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onCompetitions, onGame, onVanda, onSwimgames, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
+  const followUp = latestTodayResponse?.type === 'before'
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
   // already present in the UI so a just-submitted check-in is shown instantly.
@@ -523,7 +525,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
 
       {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} />}
 
-      {profile && <StartCard profile={profile} onStart={onStart} />}
+      {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
@@ -532,7 +534,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard games={availableGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
-      {!profile && <StartCard profile={profile} onStart={onStart} />}
+      {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
     </div>
   )
 }
@@ -574,8 +576,8 @@ function NotificationCard({ profile, notifications, onChange, onCommunity, onGoa
   return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => dismiss(item)}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => unread.forEach(dismiss)}>Markera alla som lästa</button>}</section>
 }
 
-function StartCard({ profile, onStart }) {
-  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>Hur är läget?</h2><p>Det tar mindre än 20 sekunder.</p></div><button className="primary-button" onClick={onStart}>Checka in <span>→</span></button></section>
+function StartCard({ profile, onStart, followUp = false }) {
+  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>{followUp ? 'Hur gick simträningen?' : 'Hur är läget?'}</h2><p>{followUp ? 'Berätta kort hur passet kändes efteråt.' : 'Det tar mindre än 20 sekunder.'}</p></div><button className="primary-button" onClick={onStart}>{followUp ? 'Svara efter passet' : 'Checka in'} <span>→</span></button></section>
 }
 
 function GameCard({ games = GAME_CATALOG, onOpen, onVanda, onSwimgames, onAllTime }) {
