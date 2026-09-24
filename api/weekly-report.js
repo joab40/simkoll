@@ -75,14 +75,14 @@ export default async function handler(request, response) {
         if (goal) expected += Number(goal.target_sessions_per_week || 0)
         completed += completedSwims.filter((item) => item.profile_id === profile.id && item.session_date >= weekStart && item.session_date < weekEnd).length
       }
-      return { profileId: profile.id, displayName: profile.display_name, emoji: profile.emoji || '🏊', completed, expected, percentage: expected ? Math.min(100, Math.round((completed / expected) * 100)) : null }
+      return { profileId: profile.id, displayName: profile.display_name, emoji: profile.emoji || '🏊', completed, expected, percentage: expected ? Math.round((completed / expected) * 100) : null }
     })
     // Compare only profiles with an agreed swim target. Completed sessions from
     // profiles without a target must not inflate the group's percentage.
     const goalProfiles = attendanceProfiles.filter((item) => item.expected > 0)
     const expectedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.expected, 0)
     const completedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.completed, 0)
-    const attendancePercentage = expectedSwimPasses ? Math.min(100, Math.round((completedSwimPasses / expectedSwimPasses) * 100)) : null
+    const attendancePercentage = expectedSwimPasses ? Math.round((completedSwimPasses / expectedSwimPasses) * 100) : null
     const estimatedMeters = offeredMeters && attendancePercentage != null
       ? Math.round((offeredMeters * attendancePercentage / 100) / 100) * 100
       : null
