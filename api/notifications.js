@@ -37,8 +37,8 @@ export default async function handler(request, response) {
     const [profiles, postsResult, groupResult, kudosResult, goalsResult, artifactsResult, messagesResult] = await Promise.all([
       profilesById(),
       supabaseRequest(`community_posts?deleted_at=is.null&created_at=gte.${encodeURIComponent(since)}&select=id,content,created_at&order=created_at.desc&limit=30`),
-      supabaseRequest(`group_pep?created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=30`),
-      supabaseRequest(`kudos?recipient_profile_id=eq.${profile.id}&created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=30`),
+      supabaseRequest(`group_pep?created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=30`),
+      supabaseRequest(`kudos?recipient_profile_id=eq.${profile.id}&created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=30`),
       supabaseRequest(`development_goals?profile_id=eq.${profile.id}&updated_at=gte.${encodeURIComponent(since)}&select=id,title,updated_at&order=updated_at.desc&limit=30`),
       supabaseRequest(`profile_artifacts?profile_id=eq.${profile.id}&created_at=gte.${encodeURIComponent(since)}&select=id,created_at,artifact_catalog(name,emoji,description)&order=created_at.desc&limit=30`),
       supabaseRequest(`private_messages?recipient_profile_id=eq.${profile.id}&recipient_role=eq.swimmer&created_at=gte.${encodeURIComponent(since)}&select=id,content,created_at&order=created_at.desc&limit=30`),
@@ -54,11 +54,13 @@ export default async function handler(request, response) {
     for (const item of await postsResult.json()) notifications.push({ id: `coach-${item.id}`, type: 'coach', icon: '📣', title: 'Nytt från tränarna', text: item.content, createdAt: item.created_at })
     for (const item of await groupResult.json()) {
       const sender = profiles[item.sender_profile_id]
-      if (sender && GROUP_TEMPLATES[item.template_key]) notifications.push({ id: `group-${item.id}`, type: 'group', icon: sender.emoji, title: `${sender.displayName} skrev i öppna kanalen`, text: GROUP_TEMPLATES[item.template_key], createdAt: item.created_at })
+      const text = item.content || GROUP_TEMPLATES[item.template_key]
+      if (sender && text) notifications.push({ id: `group-${item.id}`, type: 'group', icon: sender.emoji, title: `${sender.displayName} skrev i öppna kanalen`, text, createdAt: item.created_at })
     }
     for (const item of await kudosResult.json()) {
       const sender = profiles[item.sender_profile_id]
-      if (sender && KUDOS_TEMPLATES[item.template_key]) notifications.push({ id: `kudos-${item.id}`, type: 'private', icon: sender.emoji, title: `${sender.displayName} skickade privat pepp`, text: KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at })
+      const text = item.content || KUDOS_TEMPLATES[item.template_key]
+      if (sender && text) notifications.push({ id: `kudos-${item.id}`, type: 'private', icon: sender.emoji, title: `${sender.displayName} skickade privat pepp`, text, createdAt: item.created_at })
     }
     const goalTitles = Object.fromEntries(goals.map((item) => [item.id, item.title]))
     for (const item of goals) notifications.push({ id: `goal-${item.id}-${item.updated_at}`, type: 'goal', icon: '🎯', title: 'Ett mål har uppdaterats', text: item.title, createdAt: item.updated_at })

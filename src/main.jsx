@@ -979,13 +979,13 @@ function PrivacyChoice({ profile, onBack, onChoose }) {
 const KUDOS_OPTIONS = [
   ['great_job', 'Grymt jobbat idag! 💪'], ['great_energy', 'Bra energi! ⚡'],
   ['nice_technique', 'Snygg teknik! 🌊'], ['thanks', 'Tack för peppen! 🙌'],
-  ['fun_together', 'Kul att träna med dig! 😊'], ['strong_effort', 'Stark insats! 🔥'],
+  ['fun_together', 'Kul att träna med dig! 😊'], ['strong_effort', 'Stark insats! 🔥'], ['custom', 'Skriv eget peppmeddelande…'],
 ]
 const GROUP_PEP_OPTIONS = [
   ['group_start', 'Nu kör vi! 🔥'], ['group_energy', 'Bra energi i gruppen idag ⚡'],
   ['group_great_job', 'Det blir ett grymt pass idag 💪'], ['group_build', 'Idag bygger vi vidare 🌊'],
   ['group_focus', 'Håll ihop hela vägen 🎯'], ['group_next', 'Ser fram emot nästa pass 🙌'],
-  ['group_fun', 'Kul att simma med er! 😊'],
+  ['group_fun', 'Kul att simma med er! 😊'], ['custom', 'Skriv eget gruppmeddelande…'],
 ]
 
 function Community({ profile, code, points, onBack, onPointsChange }) {
@@ -1017,7 +1017,7 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
   const sendKudos = async (event) => {
     event.preventDefault(); setStatus('Skickar…')
     try {
-      const body = sendMode === 'coach' ? { mode: 'coach', content } : { mode: sendMode, recipientId, templateKey }
+      const body = sendMode === 'coach' ? { mode: 'coach', content } : { mode: sendMode, recipientId, templateKey, content: templateKey === 'custom' ? content : undefined }
       await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const nextPoints = await apiRequest('/api/points', code)
       onPointsChange(nextPoints); setStatus(sendMode === 'coach' ? 'Meddelandet är skickat till tränarna!' : 'Peppen är skickad! +1 poäng'); setRecipientId(''); setContent(''); await load()
@@ -1032,7 +1032,7 @@ function Community({ profile, code, points, onBack, onPointsChange }) {
     </section>
     <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka pepp</h2><p>Privat till en kompis, tränarna eller öppet till hela gruppen.</p><small className="kudos-limit">4 peppmeddelanden per dag · +1 poäng per pepp</small>
       <div className="send-mode"><button className={sendMode === 'private' ? 'active' : ''} onClick={() => { setSendMode('private'); setTemplateKey('great_job') }}>Simmare</button><button className={sendMode === 'group' ? 'active' : ''} onClick={() => { setSendMode('group'); setTemplateKey('group_energy') }}>Hela gruppen</button><button className={sendMode === 'coach' ? 'active' : ''} onClick={() => setSendMode('coach')}>Tränarna</button></div>
-      <form onSubmit={sendKudos}>{sendMode === 'private' && <label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label>}{sendMode === 'coach' ? <label>Meddelande<textarea required maxLength="1000" placeholder="Skriv till tränarna…" value={content} onChange={(event) => setContent(event.target.value)} /></label> : <label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{(sendMode === 'private' ? KUDOS_OPTIONS : GROUP_PEP_OPTIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>}<button className="primary-button">{sendMode === 'coach' ? 'Skicka till tränarna →' : 'Skicka pepp →'}</button>{status && <small className="kudos-status">{status}</small>}</form>
+      <form onSubmit={sendKudos}>{sendMode === 'private' && <label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label>}{sendMode === 'coach' ? <label>Meddelande<textarea required maxLength="1000" placeholder="Skriv till tränarna…" value={content} onChange={(event) => setContent(event.target.value)} /></label> : <><label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{(sendMode === 'private' ? KUDOS_OPTIONS : GROUP_PEP_OPTIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>{templateKey === 'custom' && <label>Eget peppmeddelande<textarea required maxLength="300" placeholder="Skriv något schysst till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><small>Texten kontrolleras innan den skickas.</small></label>}</>}<button className="primary-button">{sendMode === 'coach' ? 'Skicka till tränarna →' : 'Skicka pepp →'}</button>{status && <small className="kudos-status">{status}</small>}</form>
     </aside>
   </div></div>
 }

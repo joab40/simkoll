@@ -30,6 +30,34 @@ ${String(content).slice(0, 1000)}`
   }
 }
 
+async function moderateCustomPep(request, content) {
+  const availability = await aiAvailability()
+  if (!availability.allowed) return { allowed: false, error: 'Peppkontrollen är inte tillgänglig just nu. Försök igen senare.' }
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { allowed: false, error: 'Peppmeddelandet kunde inte kontrolleras just nu. Försök igen senare.' }
+  const model = 'omni-moderation-latest'
+  try {
+    const result = await fetch('https://api.openai.com/v1/moderations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, input: content }),
+    })
+    if (!result.ok) {
+      await writeAiUsage(request, { feature: 'pep_moderation', model, role: 'swimmer', response: null, status: 'failure', error: `HTTP ${result.status}` })
+      return { allowed: false, error: 'Peppmeddelandet kunde inte kontrolleras just nu. Försök igen senare.' }
+    }
+    const payload = await result.json()
+    await writeAiUsage(request, { feature: 'pep_moderation', model, role: 'swimmer', response: payload })
+    const flagged = payload.results?.[0]?.flagged === true
+    return flagged
+      ? { allowed: false, error: 'Meddelandet kan inte skickas eftersom språket inte känns schysst nog. Skriv gärna om det med respektfull ton.' }
+      : { allowed: true }
+  } catch (error) {
+    console.warn('Pep moderation failed:', error.message)
+    return { allowed: false, error: 'Peppmeddelandet kunde inte kontrolleras just nu. Försök igen senare.' }
+  }
+}
+
 export const KUDOS_TEMPLATES = {
   great_job: 'Grymt jobbat idag! 💪',
   great_energy: 'Bra energi! ⚡',
@@ -87,7 +115,7 @@ export default async function handler(request, response) {
       }
       const [postsResult, groupResult, profiles, messagesResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
-        supabaseRequest('group_pep?select=id,sender_profile_id,template_key,created_at&order=created_at.desc&limit=100'),
+        supabaseRequest('group_pep?select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=100'),
         loadProfiles(),
         role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
@@ -95,12 +123,12 @@ export default async function handler(request, response) {
       ])
       if (!postsResult.ok || !groupResult.ok || !messagesResult.ok) throw new Error('Community feed failed')
       const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
-      const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender)
+        const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender && item.content)
       let privateKudos = []
       if (profile) {
-        const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,created_at&order=created_at.desc&limit=100`)
+        const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,content,created_at&order=created_at.desc&limit=100`)
         if (!privateResult.ok) throw new Error(`Private kudos failed: ${privateResult.status}`)
-        privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient)
+        privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: item.content || KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient && item.content)
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
       return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages })
@@ -167,8 +195,13 @@ export default async function handler(request, response) {
       if (privateSent + groupSent >= 4) return sendJson(response, 429, { error: 'Du har skickat fyra peppmeddelanden idag. Du kan skicka mer imorgon!' })
       if (mode === 'group') {
         const templateKey = String(request.body?.templateKey || '')
-        if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
-        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey }) })
+        const customContent = String(request.body?.content || '').trim()
+        if (templateKey === 'custom') {
+          if (!customContent || customContent.length > 300) return sendJson(response, 400, { error: 'Skriv ett eget peppmeddelande på 1–300 tecken.' })
+          const moderation = await moderateCustomPep(request, customContent)
+          if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
+        } else if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
+        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey, content: templateKey === 'custom' ? customContent : null }) })
         if (!result.ok) throw new Error(`Group pep insert failed: ${result.status} ${await result.text()}`)
         const [pep] = await result.json()
         await awardPoints(profile.id, 'kudos_sent', 1, `${stockholmDate()}:${pep.id}`)
@@ -177,12 +210,18 @@ export default async function handler(request, response) {
       }
       const recipientId = String(request.body?.recipientId || '')
       const templateKey = String(request.body?.templateKey || '')
-      if (recipientId === profile.id || !KUDOS_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en simmare och en pepphälsning.' })
+      const customContent = String(request.body?.content || '').trim()
+      if (recipientId === profile.id) return sendJson(response, 400, { error: 'Välj en annan simmare.' })
+      if (templateKey === 'custom') {
+        if (!customContent || customContent.length > 300) return sendJson(response, 400, { error: 'Skriv ett eget peppmeddelande på 1–300 tecken.' })
+        const moderation = await moderateCustomPep(request, customContent)
+        if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
+      } else if (!KUDOS_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en simmare och en pepphälsning.' })
       const recipientResult = await supabaseRequest(`profiles?id=eq.${recipientId}&active=eq.true&select=id&limit=1`)
       if (!recipientResult.ok || !(await recipientResult.json()).length) return sendJson(response, 404, { error: 'Simmaren kunde inte hittas.' })
       const result = await supabaseRequest('kudos', {
         method: 'POST', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ sender_profile_id: profile.id, recipient_profile_id: recipientId, template_key: templateKey }),
+        body: JSON.stringify({ sender_profile_id: profile.id, recipient_profile_id: recipientId, template_key: templateKey, content: templateKey === 'custom' ? customContent : null }),
       })
       if (!result.ok) throw new Error(`Kudos insert failed: ${result.status} ${await result.text()}`)
       const [kudos] = await result.json()
