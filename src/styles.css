@@ -107,17 +107,6 @@ button { cursor: pointer; }
 .pumpkin-right { display: none; }
 .home.theme-halloween .start-card { position: relative; overflow: hidden; border-color: #e5c8ad; }
 .home.theme-halloween .start-card::after { content: none; }
-.halloween-skeleton { position: absolute; right: 24px; bottom: 13px; width: 31px; height: 62px; opacity: .72; filter: drop-shadow(0 4px 4px rgba(53,20,31,.22)); pointer-events: none; animation: halloween-skeleton-sway 4.2s ease-in-out infinite; transform-origin: 50% 100%; }
-.halloween-skeleton i { position: absolute; display: block; background: #f0dfc4; }
-.skeleton-head { top: 0; left: 7px; width: 18px; height: 17px; border-radius: 48% 48% 43% 43%; box-shadow: inset 4px 5px 0 -2px #49283b, inset -4px 5px 0 -2px #49283b; }
-.skeleton-body { top: 21px; left: 13px; width: 6px; height: 26px; border-radius: 5px; box-shadow: 0 8px 0 1px #f0dfc4; }
-.skeleton-arm { top: 23px; width: 5px; height: 25px; border-radius: 4px; transform-origin: 50% 0; }
-.skeleton-arm-left { left: 7px; transform: rotate(25deg); }
-.skeleton-arm-right { right: 7px; transform: rotate(-25deg); }
-.skeleton-leg { top: 45px; width: 5px; height: 19px; border-radius: 4px; transform-origin: 50% 0; }
-.skeleton-leg-left { left: 11px; transform: rotate(10deg); }
-.skeleton-leg-right { right: 11px; transform: rotate(-10deg); }
-@keyframes halloween-skeleton-sway { 0%, 100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(3deg) translateY(-2px); } }
 .home.theme-halloween .weekly-summary { position: relative; }
 .weekly-halloween-spider { position: absolute; right: 22px; top: 42px; font-size: 22px; transform-origin: 50% 0; animation: halloween-climbing-spider 4.5s ease-in-out infinite; filter: drop-shadow(0 3px 4px rgba(40,20,35,.2)); }
 @keyframes halloween-climbing-spider { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(7px) rotate(5deg); } }
