@@ -18,7 +18,7 @@ const GAME_CATALOG = [
   { key: 'swimgames', title: 'Swimgames 25', emoji: '🏊', description: '25 meter frisim mot klockan.', route: 'swimgames' },
   { key: 'vanda', title: 'Startmästaren', emoji: '↻', description: 'Träna reaktion och timing vid vändningen.', route: 'vanda' },
   { key: 'simpaus', title: 'Vågjakten', emoji: '🌊', description: 'Håll dig mellan vågorna så länge du kan.', route: 'game' },
-  { key: 'aljakten', title: 'Åljakten', emoji: '🐍', description: 'Samla energibubblor och väx i bassängen.', route: 'aljakten' },
+  { key: 'aljakten', title: 'Preppejakten', emoji: '🐍', description: 'Hjälp Preppe att samla energibubblor och växa.', route: 'aljakten' },
 ]
 const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const defaultGameSchedule = () => {
