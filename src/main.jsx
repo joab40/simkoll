@@ -597,10 +597,12 @@ function useLegacyGameFullscreen(selector) {
   useEffect(() => {
     const board = document.querySelector(selector); if (!board) return undefined
     const target = selector === '.swimgames-board' ? (board.parentElement || board) : board
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary-button legacy-game-fullscreen'; button.textContent = '⛶ Fullskärm'; board.appendChild(button)
+    let button = board.querySelector('.legacy-game-fullscreen')
+    const managedButton = !button
+    if (!button) { button = document.createElement('button'); button.type = 'button'; button.className = 'secondary-button legacy-game-fullscreen'; button.textContent = '⛶ Fullskärm'; board.appendChild(button) }
     const update = () => { const active = document.fullscreenElement === target || document.webkitFullscreenElement === target; target.classList.toggle('legacy-game-active', active); target.classList.toggle('legacy-game-immersive', !active && target.classList.contains('legacy-game-immersive')); button.textContent = active || target.classList.contains('legacy-game-immersive') ? '↙ Lämna fullskärm' : '⛶ Fullskärm' }
     const toggle = async () => { try { if (document.fullscreenElement === target) await document.exitFullscreen(); else if (document.webkitFullscreenElement === target) await document.webkitExitFullscreen?.(); else if (target.requestFullscreen) await target.requestFullscreen(); else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen(); else { target.classList.toggle('legacy-game-immersive'); update() } } catch { target.classList.add('legacy-game-immersive'); update() } }
-    button.addEventListener('click', toggle); document.addEventListener('fullscreenchange', update); document.addEventListener('webkitfullscreenchange', update); return () => { button.removeEventListener('click', toggle); document.removeEventListener('fullscreenchange', update); document.removeEventListener('webkitfullscreenchange', update); button.remove() }
+    button.addEventListener('click', toggle); document.addEventListener('fullscreenchange', update); document.addEventListener('webkitfullscreenchange', update); return () => { button.removeEventListener('click', toggle); document.removeEventListener('fullscreenchange', update); document.removeEventListener('webkitfullscreenchange', update); if (managedButton) button.remove() }
   }, [selector])
 }
 
@@ -762,7 +764,7 @@ function Vandningsmastaren({ code, onBack, preview = false }) {
     setLastReaction(reaction); setScore(nextScore); nextTurn(round + 1, nextScore)
   }
 
-  return <section className="game-page reaction-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Månadens spel · reaktion</p><h1>Vändningsmästaren ↻</h1><p className="game-intro">Vänta på <strong>VÄND!</strong> och tryck så snabbt du kan. Tjuvtrycker du blir rundan nollad.</p>{teamBonus && <div className="team-game-bonus">🎉 Gruppen klarade målet! Alla som deltagit får <strong>+20 poäng</strong>.</div>}<div className={`reaction-board ${status}`}><div className="pool-lanes" aria-hidden="true"><i /><i /><i /></div><span>{status === 'go' ? 'VÄND!' : status === 'waiting' ? 'Vänta…' : status === 'false' ? 'För tidigt!' : status === 'over' ? 'Bra jobbat!' : 'Redo?'}</span><small>{status === 'go' ? 'Tryck nu!' : status === 'waiting' ? `Runda ${round + 1} av 5` : status === 'false' ? 'Starta om och vänta på signalen.' : lastReaction ? `${lastReaction} ms · ${score} poäng` : 'Fem snabba vändningar.'}</small><button className="reaction-button" onClick={status === 'ready' || status === 'over' || status === 'false' ? start : turn}>{status === 'ready' ? 'Starta' : status === 'over' || status === 'false' ? 'Spela igen' : 'Tryck här!'}</button></div></div><section className="game-scoreboard"><p className="eyebrow">Månadens highscore</p><h2>Vändningslistan</h2><p className="game-best">Ditt rekord: <strong>{gameData.ownBest || 0}</strong></p>{gameData.leaderboard.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}<small>Poängen visar snabb och schysst reaktion – inte simförmåga. När 10 olika simmare har spelat får deltagarna +20 grupppoäng.</small></section></div></section>
+  return <section className="game-page reaction-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Månadens spel · reaktion</p><h1>Vändningsmästaren ↻</h1><p className="game-intro">Vänta på <strong>VÄND!</strong> och tryck så snabbt du kan. Tjuvtrycker du blir rundan nollad.</p>{teamBonus && <div className="team-game-bonus">🎉 Gruppen klarade målet! Alla som deltagit får <strong>+20 poäng</strong>.</div>}<div className={`reaction-board ${status}`}><button type="button" className="secondary-button legacy-game-fullscreen">⛶ Fullskärm</button><div className="pool-lanes" aria-hidden="true"><i /><i /><i /></div><span>{status === 'go' ? 'VÄND!' : status === 'waiting' ? 'Vänta…' : status === 'false' ? 'För tidigt!' : status === 'over' ? 'Bra jobbat!' : 'Redo?'}</span><small>{status === 'go' ? 'Tryck nu!' : status === 'waiting' ? `Runda ${round + 1} av 5` : status === 'false' ? 'Starta om och vänta på signalen.' : lastReaction ? `${lastReaction} ms · ${score} poäng` : 'Fem snabba vändningar.'}</small><button className="reaction-button" onClick={status === 'ready' || status === 'over' || status === 'false' ? start : turn}>{status === 'ready' ? 'Starta' : status === 'over' || status === 'false' ? 'Spela igen' : 'Tryck här!'}</button></div></div><section className="game-scoreboard"><p className="eyebrow">Månadens highscore</p><h2>Vändningslistan</h2><p className="game-best">Ditt rekord: <strong>{gameData.ownBest || 0}</strong></p>{gameData.leaderboard.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}<small>Poängen visar snabb och schysst reaktion – inte simförmåga. När 10 olika simmare har spelat får deltagarna +20 grupppoäng.</small></section></div></section>
 }
 
 function Aljakten({ code, onBack, preview = false }) {
@@ -907,10 +909,12 @@ function RewardCard({ points, onCommunity }) {
 }
 
 function RewardCelebration({ rewards }) {
-  const key = `simkoll-reward-${rewards.map((item) => item.createdAt).join('-')}`
-  const [hidden, setHidden] = useState(() => window.localStorage.getItem(key) === 'hidden')
-  if (hidden) return null
-  return <section className="reward-celebration"><span>🎉</span><div><strong>{rewards[0].message}</strong><small>+{rewards.reduce((sum, item) => sum + item.points, 0)} poäng från dina senaste veckomål</small></div><button onClick={() => { window.localStorage.setItem(key, 'hidden'); setHidden(true) }}>×</button></section>
+  const storageKey = 'simkoll-rewards-seen'
+  const [seen, setSeen] = useState(() => { try { return new Set(JSON.parse(window.localStorage.getItem(storageKey) || '[]')) } catch { return new Set() } })
+  const visible = rewards.filter((item) => item.id && !seen.has(item.id))
+  if (!visible.length) return null
+  const dismiss = () => { const next = new Set(seen); visible.forEach((item) => next.add(item.id)); const trimmed = [...next].slice(-100); window.localStorage.setItem(storageKey, JSON.stringify(trimmed)); setSeen(new Set(trimmed)) }
+  return <section className="reward-celebration"><span>🎉</span><div><strong>{visible[0].message}</strong><small>+{visible.reduce((sum, item) => sum + item.points, 0)} poäng från dina senaste aktiviteter</small></div><button onClick={dismiss}>×</button></section>
 }
 
 function WorkoutCard({ workout, locked }) {

@@ -284,7 +284,7 @@ export default async function handler(request, response) {
     const profile = await getSessionProfile(request)
     if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Poäng visas bara på din egen profil.' })
     const [pointsResult, levelsResult] = await Promise.all([
-      supabaseRequest(`point_events?profile_id=eq.${profile.id}&select=points,event_type,created_at&order=created_at.desc&limit=1000`),
+      supabaseRequest(`point_events?profile_id=eq.${profile.id}&select=id,points,event_type,created_at&order=created_at.desc&limit=1000`),
       supabaseRequest('reward_levels?select=name,emoji,min_points,sort_order&order=min_points.asc'),
     ])
     if (!pointsResult.ok || !levelsResult.ok) throw new Error('Points lookup failed')
@@ -294,7 +294,7 @@ export default async function handler(request, response) {
     const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
     const next = levels.find((level) => level.min_points > total) || null
     const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥' }
-    const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
+    const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ id: event.id, message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
       total, current: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null,
       next: next ? { name: next.name, emoji: next.emoji, minPoints: next.min_points } : null,
