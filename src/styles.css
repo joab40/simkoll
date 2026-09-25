@@ -318,9 +318,12 @@ button { cursor: pointer; }
 .swimgames-board .legacy-game-fullscreen, .reaction-board .legacy-game-fullscreen { top: -54px; right: 0; box-shadow: 0 5px 13px rgba(16,45,55,.1); }
 .reaction-board .legacy-game-fullscreen { background: #fff; color: var(--teal); }
 .reaction-board:fullscreen { margin-top: 0; }
+.game-board:not(.aljakten-board) { margin-top: 54px; overflow: visible; }
+.game-board:not(.aljakten-board) > .legacy-game-fullscreen { top: -54px; right: 0; background: #fff; color: var(--teal); box-shadow: 0 5px 13px rgba(16,45,55,.1); }
+.game-board:not(.aljakten-board):fullscreen { margin-top: 0; }
 .legacy-game-immersive { position: fixed !important; inset: 0 !important; z-index: 1000 !important; width: 100vw !important; height: 100dvh !important; max-height: 100dvh !important; margin: 0 !important; border-radius: 0 !important; }
 .legacy-game-immersive canvas { width: 100%; height: 100%; object-fit: contain; }
-.legacy-game-immersive .legacy-game-fullscreen, .swimgames-board:fullscreen .legacy-game-fullscreen, .reaction-board:fullscreen .legacy-game-fullscreen { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); background: rgba(16,29,62,.88); border-color: rgba(255,255,255,.35); color: #fff; }
+.legacy-game-immersive .legacy-game-fullscreen, .swimgames-board:fullscreen .legacy-game-fullscreen, .reaction-board:fullscreen .legacy-game-fullscreen, .game-board:not(.aljakten-board):fullscreen .legacy-game-fullscreen { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); background: rgba(16,29,62,.88); border-color: rgba(255,255,255,.35); color: #fff; }
 .legacy-game-immersive:has(.swimgames-board) { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 22px; background: #0b3047; overflow: auto; }
 .legacy-game-immersive:has(.swimgames-board) > .eyebrow, .legacy-game-immersive:has(.swimgames-board) > h1, .legacy-game-immersive:has(.swimgames-board) > .game-intro { display: none; }
 .legacy-game-immersive:has(.swimgames-board) .swimgames-board, .legacy-game-active:has(.swimgames-board) .swimgames-board { width: min(100%, 760px); max-height: calc(100dvh - 110px); margin-top: 0; }
