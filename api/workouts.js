@@ -127,6 +127,11 @@ function parseSportAdminIcs(source) {
   return events.slice(0, 300)
 }
 
+const SPORTADMIN_GROUP_ALIASES = { 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }
+function normalizeSportAdminGroups(values) {
+  return (Array.isArray(values) ? values : []).map((value) => String(value).trim().toLowerCase()).map((value) => SPORTADMIN_GROUP_ALIASES[value] || value).filter((value, index, all) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(value) && all.indexOf(value) === index)
+}
+
 async function configuredSportAdminCalendars() {
   const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
   if (!result.ok) return []
@@ -142,7 +147,7 @@ async function readSportAdminCalendars(calendars) {
     try {
       const source = await fetch(calendar.url)
       if (!source.ok) continue
-      parseSportAdminIcs(await source.text()).forEach((item) => activities.push({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: calendar.groups || [] }))
+      parseSportAdminIcs(await source.text()).forEach((item) => activities.push({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: normalizeSportAdminGroups(calendar.groups) }))
     } catch (error) { console.warn('SportAdmin calendar fetch failed:', error.message) }
   }
   return activities.slice(0, 1000)
@@ -585,7 +590,7 @@ export default async function handler(request, response) {
           const url = String(item.url || '').trim()
           const match = url.match(/^https:\/\/portalweb\.sportadmin\.se\/webcal\?id=([a-zA-Z0-9-]+)$/)
           if (!match) return null
-          return { id: String(item.id || `sportadmin-${match[1]}`), name: String(item.name || `SportAdmin-kalender ${index + 1}`).slice(0, 100), url, groups: Array.isArray(item.groups) ? item.groups.filter((group, groupIndex, values) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && values.indexOf(group) === groupIndex) : [], enabled: item.enabled !== false }
+          return { id: String(item.id || `sportadmin-${match[1]}`), name: String(item.name || `SportAdmin-kalender ${index + 1}`).slice(0, 100), url, groups: normalizeSportAdminGroups(item.groups), enabled: item.enabled !== false }
         }).filter(Boolean) : []
         if (!calendars.length) return sendJson(response, 400, { error: 'Lägg till minst en giltig SportAdmin Webcal-länk.' })
         const current = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
