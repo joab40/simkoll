@@ -131,6 +131,14 @@ const SPORTADMIN_GROUP_ALIASES = { 'ungdom orange': 'ungdom_orange', 'ungdom sva
 function normalizeSportAdminGroups(values) {
   return (Array.isArray(values) ? values : []).map((value) => String(value).trim().toLowerCase()).map((value) => SPORTADMIN_GROUP_ALIASES[value] || value).filter((value, index, all) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(value) && all.indexOf(value) === index)
 }
+function inferSportAdminGroups(item, fallback) {
+  const text = `${item.title || ''} ${item.notes || ''}`.toLowerCase()
+  const inferred = []
+  if (/junior(er)?/.test(text)) inferred.push('junior')
+  if (/ungdoms?\s*svart|\bsvart\b/.test(text)) inferred.push('ungdom_svart')
+  if (/ungdoms?\s*orange|\borange\b/.test(text)) inferred.push('ungdom_orange')
+  return inferred.length ? normalizeSportAdminGroups(inferred) : normalizeSportAdminGroups(fallback)
+}
 
 async function configuredSportAdminCalendars() {
   const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
@@ -147,7 +155,7 @@ async function readSportAdminCalendars(calendars) {
     try {
       const source = await fetch(calendar.url)
       if (!source.ok) continue
-      parseSportAdminIcs(await source.text()).forEach((item) => activities.push({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: normalizeSportAdminGroups(calendar.groups) }))
+      parseSportAdminIcs(await source.text()).forEach((item) => activities.push({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: inferSportAdminGroups(item, calendar.groups) }))
     } catch (error) { console.warn('SportAdmin calendar fetch failed:', error.message) }
   }
   return activities.slice(0, 1000)
