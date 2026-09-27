@@ -1671,3 +1671,21 @@ button { cursor: pointer; }
 .sportadmin-import > small { color: var(--muted); font-size: 11px; }
 .sportadmin-import > div { max-height: 260px; overflow: auto; padding-top: 4px; }
 .sportadmin-import p { margin: 6px 0 0; font-size: 12px; color: var(--ink); }
+.today-workout-summary { display: grid; gap: 14px; margin-bottom: 18px; }
+.today-workout-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.today-workout-summary-head h2 { margin: 0; }
+.today-workout-summary-head > span { color: var(--muted); font-size: 12px; }
+.today-workout-summary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.today-workout-summary-item { position: relative; display: grid; gap: 4px; padding: 13px 42px 13px 14px; border: 1px solid #dbe8e5; border-radius: 14px; background: #f8fcfa; color: var(--ink); text-align: left; cursor: pointer; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.today-workout-summary-item:hover, .today-workout-summary-item:focus-visible { border-color: var(--teal); box-shadow: 0 5px 16px rgba(36, 108, 104, .12); transform: translateY(-1px); outline: none; }
+.today-workout-summary-item strong { font-size: 15px; }
+.today-workout-summary-item small { color: var(--muted); }
+.today-workout-summary-item > b { position: absolute; right: 15px; top: 50%; color: var(--teal); font-size: 20px; transform: translateY(-50%); }
+.today-workout-focus { width: fit-content; padding: 3px 8px; border-radius: 999px; background: #dff1ea; color: #2d7168; font-size: 11px; font-weight: 800; }
+.workout-preview-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(15, 38, 39, .48); }
+.workout-preview-modal { position: relative; width: min(720px, 100%); max-height: min(82vh, 760px); overflow: auto; padding: 24px; border: 1px solid #d5e7e1; border-radius: 20px; background: var(--paper); box-shadow: 0 24px 70px rgba(15, 38, 39, .28); }
+.workout-preview-modal h2 { margin: 0 0 12px; }
+.workout-preview-close { position: absolute; top: 10px; right: 12px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #e8f2ef; color: var(--ink); font-size: 24px; line-height: 1; cursor: pointer; }
+.workout-preview-modal aside { margin-top: 16px; padding: 12px; border-radius: 12px; background: #f1f7f5; color: var(--muted); white-space: pre-line; }
+.workout-preview-modal aside strong { display: block; margin-bottom: 4px; color: var(--ink); }
+@media (max-width: 600px) { .today-workout-summary-list { grid-template-columns: 1fr; } .today-workout-summary-head { align-items: flex-start; flex-direction: column; } .workout-preview-backdrop { align-items: end; padding: 10px; } .workout-preview-modal { max-height: 88vh; padding: 20px 16px; border-radius: 18px; } }

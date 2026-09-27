@@ -1437,6 +1437,7 @@ function CoachGameLibrary({ code }) {
 function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const [summaryDate, setSummaryDate] = useState(todayKey())
+  const [summaryWorkouts, setSummaryWorkouts] = useState([])
   const [selectedGroups, setSelectedGroups] = useState(['ungdom_orange', 'ungdom_svart', 'junior'])
   const [availableGroups, setAvailableGroups] = useState([['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']])
   const [competitionResults, setCompetitionResults] = useState([])
@@ -1496,6 +1497,10 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const openViewFromMenu = (nextView) => { setView(nextView); if (nextView === 'competition') loadCompetitionResults(); const menu = document.querySelector('.coach-header-menu'); if (menu) menu.open = false }
   const shiftSummaryDate = (days) => { const next = new Date(`${summaryDate}T12:00:00`); next.setDate(next.getDate() + days); setSummaryDate(dateKey(next)) }
   const summaryDateLabel = new Date(`${summaryDate}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  useEffect(() => {
+    if (!code || view !== 'today') return
+    apiRequest(`/api/workouts?date=${summaryDate}`, code).then((data) => setSummaryWorkouts(data.workouts || (data.workout ? [data.workout] : []))).catch(() => setSummaryWorkouts([]))
+  }, [code, summaryDate, view])
 
   return (
     <main className="coach-shell">
@@ -1521,6 +1526,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
           </div></details>
         </nav>
         {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
+        {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} />}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'logs' ? (
@@ -1605,6 +1611,17 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const presentCount = visible.filter((profile) => attendance[profile.id]).length
   const toggle = async (profile) => { const next = !attendance[profile.id]; setAttendance((current) => ({ ...current, [profile.id]: next })); setLoading(true); try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId: profile.id, date, slot, present: next }) }) } catch (error) { setAttendance((current) => ({ ...current, [profile.id]: !next })); window.alert(error.message) } finally { setLoading(false) } }
   return <section className="attendance-panel"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under simpass'}<span>{presentCount}/{visible.length} närvarande</span></button>{open && <div className="attendance-body"><div className="library-controls"><label>Simpass<select value={slot} onChange={(event) => setSlot(event.target.value)}><option value="morning_swim">Morgonpass</option><option value="afternoon_swim">Eftermiddag / kväll</option></select></label><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label></div><div className="attendance-list">{visible.map((profile) => { const item = responses.find((response) => response.profileId === profile.id); const raceBefore = item?.type === 'before' && item.speedFeeling != null; const raceAfter = item?.type === 'after' && item.speedFeeling != null; return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={loading} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{raceAfter ? '🏅 Har tävlat' : raceBefore ? '🏁 Ska tävla' : item?.type === 'after' ? '✓ Har checkat in' : item?.type === 'before' ? '→ Ska träna' : 'Ej checkat in'}</small><b>{attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}</section>
+}
+
+function TodayWorkoutSummary({ workouts = [], selectedGroups = [] }) {
+  const [selected, setSelected] = useState(null)
+  const visible = workouts.filter((workout) => !workout.targetGroups?.length || selectedGroups.length === 0 || workout.targetGroups.some((group) => selectedGroups.includes(group)))
+  const focusLabel = (workout) => WORKOUT_FOCUSES.find(([value]) => value === workout.focus)?.[1] || workout.focus || 'Träningspass'
+  return <section className="today-workout-summary coach-card">
+    <div className="today-workout-summary-head"><div><p className="eyebrow">Dagens träning</p><h2>Pass och inriktning</h2></div><span>Tryck för att öppna</span></div>
+    {visible.length ? <div className="today-workout-summary-list">{visible.map((workout) => <button type="button" className="today-workout-summary-item" key={workout.id} onClick={() => setSelected(workout)}><span className="today-workout-focus">{focusLabel(workout)}</span><strong>{workout.title || 'Träningspass'}</strong><small>{[workout.distanceMeters ? `${Number(workout.distanceMeters).toLocaleString('sv-SE')} m` : '', workout.durationMinutes ? `${workout.durationMinutes} min` : '', workout.timeOfDay === 'morning' ? 'Förmiddag' : workout.timeOfDay === 'afternoon' ? 'Eftermiddag' : ''].filter(Boolean).join(' · ') || 'Öppna passet'}</small><b>→</b></button>)}</div> : <p className="empty">Inget upplagt pass för den här dagen.</p>}
+    {selected && <div className="workout-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><section className="workout-preview-modal" role="dialog" aria-modal="true" aria-labelledby="today-workout-title"><button type="button" className="workout-preview-close" onClick={() => setSelected(null)} aria-label="Stäng">×</button><p className="eyebrow">{focusLabel(selected)}</p><h2 id="today-workout-title">{selected.title || 'Träningspass'}</h2><WorkoutMeta workout={selected} /><WorkoutContent content={selected.content} />{selected.note && <aside><strong>Kommentar från tränaren</strong>{selected.note}</aside>}</section></div>}
+  </section>
 }
 
 function WeeklyMeeting({ code, profiles = [] }) {
