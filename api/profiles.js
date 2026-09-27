@@ -258,7 +258,7 @@ export default async function handler(request, response) {
         return sendJson(response, 401, genericError)
       }
       await updateProfile(profile.id, { failed_attempts: 0, locked_until: null })
-      if (profile.approval_status === 'pending') return sendJson(response, 403, { error: 'Din profil väntar på godkännande från en tränare.' })
+      if (profile.approval_status === 'pending') return sendJson(response, 403, { error: 'Din profil väntar på medgivande från en vårdnadshavare. Se informationsmailet.' })
       if (profile.approval_status === 'rejected') return sendJson(response, 403, { error: 'Profilen har inte godkänts. Prata med en tränare.' })
       await createSession(response, profile.id)
       await touchProfileActivity(profile.id)
@@ -444,6 +444,15 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error(`Profile approval failed: ${result.status} ${await result.text()}`)
       if (!(await result.json()).length) return sendJson(response, 409, { error: 'Profilen är redan granskad.' })
       return sendJson(response, 200, { ok: true })
+    }
+
+    if (action === 'set-profile-access') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra simmarens åtkomst.' })
+      const profileId = String(request.body.profileId || '')
+      if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
+      const approvalStatus = request.body.approved === true ? 'approved' : 'pending'
+      const updated = await updateProfile(profileId, { approval_status: approvalStatus })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 
     if (action === 'create-reset') {

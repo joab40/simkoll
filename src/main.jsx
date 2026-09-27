@@ -161,7 +161,7 @@ function App() {
       setScreen('home')
     } catch {
       setProfile(null)
-      setScreen('account')
+      setScreen('profile-login')
     }
   }} />
 
@@ -202,7 +202,6 @@ function App() {
       {screen === 'competition-entries' && <SwimmerCompetitionEntries code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
       {screen === 'account' && <AccountChoice
-        onAnonymous={() => { setProfile(null); setScreen('home') }}
         onLogin={() => setScreen('profile-login')}
         onCreate={() => setScreen('profile-create')}
       />}
@@ -334,7 +333,7 @@ function Login({ onLogin }) {
         <div className="login-copy">
           <p className="eyebrow">Välkommen</p>
           <h1>Hur känns<br />träningen idag?</h1>
-          <p>Snabb och anonym feedback som gör nästa pass ännu bättre.</p>
+          <p>Logga in med din profil för att checka in och följa din utveckling.</p>
         </div>
         <form onSubmit={submit} className="code-form">
           <label htmlFor="code">Gruppkod</label>
@@ -356,7 +355,7 @@ function Login({ onLogin }) {
           </div>
           {error && <span className="error-text">{error}</span>}
         </form>
-        <p className="privacy-note"><span>●</span> Dina svar är anonyma</p>
+        <p className="privacy-note"><span>●</span> Din profil och dina svar skyddas av klubbens rutiner</p>
       </section>
     </main>
   )
@@ -945,15 +944,14 @@ function WorkoutMeta({ workout }) {
   return <div className="workout-meta"><span>{focus || 'Pass'}</span>{workout.distanceMeters && <span>{Number(workout.distanceMeters).toLocaleString('sv-SE')} m</span>}{workout.durationMinutes && <span>{workout.durationMinutes} min</span>}{workout.targetGroups?.length && <span>{workout.targetGroups.map((group) => groupLabels[group] || group).join(' · ')}</span>}</div>
 }
 
-function AccountChoice({ onAnonymous, onLogin, onCreate }) {
+function AccountChoice({ onLogin, onCreate }) {
   return (
     <div className="account-page">
       <section className="account-intro">
-        <p className="eyebrow">Välj hur du vill fortsätta</p>
-        <h1>Vem checkar in?</h1>
-        <p>Du kan alltid svara anonymt – även om du har en profil.</p>
+        <p className="eyebrow">Profilåtkomst</p>
+        <h1>Välkommen tillbaka</h1>
+        <p>Logga in med din profil eller skapa en ny profil för godkännande.</p>
         <div className="account-options">
-          <button className="account-option anonymous" onClick={onAnonymous}><span>🥷</span><div><strong>Svara anonymt</strong><small>Snabbt, utan profil</small></div><b>→</b></button>
           <button className="account-option" onClick={onLogin}><span>👋</span><div><strong>Logga in</strong><small>Fortsätt med din profil</small></div><b>→</b></button>
           <button className="account-option" onClick={onCreate}><span>✨</span><div><strong>Skapa profil</strong><small>Välj namn och gubbe</small></div><b>→</b></button>
         </div>
@@ -990,7 +988,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
   }
 
   const title = mode === 'create' ? 'Skapa din profil' : mode === 'reset' ? 'Välj en ny PIN' : 'Välkommen tillbaka'
-  if (pending) return <div className="profile-access-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><section className="profile-form pending-profile-message"><span>⏳</span><p className="eyebrow">Profilen är skapad</p><h1>Väntar på tränaren</h1><p>En tränare behöver godkänna profilen innan du kan logga in. Din PIN är redan säkert sparad.</p><button className="primary-button" onClick={onBack}>Klart</button></section></div>
+  if (pending) return <div className="profile-access-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><section className="profile-form pending-profile-message"><span>⏳</span><p className="eyebrow">Profilen är skapad</p><h1>Inväntar medgivande</h1><p>Vi inväntar medgivande från din vårdnadshavare. Se informationsmailet. Tränaren aktiverar sedan din åtkomst.</p><button className="primary-button" onClick={onBack}>Klart</button></section></div>
   return (
     <div className="profile-access-page">
       <button className="back-button" onClick={onBack}>← Tillbaka</button>
@@ -1005,7 +1003,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
         <label>{mode === 'reset' ? 'Ny fyrsiffrig PIN' : 'Fyrsiffrig PIN'}<input required inputMode="numeric" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength="4" placeholder="••••" value={(mode === 'reset' ? form.newPin : form.pin) || ''} onChange={(event) => update(mode === 'reset' ? 'newPin' : 'pin', event.target.value.replace(/\D/g, ''))} /></label>
         {error && <span className="form-error">{error}</span>}
         <button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : mode === 'create' ? 'Skapa profil →' : mode === 'reset' ? 'Spara ny PIN →' : 'Logga in →'}</button>
-        {mode === 'login' && <button type="button" className="form-link" onClick={() => onMode('reset')}>Glömt din PIN?</button>}
+        {mode === 'login' && <><button type="button" className="form-link" onClick={() => onMode('reset')}>Glömt din PIN?</button><button type="button" className="form-link" onClick={() => onMode('create')}>Skapa ny profil</button></>}
       </form>
     </div>
   )
@@ -2481,6 +2479,14 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       await onProfilesChange()
     } catch (error) { window.alert(error.message) }
   }
+  const toggleProfileAccess = async (profile) => {
+    const approved = profile.approvalStatus === 'approved'
+    if (approved && !window.confirm(`Stäng av åtkomsten för ${profile.displayName}? Simmaren kan då inte logga in förrän åtkomsten aktiveras igen.`)) return
+    try {
+      await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-profile-access', profileId: profile.id, approved: !approved }) })
+      await onProfilesChange()
+    } catch (error) { window.alert(error.message) }
+  }
   const removeProfile = async (profile) => {
     if (!confirmDestructive(`Profilen “${profile.displayName}” och all kopplad historik tas bort permanent. Detta går inte att ångra.`, 'RADERA PROFIL')) return
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
@@ -2593,7 +2599,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Artefakter för {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); const busy = artifactStatus[key] === 'Sparar…' || artifactStatus[key] === 'Återkallar…'; return <button type="button" key={artifact.id} disabled={busy} className={assigned ? 'assigned' : ''} onClick={() => assigned ? revokeArtifact(profile, artifact) : grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{assigned ? 'Återkalla' : `Ge ${artifact.name}`}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
             <details className="profile-tools ai-profile-tools"><summary>✨ Personlig AI-analys</summary><div><small>{profile.aiAnalysisStatus === 'approved' ? 'Aktiverad – simmaren kan läsa sparade analyser.' : profile.aiAnalysisStatus === 'pending' ? 'Väntar på vårdnadshavares godkännande.' : profile.aiAnalysisStatus === 'revoked' ? 'Återkallad.' : 'Inte aktiverad.'}</small>{profile.aiAnalysisStatus !== 'approved' && <button onClick={async () => { try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-ai-analysis-status', profileId: profile.id, status: 'pending' }) }); await onProfilesChange() } catch (error) { window.alert(error.message) } }}>Be om godkännande</button>}{profile.aiAnalysisStatus === 'pending' && <button onClick={async () => { if (!window.confirm('Har vårdnadshavaren godkänt personlig AI-analys enligt klubbens rutin?')) return; try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-ai-analysis-status', profileId: profile.id, status: 'approved' }) }); await onProfilesChange() } catch (error) { window.alert(error.message) } }}>Registrera godkännande</button>}{profile.aiAnalysisStatus === 'approved' && <button onClick={async () => { try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-ai-analysis-status', profileId: profile.id, status: 'revoked' }) }); await onProfilesChange() } catch (error) { window.alert(error.message) } }}>Stäng av</button>}</div></details>
             <div className="swimmer-actions"><button className="view-stats" onClick={() => setSelectedProfile(profile)}>Visa statistik</button></div>
-            <details className="profile-tools"><summary>⚙️ Profilverktyg</summary><div><button onClick={() => createReset(profile)}>Återställ PIN</button><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button></div></details>
+            <details className="profile-tools"><summary>⚙️ Profilverktyg</summary><div><button onClick={() => toggleProfileAccess(profile)}>{profile.approvalStatus === 'approved' ? 'Stäng av simmaråtkomst' : 'Aktivera simmaråtkomst'}</button><small className="profile-access-status">{profile.approvalStatus === 'approved' ? 'Åtkomst aktiv · medgivande registrerat' : 'Åtkomst avstängd · inväntar medgivande'}</small><button onClick={() => createReset(profile)}>Återställ PIN</button><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button></div></details>
           </div>}
         </article>
       })}</div> : <EmptyPeriod title={profiles.length ? 'Ingen simmare matchar sökningen' : 'Inga profiler ännu'} periodLabel="Simmare" />}
