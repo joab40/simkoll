@@ -522,6 +522,13 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Training plan save failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
       }
+      if (request.body?.action === 'detach-plan') {
+        const id = String(request.body.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Planeringsaktivitet saknas.' })
+        const result = await supabaseRequest(`training_plans?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ source_workout_id: null, sync_status: 'manual', synced_at: null, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Training plan detach failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
+      }
       if (request.body?.action === 'import-sheet') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const sheetUrl = String(request.body.url || '')
@@ -592,8 +599,9 @@ export default async function handler(request, response) {
       }
       if (request.query?.planning === 'true') {
         const id = String(request.query?.id || '')
-        if (!id) return sendJson(response, 400, { error: 'Planeringsaktivitet saknas.' })
-        const result = await supabaseRequest(`training_plans?id=eq.${id}`, { method: 'DELETE' })
+        const date = String(request.query?.date || '')
+        if (!id && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Välj en planeringsaktivitet eller dag.' })
+        const result = await supabaseRequest(id ? `training_plans?id=eq.${encodeURIComponent(id)}` : `training_plans?plan_date=eq.${encodeURIComponent(date)}`, { method: 'DELETE' })
         if (!result.ok) throw new Error(`Training plan DELETE failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { ok: true })
       }

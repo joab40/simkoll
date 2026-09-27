@@ -1475,6 +1475,9 @@ button { cursor: pointer; }
 .planning-day > header strong { text-transform: capitalize; }
 .planning-day > header small { color: var(--muted); }
 .planning-workout { margin-top: 10px; }
+.planning-day-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.planning-delete-button, .planning-detach-button { color: #b42318; font-size: 12px; }
+.planning-detach-button { margin-top: 8px; }
 .planning-workout h2 { margin: 0 0 8px; font-size: 17px; }
 .planning-activity-title { display: flex; align-items: center; gap: 8px; }
 .planning-activity-title h2 { margin-bottom: 0; }
