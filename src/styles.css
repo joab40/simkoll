@@ -1480,6 +1480,7 @@ button { cursor: pointer; }
 .planning-delete-button, .planning-detach-button { color: #b42318; font-size: 12px; }
 .planning-detach-button { margin-top: 8px; }
 .sportadmin-planning-meta { display: block; margin-top: 8px; color: var(--muted); }
+.planning-group-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .sportadmin-calendar-form { display: grid; gap: 12px; }
 .sportadmin-calendar-list { display: grid; gap: 8px; margin-top: 14px; }
 .sportadmin-calendar-list article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; }
