@@ -1868,11 +1868,16 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     const date = new Date(monday)
     date.setDate(monday.getDate() + index)
     const key = dateKey(date)
-    const matchesGroup = (item) => !topGroupFilter || (Array.isArray(item.targetGroups) && item.targetGroups.some((value) => topGroupFilter.includes(planningGroupKey(value))))
+    const matchesGroup = (item) => {
+      if (!topGroupFilter) return true
+      const itemGroups = [...new Set((Array.isArray(item.targetGroups) ? item.targetGroups : []).map(planningGroupKey).filter(Boolean))].sort()
+      const selected = [...new Set(topGroupFilter.map(planningGroupKey).filter(Boolean))].sort()
+      return itemGroups.length === selected.length && selected.every((value, position) => value === itemGroups[position])
+    }
     const planned = plans.filter((item) => item.date === key && matchesGroup(item)).map((item) => ({ ...item, linkedWorkout: workouts.find((workout) => workout.id === item.sourceWorkoutId) || null }))
     const linkedIds = new Set(planned.map((item) => item.sourceWorkoutId).filter(Boolean))
     const published = workouts.filter((workout) => workout.date === key && !linkedIds.has(workout.id) && matchesGroup(workout)).map((workout) => ({ id: `workout-${workout.id}`, date: key, activityType: 'swim', title: workout.title, focus: workout.focus, distanceMeters: workout.distanceMeters, durationMinutes: workout.durationMinutes, targetGroups: workout.targetGroups, sourceWorkoutId: workout.id, linkedWorkout: workout, syncStatus: 'linked' }))
-    const imported = sportAdminActivities.filter((activity) => activity.date === key && (!topGroupFilter || !activity.targetGroups?.length || activity.targetGroups.some((value) => topGroupFilter.includes(planningGroupKey(value))))).map((activity) => ({ id: `sportadmin-${activity.id}`, date: key, activityType: 'sportadmin', title: activity.title, time: activity.time, location: activity.location, notes: activity.notes, targetGroups: activity.targetGroups || [], source: 'SportAdmin' }))
+    const imported = sportAdminActivities.filter((activity) => activity.date === key && matchesGroup(activity)).map((activity) => ({ id: `sportadmin-${activity.id}`, date: key, activityType: 'sportadmin', title: activity.title, time: activity.time, location: activity.location, notes: activity.notes, targetGroups: activity.targetGroups || [], source: 'SportAdmin' }))
     const activities = [...planned, ...published, ...imported]
     return { date, key, activities }
   }), [group, monday, plans, workouts, sportAdminActivities, topGroupFilter])
