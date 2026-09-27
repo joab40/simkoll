@@ -34,7 +34,7 @@ export default async function handler(request, response) {
     const profile = await getSessionProfile(request)
     if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att se nya händelser.' })
     const since = sinceDate()
-    const [profiles, postsResult, groupResult, kudosResult, goalsResult, artifactsResult, messagesResult] = await Promise.all([
+    const [profiles, postsResult, groupResult, kudosResult, goalsResult, artifactsResult, messagesResult, personalBestResult] = await Promise.all([
       profilesById(),
       supabaseRequest(`community_posts?deleted_at=is.null&created_at=gte.${encodeURIComponent(since)}&select=id,content,created_at&order=created_at.desc&limit=30`),
       supabaseRequest(`group_pep?created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=30`),
@@ -42,8 +42,9 @@ export default async function handler(request, response) {
       supabaseRequest(`development_goals?profile_id=eq.${profile.id}&updated_at=gte.${encodeURIComponent(since)}&select=id,title,updated_at&order=updated_at.desc&limit=30`),
       supabaseRequest(`profile_artifacts?profile_id=eq.${profile.id}&created_at=gte.${encodeURIComponent(since)}&select=id,created_at,artifact_catalog(name,emoji,description)&order=created_at.desc&limit=30`),
       supabaseRequest(`private_messages?recipient_profile_id=eq.${profile.id}&recipient_role=eq.swimmer&created_at=gte.${encodeURIComponent(since)}&select=id,content,created_at&order=created_at.desc&limit=30`),
+      supabaseRequest(`point_events?profile_id=eq.${profile.id}&event_type=eq.personal_best&source_key=like.pb_competition:*&created_at=gte.${encodeURIComponent(since)}&select=id,source_key,points,created_at&order=created_at.desc&limit=30`),
     ])
-    if (![postsResult, groupResult, kudosResult, goalsResult, artifactsResult, messagesResult].every((result) => result.ok)) throw new Error('Notification lookup failed')
+    if (![postsResult, groupResult, kudosResult, goalsResult, artifactsResult, messagesResult, personalBestResult].every((result) => result.ok)) throw new Error('Notification lookup failed')
     const goals = await goalsResult.json()
     const updatesResult = goals.length
       ? await supabaseRequest(`goal_updates?goal_id=in.(${goals.map((item) => item.id).join(',')})&author_role=eq.coach&created_at=gte.${encodeURIComponent(since)}&select=id,goal_id,content,created_at&order=created_at.desc&limit=30`)
@@ -67,6 +68,13 @@ export default async function handler(request, response) {
     for (const item of await updatesResult.json()) notifications.push({ id: `goal-update-${item.id}`, type: 'goal', icon: '🎯', title: 'Tränaren har skickat feedback', text: `${goalTitles[item.goal_id] || 'Ditt mål'} · ${item.content}`, createdAt: item.created_at })
     for (const item of await artifactsResult.json()) if (item.artifact_catalog) notifications.push({ id: `artifact-${item.id}`, type: 'artifact', icon: item.artifact_catalog.emoji, title: 'Du har fått en ny artefakt!', text: `${item.artifact_catalog.name} · ${item.artifact_catalog.description}`, createdAt: item.created_at })
     for (const item of await messagesResult.json()) notifications.push({ id: `message-${item.id}`, type: 'message', icon: '✉️', title: 'Du har fått ett privat meddelande från tränarna', text: item.content, createdAt: item.created_at })
+    for (const item of await personalBestResult.json()) {
+      const source = String(item.source_key || '').replace(/^pb_competition:/, '')
+      const separator = source.indexOf(':')
+      const date = separator >= 0 ? source.slice(0, separator) : ''
+      const competition = separator >= 0 ? source.slice(separator + 1) : 'Tävlingen'
+      notifications.push({ id: `personal-best-${item.id}`, type: 'points', icon: '🏅', title: 'Grattis till personbästa!', text: `${competition}${date ? ` · ${date}` : ''} · Du fick ${item.points || 3} poäng.`, createdAt: item.created_at })
+    }
     notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     return sendJson(response, 200, { notifications: notifications.slice(0, 20) })
   } catch (error) {

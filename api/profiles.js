@@ -10,7 +10,7 @@ import {
 async function runTempusCron() {
   const profilesResult = await supabaseRequest('profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id')
   if (!profilesResult.ok) throw new Error('Tempus profiles lookup failed')
-  let synced = 0; let personalBests = 0
+  let synced = 0; let personalBests = 0; let gratifications = 0
   for (const profile of await profilesResult.json()) {
     const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&select=event,pool,result_time&order=result_time.asc&limit=10000`)
     if (!existingResult.ok) continue
@@ -26,13 +26,19 @@ async function runTempusCron() {
     const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) })
     if (!upsert.ok) continue
     synced += rows.length
-    for (const row of improved) { await awardPoints(profile.id, 'personal_best', 3, `${row.event}|${row.pool || ''}|${row.result_date}|${row.swim_time}`); personalBests += 1 }
+    if (improved.length) { gratifications += await awardCompetitionBest(profile.id, improved); personalBests += improved.length }
   }
-  return { synced, personalBests }
+  return { synced, personalBests, gratifications }
 }
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
 const publicCoachNote = (item) => ({ id: item.id, profileId: item.profile_id, noteDate: item.note_date, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at })
+const awardCompetitionBest = async (profileId, rows) => {
+  const competitions = new Map()
+  rows.forEach((row) => competitions.set(`${row.result_date}|${row.competition_name || 'tävling'}`, { date: row.result_date, name: row.competition_name || 'tävling' }))
+  for (const item of competitions.values()) await awardPoints(profileId, 'personal_best', 3, `pb_competition:${item.date}:${item.name}`)
+  return competitions.size
+}
 
 async function polishSwimmerNote(request, content, noteDate) {
   const key = process.env.OPENAI_API_KEY
@@ -417,7 +423,7 @@ export default async function handler(request, response) {
           const best = new Map()
           if (existingResult.ok) (await existingResult.json()).forEach((item) => { if (Number.isFinite(item.result_time)) { const key = `${item.event}|${item.pool || ''}`; best.set(key, Math.min(best.get(key) ?? Infinity, item.result_time)) } })
           const improved = rows.filter((row) => { const previous = best.get(`${row.event}|${row.pool || ''}`); return Number.isFinite(row.result_time) && previous != null && row.result_time < previous })
-          const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) { synced += rows.length; for (const row of improved) await awardPoints(profile.id, 'personal_best', 3, `${row.event}|${row.pool || ''}|${row.result_date}|${row.swim_time}`) } else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`)
+          const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) { synced += rows.length; if (improved.length) await awardCompetitionBest(profile.id, improved) } else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`)
         }
       }
       return sendJson(response, 200, { synced, attempted, failures })
