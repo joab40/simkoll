@@ -1590,6 +1590,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const [attendance, setAttendance] = useState({})
   const [loading, setLoading] = useState(false)
   const [sortPresent, setSortPresent] = useState(false)
+  const [group, setGroup] = useState('all')
   const date = selectedDate || todayKey()
   const [slot, setSlot] = useState(new Date().getHours() < 13 ? 'morning_swim' : 'afternoon_swim')
   useEffect(() => { apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [code, date, slot])
