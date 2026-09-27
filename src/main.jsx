@@ -1476,7 +1476,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
   const groupOptions = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']]
   const allGroupsSelected = selectedGroups.length === groupOptions.length
-  const groupFilteredProfiles = allGroupsSelected ? profiles : profiles.filter((profile) => selectedGroups.includes(profile.trainingGroup))
+  const profileGroupKey = (profile) => { const value = String(profile.trainingGroup || '').trim().toLowerCase(); return ({ 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }[value] || value) }
+  const groupFilteredProfiles = allGroupsSelected ? profiles : profiles.filter((profile) => selectedGroups.includes(profileGroupKey(profile)))
   const groupFilteredIds = new Set(groupFilteredProfiles.map((profile) => profile.id))
   const groupFilteredResponses = responses.filter((response) => !response.profileId ? allGroupsSelected : groupFilteredIds.has(response.profileId))
   const previousWeek = previousWeekRange()
