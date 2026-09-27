@@ -1832,6 +1832,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
   const [sportAdminLoading, setSportAdminLoading] = useState(false)
   const [sportAdminError, setSportAdminError] = useState('')
   const group = selectedGroups.length === 3 ? 'all' : selectedGroups
+  const setGroup = () => {}
   const topGroupFilter = selectedGroups.length === 3 ? null : selectedGroups
   const importSportAdmin = async () => { setSportAdminLoading(true); setSportAdminError(''); try { setSportAdmin(await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sportadmin-calendar' }) })) } catch (error) { setSportAdminError(error.message || 'Kunde inte läsa SportAdmin-kalendern.') } finally { setSportAdminLoading(false) } }
 
