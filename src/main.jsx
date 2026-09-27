@@ -1551,7 +1551,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'competition-entries' ? (
           <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} initialCompetitionId={submissionCompetitionId} /></CompetitionSubmissionBoundary>
         ) : view === 'settings' ? (
-          <><WebappSettings code={code} /><SportAdminCalendarSettings code={code} /></>
+          <><SportAdminCalendarSettings code={code} /><WebappSettings code={code} /></>
         ) : view === 'groups' ? (
           <CoachGroups code={code} profiles={groupFilteredProfiles} onProfilesChange={onProfilesChange} />
         ) : view === 'app-feedback' ? (
