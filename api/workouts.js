@@ -356,7 +356,10 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
         const plans = await backfillPlanningFromWorkouts(await result.json())
         const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
-        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan) })
+        const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000')
+        const workouts = workoutsResult.ok ? (await workoutsResult.json()).map(publicWorkout) : []
+        const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
+        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts })
       }
       if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
