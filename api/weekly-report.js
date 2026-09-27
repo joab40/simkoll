@@ -5,6 +5,28 @@ const average = (items, key) => {
   return values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)) : null
 }
 
+const findPersonalBests = (rows, startDay, endDay) => {
+  const groups = new Map()
+  rows.forEach((row) => {
+    if (!row.result_date || row.result_time == null) return
+    const key = `${row.profile_id}|${row.event}|${row.pool || ''}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(row)
+  })
+  const bests = []
+  groups.forEach((items) => {
+    let best = null
+    items.sort((a, b) => String(a.result_date).localeCompare(String(b.result_date)) || Number(a.result_time) - Number(b.result_time)).forEach((item) => {
+      const time = Number(item.result_time)
+      if (best == null || time < best) {
+        if (item.result_date >= startDay && item.result_date < endDay) bests.push(item)
+        best = time
+      }
+    })
+  })
+  return bests
+}
+
 export default async function handler(request, response) {
   if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
   if (getRole(String(request.headers['x-simkoll-code'] || '')) !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se veckorapporten.' })
@@ -24,7 +46,7 @@ export default async function handler(request, response) {
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,session_date,session_slot&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`program_goals?select=id,reward_points,program_assignments(profile_id)&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
       supabaseRequest(`goal_updates?select=id,points,feedback_type,development_goals(profile_id)${range}&author_role=eq.coach&limit=1000`),
-      supabaseRequest(`point_events?event_type=eq.personal_best&select=profile_id,points,source_key,created_at${range}&limit=1000`),
+      supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&result_date=lt.${endDay}&limit=10000`),
       supabaseRequest(`training_plans?select=plan_date,activity_type,distance_meters&plan_date=gte.${startDay}&plan_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`daily_workouts?select=workout_date,distance_meters&workout_date=gte.${startDay}&workout_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`season_swim_goals?select=profile_id,target_sessions_per_week,start_date,end_date,active&start_date=lte.${endDay}&end_date=gte.${startDay}&limit=5000`),
@@ -45,7 +67,8 @@ export default async function handler(request, response) {
     sessions = sessions.filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
     const programGoals = (await programGoalsResult.json()).filter((item) => inSelectedGroups(item.program_assignments?.profile_id))
     const goalUpdates = (await goalUpdatesResult.json()).filter((item) => inSelectedGroups(item.development_goals?.profile_id))
-    const personalBests = (await personalBestResult.json()).filter((item) => inSelectedGroups(item.profile_id))
+    const personalBestRows = (await personalBestResult.json()).filter((item) => inSelectedGroups(item.profile_id))
+    const personalBests = findPersonalBests(personalBestRows, startDay, endDay)
     const plans = await plansResult.json()
     const workouts = await workoutsResult.json()
     const swimGoals = (await swimGoalsResult.json()).filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
