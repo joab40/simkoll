@@ -1833,7 +1833,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
   const [sportAdmin, setSportAdmin] = useState({ activities: [], fetchedAt: null })
   const [sportAdminLoading, setSportAdminLoading] = useState(false)
   const [sportAdminError, setSportAdminError] = useState('')
-  const group = 'all'
+  const group = selectedGroups
   const setGroup = () => {}
   const topGroupFilter = selectedGroups.length === 3 ? null : selectedGroups
   const planningGroupKey = (value) => ({ 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }[String(value || '').trim().toLowerCase()] || String(value || '').trim().toLowerCase())
