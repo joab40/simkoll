@@ -75,7 +75,9 @@ export default async function handler(request, response) {
     if (request.method === 'POST' && role === 'coach') {
       const action = request.body?.action
       if (action === 'save-settings' || action === 'reset-settings') {
-        const value = action === 'reset-settings' ? { swimmer: {}, coach: {} } : (request.body.settings || { swimmer: {}, coach: {} })
+        const current = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+        const existing = current.ok ? ((await current.json())[0]?.setting_value || {}) : {}
+        const value = action === 'reset-settings' ? { swimmer: {}, coach: {}, sportAdminCalendars: existing.sportAdminCalendars || [] } : { ...existing, ...(request.body.settings || { swimmer: {}, coach: {} }) }
         const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: value, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Webapp settings save failed: ${result.status}`)
         return sendJson(response, 200, { settings: value })

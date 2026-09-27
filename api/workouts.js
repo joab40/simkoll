@@ -127,6 +127,27 @@ function parseSportAdminIcs(source) {
   return events.slice(0, 300)
 }
 
+async function configuredSportAdminCalendars() {
+  const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+  if (!result.ok) return []
+  const value = (await result.json())[0]?.setting_value || {}
+  return Array.isArray(value.sportAdminCalendars) ? value.sportAdminCalendars : []
+}
+
+async function readSportAdminCalendars(calendars) {
+  const safe = Array.isArray(calendars) ? calendars : []
+  const activities = []
+  for (const calendar of safe) {
+    if (calendar.enabled === false || !calendar.url) continue
+    try {
+      const source = await fetch(calendar.url)
+      if (!source.ok) continue
+      parseSportAdminIcs(await source.text()).forEach((item) => activities.push({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: calendar.groups || [] }))
+    } catch (error) { console.warn('SportAdmin calendar fetch failed:', error.message) }
+  }
+  return activities.slice(0, 1000)
+}
+
 async function syncPlanningFromWorkout(workout) {
   const date = workout.workout_date
   const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&order=updated_at.asc&limit=100`)
@@ -367,7 +388,8 @@ export default async function handler(request, response) {
         const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000')
         const workouts = workoutsResult.ok ? (await workoutsResult.json()).map(publicWorkout) : []
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
-        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts })
+        const sportAdminActivities = role === 'coach' ? await readSportAdminCalendars(await configuredSportAdminCalendars()) : []
+        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities })
       }
       if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
@@ -558,10 +580,20 @@ export default async function handler(request, response) {
         if (!insert.ok) throw new Error(`Competition events insert failed: ${insert.status} ${await insert.text()}`)
         return sendJson(response, 200, { events: (await insert.json()).map(mapCompetitionEvent) })
       }
-      if (request.body?.action === 'import-sportadmin-calendar') {
-        const source = await fetch('https://portalweb.sportadmin.se/webcal?id=745c5643-5d4c-43c2-a7f3-a92e2846c145')
-        if (!source.ok) return sendJson(response, 502, { error: `SportAdmin-kalendern svarade med ${source.status}.` })
-        return sendJson(response, 200, { activities: parseSportAdminIcs(await source.text()), source: 'SportAdmin Webcal', fetchedAt: new Date().toISOString() })
+      if (request.body?.action === 'save-sportadmin-calendars' || request.body?.action === 'sync-sportadmin-calendars') {
+        const calendars = Array.isArray(request.body.calendars) ? request.body.calendars.map((item, index) => {
+          const url = String(item.url || '').trim()
+          const match = url.match(/^https:\/\/portalweb\.sportadmin\.se\/webcal\?id=([a-zA-Z0-9-]+)$/)
+          if (!match) return null
+          return { id: String(item.id || `sportadmin-${match[1]}`), name: String(item.name || `SportAdmin-kalender ${index + 1}`).slice(0, 100), url, groups: Array.isArray(item.groups) ? item.groups.filter((group, groupIndex, values) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && values.indexOf(group) === groupIndex) : [], enabled: item.enabled !== false }
+        }).filter(Boolean) : []
+        if (!calendars.length) return sendJson(response, 400, { error: 'Lägg till minst en giltig SportAdmin Webcal-länk.' })
+        const current = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+        const settings = current.ok ? ((await current.json())[0]?.setting_value || {}) : {}
+        const save = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, sportAdminCalendars: calendars }, updated_at: new Date().toISOString() }) })
+        if (!save.ok) throw new Error(`SportAdmin settings save failed: ${save.status} ${await save.text()}`)
+        const activities = await readSportAdminCalendars(calendars)
+        return sendJson(response, 200, { calendars, activities, fetchedAt: new Date().toISOString() })
       }
       const date = String(request.body?.date || stockholmDate())
       const title = String(request.body?.title || '').trim()
