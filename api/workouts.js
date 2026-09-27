@@ -136,8 +136,9 @@ async function syncPlanningFromWorkout(workout) {
   const sameTime = plans.filter((item) => item.time_of_day && workout.time_of_day && item.time_of_day === workout.time_of_day)
   const sameFocus = (item) => workout.focus && item.focus && item.focus === workout.focus
   const closeDistance = (item) => distance > 0 && Number(item.distance_meters || 0) > 0 && Math.abs(Number(item.distance_meters) - distance) <= Math.max(500, distance * 0.2)
+  const sameGroup = (item) => (workout.target_groups || []).some((group) => (item.target_groups || []).includes(group))
   const unlinked = (item) => !item.source_workout_id
-  const current = sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item))) || plans.find((item) => unlinked(item) && sameFocus(item)) || plans.find(unlinked)
+  const current = sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || plans.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || plans.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => sameFocus(item) && sameGroup(item)) || plans.find((item) => sameFocus(item) && sameGroup(item)) || plans.find(unlinked)
   const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
   else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
@@ -148,8 +149,8 @@ async function backfillPlanningFromWorkouts(plans) {
   const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=200')
   if (!workoutsResult.ok) return plans
   const workouts = await workoutsResult.json()
-  const existingDates = new Set(plans.filter((item) => item.activity_type === 'swim').map((item) => item.plan_date))
-  await Promise.all(workouts.filter((workout) => !existingDates.has(workout.workout_date)).map((workout) => syncPlanningFromWorkout(workout)))
+  const linkedWorkoutIds = new Set(plans.filter((item) => item.activity_type === 'swim' && item.source_workout_id).map((item) => item.source_workout_id))
+  await Promise.all(workouts.filter((workout) => !linkedWorkoutIds.has(workout.id)).map((workout) => syncPlanningFromWorkout(workout)))
   const competitionsResult = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
   const competitions = competitionsResult.ok ? await competitionsResult.json() : []
   const planDates = new Set(plans.map((item) => `${item.plan_date}:${item.activity_type}`))
@@ -158,7 +159,7 @@ async function backfillPlanningFromWorkouts(plans) {
     for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) { const date = day.toISOString().slice(0, 10); if (!planDates.has(`${date}:competition`)) entries.push(supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'competition', title: competition.title, target_groups: competition.target_groups, location: competition.location, notes: competition.notes, updated_at: new Date().toISOString() }) })) }
     return entries
   }))
-  if (!workouts.some((workout) => !existingDates.has(workout.workout_date)) && !competitions.length) return plans
+  if (!workouts.length && !competitions.length) return plans
   const refreshed = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
   return refreshed.ok ? await refreshed.json() : plans
 }
