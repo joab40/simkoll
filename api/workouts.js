@@ -4,7 +4,7 @@ import { getSessionProfile, stockholmDate, touchProfileActivity } from '../serve
 
 function publicWorkout(item) {
   if (!item) return null
-  return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
+  return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
 }
 function publicPlan(item) {
   return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
@@ -129,10 +129,16 @@ function parseSportAdminIcs(source) {
 
 async function syncPlanningFromWorkout(workout) {
   const date = workout.workout_date
-  const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&limit=1`)
+  const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&order=updated_at.asc&limit=100`)
   if (!existing.ok) return
-  const current = (await existing.json())[0]
-  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, target_groups: workout.target_groups || [], source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+  const plans = await existing.json()
+  const distance = Number(workout.distance_meters || 0)
+  const sameTime = plans.filter((item) => item.time_of_day && workout.time_of_day && item.time_of_day === workout.time_of_day)
+  const sameFocus = (item) => workout.focus && item.focus && item.focus === workout.focus
+  const closeDistance = (item) => distance > 0 && Number(item.distance_meters || 0) > 0 && Math.abs(Number(item.distance_meters) - distance) <= Math.max(500, distance * 0.2)
+  const unlinked = (item) => !item.source_workout_id
+  const current = sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item))) || plans.find((item) => unlinked(item) && sameFocus(item)) || plans.find(unlinked)
+  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
   else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
   else if (!current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload }) })
@@ -554,14 +560,15 @@ export default async function handler(request, response) {
       const content = String(request.body?.content || '').trim()
       const note = String(request.body?.note || '').trim()
       const focus = String(request.body?.focus || '').trim()
+      const timeOfDay = String(request.body?.timeOfDay || '').trim()
       const distanceMeters = request.body?.distanceMeters === '' || request.body?.distanceMeters == null ? null : Number(request.body.distanceMeters)
       const durationMinutes = request.body?.durationMinutes === '' || request.body?.durationMinutes == null ? null : Number(request.body.durationMinutes)
       const targetGroups = Array.isArray(request.body?.targetGroups) ? request.body.targetGroups.map(String).filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
       const validFocus = ['', 'fart', 'troskel', 'syra', 'f2_frisim', 'f2_spec', 'distans', 'teknik', 'aterhamtning', 'kondition_frisim', 'kondition_special'].includes(focus)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !validFocus || !targetGroups.length || (distanceMeters !== null && (!Number.isInteger(distanceMeters) || distanceMeters < 1 || distanceMeters > 50000)) || (durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600))) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !validFocus || !['', 'morning', 'afternoon'].includes(timeOfDay) || !targetGroups.length || (distanceMeters !== null && (!Number.isInteger(distanceMeters) || distanceMeters < 1 || distanceMeters > 50000)) || (durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600))) {
         return sendJson(response, 400, { error: 'Kontrollera datum, rubrik och passbeskrivning.' })
       }
-      const payload = { workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, target_groups: targetGroups, updated_at: new Date().toISOString() }
+      const payload = { workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, time_of_day: timeOfDay || null, target_groups: targetGroups, updated_at: new Date().toISOString() }
       const workoutId = String(request.body?.id || '')
       const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : 'daily_workouts', {
         method: workoutId ? 'PATCH' : 'POST',
