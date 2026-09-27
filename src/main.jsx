@@ -1872,7 +1872,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
       if (!topGroupFilter) return true
       const itemGroups = [...new Set((Array.isArray(item.targetGroups) ? item.targetGroups : []).map(planningGroupKey).filter(Boolean))].sort()
       const selected = [...new Set(topGroupFilter.map(planningGroupKey).filter(Boolean))].sort()
-      return itemGroups.length === selected.length && selected.every((value, position) => value === itemGroups[position])
+      return !itemGroups.length || itemGroups.some((value) => selected.includes(value))
     }
     const planned = plans.filter((item) => item.date === key && matchesGroup(item)).map((item) => ({ ...item, linkedWorkout: workouts.find((workout) => workout.id === item.sourceWorkoutId) || null }))
     const linkedIds = new Set(planned.map((item) => item.sourceWorkoutId).filter(Boolean))
