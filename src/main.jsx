@@ -1879,8 +1879,42 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     const planned = plans.filter((item) => item.date === key && matchesGroup(item)).map((item) => ({ ...item, linkedWorkout: workouts.find((workout) => workout.id === item.sourceWorkoutId) || null }))
     const linkedIds = new Set(planned.map((item) => item.sourceWorkoutId).filter(Boolean))
     const published = workouts.filter((workout) => workout.date === key && !linkedIds.has(workout.id) && matchesGroup(workout)).map((workout) => ({ id: `workout-${workout.id}`, date: key, activityType: 'swim', title: workout.title, focus: workout.focus, distanceMeters: workout.distanceMeters, durationMinutes: workout.durationMinutes, targetGroups: workout.targetGroups, sourceWorkoutId: workout.id, linkedWorkout: workout, syncStatus: 'linked' }))
-    const imported = sportAdminActivities.filter((activity) => activity.date === key && matchesGroup(activity)).map((activity) => ({ id: `sportadmin-${activity.id}`, date: key, activityType: 'sportadmin', title: activity.title, time: activity.time, location: activity.location, notes: activity.notes, targetGroups: activity.targetGroups || [], source: 'SportAdmin' }))
-    const activities = [...planned, ...published, ...imported]
+    const importedRows = sportAdminActivities.filter((activity) => activity.date === key && matchesGroup(activity)).map((activity) => ({ id: `sportadmin-${activity.id}`, date: key, activityType: 'sportadmin', title: activity.title, time: activity.time, location: activity.location, notes: activity.notes, targetGroups: activity.targetGroups || [], source: 'SportAdmin' }))
+    // Flera kalendrar kan beskriva samma gemensamma pass. Slå ihop dem när
+    // datum, klockslag och plats är samma, så att grupperna visas tillsammans.
+    const importedBySlot = importedRows.reduce((all, item) => {
+      const slot = `${item.date}|${item.time || ''}|${item.location || ''}`
+      const current = all.get(slot)
+      if (!current) all.set(slot, { ...item, targetGroups: [...new Set(item.targetGroups)], calendarItems: [item] })
+      else {
+        current.targetGroups = [...new Set([...current.targetGroups, ...(item.targetGroups || [])])]
+        current.title = [...new Set([current.title, item.title].filter(Boolean))].join(' · ')
+        current.calendarItems.push(item)
+      }
+      return all
+    }, new Map())
+    const imported = [...importedBySlot.values()]
+    const timeOfDayFor = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
+    const calendarForPlan = (plan) => {
+      if (!plan.timeOfDay) return []
+      const candidates = imported.filter((item) => timeOfDayFor(item.time) === plan.timeOfDay)
+      const slotKey = (item) => `${item.time || ''}|${item.location || ''}`
+      const slots = new Set(candidates.map(slotKey))
+      if (slots.size <= 1) return candidates
+      const planGroups = new Set(plan.targetGroups || [])
+      const overlapping = candidates.filter((item) => (item.targetGroups || []).some((value) => planGroups.has(value)))
+      const overlappingSlots = new Set(overlapping.map(slotKey))
+      return overlappingSlots.size === 1 ? overlapping : []
+    }
+    const linkedCalendarIds = new Set()
+    const plannedWithCalendar = [...planned, ...published].map((plan) => {
+      const matching = calendarForPlan(plan)
+      matching.forEach((item) => linkedCalendarIds.add(item.id))
+      if (!matching.length) return plan
+      const calendarNote = matching.map((item) => [item.time, item.location, item.notes].filter(Boolean).join(' · ')).filter(Boolean).join(' | ')
+      return { ...plan, location: plan.location || matching.find((item) => item.location)?.location || '', notes: plan.notes || calendarNote, targetGroups: [...new Set([...(plan.targetGroups || []), ...matching.flatMap((item) => item.targetGroups || [])])], calendarItems: matching }
+    })
+    const activities = [...plannedWithCalendar, ...imported.filter((item) => !linkedCalendarIds.has(item.id))]
     return { date, key, activities }
   }), [group, monday, plans, workouts, sportAdminActivities, topGroupFilter])
   const totalMeters = days.reduce((sum, day) => sum + day.activities.filter((item) => item.activityType === 'swim').reduce((inner, item) => inner + (Number(item.distanceMeters) || 0), 0), 0)
