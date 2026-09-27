@@ -1897,8 +1897,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     const imported = [...importedBySlot.values()]
     const timeOfDayFor = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
     const calendarForPlan = (plan) => {
-      if (!plan.timeOfDay) return []
-      const candidates = imported.filter((item) => timeOfDayFor(item.time) === plan.timeOfDay)
+      const candidates = plan.timeOfDay ? imported.filter((item) => timeOfDayFor(item.time) === plan.timeOfDay) : imported
       const slotKey = (item) => `${item.time || ''}|${item.location || ''}`
       const slots = new Set(candidates.map(slotKey))
       if (slots.size <= 1) return candidates
