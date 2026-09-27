@@ -103,6 +103,7 @@ const POINT_RULES = [
   { activity: 'Veckans landträningsmål uppnått', points: 5, limit: 'Automatiskt när veckan är avslutad' },
   { activity: 'Veckoplanering', points: 2, limit: 'Minst tre planerade träningsdagar · en gång per vecka' },
   { activity: 'Ny artefakt', points: 5, limit: 'En gång per unik artefakt' },
+  { activity: 'Personbästa på tävling', points: 3, limit: 'En gång per simmare och tävling, oavsett antal nya personbästa' },
 ]
 
 export default async function handler(request, response) {
