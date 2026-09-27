@@ -129,7 +129,7 @@ function parseSportAdminIcs(source) {
 
 const SPORTADMIN_GROUP_ALIASES = { 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }
 function normalizeSportAdminGroups(values) {
-  return (Array.isArray(values) ? values : []).map((value) => String(value).trim().toLowerCase()).map((value) => SPORTADMIN_GROUP_ALIASES[value] || value).filter((value, index, all) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(value) && all.indexOf(value) === index)
+  return (Array.isArray(values) ? values : []).map((value) => String(value).trim()).filter(Boolean).map((value) => SPORTADMIN_GROUP_ALIASES[value.toLowerCase()] || value).filter((value, index, all) => all.indexOf(value) === index)
 }
 function inferSportAdminGroups(item, fallback) {
   const text = `${item.title || ''} ${item.notes || ''}`.toLowerCase()
@@ -528,7 +528,7 @@ export default async function handler(request, response) {
       if (request.body?.action === 'save-competition') {
         const body = request.body
         const startDate = String(body.startDate || ''), endDate = String(body.endDate || startDate), title = String(body.title || '').trim()
-        const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
+        const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
         if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, namn och minst en grupp.' })
         const payload = { start_date: startDate, end_date: endDate, title: title.slice(0, 120), category: String(body.category || '').slice(0, 80) || null, location: String(body.location || '').slice(0, 120) || null, target_groups: targetGroups, notes: String(body.notes || '').slice(0, 500) || null, updated_at: new Date().toISOString() }
         const endpoint = body.id ? `competition_calendar?id=eq.${body.id}` : 'competition_calendar'
@@ -549,7 +549,7 @@ export default async function handler(request, response) {
         const date = String(body.date || '')
         const activityType = String(body.activityType || '')
         const title = String(body.title || '').trim()
-        const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
+        const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['swim', 'strength', 'dryland', 'competition'].includes(activityType) || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, aktivitet, rubrik och minst en grupp.' })
         const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, time_of_day: ['morning', 'afternoon'].includes(body.timeOfDay) ? body.timeOfDay : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, sync_status: 'manual', updated_at: new Date().toISOString() }
         const endpoint = body.id ? `training_plans?id=eq.${body.id}` : 'training_plans'
@@ -616,7 +616,7 @@ export default async function handler(request, response) {
       const timeOfDay = String(request.body?.timeOfDay || '').trim()
       const distanceMeters = request.body?.distanceMeters === '' || request.body?.distanceMeters == null ? null : Number(request.body.distanceMeters)
       const durationMinutes = request.body?.durationMinutes === '' || request.body?.durationMinutes == null ? null : Number(request.body.durationMinutes)
-      const targetGroups = Array.isArray(request.body?.targetGroups) ? request.body.targetGroups.map(String).filter((group, index, groups) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(group) && groups.indexOf(group) === index) : []
+      const targetGroups = Array.isArray(request.body?.targetGroups) ? request.body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
       const validFocus = ['', 'fart', 'troskel', 'syra', 'f2_frisim', 'f2_spec', 'distans', 'teknik', 'aterhamtning', 'kondition_frisim', 'kondition_special'].includes(focus)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !validFocus || !['', 'morning', 'afternoon'].includes(timeOfDay) || !targetGroups.length || (distanceMeters !== null && (!Number.isInteger(distanceMeters) || distanceMeters < 1 || distanceMeters > 50000)) || (durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600))) {
         return sendJson(response, 400, { error: 'Kontrollera datum, rubrik och passbeskrivning.' })

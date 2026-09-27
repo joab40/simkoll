@@ -1438,6 +1438,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const [view, setView] = useState('today')
   const [summaryDate, setSummaryDate] = useState(todayKey())
   const [selectedGroups, setSelectedGroups] = useState(['ungdom_orange', 'ungdom_svart', 'junior'])
+  const [availableGroups, setAvailableGroups] = useState([['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']])
   const [competitionResults, setCompetitionResults] = useState([])
   const [competitionLoading, setCompetitionLoading] = useState(false)
   const [submissionCompetitionId, setSubmissionCompetitionId] = useState('')
@@ -1474,7 +1475,8 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
   const orderedOverviewItems = orderedOverviewKeys.map((key) => overviewItems.find((item) => item.key === key)).filter(Boolean)
   const toggleAllTalks = async () => { try { const next = !talksGlobalEnabled; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-talk-global', enabled: next }) }); setTalksGlobalEnabled(next) } catch (error) { window.alert(error.message) } }
   const loadCompetitionResults = () => { setCompetitionLoading(true); apiRequest('/api/profiles?tempusResults=true', code).then((data) => setCompetitionResults(data.results || [])).catch(() => {}).finally(() => setCompetitionLoading(false)) }
-  const groupOptions = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']]
+  useEffect(() => { apiRequest('/api/profiles?groups=true', code).then((data) => { const groups = (data.groups || []).filter((item) => item.active !== false).map((item) => [item.id, item.name]).filter(([id, name]) => id && name); if (groups.length) { setAvailableGroups(groups); setSelectedGroups((current) => current.length === 3 && current.every((value) => ['ungdom_orange', 'ungdom_svart', 'junior'].includes(value)) ? groups.map(([id]) => id) : current) } }).catch(() => {}) }, [code])
+  const groupOptions = availableGroups
   const allGroupsSelected = selectedGroups.length === groupOptions.length
   const profileGroupKey = (profile) => { const value = String(profile.trainingGroup || '').trim().toLowerCase(); return ({ 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }[value] || value) }
   const groupFilteredProfiles = allGroupsSelected ? profiles : profiles.filter((profile) => selectedGroups.includes(profileGroupKey(profile)))
@@ -1544,9 +1546,9 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'community' ? (
           <CoachCommunity code={code} profiles={groupFilteredProfiles} />
         ) : view === 'workout' ? (
-          <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} selectedGroups={selectedGroups} />
+          <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} selectedGroups={selectedGroups} availableGroups={availableGroups} />
         ) : view === 'planning' ? (
-          <CoachPlanning code={code} selectedGroups={selectedGroups} />
+          <CoachPlanning code={code} selectedGroups={selectedGroups} availableGroups={availableGroups} />
         ) : view === 'competition-calendar' ? (
           <CompetitionSubmissionBoundary><CompetitionCalendar code={code} onOpenSubmissions={(competitionId) => { setSubmissionCompetitionId(competitionId); setView('competition-entries') }} /></CompetitionSubmissionBoundary>
         ) : view === 'competition-entries' ? (
@@ -1822,7 +1824,7 @@ function CoachAppFeedback({ code }) {
   return <section className="app-feedback-page"><div className="period-heading"><div><p className="eyebrow">Tränarverktyg</p><h1>Hur kan vi göra Simkoll bättre?</h1><small>Samlad feedback från simmare och tränare.</small></div><div className="big-count"><strong>{data?.total || 0}</strong><span>svar</span></div></div><AppFeedbackCard code={code} coach />{data?.total ? <><section className="feedback-summary-grid"><article className="coach-card"><p className="eyebrow">Helhetskänsla</p><strong className="feedback-average">{data.averageRating} <small>/ 5</small></strong></article><article className="coach-card"><p className="eyebrow">Vanligast uppskattat</p>{list(data.counts?.bestAreas).slice(0, 3).map(([key, count]) => <p className="feedback-stat" key={key}><span>{labels[key] || key}</span><b>{count}</b></p>)}</article><article className="coach-card"><p className="eyebrow">Vanligast att förbättra</p>{list(data.counts?.improveAreas).slice(0, 3).map(([key, count]) => <p className="feedback-stat" key={key}><span>{labels[key] || key}</span><b>{count}</b></p>)}</article></section><section className="coach-card feedback-comments"><p className="eyebrow">Fritext</p><h2>Tankar och önskemål</h2>{data.comments?.length ? data.comments.map((item, index) => <blockquote key={`${item.createdAt}-${index}`}>“{item.comment}”<small>{new Date(item.createdAt).toLocaleDateString('sv-SE')}</small></blockquote>) : <p className="empty">Inga fritextsvar ännu.</p>}</section></> : <section className="coach-card empty-period"><span>💬</span><h2>Inga svar ännu</h2><p>När feedback börjar komma visas sammanställningen här.</p></section>}<button type="button" className="text-button danger-text" onClick={reset}>Nollställ appfeedback</button></section>
 }
 
-function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'] }) {
+function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'], availableGroups = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']] }) {
   const [plans, setPlans] = useState([])
   const [workouts, setWorkouts] = useState([])
   const [sportAdminActivities, setSportAdminActivities] = useState([])
@@ -1835,7 +1837,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
   const [sportAdminError, setSportAdminError] = useState('')
   const group = selectedGroups
   const setGroup = () => {}
-  const topGroupFilter = selectedGroups.length === 3 ? null : selectedGroups
+  const topGroupFilter = selectedGroups.length === availableGroups.length ? null : selectedGroups
   const planningGroupKey = (value) => ({ 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }[String(value || '').trim().toLowerCase()] || String(value || '').trim().toLowerCase())
   const importSportAdmin = async () => { setSportAdminLoading(true); setSportAdminError(''); try { setSportAdmin(await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sportadmin-calendar' }) })) } catch (error) { setSportAdminError(error.message || 'Kunde inte läsa SportAdmin-kalendern.') } finally { setSportAdminLoading(false) } }
 
@@ -1887,7 +1889,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
   const focusLabel = (focus) => WORKOUT_FOCUSES.find(([value]) => value === focus)?.[1] || 'Ingen inriktning'
   const groupLabel = (value) => Array.isArray(value) ? value.map((item) => ({ ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }[item] || item)).join(' · ') : ({ ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }[value] || value)
   const typeLabel = (type) => ({ swim: 'Simning', strength: 'Styrka', dryland: 'Landträning', competition: 'Tävling', sportadmin: 'Kalender' }[type] || type)
-  if (workoutToEdit) return <section className="workout-library-edit"><button className="back-button inline" onClick={() => setWorkoutToEdit(null)}>← Tillbaka till veckoplaneringen</button><WorkoutEditor code={code} responses={[]} initialWorkout={workoutToEdit} onClose={() => setWorkoutToEdit(null)} /></section>
+  if (workoutToEdit) return <section className="workout-library-edit"><button className="back-button inline" onClick={() => setWorkoutToEdit(null)}>← Tillbaka till veckoplaneringen</button><WorkoutEditor code={code} responses={[]} initialWorkout={workoutToEdit} selectedGroups={selectedGroups} availableGroups={availableGroups} onClose={() => setWorkoutToEdit(null)} /></section>
   return <section className="coach-planning"><div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Veckans grundplan</h1><small>{weekLabel} · {group === 'all' ? 'Alla grupper' : groupLabel(group)}</small></div><div className="big-count"><strong>{days.reduce((sum, day) => sum + day.activities.length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-controls"><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.max(-4, value - 1))}>← Föregående vecka</button><button className="secondary-button" onClick={() => setWeekOffset(0)}>Den här veckan</button><button className="secondary-button" onClick={() => setWeekOffset((value) => Math.min(4, value + 1))}>Nästa vecka →</button><label>Grupp<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label></div>{loading ? <p className="empty">Hämtar veckoplanering…</p> : error ? <p className="form-error">{error}</p> : <><div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.reduce((sum, day) => sum + day.activities.length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-day-list">{days.map((day) => <article className={`planning-day${day.activities.length ? ' has-workout' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}</small></div><div className="planning-day-actions"><PlanningEditButton code={code} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current, saved])} label="+ Lägg till" /><PlanningDayDeleteButton code={code} date={day.key} onDeleted={() => setPlans((current) => current.filter((item) => item.date !== day.key))} /></div></header>{day.activities.length ? day.activities.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<PlanningEditButton code={code} plan={plan} date={day.key} group={group} onSaved={(saved) => setPlans((current) => current.map((item) => item.id === saved.id ? saved : item))} /></div>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article>)}</div></>}</section>
 }
 
@@ -1950,14 +1952,14 @@ function WebappSettings({ code }) {
 }
 
 function SportAdminCalendarSettings({ code }) {
-  const groups = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']]
+  const [groups, setGroups] = useState([['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']])
   const [calendars, setCalendars] = useState([])
   const [url, setUrl] = useState('')
   const [name, setName] = useState('')
   const [selectedGroups, setSelectedGroups] = useState(['ungdom_orange', 'ungdom_svart', 'junior'])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
-  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setCalendars(data.settings?.sportAdminCalendars || [])).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setCalendars(data.settings?.sportAdminCalendars || [])).catch(() => {}); apiRequest('/api/profiles?groups=true', code).then((data) => { const list = (data.groups || []).filter((item) => item.active !== false).map((item) => [item.id, item.name]).filter(([id, label]) => id && label); if (list.length) { setGroups(list); setSelectedGroups(list.map(([id]) => id)) } }).catch(() => {}) }, [code])
   const add = () => {
     if (!url.trim()) return setMessage('Klistra in en SportAdmin Webcal-länk först.')
     setCalendars((current) => [...current, { id: `sportadmin-${Date.now()}`, name: name.trim() || `SportAdmin-kalender ${current.length + 1}`, url: url.trim(), groups: selectedGroups, enabled: true }])
@@ -2345,8 +2347,8 @@ function localDateValue() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = null, onClose, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'] }) {
-  const blankWorkout = () => ({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', timeOfDay: '', targetGroups: selectedGroups.length ? selectedGroups : ['ungdom_orange', 'ungdom_svart', 'junior'] })
+function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = null, onClose, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'], availableGroups = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']] }) {
+  const blankWorkout = () => ({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', timeOfDay: '', targetGroups: selectedGroups.length ? selectedGroups : availableGroups.map(([value]) => value) })
   const [date, setDate] = useState(initialWorkout?.date || localDateValue())
   const [form, setForm] = useState(initialWorkout || blankWorkout())
   const [existingWorkouts, setExistingWorkouts] = useState([])
@@ -2362,8 +2364,8 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
   const [focusPreference, setFocusPreference] = useState('')
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [generator, setGenerator] = useState({ focus: 'fart', distanceMeters: 4000, durationMinutes: 90, rpe: '6–7', groups: ['ungdom_orange', 'ungdom_svart', 'junior'], request: '' })
-  const visibleExistingWorkouts = existingWorkouts.filter((workout) => selectedGroups.length === 3 || workout.targetGroups?.some((group) => selectedGroups.includes(group)))
+  const [generator, setGenerator] = useState({ focus: 'fart', distanceMeters: 4000, durationMinutes: 90, rpe: '6–7', groups: selectedGroups.length ? selectedGroups : availableGroups.map(([value]) => value), request: '' })
+  const visibleExistingWorkouts = existingWorkouts.filter((workout) => selectedGroups.length === availableGroups.length || workout.targetGroups?.some((group) => selectedGroups.includes(group)))
   const loadLibrary = async () => { try { const data = await apiRequest('/api/workouts?history=true', code); setLibrary(data.workouts || []); setLibraryOpen(true) } catch (error) { window.alert(error.message) } }
   const rankedLibrary = library.map((workout) => { const answers = responses.filter((item) => item.type === 'after' && dateKey(responseDate(item)) === workout.date); const average = (key) => { const values = answers.map((item) => Number(item[key])).filter(Number.isFinite); return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null }; return { ...workout, pass: average('pass'), rpe: average('rpe') } }).sort((a, b) => { for (const key of criteria) { const value = (workout) => key === 'focus' ? (focusPreference ? (workout.focus === focusPreference ? 1 : 0) : (workout.focus ? 1 : 0)) : key === 'distance' ? (workout.distanceMeters || 0) : key === 'duration' ? (workout.durationMinutes || 0) : (workout[key] ?? -1); const difference = value(b) - value(a); if (difference) return difference } return b.date.localeCompare(a.date) })
   const importSheet = async () => { setLoading(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sheet', url: 'https://docs.google.com/spreadsheets/d/1V_Y170h0mOPf3AsrF-9wW9o3paL_X579n4w7aKQgeoc/edit?usp=sharing' }) }); setForm((current) => ({ ...current, ...data.draft })); setSaved(false) } catch (error) { window.alert(error.message) } finally { setLoading(false) } }
