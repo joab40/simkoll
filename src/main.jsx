@@ -108,7 +108,7 @@ function App() {
       // Starta alla oberoende hämtningar samtidigt. Tidigare blockerade
       // /api/training resten av simmarvyn eftersom det hämtades först.
       const [trainingData, workoutData, tomorrowData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity?streak=true', auth.code)])
-      setWorkout(workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
+      setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout); setWorkoutLocked(workoutData.locked); setTomorrowWorkout(tomorrowData.workout); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
       // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
       const [pointsData, notificationData, competitionData, gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] })), apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: [] }))])
       if (pointsData) setPoints(pointsData)
@@ -248,7 +248,7 @@ function App() {
                 const trainingData = await apiRequest('/api/training', auth.code)
                 const tomorrow = dateKey(new Date(Date.now() + 86400000))
                 const [workoutData, tomorrowData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest(`/api/workouts?date=${tomorrow}`, auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
-                setWorkout(workoutData.workout)
+                setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout)
                 setWorkoutLocked(workoutData.locked)
                 setTomorrowWorkout(tomorrowData.workout)
                 setActiveProfilesToday(activityData.activeProfilesToday)
@@ -505,7 +505,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
   const nextCompetition = (competitions || []).filter((item) => (item.endDate || item.startDate) >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
   const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
-  const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && workout?.focus === 'fart' ? 'speed-focus' : ''
+  const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && (Array.isArray(workout) ? workout[0] : workout)?.focus === 'fart' ? 'speed-focus' : ''
   const themeClass = swimmerThemesEnabled && swimmerTheme !== 'none' ? ` theme-${swimmerTheme}` : ''
   const raceDayActive = swimmerEffects && daysToCompetition === 0
   const stars = currentStarState(training)
@@ -918,10 +918,11 @@ function RewardCelebration({ rewards }) {
 
 function WorkoutCard({ workout, locked }) {
   const [expanded, setExpanded] = useState(false)
+  const workouts = (Array.isArray(workout) ? workout : workout ? [workout] : []).filter(Boolean)
   return (
-    <section className={`workout-card ${workout ? '' : 'workout-empty'}`}>
-      <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div>{workout && !locked && <button type="button" className="workout-expand-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Dölj ↑' : 'Visa ↓'}</button>}</div>
-      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workout ? <div className="workout-body"><h3>{workout.title}</h3><WorkoutMeta workout={workout} />{expanded && <><WorkoutContent content={workout.content} />{workout.note && <aside><strong>Kommentar från tränaren</strong>{workout.note}</aside>}</>}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+    <section className={`workout-card ${workouts.length ? '' : 'workout-empty'}`}>
+      <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div>{workouts.length > 0 && !locked && <button type="button" className="workout-expand-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Dölj ↑' : `Visa ${workouts.length > 1 ? 'pass' : 'pass'} ↓`}</button>}</div>
+      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workouts.length ? <div className="workout-body">{workouts.map((item) => <article className="workout-day-item" key={item.id}><h3>{item.title}</h3><WorkoutMeta workout={item} />{expanded && <><WorkoutContent content={item.content} />{item.note && <aside><strong>Kommentar från tränaren</strong>{item.note}</aside>}</>}</article>)}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
 }

@@ -612,6 +612,7 @@ button { cursor: pointer; }
 .existing-workout-list article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; background: white; border: 1px solid #d6e6e1; border-radius: 11px; }
 .existing-workout-list article > div { display: grid; gap: 3px; min-width: 0; }
 .existing-workout-list small { color: var(--muted); overflow-wrap: anywhere; }
+.workout-day-item + .workout-day-item { margin-top: 18px; padding-top: 18px; border-top: 1px solid #dbe6e3; }
 .workout-generator { margin: 0 0 20px; }
 .workout-generator h3 { margin: 0; }
 .workout-generator-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
