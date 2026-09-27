@@ -1671,6 +1671,8 @@ button { cursor: pointer; }
 .sportadmin-import > small { color: var(--muted); font-size: 11px; }
 .sportadmin-import > div { max-height: 260px; overflow: auto; padding-top: 4px; }
 .sportadmin-import p { margin: 6px 0 0; font-size: 12px; color: var(--ink); }
+.swimmer-planning-list .calendar-planning-item { border-color: #b9d8d0; background: #f3faf7; }
+.swimmer-planning-list .calendar-planning-item small { white-space: normal; }
 .today-workout-summary { display: grid; gap: 14px; margin-bottom: 18px; }
 .today-workout-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .today-workout-summary-head h2 { margin: 0; }

@@ -398,11 +398,12 @@ export default async function handler(request, response) {
         const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         const [workoutsResult, sportAdminActivities] = await Promise.all([
           supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000'),
-          role === 'coach' ? configuredSportAdminCalendars().then(readSportAdminCalendars) : Promise.resolve([]),
+          configuredSportAdminCalendars().then(readSportAdminCalendars),
         ])
         const workouts = workoutsResult.ok ? (await workoutsResult.json()).map(publicWorkout) : []
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
-        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities })
+        const visibleSportAdminActivities = role === 'coach' ? sportAdminActivities : sportAdminActivities.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
+        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities: visibleSportAdminActivities })
       }
       if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
