@@ -399,18 +399,18 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { workouts: (await result.json()).map(publicWorkout) })
       }
       const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
-      const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&limit=1`)
+      const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&order=created_at.asc&limit=100`)
       if (!result.ok) throw new Error(`Workout GET failed: ${result.status} ${await result.text()}`)
-      const workout = (await result.json())[0] || null
+      let workouts = (await result.json()).map(publicWorkout)
       if (profile) {
-        if (workout?.target_groups?.length && profile.training_group && !workout.target_groups.includes(profile.training_group)) return sendJson(response, 200, { workout: null, locked: false })
+        workouts = workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         await touchProfileActivity(profile.id)
         const unlockResult = await supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${requestedDate}&select=profile_id&limit=1`)
         if (!unlockResult.ok) throw new Error(`Unlock GET failed: ${unlockResult.status} ${await unlockResult.text()}`)
         const unlocked = (await unlockResult.json()).length > 0
-        if (workout && !unlocked) return sendJson(response, 200, { workout: null, locked: true })
+        if (workouts.length && !unlocked) return sendJson(response, 200, { workout: null, workouts: [], locked: true })
       }
-      return sendJson(response, 200, { workout: publicWorkout(workout), locked: false })
+      return sendJson(response, 200, { workout: workouts[0] || null, workouts, locked: false })
     }
 
     if (request.method === 'POST') {
@@ -557,10 +557,12 @@ export default async function handler(request, response) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !validFocus || !targetGroups.length || (distanceMeters !== null && (!Number.isInteger(distanceMeters) || distanceMeters < 1 || distanceMeters > 50000)) || (durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600))) {
         return sendJson(response, 400, { error: 'Kontrollera datum, rubrik och passbeskrivning.' })
       }
-      const result = await supabaseRequest('daily_workouts?on_conflict=workout_date', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify({ workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, target_groups: targetGroups, updated_at: new Date().toISOString() }),
+      const payload = { workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, target_groups: targetGroups, updated_at: new Date().toISOString() }
+      const workoutId = String(request.body?.id || '')
+      const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : 'daily_workouts', {
+        method: workoutId ? 'PATCH' : 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(payload),
       })
       if (!result.ok) throw new Error(`Workout POST failed: ${result.status} ${await result.text()}`)
       const savedWorkout = (await result.json())[0]
@@ -584,7 +586,8 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { ok: true })
       }
       const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
-      const result = await supabaseRequest(`daily_workouts?workout_date=eq.${date}`, { method: 'DELETE' })
+      const workoutId = String(request.query?.id || '')
+      const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : `daily_workouts?workout_date=eq.${date}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Workout DELETE failed: ${result.status} ${await result.text()}`)
       return sendJson(response, 200, { ok: true })
     }

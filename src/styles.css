@@ -607,6 +607,11 @@ button { cursor: pointer; }
 .workout-picker-criteria { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.workout-picker-criteria label { font-size: 11px; font-weight: 800; }.workout-picker-criteria select { margin-top: 5px; }
 .workout-focus-preference { display: flex; flex-direction: column; gap: 5px; max-width: 320px; margin-top: 12px; font-size: 11px; font-weight: 800; }.workout-focus-preference select { margin-top: 2px; }
 .workout-picker-list { display: grid; gap: 7px; margin-top: 15px; }.workout-picker-list button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 13px; border: 1px solid #d6e6e1; border-radius: 11px; background: white; }.workout-picker-list span { display: grid; gap: 3px; }.workout-picker-list small { color: var(--muted); }.workout-picker-list b { color: var(--teal); white-space: nowrap; }
+.existing-workouts { margin: 0 0 20px; padding: 16px; border: 1px solid #cfe4dd; background: #eef7f3; border-radius: 16px; }
+.existing-workout-list { display: grid; gap: 8px; margin-top: 12px; }
+.existing-workout-list article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; background: white; border: 1px solid #d6e6e1; border-radius: 11px; }
+.existing-workout-list article > div { display: grid; gap: 3px; min-width: 0; }
+.existing-workout-list small { color: var(--muted); overflow-wrap: anywhere; }
 .workout-generator { margin: 0 0 20px; }
 .workout-generator h3 { margin: 0; }
 .workout-generator-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }

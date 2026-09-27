@@ -1542,7 +1542,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         ) : view === 'community' ? (
           <CoachCommunity code={code} profiles={groupFilteredProfiles} />
         ) : view === 'workout' ? (
-          <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} />
+          <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} selectedGroups={selectedGroups} />
         ) : view === 'planning' ? (
           <><SportAdminImport code={code} /><CoachPlanning code={code} /></>
         ) : view === 'competition-calendar' ? (
@@ -2036,7 +2036,7 @@ function WorkoutLibrary({ code, responses }) {
   const editWorkout = (workout) => setEditingWorkout(workout)
   const deleteWorkout = async (workout) => {
     if (!confirmDestructive(`Träningspasset “${workout.title || 'utan rubrik'}” för ${workout.date} tas bort permanent och försvinner från passbiblioteket.`)) return
-    try { await apiRequest(`/api/workouts?date=${encodeURIComponent(workout.date)}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
+    try { await apiRequest(`/api/workouts?id=${encodeURIComponent(workout.id)}&date=${encodeURIComponent(workout.date)}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
   }
   const today = todayKey()
   const visible = workouts.filter((workout) => filter === 'all' || (filter === 'upcoming' ? workout.date >= today : workout.date < today)).map((workout) => {
@@ -2259,9 +2259,11 @@ function localDateValue() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = null, onClose }) {
+function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = null, onClose, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'] }) {
+  const blankWorkout = () => ({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: selectedGroups.length ? selectedGroups : ['ungdom_orange', 'ungdom_svart', 'junior'] })
   const [date, setDate] = useState(initialWorkout?.date || localDateValue())
-  const [form, setForm] = useState(initialWorkout || { title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
+  const [form, setForm] = useState(initialWorkout || blankWorkout())
+  const [existingWorkouts, setExistingWorkouts] = useState([])
   const [loading, setLoading] = useState(true)
   const [polishing, setPolishing] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -2275,6 +2277,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generator, setGenerator] = useState({ focus: 'fart', distanceMeters: 4000, durationMinutes: 90, rpe: '6–7', groups: ['ungdom_orange', 'ungdom_svart', 'junior'], request: '' })
+  const visibleExistingWorkouts = existingWorkouts.filter((workout) => selectedGroups.length === 3 || workout.targetGroups?.some((group) => selectedGroups.includes(group)))
   const loadLibrary = async () => { try { const data = await apiRequest('/api/workouts?history=true', code); setLibrary(data.workouts || []); setLibraryOpen(true) } catch (error) { window.alert(error.message) } }
   const rankedLibrary = library.map((workout) => { const answers = responses.filter((item) => item.type === 'after' && dateKey(responseDate(item)) === workout.date); const average = (key) => { const values = answers.map((item) => Number(item[key])).filter(Number.isFinite); return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null }; return { ...workout, pass: average('pass'), rpe: average('rpe') } }).sort((a, b) => { for (const key of criteria) { const value = (workout) => key === 'focus' ? (focusPreference ? (workout.focus === focusPreference ? 1 : 0) : (workout.focus ? 1 : 0)) : key === 'distance' ? (workout.distanceMeters || 0) : key === 'duration' ? (workout.durationMinutes || 0) : (workout[key] ?? -1); const difference = value(b) - value(a); if (difference) return difference } return b.date.localeCompare(a.date) })
   const importSheet = async () => { setLoading(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sheet', url: 'https://docs.google.com/spreadsheets/d/1V_Y170h0mOPf3AsrF-9wW9o3paL_X579n4w7aKQgeoc/edit?usp=sharing' }) }); setForm((current) => ({ ...current, ...data.draft })); setSaved(false) } catch (error) { window.alert(error.message) } finally { setLoading(false) } }
@@ -2319,7 +2322,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
     if (initialWorkout) { setDate(initialWorkout.date); setForm(initialWorkout); setLoading(false); return undefined }
     setLoading(true)
     apiRequest(`/api/workouts?date=${date}`, code)
-      .then((data) => setForm(data.workout || { title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] }))
+      .then((data) => { setExistingWorkouts(data.workouts || (data.workout ? [data.workout] : [])); setForm(blankWorkout()) })
       .catch((error) => window.alert(error.message))
       .finally(() => setLoading(false))
   }, [code, date, initialWorkout])
@@ -2333,6 +2336,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, date }),
       })
       setForm(data.workout)
+      setExistingWorkouts((current) => current.some((item) => item.id === data.workout.id) ? current.map((item) => item.id === data.workout.id ? data.workout : item) : [...current, data.workout])
       setSaved(true)
     } catch (error) { window.alert(error.message) } finally { setLoading(false) }
   }
@@ -2340,8 +2344,9 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
   const remove = async () => {
     if (!confirmDestructive(`Passet för ${date} försvinner för alla simmare.`)) return
     try {
-      await apiRequest(`/api/workouts?date=${date}`, code, { method: 'DELETE' })
-      setForm({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] })
+      await apiRequest(`/api/workouts?id=${encodeURIComponent(form.id || '')}&date=${date}`, code, { method: 'DELETE' })
+      setExistingWorkouts((current) => current.filter((item) => item.id !== form.id))
+      setForm(blankWorkout())
       setSaved(false)
       if (onClose) onClose()
     } catch (error) { window.alert(error.message) }
@@ -2349,7 +2354,8 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
 
   return (
     <section className="workout-editor">
-      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>{initialWorkout ? 'Redigera simpass' : 'Lägg upp ett pass'}</h2><small className="workout-import-hint">{initialWorkout ? 'Ändra passet i samma formulär som när du lägger upp ett nytt.' : 'Läs in dagens pass från Google Drive eller välj ett tidigare pass.'}</small></div><div className="editor-import-actions">{!initialWorkout && <><button type="button" className={`secondary-button${loading ? ' ai-working' : ''}`} onClick={importSheet} disabled={loading}>{loading ? 'Analyserar Dagenspass…' : 'Läs in Dagenspass från Google Drive'}</button><button type="button" className="secondary-button" onClick={loadLibrary}>Hämta från bibliotek</button>{aiEnabled && <button type="button" className="secondary-button" onClick={() => setGeneratorOpen((open) => !open)}>✨ Skapa passförslag</button>}</>}</div></div>
+      <div className="period-heading"><div><p className="eyebrow">Syns för inloggade simmare</p><h2>{initialWorkout || form.id ? 'Redigera simpass' : 'Lägg upp ett pass'}</h2><small className="workout-import-hint">{initialWorkout ? 'Ändra passet i samma formulär som när du lägger upp ett nytt.' : 'Se redan upplagda pass för dagen och lägg till fler vid behov.'}</small></div><div className="editor-import-actions">{!initialWorkout && <><button type="button" className={`secondary-button${loading ? ' ai-working' : ''}`} onClick={importSheet} disabled={loading}>{loading ? 'Analyserar Dagenspass…' : 'Läs in Dagenspass från Google Drive'}</button><button type="button" className="secondary-button" onClick={loadLibrary}>Hämta från bibliotek</button>{aiEnabled && <button type="button" className="secondary-button" onClick={() => setGeneratorOpen((open) => !open)}>✨ Skapa passförslag</button>}</>}</div></div>
+      {!initialWorkout && visibleExistingWorkouts.length > 0 && <section className="existing-workouts coach-card"><div className="workout-picker-head"><div><p className="eyebrow">{date}</p><h3>Pass som redan är upplagda</h3></div><button type="button" className="secondary-button" onClick={() => { setForm(blankWorkout()); setSaved(false) }}>＋ Lägg till pass</button></div><div className="existing-workout-list">{visibleExistingWorkouts.map((workout) => <article key={workout.id}><div><strong>{workout.title}</strong><small>{[workout.targetGroups?.map((group) => ({ ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }[group] || group)).join(' · '), workout.focus, workout.distanceMeters && `${Number(workout.distanceMeters).toLocaleString('sv-SE')} m`, workout.durationMinutes && `${workout.durationMinutes} min`].filter(Boolean).join(' · ')}</small></div><button type="button" className="text-button" onClick={() => { setForm(workout); setSaved(false) }}>Redigera</button></article>)}</div></section>}
       {generatorOpen && <form className="workout-generator coach-card" onSubmit={generateFromLibrary}><div className="workout-picker-head"><div><p className="eyebrow">Bygg från passbiblioteket</p><h3>Skapa ett redigerbart passförslag</h3></div><button type="button" className="text-button" onClick={() => setGeneratorOpen(false)}>Stäng</button></div><p className="settings-help">AI:n prioriterar tidigare pass med högt passbetyg, därefter RPE. Starttider och gruppval följer med i förslaget.</p><div className="workout-generator-grid"><label>Huvudinriktning<select value={generator.focus} onChange={(event) => setGenerator({ ...generator, focus: event.target.value })}>{WORKOUT_FOCUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Distans<select value={generator.distanceMeters} onChange={(event) => setGenerator({ ...generator, distanceMeters: Number(event.target.value) })}>{[2000, 2500, 3000, 3500, 4000, 4500, 5000, 6000, 7000].map((value) => <option value={value} key={value}>{value.toLocaleString('sv-SE')} m</option>)}</select></label><label>Tidsåtgång<select value={generator.durationMinutes} onChange={(event) => setGenerator({ ...generator, durationMinutes: Number(event.target.value) })}><option value="60">1 timme</option><option value="75">1 timme 15 min</option><option value="90">1,5 timmar</option><option value="120">2 timmar</option></select></label><label>Mål-RPE<select value={generator.rpe} onChange={(event) => setGenerator({ ...generator, rpe: event.target.value })}><option value="4–5">4–5 · lugnt</option><option value="5–6">5–6 · medel</option><option value="6–7">6–7 · standard</option><option value="7–8">7–8 · hårt</option></select></label></div><label className="workout-generator-request">Frivilligt önskemål<textarea maxLength={300} rows={2} placeholder="Till exempel: lägg gärna in en huvudserie med 3 × 500 m" value={generator.request} onChange={(event) => setGenerator({ ...generator, request: event.target.value })} /><small>Önskemålet vägs in som en preferens. Passbetyg, RPE, distans och tidsåtgång styr fortfarande helheten.</small></label><fieldset className="workout-groups"><legend>Passet gäller för</legend><div>{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, label]) => <label key={value}><input type="checkbox" checked={generator.groups.includes(value)} onChange={(event) => setGenerator({ ...generator, groups: event.target.checked ? [...generator.groups, value] : generator.groups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset><button className={`primary-button${generating ? ' ai-working' : ''}`} type="submit" disabled={generating}>{generating ? 'Skapar passförslag…' : 'Skapa passförslag →'}</button></form>}
       {libraryOpen && <section className="workout-picker"><div className="workout-picker-head"><h3>Välj ett tidigare pass</h3><button type="button" className="text-button" onClick={() => setLibraryOpen(false)}>Stäng</button></div><p>Välj upp till tre prioriteringar. Bäst match hamnar först.</p><div className="workout-picker-criteria">{[0, 1, 2].map((index) => <label key={index}>{index + 1}. prioritet<select value={criteria[index]} onChange={(event) => { const next = [...criteria]; next[index] = event.target.value; setCriteria(next) }}><option value="focus">Huvudinriktning</option><option value="pass">Passbetyg</option><option value="rpe">RPE</option><option value="distance">Meter</option><option value="duration">Tidsåtgång</option></select></label>)}</div>{criteria.includes('focus') && <label className="workout-focus-preference">Vilken huvudinriktning?<select value={focusPreference} onChange={(event) => setFocusPreference(event.target.value)}><option value="">Alla inriktningar</option>{WORKOUT_FOCUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>}<div className="workout-picker-list">{rankedLibrary.slice(0, 8).map((workout) => <button type="button" key={workout.id} onClick={() => { setForm((current) => ({ ...current, title: workout.title, content: workout.content, note: workout.note, focus: workout.focus || '', distanceMeters: workout.distanceMeters || '', durationMinutes: workout.durationMinutes || '', targetGroups: workout.targetGroups || current.targetGroups })); setLibraryOpen(false); setSaved(false) }}><span><strong>{workout.title}</strong><small>{workout.date} · {workout.distanceMeters ? `${workout.distanceMeters} m` : 'meter saknas'} · {workout.pass ? `Pass ${workout.pass.toFixed(1)}/5` : 'inget betyg'}</small></span><b>Välj →</b></button>)}</div></section>}
       <form onSubmit={save}>
