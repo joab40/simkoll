@@ -459,15 +459,24 @@ const TEMPERATURE_LABELS = ['Väldigt kallt', 'Kallt', 'Perfekt', 'Varmt', 'För
 
 function HelpTip({ term }) {
   const [open, setOpen] = useState(false)
+  const [placement, setPlacement] = useState('left')
   const tipRef = useRef(null)
   useEffect(() => {
     if (!open) return undefined
+    const updatePlacement = () => {
+      const rect = tipRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const popupWidth = Math.min(280, Math.max(180, window.innerWidth - 24))
+      setPlacement(rect.left + popupWidth > window.innerWidth - 12 ? 'right' : 'left')
+    }
     const close = (event) => { if (!tipRef.current?.contains(event.target)) setOpen(false) }
+    updatePlacement()
     document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    window.addEventListener('resize', updatePlacement)
+    return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', updatePlacement) }
   }, [open])
   if (!HELP_TEXT[term]) return null
-  return <span className="help-tip-wrap" ref={tipRef}><button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>i</button>{open && <span className="help-tip-popover" role="tooltip"><strong>{term}</strong><span>{HELP_TEXT[term]}</span></span>}</span>
+  return <span className={`help-tip-wrap help-tip-wrap-${placement}`} ref={tipRef}><button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>i</button>{open && <span className="help-tip-popover" role="tooltip"><strong>{term}</strong><span>{HELP_TEXT[term]}</span></span>}</span>
 }
 
 function Faq({ role, onBack }) {
