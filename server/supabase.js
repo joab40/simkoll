@@ -66,9 +66,8 @@ export function getRole(code) {
       return payload.exp > Math.floor(Date.now() / 1000) && (payload.role === 'coach' || payload.role === 'superadmin') ? 'coach' : null
     } catch { return null }
   }
-  if (!process.env.SIMKOLL_SWIMMER_CODE || !process.env.SIMKOLL_COACH_CODE) return null
-  if (code === process.env.SIMKOLL_COACH_CODE) return 'coach'
-  if (code === process.env.SIMKOLL_SWIMMER_CODE) return 'swimmer'
+  if (process.env.SIMKOLL_COACH_CODE && code === process.env.SIMKOLL_COACH_CODE) return 'coach'
+  if (process.env.SIMKOLL_SWIMMER_CODE && code === process.env.SIMKOLL_SWIMMER_CODE) return 'swimmer'
   return null
 }
 
