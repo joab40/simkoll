@@ -8,6 +8,7 @@ const base64url = (value) => Buffer.from(value).toString('base64url')
 const sessionSecret = () => process.env.COACH_SESSION_SECRET || process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || 'simkoll-change-session-secret'
 const sign = (value) => createHmac('sha256', sessionSecret()).update(value).digest('base64url')
 const normalizeEmail = (value = '') => String(value).trim().toLowerCase()
+export const COACH_TERMS_VERSION = '1.0'
 
 export async function hashCoachPassword(password, salt = randomBytes(16).toString('hex')) {
   const derived = await scrypt(String(password), salt, 64)
@@ -54,11 +55,11 @@ export function readCoachToken(token) {
 
 export function coachFromRequest(request) { return readCoachToken(request.headers['x-simkoll-code']) }
 
-export async function createCoach({ email, displayName, password, role = 'coach', status = 'pending' }) {
+export async function createCoach({ email, displayName, password, role = 'coach', status = 'pending', termsAccepted = false }) {
   const passwordData = await hashCoachPassword(password)
   const result = await supabaseRequest('coach_accounts', {
     method: 'POST', headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ email: normalizeEmail(email), display_name: String(displayName).trim(), password_hash: passwordData.hash, password_salt: passwordData.salt, role, status, approved_at: status === 'active' ? new Date().toISOString() : null }),
+    body: JSON.stringify({ email: normalizeEmail(email), display_name: String(displayName).trim(), password_hash: passwordData.hash, password_salt: passwordData.salt, role, status, approved_at: status === 'active' ? new Date().toISOString() : null, terms_accepted_at: termsAccepted ? new Date().toISOString() : null, terms_version: termsAccepted ? COACH_TERMS_VERSION : null }),
   })
   if (!result.ok) throw new Error(`Coach account creation failed: ${result.status} ${await result.text()}`)
   return (await result.json())[0]

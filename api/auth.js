@@ -1,6 +1,6 @@
 import { getRole, isDatabaseConfigured, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAuditLog } from '../server/audit.js'
-import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken } from '../server/coach-auth.js'
+import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken, COACH_TERMS_VERSION } from '../server/coach-auth.js'
 import { getSessionDays } from '../server/session-settings.js'
 import { getSessionProfile } from '../server/profile-auth.js'
 
@@ -27,11 +27,12 @@ export default async function handler(request, response) {
     return sendJson(response, 200, { available: (await countCoaches()) === 0 })
   }
   if (action === 'coach-bootstrap') {
-    const { email, displayName, password, bootstrapToken } = request.body || {}
+    const { email, displayName, password, bootstrapToken, acceptedTerms } = request.body || {}
     if (!process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || bootstrapToken !== process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN) return sendJson(response, 403, { error: 'Bootstrap-koden är inte giltig.' })
     if (await countCoaches() > 0) return sendJson(response, 409, { error: 'Det finns redan ett tränarkonto.' })
+    if (acceptedTerms !== true) return sendJson(response, 400, { error: 'Du måste läsa och godkänna tränarvillkoren.' })
     if (!String(email || '').includes('@') || String(password || '').length < 10 || String(displayName || '').trim().length < 2) return sendJson(response, 400, { error: 'Ange namn, e-post och ett lösenord med minst 10 tecken.' })
-    const account = await createCoach({ email, displayName, password, role: 'superadmin', status: 'active' })
+    const account = await createCoach({ email, displayName, password, role: 'superadmin', status: 'active', termsAccepted: true })
     await writeAuditLog(request, { eventType: 'coach_account_bootstrap', role: 'coach', details: { actorEmail: account.email, actorName: account.display_name, role: account.role } })
     const token = createCoachToken(account, (await getSessionDays('coach')) * 86400)
     setCookie(response, 'simkoll_coach_session', token, (await getSessionDays('coach')) * 86400)
@@ -52,10 +53,11 @@ export default async function handler(request, response) {
   }
 
   if (action === 'coach-register') {
-    const { email, displayName, password } = request.body || {}
+    const { email, displayName, password, acceptedTerms } = request.body || {}
     if (!String(email || '').includes('@') || String(password || '').length < 10 || String(displayName || '').trim().length < 2) return sendJson(response, 400, { error: 'Ange namn, e-post och ett lösenord med minst 10 tecken.' })
+    if (acceptedTerms !== true) return sendJson(response, 400, { error: 'Du måste läsa och godkänna tränarvillkoren.' })
     if (await findCoach(email)) return sendJson(response, 409, { error: 'Det finns redan ett konto med den e-postadressen.' })
-    await createCoach({ email, displayName, password, role: 'coach', status: 'pending' })
+    await createCoach({ email, displayName, password, role: 'coach', status: 'pending', termsAccepted: true })
     await writeAuditLog(request, { eventType: 'coach_account_registration', role: 'coach', details: { email: String(email).slice(0, 120), displayName: String(displayName).slice(0, 80) } })
     return sendJson(response, 201, { pending: true })
   }

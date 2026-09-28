@@ -328,6 +328,7 @@ function Login({ onLogin }) {
   const [password, setPassword] = useState('')
   const [rememberCoachEmail, setRememberCoachEmail] = useState(true)
   const [rememberSession, setRememberSession] = useState(false)
+  const [acceptedCoachTerms, setAcceptedCoachTerms] = useState(false)
   const [bootstrapToken, setBootstrapToken] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [coachMode, setCoachMode] = useState('login')
@@ -343,9 +344,10 @@ function Login({ onLogin }) {
     setError(''); setInfo('')
     try {
       if (mode === 'coach') {
+        if ((coachMode === 'bootstrap' || coachMode === 'register') && !acceptedCoachTerms) { setError('Läs och godkänn tränarvillkoren först.'); setLoading(false); return }
         if (rememberCoachEmail) window.localStorage.setItem('simkoll_coach_email', email.trim().toLowerCase())
         else window.localStorage.removeItem('simkoll_coach_email')
-        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password } : { action: 'coach-login', email, password, remember: rememberSession }
+        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken, acceptedTerms: acceptedCoachTerms } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password, acceptedTerms: acceptedCoachTerms } : { action: 'coach-login', email, password, remember: rememberSession }
         const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         const data = await result.json()
         if (!result.ok) throw new Error(data.error)
@@ -384,7 +386,7 @@ function Login({ onLogin }) {
             <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
             <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
             {coachMode === 'login' && <><label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label><label className="remember-login"><input type="checkbox" checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label></>}
-            {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}</>}
+            {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}<details className="login-terms"><summary>Visa tränarvillkoren</summary><p>Kontot får bara användas i klubbens tränaruppdrag. Hantera simmarinformation konfidentiellt, skriv inte diagnoser eller personnummer i fritext, och dela inte uppgifter eller exporter med obehöriga. AI-svar ska alltid kontrolleras och får inte användas som automatiska beslut.</p></details><label className="remember-login"><input type="checkbox" checked={acceptedCoachTerms} onChange={(event) => setAcceptedCoachTerms(event.target.checked)} /> Jag har läst och godkänner tränarvillkoren.</label></>}
             <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
             <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? (bootstrapAvailable ? 'bootstrap' : 'login') : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' && bootstrapAvailable ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
             {coachMode === 'login' && bootstrapAvailable && <button type="button" className="text-button" onClick={() => { setCoachMode('bootstrap'); setError(''); setInfo('') }}>Skapa första superadmin</button>}
@@ -567,6 +569,10 @@ function LegalPurpose() {
 
 function LegalPage({ onBack }) {
   return <div className="faq-page legal-page">{onBack && <button className="back-button" onClick={onBack}>← Tillbaka</button>}<section className="faq-content"><p className="eyebrow">Simkoll</p><h1>Info & villkor</h1><p className="faq-intro">Här beskriver vi hur Simkoll används och hur information hanteras. Klubbens juridiska uppgifter och kontaktväg kompletteras innan skarp lansering.</p><div className="faq-list"><details open><summary>Integritet och data<span>−</span></summary><p>Simkoll samlar in svar om exempelvis energi, kroppskänsla, motivation, RPE, fartkänsla, temperatur och träningsupplevelse. Du väljer själv om ett svar ska vara anonymt eller kopplas till din profil.</p><p>Anonyma svar visas som gruppsammanställningar. Profilkopplade svar kan ses av behöriga tränare och av dig själv. Du kan be om information, rättelse eller radering av uppgifter via klubben.</p></details><details><summary>Personlig AI-analys<span>+</span></summary><p>En personlig analys aktiveras av tränare först efter att vårdnadshavare har godkänt det enligt klubbens rutin. Simmaren får sedan läsa den sparade analysen i sin profil. Funktionen är frivillig och kan stängas av.</p><p>Sammanställda träningsvärden skickas till en språkmodell. Namn, användarnamn och privata kommentarer skickas inte. Analysen är ett tränings- och samtalsstöd, inte en medicinsk bedömning eller ett automatiskt beslut. För information om OpenAI API:s datahantering, se <a href="https://platform.openai.com/docs/models/default-usage-policies-by-endpoint" target="_blank" rel="noreferrer">OpenAI:s officiella dokumentation</a>.</p></details><details><summary>AI för minderåriga<span>+</span></summary><p>För simmare under 18 år ska klubben inhämta vårdnadshavares godkännande och även informera simmaren på ett begripligt sätt. Godkännandet dokumenteras utanför eller i klubbens beslutade samtyckesflöde. Det ska gå att återkalla utan nackdelar.</p></details><details><summary>Användarvillkor<span>+</span></summary><p>Simkoll är ett frivilligt stöd för träningsfeedback och ersätter inte kontakt med tränare, vårdnadshavare eller vårdpersonal. Skriv inte diagnoser, personnummer eller andra känsliga uppgifter i fritextfält.</p><p>Pepp och meddelanden ska vara respektfulla. Olämpligt innehåll kan tas bort av tränare.</p></details><details><summary>Klubbens uppgifter<span>+</span></summary><p>Personuppgiftsansvarig, kontaktadress, lagringstid och information för minderåriga fylls i här innan appen används skarpt.</p></details></div><small className="legal-disclaimer">Detta är ett informationsutkast och bör granskas innan skarp användning.</small></section></div>
+}
+
+function CoachTermsSection() {
+  return <section className="settings-card coach-terms-card" id="coach-terms"><p className="eyebrow">Tränare · version 1.0</p><h2>Tränarvillkor och regler för informationshantering</h2><p>Tränarkontot får endast användas inom klubbens tränaruppdrag. Information om simmare ska hanteras konfidentiellt och bara användas för träningsuppföljning, planering och samtal.</p><p>Dokumentera bara sådant som är relevant och nödvändigt. Skriv inte diagnoser, personnummer eller andra onödigt känsliga uppgifter i fritext. Dela inte skärmbilder, exporter eller inloggningsuppgifter med obehöriga.</p><p>AI- och språkmodellstöd är ett hjälpmedel. Kontrollera alltid resultatet och använd det inte som ett automatiskt beslut om träning, tävling eller hälsa.</p><p>Logga ut från delade enheter och rapportera misstänkt obehörig åtkomst till klubbens utsedda kontaktperson.</p></section>
 }
 
 function currentStarState(training, profileId) {
@@ -1644,7 +1650,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'faq' ? (
           <Faq role="coach" />
         ) : view === 'legal' ? (
-          <><LegalPurpose /><LegalPage /></>
+          <><LegalPurpose /><LegalPage /><CoachTermsSection /></>
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} />
         ) : view === 'rewards' ? (
