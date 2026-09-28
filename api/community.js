@@ -4,6 +4,18 @@ import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } f
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 
+// Modereringsmodellen är ett viktigt extra skydd, men ska inte vara enda
+// spärren för tydliga svordomar och personangrepp på svenska. Kontrollera
+// därför även vanliga uttryck lokalt innan texten skickas vidare.
+const BLOCKED_PEP_PATTERNS = [
+  /\bjävla\b/i, /\bjävlar\b/i, /\bjävel\b/i, /\bhelvete\b/i, /\bhorunge\b/i,
+  /\bhora\b/i, /\bfitta\b/i, /\bknulla\b/i, /\bknull[a-zåäö]*\b/i,
+  /\bskitstövel\b/i, /\bskitunge\b/i, /\bidiotjävel\b/i, /\bgubb\s*jävel\b/i,
+  /\bfuck\b/i, /\bshit\b/i, /\bbitch\b/i,
+]
+
+const hasBlockedPepLanguage = (content) => BLOCKED_PEP_PATTERNS.some((pattern) => pattern.test(String(content || '').toLocaleLowerCase('sv-SE')))
+
 async function polishCommunityPost(request, content) {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
@@ -31,6 +43,7 @@ ${String(content).slice(0, 1000)}`
 }
 
 async function moderateCustomPep(request, content) {
+  if (hasBlockedPepLanguage(content)) return { allowed: false, error: 'Meddelandet kan inte skickas eftersom det innehåller svordomar eller ett personangrepp. Skriv gärna om det med respektfull ton.' }
   const availability = await aiAvailability()
   if (!availability.allowed) return { allowed: false, error: 'Peppkontrollen är inte tillgänglig just nu. Försök igen senare.' }
   const key = process.env.OPENAI_API_KEY
