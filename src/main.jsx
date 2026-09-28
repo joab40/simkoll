@@ -303,8 +303,9 @@ async function fetchResponses(code) {
 function Login({ onLogin }) {
   const [mode, setMode] = useState('group')
   const [code, setCode] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => typeof window !== 'undefined' ? window.localStorage.getItem('simkoll_coach_email') || '' : '')
   const [password, setPassword] = useState('')
+  const [rememberCoachEmail, setRememberCoachEmail] = useState(true)
   const [bootstrapToken, setBootstrapToken] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [coachMode, setCoachMode] = useState('login')
@@ -320,6 +321,8 @@ function Login({ onLogin }) {
     setError(''); setInfo('')
     try {
       if (mode === 'coach') {
+        if (rememberCoachEmail) window.localStorage.setItem('simkoll_coach_email', email.trim().toLowerCase())
+        else window.localStorage.removeItem('simkoll_coach_email')
         const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password } : { action: 'coach-login', email, password }
         const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         const data = await result.json()
@@ -358,6 +361,7 @@ function Login({ onLogin }) {
           {mode === 'coach' ? <>
             <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
             <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
+            {coachMode === 'login' && <label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label>}
             {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}</>}
             <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
             <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? (bootstrapAvailable ? 'bootstrap' : 'login') : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' && bootstrapAvailable ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
