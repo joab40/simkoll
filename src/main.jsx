@@ -576,6 +576,10 @@ function CoachTermsSection() {
   return <section className="settings-card coach-terms-card" id="coach-terms"><p className="eyebrow">Tränare · version 1.0</p><h2>Tränarvillkor och regler för informationshantering</h2><p>Tränarkontot får endast användas inom klubbens tränaruppdrag. Information om simmare ska hanteras konfidentiellt och bara användas för träningsuppföljning, planering och samtal.</p><p>Dokumentera bara sådant som är relevant och nödvändigt. Skriv inte diagnoser, personnummer eller andra onödigt känsliga uppgifter i fritext. Dela inte skärmbilder, exporter eller inloggningsuppgifter med obehöriga.</p><p>AI- och språkmodellstöd är ett hjälpmedel. Kontrollera alltid resultatet och använd det inte som ett automatiskt beslut om träning, tävling eller hälsa.</p><p>Logga ut från delade enheter och rapportera misstänkt obehörig åtkomst till klubbens utsedda kontaktperson.</p></section>
 }
 
+function SwimmerTermsSection() {
+  return <section className="settings-card swimmer-terms-reference" id="swimmer-terms"><p className="eyebrow">För simmare · version 1.0</p><h2>Simmarnas Info & villkor</h2><p>Det här är samma text som simmarna får läsa och godkänna när de skapar profil eller loggar in första gången efter att villkoren införts.</p><p>Simkoll är ett stöd för träningsfeedback, planering och utveckling. Svara så ärligt du vill, men skriv inte diagnoser, personnummer eller andra privata uppgifter i fritext.</p><p>Vissa svar kan sammanställas för tränarna. AI- och språkmodellstöd används bara enligt klubbens regler och är ett stöd – inte ett automatiskt beslut om träning eller hälsa.</p><p>Simmaren kan fråga klubben om vilka uppgifter som finns sparade och be om rättelse eller radering. Godkännandet sparas med datum och villkorsversion.</p></section>
+}
+
 function currentStarState(training, profileId) {
   const today = todayKey(), start = weekStart(), week = dateKey(start)
   const plans = (training?.plannedSessions || []).filter((item) => !profileId || item.profileId === profileId), sessions = (training?.sessions || []).filter((item) => !profileId || item.profileId === profileId)
@@ -1663,7 +1667,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'faq' ? (
           <Faq role="coach" />
         ) : view === 'legal' ? (
-          <><LegalPurpose /><LegalPage /><CoachTermsSection /></>
+          <><LegalPurpose /><LegalPage /><CoachTermsSection /><SwimmerTermsSection /></>
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} />
         ) : view === 'rewards' ? (
