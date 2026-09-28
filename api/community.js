@@ -8,13 +8,28 @@ const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { 
 // spärren för tydliga svordomar och personangrepp på svenska. Kontrollera
 // därför även vanliga uttryck lokalt innan texten skickas vidare.
 const BLOCKED_PEP_PATTERNS = [
-  /\bjävla\b/i, /\bjävlar\b/i, /\bjävel\b/i, /\bhelvete\b/i, /\bhorunge\b/i,
-  /\bhora\b/i, /\bfitta\b/i, /\bknulla\b/i, /\bknull[a-zåäö]*\b/i,
-  /\bskitstövel\b/i, /\bskitunge\b/i, /\bidiotjävel\b/i, /\bgubb\s*jävel\b/i,
-  /\bfuck\b/i, /\bshit\b/i, /\bbitch\b/i,
+  /\b(?:fan|fanskap|fan helvete|satan|satanist)\b/i,
+  /\b(?:jävla|jävlar|jävel|jävligt|jävlig|jävlighet)\b/i,
+  /\b(?:helvete|helvetes|förbannad|förbannat|förbannade|förbannelse)\b/i,
+  /\b(?:skit|skiten|skitigt|skitsnack|skitstövel|skitunge|skitliv|skitkort)\b/i,
+  /\b(?:piss|pissa|pissat|pisshuvud|pissråtta|pissunge)\b/i,
+  /\b(?:kuk|kuken|kuks|kukhuvud|kukjävel|kukskalle)\b/i,
+  /\b(?:fitta|fittan|fitthuvud|fittjävel)\b/i,
+  /\b(?:knull|knulla|knullar|knullade|knullad|knullat|knullare|knulljävel)\b/i,
+  /\b(?:hora|horan|horunge|horhus|horjävel|luder|slampa|slyna)\b/i,
+  /\b(?:röv|röven|rövhål|rövhålet|rövslickare|arsle|arslet|arsel)\b/i,
+  /\b(?:runk|runka|runkare|runkhuvud|onani|onanera)\b/i,
+  /\b(?:fitta|pung|pungen|sperma|spermat|snoppjävel)\b/i,
+  /\b(?:idiot|idioter|idiotjävel|idiotskalle|dumjävel|dumskalle|dumbom)\b/i,
+  /\b(?:mongo|mongoloid|efterbliven|cp[-\s]?unge|cp[-\s]?skalle)\b/i,
+  /\b(?:bögjävel|bögskalle|flatajävel|homofobjävel)\b/i,
+  /\b(?:gubb\s*jävel|kärring\s*jävel|f##k|fck|fcking|fuck|fucking|shit|bitch)\b/i,
 ]
 
-const hasBlockedPepLanguage = (content) => BLOCKED_PEP_PATTERNS.some((pattern) => pattern.test(String(content || '').toLocaleLowerCase('sv-SE')))
+const hasBlockedPepLanguage = (content) => {
+  const normalized = String(content || '').toLocaleLowerCase('sv-SE').normalize('NFKC').replace(/[.,!?;:()[\]{}"'`´¨~_*+=/\\|-]+/g, ' ')
+  return BLOCKED_PEP_PATTERNS.some((pattern) => pattern.test(normalized))
+}
 
 async function polishCommunityPost(request, content) {
   const key = process.env.OPENAI_API_KEY
