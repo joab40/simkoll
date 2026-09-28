@@ -59,7 +59,7 @@ button { cursor: pointer; }
 .help-tip-wrap { position: relative; display: inline-flex; vertical-align: middle; }
 .help-tip { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 3px; padding: 0; border: 1px solid #9eb5b1; border-radius: 50%; background: transparent; color: var(--teal); font: 800 10px 'Manrope'; cursor: pointer; }
 .help-tip[aria-expanded="true"] { background: var(--teal); color: #fff; }
-.help-tip-popover { position: absolute; z-index: 30; top: calc(100% + 8px); right: -8px; display: grid; gap: 4px; width: min(280px, 72vw); padding: 11px 12px; border: 1px solid #cfe2dc; border-radius: 12px; background: #fff; color: var(--ink); box-shadow: 0 10px 25px rgba(24, 73, 69, .16); font-size: 11px; font-weight: 500; line-height: 1.45; text-align: left; }
+.help-tip-popover { position: absolute; z-index: 30; top: calc(100% + 8px); left: 0; display: grid; gap: 4px; width: min(280px, calc(100vw - 24px)); padding: 11px 12px; border: 1px solid #cfe2dc; border-radius: 12px; background: #fff; color: var(--ink); box-shadow: 0 10px 25px rgba(24, 73, 69, .16); font-size: 11px; font-weight: 500; line-height: 1.45; text-align: left; }
 .help-tip-popover strong { color: var(--teal); font-size: 12px; }
 .feed-link { border: 0; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; }
 .menu-link { border: 0; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; }
