@@ -103,7 +103,7 @@ export default async function handler(request, response) {
         }
         if (request.query?.audit === 'true') {
           const [logsResult, usageResult] = await Promise.all([
-            supabaseRequest('audit_logs?select=id,event_type,role,status,details,created_at&order=created_at.desc&limit=300'),
+            supabaseRequest('audit_logs?select=id,event_type,role,status,details,ip_hash,created_at&order=created_at.desc&limit=300'),
             supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
           ])
           if (!logsResult.ok || !usageResult.ok) throw new Error('Audit lookup failed')
@@ -444,11 +444,15 @@ export default async function handler(request, response) {
     if (action === 'approve-profile' || action === 'reject-profile') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan granska profiler.' })
       const profileId = String(request.body.profileId || '')
+      if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
+      const targetResult = await supabaseRequest(`profiles?id=eq.${encodeURIComponent(profileId)}&select=id,display_name,username&limit=1`)
+      const target = targetResult.ok ? (await targetResult.json())[0] : null
       const result = await supabaseRequest(`profiles?id=eq.${profileId}&approval_status=eq.pending`, action === 'approve-profile'
         ? { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ approval_status: 'approved' }) }
         : { method: 'DELETE', headers: { Prefer: 'return=representation' } })
       if (!result.ok) throw new Error(`Profile approval failed: ${result.status} ${await result.text()}`)
       if (!(await result.json()).length) return sendJson(response, 409, { error: 'Profilen är redan granskad.' })
+      await writeAuditLog(request, { eventType: action === 'approve-profile' ? 'profile_approval' : 'profile_rejection', role: 'coach', profileId, details: { action, targetProfileId: profileId, targetAlias: target?.display_name || target?.username || profileId } })
       return sendJson(response, 200, { ok: true })
     }
 
@@ -457,7 +461,10 @@ export default async function handler(request, response) {
       const profileId = String(request.body.profileId || '')
       if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
       const approvalStatus = request.body.approved === true ? 'approved' : 'pending'
+      const targetResult = await supabaseRequest(`profiles?id=eq.${encodeURIComponent(profileId)}&select=id,display_name,username&limit=1`)
+      const target = targetResult.ok ? (await targetResult.json())[0] : null
       const updated = await updateProfile(profileId, { approval_status: approvalStatus })
+      await writeAuditLog(request, { eventType: 'profile_access_change', role: 'coach', profileId, details: { action: approvalStatus === 'approved' ? 'access-enabled' : 'access-disabled', targetProfileId: profileId, targetAlias: target?.display_name || target?.username || profileId } })
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 
