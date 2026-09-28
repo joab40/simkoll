@@ -308,6 +308,8 @@ function Login({ onLogin }) {
   const [bootstrapToken, setBootstrapToken] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [coachMode, setCoachMode] = useState('login')
+  const [bootstrapAvailable, setBootstrapAvailable] = useState(false)
+  useEffect(() => { if (mode !== 'coach') return; fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-bootstrap-status' }) }).then((result) => result.json()).then((data) => setBootstrapAvailable(data.available === true)).catch(() => setBootstrapAvailable(false)) }, [mode])
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
@@ -358,7 +360,8 @@ function Login({ onLogin }) {
             <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
             {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}</>}
             <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
-            <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? 'bootstrap' : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
+            <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? (bootstrapAvailable ? 'bootstrap' : 'login') : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' && bootstrapAvailable ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
+            {coachMode === 'login' && bootstrapAvailable && <button type="button" className="text-button" onClick={() => { setCoachMode('bootstrap'); setError(''); setInfo('') }}>Skapa första superadmin</button>}
           </> : <>
           <label htmlFor="code">Gruppkod</label>
           <div className={`code-field ${error ? 'has-error' : ''}`}>

@@ -7,6 +7,9 @@ export default async function handler(request, response) {
   if (!isDatabaseConfigured()) return sendJson(response, 503, { error: 'Databasen är inte konfigurerad.' })
 
   const action = request.body?.action
+  if (action === 'coach-bootstrap-status') {
+    return sendJson(response, 200, { available: (await countCoaches()) === 0 })
+  }
   if (action === 'coach-bootstrap') {
     const { email, displayName, password, bootstrapToken } = request.body || {}
     if (!process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || bootstrapToken !== process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN) return sendJson(response, 403, { error: 'Bootstrap-koden är inte giltig.' })
