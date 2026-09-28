@@ -16,6 +16,41 @@ function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
 }
 
+async function answerAssistant(request, role) {
+  const question = String(request.body?.question || '').trim().slice(0, 600)
+  if (!question) return { error: 'Skriv en fråga först.' }
+  const profile = role === 'swimmer' ? await getSessionProfile(request) : null
+  if (role === 'swimmer' && !profile) return { error: 'Logga in med din simmarprofil först.' }
+  const [plansResult, workoutsResult, competitionsResult, resultsResult] = await Promise.all([
+    supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=40'),
+    supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=40'),
+    supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=30'),
+    profile ? supabaseRequest(`competition_results?profile_id=eq.${encodeURIComponent(profile.id)}&select=event,pool,swim_time,result_date&order=result_time.asc&limit=60`) : Promise.resolve(null),
+  ])
+  const today = stockholmDate()
+  const visible = (rows) => (rows || []).filter((item) => !item.plan_date || item.plan_date >= today).slice(0, 20)
+  const context = {
+    role,
+    profile: profile ? { displayName: profile.display_name, trainingGroup: profile.training_group || null } : null,
+    upcomingPlans: visible(plansResult.ok ? await plansResult.json() : []).map((item) => ({ date: item.plan_date, title: item.title, type: item.activity_type, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes, time: item.time_of_day, groups: item.target_groups })),
+    workouts: visible(workoutsResult.ok ? await workoutsResult.json() : []).map((item) => ({ date: item.workout_date, title: item.title, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes })),
+    competitions: visible(competitionsResult.ok ? await competitionsResult.json() : []).map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
+    personalBestResults: resultsResult?.ok ? (await resultsResult.json()).slice(0, 40).map((item) => ({ event: item.event, pool: item.pool, time: item.swim_time, date: item.result_date })) : [],
+  }
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { error: 'AI-stöd är inte konfigurerat just nu.' }
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const faq = 'Simkoll används för check-in, träningsuppföljning, planering, mål och samtal. Svar kan vara anonyma eller kopplade till profil beroende på valet i check-in. RPE är upplevd ansträngning 1–10. AI-svar är stöd, inte medicinska råd eller automatiska beslut. Simmare ska inte skriva diagnoser, personnummer eller andra känsliga uppgifter i fritext.'
+  const prompt = `Du är Simkolls hjälpsamma assistent. Svara på svenska, kort och konkret, med varm men professionell ton. Använd endast FAQ-kunskapen och datan i underlaget. Hitta aldrig på ett pass, en tävling, en tid eller ett personbästa. Om svaret inte finns, säg det tydligt. Ge inga medicinska råd och fatta inga beslut om träning eller tävling. Simmare får bara svar om sina egna uppgifter.\nFAQ: ${faq}\nFråga: ${question}\n\nUnderlag:\n${JSON.stringify(context).slice(0, 12000)}`
+  try {
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 500, messages: [{ role: 'system', content: 'Du är Simkolls FAQ- och planeringsassistent. Returnera endast JSON med nyckeln text.' }, { role: 'user', content: prompt }], response_format: { type: 'json_object' } }) })
+    if (!result.ok) { await writeAiUsage(request, { feature: 'assistant_chat', model, role, status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Assistenten kunde inte svara just nu.' } }
+    const payload = await result.json(); await writeAiUsage(request, { feature: 'assistant_chat', model, role, response: payload })
+    const raw = String(payload.choices?.[0]?.message?.content || '{}'), first = raw.indexOf('{'), last = raw.lastIndexOf('}'), parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
+    return { text: String(parsed.text || '').trim().slice(0, 2500) || 'Jag kunde inte hitta ett tydligt svar i Simkoll.' }
+  } catch (error) { console.warn('Assistant AI fallback:', error.message); return { error: 'Assistenten kunde inte svara just nu.' } }
+}
+
 async function polishCoachNote(request, content, noteDate, activityLabel = '') {
   const key = process.env.OPENAI_API_KEY
   if (!key) return { text: content, usedAi: false }
@@ -461,6 +496,11 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'assistant-chat') {
+        const availability = await aiAvailability()
+        if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
+        return sendJson(response, 200, await answerAssistant(request, role))
+      }
       if (request.body?.action === 'coach-update-competition-entry') {
         if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ändra tävlingsval.' })
         const competitionId = String(request.body.competitionId || ''), profileId = String(request.body.profileId || '')
@@ -486,6 +526,13 @@ export default async function handler(request, response) {
         const insert = await supabaseRequest('competition_entries', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(eventIds.map((eventId) => ({ competition_id: competitionId, event_id: eventId, profile_id: swimmer.id, status, submitted_at: status === 'submitted' ? new Date().toISOString() : null }))) })
         if (!insert.ok) throw new Error(`Competition entries insert failed: ${insert.status} ${await insert.text()}`)
         return sendJson(response, 200, { entries: await insert.json(), status })
+      }
+      if (request.body?.action === 'assistant-transcribe') {
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
+        if (role === 'swimmer' && !(await getSessionProfile(request))) return sendJson(response, 403, { error: 'Logga in med din simmarprofil först.' })
+        const dataUrl = String(request.body.dataUrl || '')
+        if (!dataUrl.startsWith('data:audio/')) return sendJson(response, 400, { error: 'Ljudfilen saknas.' })
+        return sendJson(response, 200, await transcribeAudio(request, dataUrl, String(request.body.mimeType || 'audio/webm')))
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
       if (request.body?.action === 'transcribe-audio') {

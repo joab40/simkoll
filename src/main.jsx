@@ -208,7 +208,7 @@ function App() {
   }
 
   return (
-    <Shell profile={profile} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCompetitions={() => setScreen('competition-entries')} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
+    <Shell code={auth.code} role="swimmer" profile={profile} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCompetitions={() => setScreen('competition-entries')} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'vanda' && <Vandningsmastaren code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'swimgames' && <Swimgames code={auth.code} onBack={() => setScreen('home')} />}
@@ -444,24 +444,48 @@ function SwimmerCompetitionEntries({ code, onBack }) {
   return <section className="competition-entries"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Tävlingskalender</p><h1>Mina grenar</h1><small>Välj vilka grenar du vill simma. Tränarna ser när du skickar in.</small></div></div>{loading && <p className="empty">Hämtar tävlingsprogram…</p>}{!loading && !competitions.length && <p className="empty">Ingen kommande tävling är publicerad ännu.</p>}{competition && <><label className="settings-field"><strong>Tävling</strong><select value={selectedCompetition} onChange={(event) => setSelectedCompetition(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label>{events.length ? <div className="competition-entry-list">{events.map((event) => <label key={event.id}><input type="checkbox" disabled={event.selectable === false} checked={event.selectable !== false && selected.includes(event.id)} onChange={() => event.selectable !== false && setSelected((current) => current.includes(event.id) ? current.filter((id) => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender || 'Alla'} · {event.ageClass || 'Alla åldrar'}</small></span></label>)}</div> : <p className="empty">Tränaren har inte läst in något grenprogram ännu.</p>}<div className="settings-actions"><button className="secondary-button" disabled={saving} onClick={() => save(false)}>Spara utkast</button><button className="primary-button" disabled={saving || !selected.length} onClick={() => save(true)}>Skicka till tränarna</button></div></>}</section>
 }
 
-function Shell({ children, profile, talksEnabled, planningEnabled, onPlanning, onCompetitions, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
+function Shell({ children, code, role, profile, talksEnabled, planningEnabled, onPlanning, onCompetitions, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
   const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
-      <header><ClubBrand /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && planningEnabled && <button className="menu-link" onClick={go(onPlanning)}>Veckoplanering</button>}{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
+      <header><ClubBrand onAssistant={() => setAssistantOpen(true)} /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && planningEnabled && <button className="menu-link" onClick={go(onPlanning)}>Veckoplanering</button>}{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
       {profile && talksEnabled && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
+      {assistantOpen && <Assistant code={code} role={role} onClose={() => setAssistantOpen(false)} />}
       {children}
     </main>
   )
 }
 
-function ClubBrand() {
+function Assistant({ code, role, onClose }) {
+  const [messages, setMessages] = useState([{ from: 'assistant', text: 'Hej! Jag kan hjälpa dig att hitta information i Simkoll. Vad vill du veta?' }])
+  const [question, setQuestion] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const ask = async (text = question) => {
+    const value = String(text || '').trim(); if (!value || loading) return
+    setMessages((current) => [...current, { from: 'user', text: value }]); setQuestion(''); setLoading(true)
+    try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-chat', question: value }) }); setMessages((current) => [...current, { from: 'assistant', text: data.text || data.error || 'Jag kunde inte hitta ett svar.' }]) } catch (error) { setMessages((current) => [...current, { from: 'assistant', text: error.message }]) } finally { setLoading(false) }
+  }
+  const stopRecording = () => { recorderRef.current?.stop(); setRecording(false) }
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return window.alert('Röstinspelning stöds inte på den här enheten.')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const recorder = new MediaRecorder(stream); chunksRef.current = []; recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data) }; recorder.onstop = () => { stream.getTracks().forEach((track) => track.stop()); const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' }); const reader = new FileReader(); reader.onload = async () => { setLoading(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-transcribe', dataUrl: reader.result, mimeType: blob.type }) }); if (data.text) { setQuestion(data.text); } else throw new Error(data.error || 'Transkriberingen kunde inte genomföras.') } catch (error) { setMessages((current) => [...current, { from: 'assistant', text: error.message }]) } finally { setLoading(false) } }; reader.readAsDataURL(blob) }; recorderRef.current = recorder; recorder.start(); setRecording(true)
+    } catch { window.alert('Mikrofonen kunde inte startas.') }
+  }
+  return <div className="assistant-overlay" role="dialog" aria-modal="true" aria-label="Simkoll-assistenten"><section className="assistant-panel"><header><div><span className="assistant-avatar">🧸</span><div><strong>Simkoll-assistenten</strong><small>{role === 'coach' ? 'Tränarstöd' : 'Ditt Simkoll-stöd'}</small></div></div><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></header><div className="assistant-messages">{messages.map((message, index) => <p key={`${index}-${message.from}`} className={message.from}>{message.text}</p>)}{loading && <p className="assistant assistant-thinking">Tänker…</p>}</div><div className="assistant-suggestions"><button type="button" onClick={() => ask('Vad är Simkoll?')}>Vad är Simkoll?</button><button type="button" onClick={() => ask('När är nästa träningspass?')}>Nästa pass</button><button type="button" onClick={() => ask('Vad är planerat den här veckan?')}>Veckan</button><button type="button" onClick={() => ask('Vilka är mina personbästa?')}>Personbästa</button></div><div className="assistant-input"><textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Skriv en fråga…" rows={2} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} /><button type="button" className={recording ? 'recording-button' : 'secondary-button'} onClick={recording ? stopRecording : startRecording}>{recording ? '⏹' : '🎙️'}</button><button type="button" className="primary-button" onClick={() => ask()} disabled={loading || !question.trim()}>Skicka</button></div><small className="assistant-disclaimer">Svar hämtas från Simkolls information och tillgängliga uppgifter. Kontrollera alltid viktiga besked.</small></section></div>
+}
+
+function ClubBrand({ onAssistant }) {
   return (
-    <div className="club-brand">
+    <button type="button" className="club-brand" onClick={onAssistant || (() => window.dispatchEvent(new Event('simkoll-assistant-open')))} aria-label="Öppna Simkoll-assistenten">
       <Logo compact />
       <span>Sundsvalls Simsällskap</span>
-    </div>
+    </button>
   )
 }
 
@@ -1563,6 +1587,8 @@ function CoachAccountManagement({ code }) {
 
 function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  useEffect(() => { const open = () => setAssistantOpen(true); window.addEventListener('simkoll-assistant-open', open); return () => window.removeEventListener('simkoll-assistant-open', open) }, [])
   const [summaryDate, setSummaryDate] = useState(todayKey())
   const [summaryWorkouts, setSummaryWorkouts] = useState([])
   const [selectedGroups, setSelectedGroups] = useState(['ungdom_orange', 'ungdom_svart', 'junior'])
@@ -1631,6 +1657,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
 
   return (
     <main className="coach-shell">
+      {assistantOpen && <Assistant code={code} role="coach" onClose={() => setAssistantOpen(false)} />}
       <header><ClubBrand /><details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groupOptions.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('games')}>Veckans spel</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('logs')}>Loggar</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button>{accountRole === 'superadmin' && <button type="button" onClick={() => openViewFromMenu('coach-accounts')}>Tränarkonton</button>}<button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
