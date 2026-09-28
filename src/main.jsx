@@ -452,23 +452,30 @@ function Shell({ children, code, role, profile, talksEnabled, planningEnabled, o
     <main className="app-shell">
       <header><ClubBrand onAssistant={() => setAssistantOpen(true)} /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && planningEnabled && <button className="menu-link" onClick={go(onPlanning)}>Veckoplanering</button>}{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
       {profile && talksEnabled && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
-      {assistantOpen && <Assistant code={code} role={role} onClose={() => setAssistantOpen(false)} />}
+      {assistantOpen && <Assistant code={code} role={role} profile={profile} onClose={() => setAssistantOpen(false)} />}
       {children}
     </main>
   )
 }
 
-function Assistant({ code, role, onClose }) {
-  const [messages, setMessages] = useState([{ from: 'assistant', text: 'Hej! Jag kan hjälpa dig att hitta information i Simkoll. Vad vill du veta?' }])
+function Assistant({ code, role, profile, onClose }) {
+  const historyKey = `simkoll-assistant-history:${role}:${code}:${profile?.id || 'coach'}`
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(historyKey) || 'null')
+      return Array.isArray(saved) && saved.length ? saved : [{ from: 'assistant', text: 'Hej! Jag kan hjälpa dig att hitta information i Simkoll. Vad vill du veta?' }]
+    } catch { return [{ from: 'assistant', text: 'Hej! Jag kan hjälpa dig att hitta information i Simkoll. Vad vill du veta?' }] }
+  })
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [recording, setRecording] = useState(false)
   const recorderRef = useRef(null)
   const chunksRef = useRef([])
+  useEffect(() => { try { window.localStorage.setItem(historyKey, JSON.stringify(messages.slice(-40))) } catch {} }, [historyKey, messages])
   const ask = async (text = question) => {
     const value = String(text || '').trim(); if (!value || loading) return
     setMessages((current) => [...current, { from: 'user', text: value }]); setQuestion(''); setLoading(true)
-    try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-chat', question: value }) }); setMessages((current) => [...current, { from: 'assistant', text: data.text || data.error || 'Jag kunde inte hitta ett svar.' }]) } catch (error) { setMessages((current) => [...current, { from: 'assistant', text: error.message }]) } finally { setLoading(false) }
+    try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-chat', question: value, history: messages.slice(-10) }) }); setMessages((current) => [...current, { from: 'assistant', text: data.text || data.error || 'Jag kunde inte hitta ett svar.' }]) } catch (error) { setMessages((current) => [...current, { from: 'assistant', text: error.message }]) } finally { setLoading(false) }
   }
   const stopRecording = () => { recorderRef.current?.stop(); setRecording(false) }
   const startRecording = async () => {

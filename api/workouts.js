@@ -18,14 +18,16 @@ function publicCoachNote(item) {
 
 async function answerAssistant(request, role) {
   const question = String(request.body?.question || '').trim().slice(0, 600)
+  const history = Array.isArray(request.body?.history) ? request.body.history.filter((item) => item && (item.from === 'user' || item.from === 'assistant') && typeof item.text === 'string').slice(-10).map((item) => ({ role: item.from === 'user' ? 'user' : 'assistant', content: item.text.slice(0, 1200) })) : []
   if (!question) return { error: 'Skriv en fråga först.' }
   const profile = role === 'swimmer' ? await getSessionProfile(request) : null
   if (role === 'swimmer' && !profile) return { error: 'Logga in med din simmarprofil först.' }
-  const [plansResult, workoutsResult, competitionsResult, resultsResult] = await Promise.all([
+  const [plansResult, workoutsResult, competitionsResult, resultsResult, sportAdminActivities] = await Promise.all([
     supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=40'),
     supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=40'),
     supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=30'),
     profile ? supabaseRequest(`competition_results?profile_id=eq.${encodeURIComponent(profile.id)}&select=event,pool,swim_time,result_date&order=result_time.asc&limit=60`) : Promise.resolve(null),
+    configuredSportAdminCalendars().then(readSportAdminCalendars).catch(() => []),
   ])
   const today = stockholmDate()
   const visible = (rows) => (rows || []).filter((item) => !item.plan_date || item.plan_date >= today).slice(0, 20)
@@ -35,13 +37,14 @@ async function answerAssistant(request, role) {
     upcomingPlans: visible(plansResult.ok ? await plansResult.json() : []).map((item) => ({ date: item.plan_date, title: item.title, type: item.activity_type, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes, time: item.time_of_day, groups: item.target_groups })),
     workouts: visible(workoutsResult.ok ? await workoutsResult.json() : []).map((item) => ({ date: item.workout_date, title: item.title, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes })),
     competitions: visible(competitionsResult.ok ? await competitionsResult.json() : []).map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
+    calendarActivities: sportAdminActivities.filter((item) => !item.targetGroups?.length || role === 'coach' || !profile?.training_group || item.targetGroups.includes(profile.training_group)).filter((item) => item.date >= today).slice(0, 30).map((item) => ({ date: item.date, time: item.time || null, title: item.title, location: item.location || '', groups: item.targetGroups || [] })),
     personalBestResults: resultsResult?.ok ? (await resultsResult.json()).slice(0, 40).map((item) => ({ event: item.event, pool: item.pool, time: item.swim_time, date: item.result_date })) : [],
   }
   const key = process.env.OPENAI_API_KEY
   if (!key) return { error: 'AI-stöd är inte konfigurerat just nu.' }
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
   const faq = 'Simkoll används för check-in, träningsuppföljning, planering, mål och samtal. Svar kan vara anonyma eller kopplade till profil beroende på valet i check-in. RPE är upplevd ansträngning 1–10. AI-svar är stöd, inte medicinska råd eller automatiska beslut. Simmare ska inte skriva diagnoser, personnummer eller andra känsliga uppgifter i fritext.'
-  const prompt = `Du är Simkolls hjälpsamma assistent. Svara på svenska, kort och konkret, med varm men professionell ton. Använd endast FAQ-kunskapen och datan i underlaget. Hitta aldrig på ett pass, en tävling, en tid eller ett personbästa. Om svaret inte finns, säg det tydligt. Ge inga medicinska råd och fatta inga beslut om träning eller tävling. Simmare får bara svar om sina egna uppgifter.\nFAQ: ${faq}\nFråga: ${question}\n\nUnderlag:\n${JSON.stringify(context).slice(0, 12000)}`
+  const prompt = `Du är Simkolls hjälpsamma assistent. Svara på svenska, kort och konkret, med varm men professionell ton. Använd endast FAQ-kunskapen och datan i underlaget. Hitta aldrig på ett pass, en tävling, en tid eller ett personbästa. Om svaret gäller nästa simpass ska du ange datum, klockslag och plats när det finns i planeringen eller kalenderaktiviteterna. Skilj på “förmiddag/eftermiddag” och ett faktiskt klockslag: använd bara ett exakt klockslag när det finns. Om svaret inte finns, säg det tydligt. Ge inga medicinska råd och fatta inga beslut om träning eller tävling. Simmare får bara svar om sina egna uppgifter.\nFAQ: ${faq}\nTidigare dialog (använd som sammanhang, men lita på underlaget framför dialogen): ${JSON.stringify(history)}\nFråga: ${question}\n\nUnderlag:\n${JSON.stringify(context).slice(0, 14000)}`
   try {
     const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 500, messages: [{ role: 'system', content: 'Du är Simkolls FAQ- och planeringsassistent. Returnera endast JSON med nyckeln text.' }, { role: 'user', content: prompt }], response_format: { type: 'json_object' } }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'assistant_chat', model, role, status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Assistenten kunde inte svara just nu.' } }
