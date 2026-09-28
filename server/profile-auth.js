@@ -32,6 +32,8 @@ export function publicProfile(profile) {
     tempusId: profile.tempus_id || null,
     approvalStatus: profile.approval_status || 'approved',
     aiAnalysisStatus: profile.ai_analysis_status || 'not_requested',
+    termsAccepted: Boolean(profile.terms_accepted_at),
+    termsVersion: profile.terms_version || null,
     isTestProfile: Boolean(profile.is_test_profile),
     createdAt: profile.created_at,
   }

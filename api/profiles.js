@@ -144,7 +144,7 @@ export default async function handler(request, response) {
           if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
           return sendJson(response, 200, { results: await result.json() })
         }
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,ai_analysis_status,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,ai_analysis_status,terms_accepted_at,terms_version,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
         return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
@@ -170,6 +170,13 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+
+    if (action === 'accept-terms') {
+      const profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 401, { error: 'Du måste vara inloggad som simmare.' })
+      const updated = await updateProfile(profile.id, { terms_accepted_at: new Date().toISOString(), terms_version: '1.0' })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
 
     if (action === 'backup-import') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan importera en backup.' })
@@ -236,6 +243,7 @@ export default async function handler(request, response) {
       const displayName = String(request.body.displayName || '').trim()
       const emoji = String(request.body.emoji || '🏊').slice(0, 16)
       const pin = String(request.body.pin || '')
+      if (request.body.acceptedTerms !== true) return sendJson(response, 400, { error: 'Du måste läsa och godkänna Info & villkor.' })
       if (!validUsername(username)) return sendJson(response, 400, { error: 'Användarnamnet behöver vara 3–24 tecken: bokstäver, siffror, punkt, streck eller understreck.' })
       if (!displayName || displayName.length > 40) return sendJson(response, 400, { error: 'Välj ett namn med högst 40 tecken.' })
       if (!validPin(pin)) return sendJson(response, 400, { error: 'PIN-koden ska bestå av fyra siffror.' })
@@ -244,7 +252,7 @@ export default async function handler(request, response) {
       const pinData = await hashPin(pin)
       const result = await supabaseRequest('profiles', {
         method: 'POST', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ username, display_name: displayName, emoji, pin_hash: pinData.hash, pin_salt: pinData.salt, approval_status: 'pending' }),
+        body: JSON.stringify({ username, display_name: displayName, emoji, pin_hash: pinData.hash, pin_salt: pinData.salt, approval_status: 'pending', terms_accepted_at: new Date().toISOString(), terms_version: '1.0' }),
       })
       if (!result.ok) throw new Error(`Profile insert failed: ${result.status} ${await result.text()}`)
       const [profile] = await result.json()

@@ -101,7 +101,7 @@ function App() {
   useEffect(() => {
     if (!auth || auth.role !== 'swimmer' || profile || screen !== 'home') return
     setScreen('restoring-profile')
-    apiRequest('/api/profiles', auth.code).then((data) => { setProfile(data.profile); setScreen('home') }).catch(() => setScreen('profile-login'))
+    apiRequest('/api/profiles', auth.code).then((data) => { setProfile(data.profile); setScreen(data.profile?.termsAccepted ? 'home' : 'swimmer-terms') }).catch(() => setScreen('profile-login'))
   }, [auth, profile, screen])
 
   useEffect(() => {
@@ -178,7 +178,7 @@ function App() {
     try {
       const data = await apiRequest('/api/profiles', nextAuth.code)
       setProfile(data.profile)
-      setScreen('home')
+      setScreen(data.profile?.termsAccepted ? 'home' : 'swimmer-terms')
     } catch {
       setProfile(null)
       setScreen('profile-login')
@@ -234,10 +234,11 @@ function App() {
           onMode={(mode) => setScreen(`profile-${mode}`)}
           onSuccess={async (nextProfile) => {
             if (nextProfile) setProfile(nextProfile)
-            setScreen(nextProfile ? 'home' : 'profile-login')
+            setScreen(nextProfile ? (nextProfile.termsAccepted ? 'home' : 'swimmer-terms') : 'profile-login')
           }}
         />
       )}
+      {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
         <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
@@ -1066,8 +1067,18 @@ function AccountChoice({ onLogin, onCreate }) {
 
 const PROFILE_EMOJIS = ['🏊', '🐬', '🦈', '🐙', '🐢', '🦦', '🐳', '⚡', '🌊', '🔥']
 
+function SwimmerTerms({ code, profile, onAccepted, onLogout }) {
+  const [saving, setSaving] = useState(false)
+  const [accepted, setAccepted] = useState(false)
+  const accept = async () => {
+    setSaving(true)
+    try { const data = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'accept-terms' }) }); onAccepted(data.profile) } catch (error) { window.alert(error.message) } finally { setSaving(false) }
+  }
+  return <div className="profile-access-page"><section className="profile-form"><p className="eyebrow">Hej {profile.displayName} {profile.emoji}</p><h1>En viktig sak först</h1><p>Läs igenom hur Simkoll används och hur information hanteras. Du kan alltid hitta texten igen under <strong>Info & villkor</strong>.</p><details open><summary>Info & villkor för simmare</summary><p>Simkoll är ett stöd för träningsfeedback, planering och utveckling. Svara så ärligt du vill, men skriv inte diagnoser, personnummer eller andra privata uppgifter i fritext.</p><p>Vissa svar kan sammanställas för tränarna. AI- och språkmodellstöd används bara enligt klubbens regler och är ett stöd – inte ett automatiskt beslut om träning eller hälsa.</p><p>Du kan fråga klubben om vilka uppgifter som finns sparade och be om rättelse eller radering.</p></details><label className="remember-login"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /> Jag har läst och godkänner Info & villkor.</label><button className="primary-button" onClick={accept} disabled={saving || !accepted}>{saving ? 'Sparar…' : 'Fortsätt till Simkoll →'}</button><button className="form-link" onClick={onLogout}>Logga ut</button></section></div>
+}
+
 function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
-  const [form, setForm] = useState({ emoji: '🏊', remember: false })
+  const [form, setForm] = useState({ emoji: '🏊', remember: false, acceptedTerms: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState(false)
@@ -1079,6 +1090,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
     setError('')
     try {
       const action = mode === 'create' ? 'create' : mode === 'reset' ? 'reset-pin' : 'login'
+      if (mode === 'create' && !form.acceptedTerms) { setError('Läs och godkänn Info & villkor först.'); setLoading(false); return }
       const data = await apiRequest('/api/profiles', code, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...form }),
       })
@@ -1105,6 +1117,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
         <label>Användarnamn<input required minLength="3" maxLength="24" autoCapitalize="none" autoComplete="username" placeholder="t.ex. delfinen7" value={form.username || ''} onChange={(event) => update('username', event.target.value)} /></label>
         {mode === 'reset' && <label>Återställningskod<input required inputMode="numeric" maxLength="8" placeholder="8 siffror" value={form.resetCode || ''} onChange={(event) => update('resetCode', event.target.value.replace(/\D/g, ''))} /></label>}
         <label>{mode === 'reset' ? 'Ny fyrsiffrig PIN' : 'Fyrsiffrig PIN'}<input required inputMode="numeric" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength="4" placeholder="••••" value={(mode === 'reset' ? form.newPin : form.pin) || ''} onChange={(event) => update(mode === 'reset' ? 'newPin' : 'pin', event.target.value.replace(/\D/g, ''))} /></label>
+        {mode === 'create' && <label className="remember-login"><input type="checkbox" checked={form.acceptedTerms === true} onChange={(event) => update('acceptedTerms', event.target.checked)} /> Jag har läst och godkänner Info & villkor.</label>}
         {mode === 'login' && <label className="remember-login"><input type="checkbox" checked={form.remember === true} onChange={(event) => update('remember', event.target.checked)} /> Håll mig inloggad på den här enheten</label>}
         {error && <span className="form-error">{error}</span>}
         <button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : mode === 'create' ? 'Skapa profil →' : mode === 'reset' ? 'Spara ny PIN →' : 'Logga in →'}</button>
