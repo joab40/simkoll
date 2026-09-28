@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from 'node:crypto'
+
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -53,6 +55,17 @@ export async function aiAvailability() {
 }
 
 export function getRole(code) {
+  if (String(code).startsWith('coach.')) {
+    const [, encoded, signature] = String(code).split('.')
+    const secret = process.env.COACH_SESSION_SECRET || process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || 'simkoll-change-session-secret'
+    if (!encoded || !signature) return null
+    const expected = Buffer.from(createHmac('sha256', secret).update(encoded).digest('base64url')), actual = Buffer.from(signature)
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null
+    try {
+      const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
+      return payload.exp > Math.floor(Date.now() / 1000) && (payload.role === 'coach' || payload.role === 'superadmin') ? 'coach' : null
+    } catch { return null }
+  }
   if (!process.env.SIMKOLL_SWIMMER_CODE || !process.env.SIMKOLL_COACH_CODE) return null
   if (code === process.env.SIMKOLL_COACH_CODE) return 'coach'
   if (code === process.env.SIMKOLL_SWIMMER_CODE) return 'swimmer'

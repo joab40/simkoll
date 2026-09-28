@@ -28,6 +28,11 @@ button { cursor: pointer; }
 .login-page::after { right: -410px; bottom: -300px; }
 .watermark { position: absolute; font: 800 19vw/1 'Manrope'; color: rgba(255,255,255,.018); letter-spacing: -.08em; white-space: nowrap; }
 .login-card { width: min(100%, 460px); background: var(--paper); border-radius: 32px; padding: 38px 42px 30px; position: relative; z-index: 1; box-shadow: 0 28px 80px rgba(0,0,0,.3); }
+.login-mode-switch { display: flex; gap: 6px; margin: -16px 0 18px; padding: 4px; background: #edf5f2; border-radius: 12px; }
+.login-mode-switch button { flex: 1; border: 0; border-radius: 9px; background: transparent; color: var(--muted); padding: 9px 10px; font-weight: 800; cursor: pointer; }
+.login-mode-switch button.active { background: white; color: var(--ink); box-shadow: 0 2px 8px rgba(24,62,67,.1); }
+.code-form > input { width: 100%; margin: 4px 0 13px; }
+.login-submit { width: 100%; margin-top: 8px; }
 .logo { font: 800 18px/1 'Manrope'; letter-spacing: .08em; display: flex; align-items: center; gap: 9px; }
 .logo-mark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--lime); border-radius: 50%; font-size: 25px; letter-spacing: 0; }
 .logo.compact .logo-mark { width: 29px; height: 29px; font-size: 21px; }

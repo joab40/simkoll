@@ -183,7 +183,7 @@ function App() {
     setScreen('home')
   }
 
-  if (auth.role === 'coach') {
+  if (auth.role === 'coach' || auth.role === 'superadmin') {
     return <Coach responses={responses} profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={async () => { const data = await apiRequest('/api/profiles', auth.code); setProfiles(data.profiles); setPendingProfiles(data.pendingProfiles || []) }} activeProfilesToday={activeProfilesToday} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
       await apiRequest('/api/responses', auth.code, { method: 'DELETE' })
       setResponses([])
@@ -301,7 +301,13 @@ async function fetchResponses(code) {
 }
 
 function Login({ onLogin }) {
+  const [mode, setMode] = useState('group')
   const [code, setCode] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [bootstrapToken, setBootstrapToken] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [coachMode, setCoachMode] = useState('login')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -310,6 +316,14 @@ function Login({ onLogin }) {
     setLoading(true)
     setError('')
     try {
+      if (mode === 'coach') {
+        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : { action: 'coach-login', email, password }
+        const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        const data = await result.json()
+        if (!result.ok) throw new Error(data.error)
+        await onLogin({ role: data.role, accountRole: data.accountRole, code: data.code, displayName: data.displayName })
+        return
+      }
       const result = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -335,7 +349,15 @@ function Login({ onLogin }) {
           <h1>Hur känns<br />träningen idag?</h1>
           <p>Logga in med din profil för att checka in och följa din utveckling.</p>
         </div>
+        <div className="login-mode-switch"><button type="button" className={mode === 'group' ? 'active' : ''} onClick={() => { setMode('group'); setError('') }}>Gruppkod</button><button type="button" className={mode === 'coach' ? 'active' : ''} onClick={() => { setMode('coach'); setError('') }}>Tränare</button></div>
         <form onSubmit={submit} className="code-form">
+          {mode === 'coach' ? <>
+            <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
+            <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="12" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 12 tecken" />
+            {coachMode === 'bootstrap' && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" /><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}
+            <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Loggar in…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : 'Logga in som tränare'}</button>
+            <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'bootstrap' : 'login'); setError('') }}>{coachMode === 'login' ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
+          </> : <>
           <label htmlFor="code">Gruppkod</label>
           <div className={`code-field ${error ? 'has-error' : ''}`}>
             <input
@@ -353,6 +375,7 @@ function Login({ onLogin }) {
             />
             <button aria-label="Logga in" type="submit" disabled={loading}>{loading ? '…' : '→'}</button>
           </div>
+          </>}
           {error && <span className="error-text">{error}</span>}
         </form>
         <p className="privacy-note"><span>●</span> Din profil och dina svar skyddas av klubbens rutiner</p>
@@ -1852,7 +1875,7 @@ function AuditLogs({ code }) {
   useEffect(() => { apiRequest('/api/profiles?audit=true', code).then(setData).catch((nextError) => setError(nextError.message)) }, [code])
   if (error) return <EmptyPeriod title={error} periodLabel="Loggar" />
   if (!data) return <section className="empty-period"><span>◷</span><h2>Hämtar loggar…</h2></section>
-  const eventLabels = { group_login: 'Gruppkod inloggad', profile_login: 'Simmare loggade in', profile_approval: 'Profil godkänd', profile_rejection: 'Profil nekad', profile_access_change: 'Profilåtkomst ändrad', 'ai:trend_analysis': 'AI trendanalys' }
+  const eventLabels = { group_login: 'Gruppkod inloggad', profile_login: 'Simmare loggade in', coach_login: 'Tränare loggade in', coach_account_bootstrap: 'Första superadmin skapad', profile_approval: 'Profil godkänd', profile_rejection: 'Profil nekad', profile_access_change: 'Profilåtkomst ändrad', 'ai:trend_analysis': 'AI trendanalys' }
   const aiFeatureLabels = { pep_moderation: 'Kontroll av eget peppmeddelande', community_post: 'Förbättra klubbmeddelande' }
   const swedishRegions = { AB: 'Stockholm', C: 'Uppsala', D: 'Södermanland', E: 'Östergötland', F: 'Jönköping', G: 'Kronoberg', H: 'Kalmar', I: 'Gotland', K: 'Blekinge', M: 'Skåne', N: 'Halland', O: 'Västra Götaland', S: 'Värmland', T: 'Örebro', U: 'Västmanland', W: 'Dalarna', X: 'Gävleborg', Y: 'Västernorrland', Z: 'Jämtland', AC: 'Västerbotten', BD: 'Norrbotten' }
   const countryNames = typeof Intl !== 'undefined' && Intl.DisplayNames ? new Intl.DisplayNames(['sv'], { type: 'region' }) : null
