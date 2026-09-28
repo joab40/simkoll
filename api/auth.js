@@ -11,7 +11,7 @@ export default async function handler(request, response) {
     const { email, displayName, password, bootstrapToken } = request.body || {}
     if (!process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || bootstrapToken !== process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN) return sendJson(response, 403, { error: 'Bootstrap-koden är inte giltig.' })
     if (await countCoaches() > 0) return sendJson(response, 409, { error: 'Det finns redan ett tränarkonto.' })
-    if (!String(email || '').includes('@') || String(password || '').length < 12 || String(displayName || '').trim().length < 2) return sendJson(response, 400, { error: 'Ange namn, e-post och ett lösenord med minst 12 tecken.' })
+    if (!String(email || '').includes('@') || String(password || '').length < 10 || String(displayName || '').trim().length < 2) return sendJson(response, 400, { error: 'Ange namn, e-post och ett lösenord med minst 10 tecken.' })
     const account = await createCoach({ email, displayName, password, role: 'superadmin', status: 'active' })
     await writeAuditLog(request, { eventType: 'coach_account_bootstrap', role: 'coach', details: { actorEmail: account.email, actorName: account.display_name, role: account.role } })
     return sendJson(response, 201, { role: 'coach', accountRole: account.role, code: createCoachToken(account), displayName: account.display_name })
