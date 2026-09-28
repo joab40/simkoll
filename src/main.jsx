@@ -61,7 +61,6 @@ function previousWeekRange() {
 function App() {
   const [auth, setAuth] = useState(null)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [showSessionLoader, setShowSessionLoader] = useState(false)
   const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -89,13 +88,11 @@ function App() {
   const [availableGames, setAvailableGames] = useState([])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setShowSessionLoader(true), 250)
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'restore' }) })
       .then((result) => result.json())
       .then((data) => { if (data.role) setAuth({ role: data.role, accountRole: data.accountRole, code: data.code || '', displayName: data.displayName }) })
       .catch(() => {})
-      .finally(() => { window.clearTimeout(timer); setShowSessionLoader(false); setCheckingSession(false) })
-    return () => window.clearTimeout(timer)
+      .finally(() => setCheckingSession(false))
   }, [])
 
   useEffect(() => {
@@ -169,7 +166,6 @@ function App() {
   }, [auth, profile])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
-  if (checkingSession && showSessionLoader) return <section className="empty-period profile-restore"><span>👋</span><h2>Startar Simkoll…</h2></section>
   if (checkingSession) return null
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
@@ -221,7 +217,7 @@ function App() {
       {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'planning' && <SwimmerPlanning code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'competition-entries' && <SwimmerCompetitionEntries code={auth.code} onBack={() => setScreen('home')} />}
-      {screen === 'restoring-profile' && <section className="empty-period profile-restore"><span>👋</span><h2>Hämtar din profil…</h2></section>}
+      {screen === 'restoring-profile' && <section className="profile-restore-placeholder" aria-hidden="true" />}
       {screen === 'account' && <AccountChoice
         onLogin={() => setScreen('profile-login')}
         onCreate={() => setScreen('profile-create')}
