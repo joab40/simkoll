@@ -33,6 +33,14 @@ button { cursor: pointer; }
 .login-mode-switch button.active { background: white; color: var(--ink); box-shadow: 0 2px 8px rgba(24,62,67,.1); }
 .code-form > input { width: 100%; margin: 4px 0 13px; }
 .login-submit { width: 100%; margin-top: 8px; }
+.coach-account-list { display: grid; gap: 10px; }
+.coach-account-list article { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.coach-account-list article:last-child { border-bottom: 0; }
+.coach-account-list article > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.coach-account-list small { color: var(--muted); }
+.coach-account-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.coach-account-actions select { min-height: 36px; }
+@media (max-width: 620px) { .coach-account-list article { align-items: flex-start; flex-direction: column; } .coach-account-actions { justify-content: flex-start; } }
 .logo { font: 800 18px/1 'Manrope'; letter-spacing: .08em; display: flex; align-items: center; gap: 9px; }
 .logo-mark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--lime); border-radius: 50%; font-size: 25px; letter-spacing: 0; }
 .logo.compact .logo-mark { width: 29px; height: 29px; font-size: 21px; }

@@ -184,7 +184,7 @@ function App() {
   }
 
   if (auth.role === 'coach' || auth.role === 'superadmin') {
-    return <Coach responses={responses} profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={async () => { const data = await apiRequest('/api/profiles', auth.code); setProfiles(data.profiles); setPendingProfiles(data.pendingProfiles || []) }} activeProfilesToday={activeProfilesToday} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
+    return <Coach accountRole={auth.accountRole || 'coach'} responses={responses} profiles={profiles} pendingProfiles={pendingProfiles} onProfilesChange={async () => { const data = await apiRequest('/api/profiles', auth.code); setProfiles(data.profiles); setPendingProfiles(data.pendingProfiles || []) }} activeProfilesToday={activeProfilesToday} code={auth.code} loading={loading} onLogout={logout} onClear={async () => {
       await apiRequest('/api/responses', auth.code, { method: 'DELETE' })
       setResponses([])
     }} />
@@ -309,18 +309,20 @@ function Login({ onLogin }) {
   const [displayName, setDisplayName] = useState('')
   const [coachMode, setCoachMode] = useState('login')
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
 
   const submit = async (event) => {
     event.preventDefault()
     setLoading(true)
-    setError('')
+    setError(''); setInfo('')
     try {
       if (mode === 'coach') {
-        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : { action: 'coach-login', email, password }
+        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password } : { action: 'coach-login', email, password }
         const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         const data = await result.json()
         if (!result.ok) throw new Error(data.error)
+        if (coachMode === 'register') { setInfo('Ansökan är skickad. En superadmin behöver godkänna kontot innan du kan logga in.'); setCoachMode('login'); return }
         await onLogin({ role: data.role, accountRole: data.accountRole, code: data.code, displayName: data.displayName })
         return
       }
@@ -354,9 +356,9 @@ function Login({ onLogin }) {
           {mode === 'coach' ? <>
             <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
             <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
-            {coachMode === 'bootstrap' && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" /><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}
-            <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Loggar in…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : 'Logga in som tränare'}</button>
-            <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'bootstrap' : 'login'); setError('') }}>{coachMode === 'login' ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
+            {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}</>}
+            <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
+            <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? 'bootstrap' : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
           </> : <>
           <label htmlFor="code">Gruppkod</label>
           <div className={`code-field ${error ? 'has-error' : ''}`}>
@@ -377,6 +379,7 @@ function Login({ onLogin }) {
           </div>
           </>}
           {error && <span className="error-text">{error}</span>}
+          {info && <span className="settings-saved">{info}</span>}
         </form>
         <p className="privacy-note"><span>●</span> Din profil och dina svar skyddas av klubbens rutiner</p>
       </section>
@@ -1497,7 +1500,17 @@ function CoachGameLibrary({ code }) {
   return <section className="game-library"><div className="period-heading"><div><p className="eyebrow">Tränarverktyg</p><h1>Veckans spel</h1><small>Testa spelen först och planera sedan vad simmarna ska få tillgång till.</small></div><div className="big-count"><strong>{schedule.filter((item) => item.published).length}</strong><span>publicerade perioder</span></div></div><section className="settings-card game-library-catalog"><h2>Spelbibliotek</h2><p className="settings-help">Testläget använder samma spel, men sparar inga rekord eller poäng.</p><div className="game-library-list">{catalog.map((game) => <article key={game.key}><div><strong>{game.emoji} {game.title}</strong><small>{game.description}</small></div><button className="secondary-button" onClick={() => setTesting(game.key)}>Testa spelet</button></article>)}</div></section><section className="settings-card game-schedule-card"><div className="game-schedule-head"><div><h2>Planera publicering</h2><p className="settings-help">Lägg in perioder i kalendern. Avpublicerade spel syns inte för simmarna, men deras rekord finns kvar.</p></div><button className="secondary-button" onClick={add}>＋ Lägg till period</button></div>{loading ? <p className="empty">Hämtar spelplanering…</p> : schedule.length ? <div className="game-schedule-list">{schedule.map((item) => <article key={item.id}><select value={item.gameKey} onChange={(event) => update(item.id, 'gameKey', event.target.value)}>{catalog.map((game) => <option key={game.key} value={game.key}>{game.emoji} {game.title}</option>)}</select><label>Från<input type="date" value={item.startDate} onChange={(event) => update(item.id, 'startDate', event.target.value)} /></label><label>Till<input type="date" value={item.endDate} onChange={(event) => update(item.id, 'endDate', event.target.value)} /></label><label className="game-publish-toggle"><input type="checkbox" checked={item.published !== false} onChange={(event) => update(item.id, 'published', event.target.checked)} /> Publicerat</label><button className="text-button" onClick={() => remove(item.id)}>Ta bort</button></article>)}</div> : <p className="empty">Ingen period planerad ännu.</p>}<div className="settings-actions"><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara spelplanering'}</button>{message && <small className="settings-saved">{message}</small>}</div></section></section>
 }
 
-function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
+function CoachAccountManagement({ code }) {
+  const [accounts, setAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
+  const load = () => { setLoading(true); apiRequest('/api/auth', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-list' }) }).then((data) => setAccounts(data.accounts || [])).catch((error) => setMessage(error.message)).finally(() => setLoading(false)) }
+  useEffect(load, [code])
+  const update = async (accountId, payload) => { setMessage(''); try { const data = await apiRequest('/api/auth', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, action: payload.role ? 'coach-set-role' : 'coach-approve', accountId }) }); setAccounts((current) => current.map((item) => item.id === accountId ? { ...item, ...data.account } : item)); setMessage('Ändringen är sparad.') } catch (error) { setMessage(error.message) } }
+  return <section className="coach-account-management"><div className="period-heading"><div><p className="eyebrow">Säkerhet</p><h1>Tränarkonton</h1><small>Godkänn nya tränare och hantera roller. TOTP läggs till senare.</small></div><div className="big-count"><strong>{accounts.filter((item) => item.status === 'active').length}</strong><span>aktiva konton</span></div></div>{message && <p className="settings-saved">{message}</p>}{loading ? <p className="empty">Hämtar tränarkonton…</p> : <section className="settings-card coach-account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.display_name}</strong><small>{account.email} · {account.status === 'pending' ? 'Väntar på godkännande' : account.status === 'active' ? 'Aktiv' : 'Avstängd'}</small></div><div className="coach-account-actions">{account.status === 'pending' ? <button className="primary-button" onClick={() => update(account.id, { approved: true })}>Godkänn</button> : <button className="text-button danger-text" onClick={() => update(account.id, { approved: false })}>{account.status === 'active' ? 'Stäng av' : 'Avstäng'}</button>}<select value={account.role} onChange={(event) => update(account.id, { role: event.target.value })}><option value="coach">Tränare</option><option value="superadmin">Superadmin</option></select></div></article>)}</section>}</section>
+}
+
+function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
   const [summaryDate, setSummaryDate] = useState(todayKey())
   const [summaryWorkouts, setSummaryWorkouts] = useState([])
@@ -1567,7 +1580,7 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
 
   return (
     <main className="coach-shell">
-      <header><ClubBrand /><details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groupOptions.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('games')}>Veckans spel</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('logs')}>Loggar</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button><button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
+      <header><ClubBrand /><details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groupOptions.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groupOptions.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} />{label}</label>)}<button type="button" onClick={() => setSelectedGroups(groupOptions.map(([value]) => value))}>Alla grupper</button></div></details><details className="coach-header-menu"><summary><span className="coach-badge">Tränarvy⌄</span></summary><div><strong>Arbeta</strong><button type="button" onClick={() => openViewFromMenu('workout')}>Pass</button><button type="button" onClick={() => openViewFromMenu('swimmers')}>Simmare</button><button type="button" onClick={() => openViewFromMenu('groups')}>Grupper</button><button type="button" onClick={() => openViewFromMenu('community')}>Meddelanden</button><strong>Följa upp</strong><button type="button" onClick={() => openViewFromMenu('meeting')}>Veckomöte</button><button type="button" onClick={() => openViewFromMenu('trends')}>Grupptrend</button><button type="button" onClick={() => openViewFromMenu('history')}>Historik</button><button type="button" onClick={() => openViewFromMenu('competition')}>Tävlingsresultat</button><strong>Planera & stötta</strong><button type="button" onClick={() => openViewFromMenu('talks')}>Utvecklingssamtal</button><button type="button" onClick={() => openViewFromMenu('goals')}>Utvecklingsmål</button><button type="button" onClick={() => openViewFromMenu('programs')}>Träningsprogram</button><button type="button" onClick={() => openViewFromMenu('games')}>Veckans spel</button><button type="button" onClick={() => openViewFromMenu('rewards')}>Poäng & nivåer</button><button type="button" onClick={() => openViewFromMenu('faq')}>FAQ</button><button type="button" onClick={() => openViewFromMenu('app-feedback')}>Appfeedback</button><button type="button" onClick={() => openViewFromMenu('logs')}>Loggar</button><button type="button" onClick={() => openViewFromMenu('legal')}>Info & villkor</button>{accountRole === 'superadmin' && <button type="button" onClick={() => openViewFromMenu('coach-accounts')}>Tränarkonton</button>}<button type="button" onClick={onLogout}>Logga ut</button></div></details></header>
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
@@ -1592,7 +1605,9 @@ function Coach({ responses, profiles, pendingProfiles, onProfilesChange, activeP
         {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} />}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
 
-        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'logs' ? (
+        {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'coach-accounts' ? (
+          <CoachAccountManagement code={code} />
+        ) : view === 'logs' ? (
           <AuditLogs code={code} />
         ) : view === 'faq' ? (
           <Faq role="coach" />
