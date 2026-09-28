@@ -458,7 +458,16 @@ const FAQ_SCALES = {
 const TEMPERATURE_LABELS = ['Väldigt kallt', 'Kallt', 'Perfekt', 'Varmt', 'För varmt']
 
 function HelpTip({ term }) {
-  return HELP_TEXT[term] ? <button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`}>i</button> : null
+  const [open, setOpen] = useState(false)
+  const tipRef = useRef(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const close = (event) => { if (!tipRef.current?.contains(event.target)) setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [open])
+  if (!HELP_TEXT[term]) return null
+  return <span className="help-tip-wrap" ref={tipRef}><button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>i</button>{open && <span className="help-tip-popover" role="tooltip"><strong>{term}</strong><span>{HELP_TEXT[term]}</span></span>}</span>
 }
 
 function Faq({ role, onBack }) {
