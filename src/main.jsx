@@ -60,6 +60,7 @@ function previousWeekRange() {
 
 function App() {
   const [auth, setAuth] = useState(null)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -85,6 +86,20 @@ function App() {
   const [swimmerTheme, setSwimmerTheme] = useState('none')
   const [competitions, setCompetitions] = useState([])
   const [availableGames, setAvailableGames] = useState([])
+
+  useEffect(() => {
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'restore' }) })
+      .then((result) => result.json())
+      .then((data) => { if (data.role) setAuth({ role: data.role, accountRole: data.accountRole, code: data.code || '', displayName: data.displayName }) })
+      .catch(() => {})
+      .finally(() => setCheckingSession(false))
+  }, [])
+
+  useEffect(() => {
+    if (!auth || auth.role !== 'swimmer' || profile || screen !== 'home') return
+    setScreen('restoring-profile')
+    apiRequest('/api/profiles', auth.code).then((data) => { setProfile(data.profile); setScreen('home') }).catch(() => setScreen('profile-login'))
+  }, [auth, profile, screen])
 
   useEffect(() => {
     if (!auth) return
@@ -151,6 +166,7 @@ function App() {
   }, [auth, profile])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
+  if (checkingSession) return <section className="empty-period profile-restore"><span>👋</span><h2>Återställer din session…</h2></section>
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
     if (nextAuth.role !== 'swimmer') { setScreen('home'); return }
@@ -166,6 +182,7 @@ function App() {
   }} />
 
   const logout = () => {
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) }).catch(() => {})
     setAuth(null)
     setProfile(null)
     setResponses([])
@@ -306,6 +323,7 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState(() => typeof window !== 'undefined' ? window.localStorage.getItem('simkoll_coach_email') || '' : '')
   const [password, setPassword] = useState('')
   const [rememberCoachEmail, setRememberCoachEmail] = useState(true)
+  const [rememberSession, setRememberSession] = useState(false)
   const [bootstrapToken, setBootstrapToken] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [coachMode, setCoachMode] = useState('login')
@@ -323,7 +341,7 @@ function Login({ onLogin }) {
       if (mode === 'coach') {
         if (rememberCoachEmail) window.localStorage.setItem('simkoll_coach_email', email.trim().toLowerCase())
         else window.localStorage.removeItem('simkoll_coach_email')
-        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password } : { action: 'coach-login', email, password }
+        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password } : { action: 'coach-login', email, password, remember: rememberSession }
         const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         const data = await result.json()
         if (!result.ok) throw new Error(data.error)
@@ -334,7 +352,7 @@ function Login({ onLogin }) {
       const result = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, remember: rememberSession }),
       })
       const data = await result.json()
       if (!result.ok) throw new Error(data.error)
@@ -361,7 +379,7 @@ function Login({ onLogin }) {
           {mode === 'coach' ? <>
             <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
             <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
-            {coachMode === 'login' && <label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label>}
+            {coachMode === 'login' && <><label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label><label className="remember-login"><input type="checkbox" checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label></>}
             {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}</>}
             <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
             <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? (bootstrapAvailable ? 'bootstrap' : 'login') : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' && bootstrapAvailable ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
@@ -384,6 +402,7 @@ function Login({ onLogin }) {
             />
             <button aria-label="Logga in" type="submit" disabled={loading}>{loading ? '…' : '→'}</button>
           </div>
+          <label className="remember-login"><input type="checkbox" checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label>
           </>}
           {error && <span className="error-text">{error}</span>}
           {info && <span className="settings-saved">{info}</span>}
@@ -1038,7 +1057,7 @@ function AccountChoice({ onLogin, onCreate }) {
 const PROFILE_EMOJIS = ['🏊', '🐬', '🦈', '🐙', '🐢', '🦦', '🐳', '⚡', '🌊', '🔥']
 
 function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
-  const [form, setForm] = useState({ emoji: '🏊' })
+  const [form, setForm] = useState({ emoji: '🏊', remember: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState(false)
@@ -1076,6 +1095,7 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
         <label>Användarnamn<input required minLength="3" maxLength="24" autoCapitalize="none" autoComplete="username" placeholder="t.ex. delfinen7" value={form.username || ''} onChange={(event) => update('username', event.target.value)} /></label>
         {mode === 'reset' && <label>Återställningskod<input required inputMode="numeric" maxLength="8" placeholder="8 siffror" value={form.resetCode || ''} onChange={(event) => update('resetCode', event.target.value.replace(/\D/g, ''))} /></label>}
         <label>{mode === 'reset' ? 'Ny fyrsiffrig PIN' : 'Fyrsiffrig PIN'}<input required inputMode="numeric" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength="4" placeholder="••••" value={(mode === 'reset' ? form.newPin : form.pin) || ''} onChange={(event) => update(mode === 'reset' ? 'newPin' : 'pin', event.target.value.replace(/\D/g, ''))} /></label>
+        {mode === 'login' && <label className="remember-login"><input type="checkbox" checked={form.remember === true} onChange={(event) => update('remember', event.target.checked)} /> Håll mig inloggad på den här enheten</label>}
         {error && <span className="form-error">{error}</span>}
         <button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : mode === 'create' ? 'Skapa profil →' : mode === 'reset' ? 'Spara ny PIN →' : 'Logga in →'}</button>
         {mode === 'login' && <><button type="button" className="form-link" onClick={() => onMode('reset')}>Glömt din PIN?</button><button type="button" className="form-link" onClick={() => onMode('create')}>Skapa ny profil</button></>}
@@ -1646,7 +1666,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'competition-entries' ? (
           <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} initialCompetitionId={submissionCompetitionId} /></CompetitionSubmissionBoundary>
         ) : view === 'settings' ? (
-          <><SportAdminCalendarSettings code={code} /><WebappSettings code={code} /></>
+          <><SportAdminCalendarSettings code={code} /><SessionSettings code={code} /><WebappSettings code={code} /></>
         ) : view === 'groups' ? (
           <CoachGroups code={code} profiles={groupFilteredProfiles} onProfilesChange={onProfilesChange} />
         ) : view === 'app-feedback' ? (
@@ -2058,6 +2078,15 @@ function BackupTools({ code }) {
     } catch (error) { setStatus(error instanceof SyntaxError ? 'Filen innehåller inte giltig JSON.' : error.message) } finally { setBusy(false) }
   }
   return <section className="settings-card backup-tools"><h2>Exportera eller importera databas</h2><p className="settings-help">Säkerhetskopiera data lokalt på den här enheten eller läs in en tidigare Simkoll-backup. Filnamnet innehåller datum och Simkoll-version.</p><div className="backup-actions"><button type="button" className="secondary-button" onClick={exportBackup} disabled={busy}>⬇️ {busy ? 'Arbetar…' : 'Exportera backup'}</button><label className="secondary-button backup-file-button">⬆️ Importera backup<input type="file" accept="application/json,.json" onChange={importBackup} disabled={busy} /></label></div>{busy || progress > 0 ? <div className="backup-progress" role="progressbar" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div> : null}{status && <small className="backup-status">{status}</small>}<small className="settings-note">Backupen sparas eller läses från din lokala enhet. Den skickas inte till en språkmodell. Hantera filen som personuppgift.</small></section>
+}
+
+function SessionSettings({ code }) {
+  const [settings, setSettings] = useState({ coachSessionDays: 30, swimmerSessionDays: 30 })
+  const [saved, setSaved] = useState(false)
+  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setSettings((current) => ({ ...current, ...(data.settings || {}) }))).catch(() => {}) }, [code])
+  const save = async () => { const data = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-settings', settings }) }); setSettings((current) => ({ ...current, ...(data.settings || {}) })); setSaved(true); setTimeout(() => setSaved(false), 1800) }
+  const select = (key, label) => <label className="settings-field"><span><strong>{label}</strong><small>Maximal tid när “Håll mig inloggad” är valt</small></span><select value={settings[key] || 30} onChange={(event) => setSettings((current) => ({ ...current, [key]: Number(event.target.value) }))}>{[1, 7, 14, 30, 60, 90].map((days) => <option value={days} key={days}>{days} dagar</option>)}</select></label>
+  return <section className="settings-card session-settings"><h2>Inloggning</h2><p className="settings-help">Bestäm hur länge en aktiv session får finnas kvar på enheten. Lösenord och PIN sparas aldrig i webbläsaren.</p>{select('coachSessionDays', 'Tränare')}{select('swimmerSessionDays', 'Simmare')}<div className="settings-actions"><button className="primary-button" onClick={save}>Spara sessionstid</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div></section>
 }
 
 function WebappSettingsLegacy({ code }) {

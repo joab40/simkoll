@@ -84,15 +84,16 @@ function readCookie(request, name) {
   return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null
 }
 
-export async function createSession(response, profileId) {
+export async function createSession(response, profileId, sessionDays = 30) {
   const token = randomBytes(32).toString('base64url')
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  const ttlSeconds = Math.max(60 * 60, (Number(sessionDays) || 0) * 24 * 60 * 60)
+  const expires = new Date(Date.now() + ttlSeconds * 1000)
   const result = await supabaseRequest('profile_sessions', {
     method: 'POST',
     body: JSON.stringify({ profile_id: profileId, token_hash: hashToken(token), expires_at: expires.toISOString() }),
   })
   if (!result.ok) throw new Error(`Session insert failed: ${result.status} ${await result.text()}`)
-  response.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`)
+  response.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ttlSeconds}`)
 }
 
 export function clearSessionCookie(response) {

@@ -33,8 +33,8 @@ export async function countCoaches() {
   return Number(range.split('/')[1]) || 0
 }
 
-export function createCoachToken(account) {
-  const payload = { sub: account.id, email: account.email, name: account.display_name, role: account.role, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS }
+export function createCoachToken(account, ttlSeconds = SESSION_TTL_SECONDS) {
+  const payload = { sub: account.id, email: account.email, name: account.display_name, role: account.role, exp: Math.floor(Date.now() / 1000) + Math.max(60, Number(ttlSeconds) || SESSION_TTL_SECONDS) }
   const encoded = base64url(JSON.stringify(payload))
   return `coach.${encoded}.${sign(encoded)}`
 }

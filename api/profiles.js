@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto'
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import { estimatedCostUsd } from '../server/ai-costs.js'
+import { getSessionDays } from '../server/session-settings.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
   hashToken, normalizeUsername, publicProfile, touchProfileActivity, validPin, validUsername, verifyPin, awardPoints,
@@ -266,7 +267,7 @@ export default async function handler(request, response) {
       await updateProfile(profile.id, { failed_attempts: 0, locked_until: null })
       if (profile.approval_status === 'pending') return sendJson(response, 403, { error: 'Din profil väntar på medgivande från en vårdnadshavare. Se informationsmailet.' })
       if (profile.approval_status === 'rejected') return sendJson(response, 403, { error: 'Profilen har inte godkänts. Prata med en tränare.' })
-      await createSession(response, profile.id)
+      await createSession(response, profile.id, request.body?.remember === false ? 1 : await getSessionDays('swimmer'))
       await touchProfileActivity(profile.id)
       await writeAuditLog(request, { eventType: 'profile_login', role: 'swimmer', profileId: profile.id, details: { alias: profile.display_name || profile.username } })
       return sendJson(response, 200, { profile: publicProfile(profile) })

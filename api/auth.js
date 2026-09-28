@@ -1,12 +1,28 @@
 import { getRole, isDatabaseConfigured, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAuditLog } from '../server/audit.js'
-import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword } from '../server/coach-auth.js'
+import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken } from '../server/coach-auth.js'
+import { getSessionDays } from '../server/session-settings.js'
+import { getSessionProfile } from '../server/profile-auth.js'
+
+const getCookie = (request, name) => { const match = String(request.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`)); return match ? decodeURIComponent(match.slice(name.length + 1)) : null }
+const setCookie = (response, name, value, maxAge) => response.setHeader('Set-Cookie', `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax${maxAge ? `; Max-Age=${maxAge}` : ''}`)
+const clearCookie = (response, name) => response.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`)
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
   if (!isDatabaseConfigured()) return sendJson(response, 503, { error: 'Databasen är inte konfigurerad.' })
 
   const action = request.body?.action
+  if (action === 'restore') {
+    const coachToken = getCookie(request, 'simkoll_coach_session')
+    const groupCode = getCookie(request, 'simkoll_group_code')
+    const restoredCode = coachToken || groupCode || ''
+    const role = getRole(restoredCode)
+    if (role === 'coach') { const account = readCoachToken(coachToken); return sendJson(response, 200, { role, accountRole: account?.role || 'coach', code: restoredCode, displayName: account?.name || '' }) }
+    if (role === 'swimmer' && await getSessionProfile(request)) return sendJson(response, 200, { role, code: restoredCode })
+    return sendJson(response, 200, { role: null })
+  }
+  if (action === 'logout') { response.setHeader('Set-Cookie', ['simkoll_coach_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0', 'simkoll_group_code=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0']); return sendJson(response, 200, { ok: true }) }
   if (action === 'coach-bootstrap-status') {
     return sendJson(response, 200, { available: (await countCoaches()) === 0 })
   }
@@ -17,7 +33,9 @@ export default async function handler(request, response) {
     if (!String(email || '').includes('@') || String(password || '').length < 10 || String(displayName || '').trim().length < 2) return sendJson(response, 400, { error: 'Ange namn, e-post och ett lösenord med minst 10 tecken.' })
     const account = await createCoach({ email, displayName, password, role: 'superadmin', status: 'active' })
     await writeAuditLog(request, { eventType: 'coach_account_bootstrap', role: 'coach', details: { actorEmail: account.email, actorName: account.display_name, role: account.role } })
-    return sendJson(response, 201, { role: 'coach', accountRole: account.role, code: createCoachToken(account), displayName: account.display_name })
+    const token = createCoachToken(account, (await getSessionDays('coach')) * 86400)
+    setCookie(response, 'simkoll_coach_session', token, (await getSessionDays('coach')) * 86400)
+    return sendJson(response, 201, { role: 'coach', accountRole: account.role, code: token, displayName: account.display_name })
   }
 
   if (action === 'coach-login') {
@@ -27,7 +45,10 @@ export default async function handler(request, response) {
       return sendJson(response, 401, { error: 'E-post eller lösenord stämmer inte.' })
     }
     await writeAuditLog(request, { eventType: 'coach_login', role: 'coach', profileId: null, details: { login: 'personal-account', actorEmail: account.email, actorName: account.display_name, role: account.role } })
-    return sendJson(response, 200, { role: 'coach', accountRole: account.role, code: createCoachToken(account), displayName: account.display_name })
+    const days = await getSessionDays('coach')
+    const token = createCoachToken(account, days * 86400)
+    setCookie(response, 'simkoll_coach_session', token, request.body?.remember === false ? undefined : days * 86400)
+    return sendJson(response, 200, { role: 'coach', accountRole: account.role, code: token, displayName: account.display_name })
   }
 
   if (action === 'coach-register') {
@@ -69,5 +90,6 @@ export default async function handler(request, response) {
     return sendJson(response, 401, { error: 'Koden stämmer inte. Försök igen.' })
   }
   await writeAuditLog(request, { eventType: 'group_login', role, details: { login: 'group-code' } })
+  setCookie(response, 'simkoll_group_code', String(request.body.code), request.body?.remember === false ? undefined : (await getSessionDays(role)) * 86400)
   return sendJson(response, 200, { role })
 }
