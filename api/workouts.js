@@ -22,12 +22,17 @@ async function answerAssistant(request, role) {
   if (!question) return { error: 'Skriv en fråga först.' }
   const profile = role === 'swimmer' ? await getSessionProfile(request) : null
   if (role === 'swimmer' && !profile) return { error: 'Logga in med din simmarprofil först.' }
-  const [plansResult, workoutsResult, competitionsResult, resultsResult, sportAdminActivities] = await Promise.all([
+  const [plansResult, workoutsResult, competitionsResult, resultsResult, sportAdminActivities, swimGoalsResult, crossGoalsResult, sessionsResult, plannedSessionsResult, developmentGoalsResult] = await Promise.all([
     supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=40'),
     supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=40'),
     supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=30'),
     profile ? supabaseRequest(`competition_results?profile_id=eq.${encodeURIComponent(profile.id)}&select=event,pool,swim_time,result_date&order=result_time.asc&limit=60`) : Promise.resolve(null),
     configuredSportAdminCalendars().then(readSportAdminCalendars).catch(() => []),
+    profile ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=title,target_sessions_per_week,start_date,end_date,active,reflection&order=start_date.desc&limit=20`) : Promise.resolve(null),
+    profile ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=strength_sessions_per_week,dryland_sessions_per_week,start_date,end_date&order=start_date.desc&limit=20`) : Promise.resolve(null),
+    profile ? supabaseRequest(`personal_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&select=activity_type,session_slot,session_date,source&order=session_date.desc&limit=200`) : Promise.resolve(null),
+    profile ? supabaseRequest(`planned_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&select=planned_date,session_slot,week_start&order=planned_date.asc&limit=200`) : Promise.resolve(null),
+    profile ? supabaseRequest(`development_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=title,description,next_step,target_date,status&order=updated_at.desc&limit=30`) : Promise.resolve(null),
   ])
   const today = stockholmDate()
   const visible = (rows) => (rows || []).filter((item) => !item.plan_date || item.plan_date >= today).slice(0, 20)
@@ -39,12 +44,19 @@ async function answerAssistant(request, role) {
     competitions: visible(competitionsResult.ok ? await competitionsResult.json() : []).map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
     calendarActivities: sportAdminActivities.filter((item) => !item.targetGroups?.length || role === 'coach' || !profile?.training_group || item.targetGroups.includes(profile.training_group)).filter((item) => item.date >= today).slice(0, 30).map((item) => ({ date: item.date, time: item.time || null, title: item.title, location: item.location || '', groups: item.targetGroups || [] })),
     personalBestResults: resultsResult?.ok ? (await resultsResult.json()).slice(0, 40).map((item) => ({ event: item.event, pool: item.pool, time: item.swim_time, date: item.result_date })) : [],
+    trainingAndGoals: profile ? {
+      swimGoals: swimGoalsResult?.ok ? await swimGoalsResult.json() : [],
+      crossTrainingGoals: crossGoalsResult?.ok ? await crossGoalsResult.json() : [],
+      plannedSessions: plannedSessionsResult?.ok ? (await plannedSessionsResult.json()).slice(0, 120).map((item) => ({ date: item.planned_date, slot: item.session_slot, weekStart: item.week_start })) : [],
+      completedSessions: sessionsResult?.ok ? (await sessionsResult.json()).slice(0, 120).map((item) => ({ date: item.session_date, type: item.activity_type, slot: item.session_slot, source: item.source })) : [],
+      developmentGoals: developmentGoalsResult?.ok ? await developmentGoalsResult.json() : [],
+    } : null,
   }
   const key = process.env.OPENAI_API_KEY
   if (!key) return { error: 'AI-stöd är inte konfigurerat just nu.' }
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
   const faq = 'Simkoll används för check-in, träningsuppföljning, planering, mål och samtal. Svar kan vara anonyma eller kopplade till profil beroende på valet i check-in. RPE är upplevd ansträngning 1–10. AI-svar är stöd, inte medicinska råd eller automatiska beslut. Simmare ska inte skriva diagnoser, personnummer eller andra känsliga uppgifter i fritext.'
-  const prompt = `Du är Simkolls hjälpsamma assistent. Svara på svenska, kort och konkret, med varm men professionell ton. Använd endast FAQ-kunskapen och datan i underlaget. Hitta aldrig på ett pass, en tävling, en tid eller ett personbästa. Om svaret gäller nästa simpass ska du ange datum, klockslag och plats när det finns i planeringen eller kalenderaktiviteterna. Skilj på “förmiddag/eftermiddag” och ett faktiskt klockslag: använd bara ett exakt klockslag när det finns. Om svaret inte finns, säg det tydligt. Ge inga medicinska råd och fatta inga beslut om träning eller tävling. Simmare får bara svar om sina egna uppgifter.\nFAQ: ${faq}\nTidigare dialog (använd som sammanhang, men lita på underlaget framför dialogen): ${JSON.stringify(history)}\nFråga: ${question}\n\nUnderlag:\n${JSON.stringify(context).slice(0, 14000)}`
+  const prompt = `Du är Simkolls hjälpsamma assistent. Svara på svenska, kort och konkret, med varm men professionell ton. Använd endast FAQ-kunskapen och datan i underlaget. För frågor om “Min träning och mina mål” ska du använda trainingAndGoals: skilj tydligt på planerade pass, genomförda pass, simmål, styrke-/landträningsmål och utvecklingsmål. Räkna bara från raderna i underlaget och säg när perioden eller datan är ofullständig. Hitta aldrig på ett pass, en tävling, en tid eller ett personbästa. Om svaret gäller nästa simpass ska du ange datum, klockslag och plats när det finns i planeringen eller kalenderaktiviteterna. Skilj på “förmiddag/eftermiddag” och ett faktiskt klockslag: använd bara ett exakt klockslag när det finns. Om svaret inte finns, säg det tydligt. Ge inga medicinska råd och fatta inga beslut om träning eller tävling. Simmare får bara svar om sina egna uppgifter.\nFAQ: ${faq}\nTidigare dialog (använd som sammanhang, men lita på underlaget framför dialogen): ${JSON.stringify(history)}\nFråga: ${question}\n\nUnderlag:\n${JSON.stringify(context).slice(0, 18000)}`
   try {
     const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 500, messages: [{ role: 'system', content: 'Du är Simkolls FAQ- och planeringsassistent. Returnera endast JSON med nyckeln text.' }, { role: 'user', content: prompt }], response_format: { type: 'json_object' } }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'assistant_chat', model, role, status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Assistenten kunde inte svara just nu.' } }
