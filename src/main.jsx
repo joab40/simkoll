@@ -207,6 +207,13 @@ function App() {
     }} />
   }
 
+  // Do not briefly render the swimmer dashboard while a remembered profile
+  // is being restored. This prevents a visible flash of the wrong state on
+  // automatic session login.
+  if (!profile && screen === 'home') {
+    return <main className="app-shell"><section className="profile-restore-placeholder" aria-label="Återställer session" /></main>
+  }
+
   return (
     <Shell code={auth.code} role="swimmer" profile={profile} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCompetitions={() => setScreen('competition-entries')} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
