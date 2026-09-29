@@ -896,6 +896,15 @@ button { cursor: pointer; }
 .swimmer-setup-indicator.yellow { color: #a47612; background: #fff8df; }
 .swimmer-setup-indicator.green { color: #277c6c; background: #e9f6f1; }
 .swimmer-setup-indicator.gray { color: #7b8583; background: #eef1ef; }
+.swimmer-setup-help { margin: -2px 18px 12px; padding: 10px 12px; border-radius: 11px; background: #f4f8f6; color: #40565b; font-size: 11px; }
+.swimmer-setup-help.red { background: #fff0ed; }
+.swimmer-setup-help.yellow { background: #fff8df; }
+.swimmer-setup-help.green { background: #e9f6f1; }
+.swimmer-setup-help.gray { background: #eef1ef; }
+.swimmer-setup-help > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.swimmer-setup-help strong { font-size: 11px; }
+.swimmer-setup-help button { border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.swimmer-setup-help p { margin: 4px 0 0; line-height: 1.4; }
 .swimmer-expand-hint { color: var(--teal); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .swimmer-card-details { padding: 0 22px 22px; }
 .swimmer-card.compact .swimmer-name > span { width: 42px; height: 42px; font-size: 25px; }
