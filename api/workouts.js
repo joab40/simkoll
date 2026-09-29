@@ -17,6 +17,15 @@ function publicCoachNote(item) {
 }
 
 let assistantCalendarCache = { expiresAt: 0, activities: [] }
+const assistantRowsCache = new Map()
+async function cachedAssistantRows(path) {
+  const hit = assistantRowsCache.get(path)
+  if (hit && hit.expiresAt > Date.now()) return hit
+  const result = await supabaseRequest(path)
+  const value = { ok: result.ok, data: result.ok ? await result.json() : [], expiresAt: Date.now() + 5 * 60 * 1000 }
+  assistantRowsCache.set(path, value)
+  return value
+}
 async function cachedAssistantCalendarActivities() {
   if (assistantCalendarCache.expiresAt > Date.now()) return assistantCalendarCache.activities
   const calendars = await configuredSportAdminCalendars()
@@ -31,17 +40,18 @@ async function answerAssistant(request, role) {
   if (!question) return { error: 'Skriv en fråga först.' }
   const profile = role === 'swimmer' ? await getSessionProfile(request) : null
   if (role === 'swimmer' && !profile) return { error: 'Logga in med din simmarprofil först.' }
+  const profileFilter = profile ? encodeURIComponent(profile.id) : ''
   const [plansResult, workoutsResult, competitionsResult, resultsResult, sportAdminActivities, swimGoalsResult, crossGoalsResult, sessionsResult, plannedSessionsResult, developmentGoalsResult] = await Promise.all([
-    supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=40'),
-    supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=40'),
-    supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=30'),
-    profile ? supabaseRequest(`competition_results?profile_id=eq.${encodeURIComponent(profile.id)}&select=event,pool,swim_time,result_date&order=result_time.asc&limit=60`) : Promise.resolve(null),
+    cachedAssistantRows('training_plans?select=*&order=plan_date.asc&limit=40'),
+    cachedAssistantRows('daily_workouts?select=*&order=workout_date.asc&limit=40'),
+    cachedAssistantRows('competition_calendar?select=*&order=start_date.asc&limit=30'),
+    profile ? cachedAssistantRows(`competition_results?profile_id=eq.${profileFilter}&select=event,pool,swim_time,result_date&order=result_time.asc&limit=60`) : Promise.resolve(null),
     cachedAssistantCalendarActivities().catch(() => []),
-    profile ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=title,target_sessions_per_week,start_date,end_date,active,reflection&order=start_date.desc&limit=20`) : Promise.resolve(null),
-    profile ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=strength_sessions_per_week,dryland_sessions_per_week,start_date,end_date&order=start_date.desc&limit=20`) : Promise.resolve(null),
-    profile ? supabaseRequest(`personal_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&select=activity_type,session_slot,session_date,source&order=session_date.desc&limit=200`) : Promise.resolve(null),
-    profile ? supabaseRequest(`planned_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&select=planned_date,session_slot,week_start&order=planned_date.asc&limit=200`) : Promise.resolve(null),
-    profile ? supabaseRequest(`development_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=title,description,next_step,target_date,status&order=updated_at.desc&limit=30`) : Promise.resolve(null),
+    profile ? cachedAssistantRows(`season_swim_goals?profile_id=eq.${profileFilter}&select=title,target_sessions_per_week,start_date,end_date,active,reflection&order=start_date.desc&limit=20`) : Promise.resolve(null),
+    profile ? cachedAssistantRows(`cross_training_goals?profile_id=eq.${profileFilter}&select=strength_sessions_per_week,dryland_sessions_per_week,start_date,end_date&order=start_date.desc&limit=20`) : Promise.resolve(null),
+    profile ? cachedAssistantRows(`personal_training_sessions?profile_id=eq.${profileFilter}&select=activity_type,session_slot,session_date,source&order=session_date.desc&limit=200`) : Promise.resolve(null),
+    profile ? cachedAssistantRows(`planned_training_sessions?profile_id=eq.${profileFilter}&select=planned_date,session_slot,week_start&order=planned_date.asc&limit=200`) : Promise.resolve(null),
+    profile ? cachedAssistantRows(`development_goals?profile_id=eq.${profileFilter}&select=title,description,next_step,target_date,status&order=updated_at.desc&limit=30`) : Promise.resolve(null),
   ])
   const today = stockholmDate()
   const stockholmTime = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date())
@@ -61,8 +71,8 @@ async function answerAssistant(request, role) {
   const weekEndCursor = new Date(weekCursor)
   weekEndCursor.setUTCDate(weekEndCursor.getUTCDate() + 7)
   const weekEnd = weekEndCursor.toISOString().slice(0, 10)
-  const completedSessionRows = sessionsResult?.ok ? await sessionsResult.json() : []
-  const plannedSessionRows = plannedSessionsResult?.ok ? await plannedSessionsResult.json() : []
+  const completedSessionRows = sessionsResult?.ok ? sessionsResult.data : []
+  const plannedSessionRows = plannedSessionsResult?.ok ? plannedSessionsResult.data : []
   const uniqueSessions = [...new Map(completedSessionRows.map((item) => [`${item.session_date}|${item.session_slot}|${item.activity_type}`, item])).values()]
   const thisWeekSessions = uniqueSessions.filter((item) => item.session_date >= weekStart && item.session_date < weekEnd)
   const thisWeekPlanned = [...new Map(plannedSessionRows.map((item) => [`${item.planned_date}|${item.session_slot}`, item])).values()].filter((item) => item.planned_date >= weekStart && item.planned_date < weekEnd)
@@ -71,17 +81,17 @@ async function answerAssistant(request, role) {
     currentLocalDateTime: `${today} ${stockholmTime}`,
     role,
     profile: profile ? { displayName: profile.display_name, trainingGroup: profile.training_group || null } : null,
-    upcomingPlans: visible(plansResult.ok ? await plansResult.json() : []).map((item) => ({ date: item.plan_date, title: item.title, type: item.activity_type, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes, time: item.time_of_day, groups: item.target_groups })),
-    workouts: visible(workoutsResult.ok ? await workoutsResult.json() : []).map((item) => ({ date: item.workout_date, title: item.title, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes })),
-    competitions: visible(competitionsResult.ok ? await competitionsResult.json() : []).map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
+    upcomingPlans: visible(plansResult.data).map((item) => ({ date: item.plan_date, title: item.title, type: item.activity_type, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes, time: item.time_of_day, groups: item.target_groups })),
+    workouts: visible(workoutsResult.data).map((item) => ({ date: item.workout_date, title: item.title, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes })),
+    competitions: visible(competitionsResult.data).map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
     calendarActivities: sportAdminActivities.filter((item) => !item.targetGroups?.length || role === 'coach' || !profile?.training_group || item.targetGroups.includes(profile.training_group)).filter((item) => isFutureDateTime(item.date, item.time)).slice(0, 30).map((item) => ({ date: item.date, time: item.time || null, title: item.title, location: item.location || '', groups: item.targetGroups || [] })),
-    personalBestResults: resultsResult?.ok ? (await resultsResult.json()).slice(0, 40).map((item) => ({ event: item.event, pool: item.pool, time: item.swim_time, date: item.result_date })) : [],
+    personalBestResults: resultsResult?.ok ? resultsResult.data.slice(0, 40).map((item) => ({ event: item.event, pool: item.pool, time: item.swim_time, date: item.result_date })) : [],
     trainingAndGoals: profile ? {
-      swimGoals: swimGoalsResult?.ok ? await swimGoalsResult.json() : [],
-      crossTrainingGoals: crossGoalsResult?.ok ? await crossGoalsResult.json() : [],
+      swimGoals: swimGoalsResult?.ok ? swimGoalsResult.data : [],
+      crossTrainingGoals: crossGoalsResult?.ok ? crossGoalsResult.data : [],
       plannedSessions: plannedSessionRows.slice(0, 120).map((item) => ({ date: item.planned_date, slot: item.session_slot, weekStart: item.week_start })),
       completedSessions: uniqueSessions.slice(0, 120).map((item) => ({ date: item.session_date, type: item.activity_type, slot: item.session_slot, source: item.source })),
-      developmentGoals: developmentGoalsResult?.ok ? await developmentGoalsResult.json() : [],
+      developmentGoals: developmentGoalsResult?.ok ? developmentGoalsResult.data : [],
       thisWeekSummary: { weekStart, weekEnd, completedSwim: thisWeekSessions.filter((item) => item.activity_type === 'swim').length, completedStrength: thisWeekSessions.filter((item) => item.activity_type === 'strength').length, completedDryland: thisWeekSessions.filter((item) => item.activity_type === 'dryland').length, completedTotal: thisWeekSessions.length, plannedTotal: thisWeekPlanned.length },
     } : null,
   }
