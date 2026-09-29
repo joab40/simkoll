@@ -1863,7 +1863,8 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   const strokeLabel = { freestyle: 'Frisim', backstroke: 'Ryggsim', breaststroke: 'Bröstsim', butterfly: 'Fjäril', individual_medley: 'Medley' }
   const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
   const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
-  const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? `${bestTime(profile).toFixed(1)} s` : 'Tid saknas'
+  const formatSwimTime = (seconds) => { const minutes = Math.floor(seconds / 60); const remainder = (seconds - minutes * 60).toFixed(1).padStart(4, '0'); return `${minutes}:${remainder}` }
+  const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? formatSwimTime(bestTime(profile)) : 'Tid saknas'
   const compareTimes = (a, b) => { const aTime = bestTime(a), bTime = bestTime(b); if (aTime !== bTime) { if (!Number.isFinite(aTime)) return 1; if (!Number.isFinite(bTime)) return -1; return aTime - bTime } return a.displayName.localeCompare(b.displayName, 'sv') }
   const create = () => {
     const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (strokeLabel[a.primaryStroke] || 'Frisim').localeCompare(strokeLabel[b.primaryStroke] || 'Frisim', 'sv') : 0) || compareTimes(a, b))
@@ -1930,7 +1931,8 @@ function LaneAssignmentAssistantNewDraft({ code, profiles, onClose }) {
   useEffect(() => { apiRequest('/api/profiles?tempusResults=true', code).then((data) => setResults(data.results || [])).catch(() => {}).finally(() => setLoading(false)) }, [code])
   const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
   const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
-  const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? `${bestTime(profile).toFixed(1)} s` : 'Tid saknas'
+  const formatSwimTime = (seconds) => { const minutes = Math.floor(seconds / 60); const remainder = (seconds - minutes * 60).toFixed(1).padStart(4, '0'); return `${minutes}:${remainder}` }
+  const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? formatSwimTime(bestTime(profile)) : 'Tid saknas'
   const assignments = Array.from({ length: totalLanes }, (_, index) => profiles.filter((profile) => Number(laneMap[profile.id]) === index + 1))
   const create = () => { const sorted = profiles.slice().sort((a, b) => bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv')); const next = {}; const fastestCount = Math.max(1, Math.ceil(sorted.length / count)); sorted.forEach((profile, index) => { next[profile.id] = fastLane !== 'none' && index < fastestCount ? Number(fastLane) : (index % count) + 1 }); setLaneMap(next); setGenerated(true); setPublished(false) }
   const moveProfile = (profileId, value) => { const target = Number(value); if (!target || target > totalLanes) return; setLaneMap((current) => { const next = { ...current }, source = Number(next[profileId]); if (!source || source === target) return current; const occupant = profiles.find((profile) => Number(next[profile.id]) === target && profile.id !== profileId); next[profileId] = target; if (occupant) next[occupant.id] = source; return next }); setPublished(false) }
