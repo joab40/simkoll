@@ -1004,6 +1004,11 @@ button { cursor: pointer; }
 .profile-tools > div { display: grid; gap: 7px; }
 .profile-tools > div > button { width: 100%; min-height: 36px; border: 1px solid #cddcd8; border-radius: 9px; background: white; font-size: 11px; }
 .profile-tools .test-profile-toggle, .profile-tools .delete-profile-button { margin-top: 0; }
+.ai-profile-tools { margin-top: 18px; padding-top: 14px; }
+.ai-profile-tools[open] summary { margin-bottom: 13px; }
+.ai-profile-tools > div { gap: 11px; }
+.ai-profile-tools > div > button { min-height: 40px; padding: 7px 11px; line-height: 1.25; }
+.ai-profile-tools > div > small { padding: 0 3px; line-height: 1.4; }
 .reset-banner { background: var(--ink); color: white; border-radius: 16px; padding: 16px 18px; margin-bottom: 13px; display: grid; grid-template-columns: 42px 1fr auto; align-items: center; }
 .reset-banner > span { font-size: 30px; }
 .reset-banner > div { display: flex; flex-direction: column; }
