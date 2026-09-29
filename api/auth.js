@@ -63,6 +63,21 @@ export default async function handler(request, response) {
   }
 
   const actor = coachFromRequest(request)
+  if (action === 'coach-profile') {
+    if (!actor) return sendJson(response, 403, { error: 'Tränarsession saknas.' })
+    const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}&select=id,email,display_name,role,status,managed_groups,personal_settings_enabled,personal_settings&limit=1`)
+    if (!result.ok) throw new Error(`Coach profile lookup failed: ${result.status}`)
+    const account = (await result.json())[0]
+    if (!account) return sendJson(response, 404, { error: 'Tränarkontot hittades inte.' })
+    if (request.body?.update) {
+      const groups = Array.isArray(request.body.managedGroups) ? [...new Set(request.body.managedGroups.map(String))].slice(0, 50) : []
+      const personalSettings = request.body.personalSettings && typeof request.body.personalSettings === 'object' ? request.body.personalSettings : {}
+      const save = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ managed_groups: groups, personal_settings_enabled: request.body.personalSettingsEnabled === true, personal_settings: personalSettings }) })
+      if (!save.ok) throw new Error(`Coach profile save failed: ${save.status} ${await save.text()}`)
+      return sendJson(response, 200, { account: (await save.json())[0] })
+    }
+    return sendJson(response, 200, { account })
+  }
   if (action === 'coach-list' || action === 'coach-approve' || action === 'coach-set-role') {
     if (!actor || actor.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan hantera tränarkonton.' })
     if (action === 'coach-list') {
