@@ -1864,8 +1864,9 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
   const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
   const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? `${bestTime(profile).toFixed(1)} s` : 'Tid saknas'
+  const compareTimes = (a, b) => { const aTime = bestTime(a), bTime = bestTime(b); if (aTime !== bTime) { if (!Number.isFinite(aTime)) return 1; if (!Number.isFinite(bTime)) return -1; return aTime - bTime } return a.displayName.localeCompare(b.displayName, 'sv') }
   const create = () => {
-    const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (strokeLabel[a.primaryStroke] || 'Frisim').localeCompare(strokeLabel[b.primaryStroke] || 'Frisim', 'sv') : 0) || bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv'))
+    const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (strokeLabel[a.primaryStroke] || 'Frisim').localeCompare(strokeLabel[b.primaryStroke] || 'Frisim', 'sv') : 0) || compareTimes(a, b))
     const next = {}
     const count = Math.max(1, Number(lanes) || 1)
     const sprintLane = laneConfig.findIndex((config) => config.sprinters)
@@ -1881,7 +1882,7 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   }
   const count = Math.max(1, Number(lanes) || 1)
   const assignmentCount = count + (extraLane ? 1 : 0)
-  const assignments = Array.from({ length: assignmentCount }, (_, index) => profiles.filter((profile) => laneMap[profile.id] === index + 1))
+  const assignments = Array.from({ length: assignmentCount }, (_, index) => profiles.filter((profile) => laneMap[profile.id] === index + 1).sort(compareTimes))
   useEffect(() => {
     if (!generated || !profiles.length || count < 2) return
     const counts = Array.from({ length: count }, (_, lane) => profiles.filter((profile) => Number(laneMap[profile.id]) === lane + 1).length)
