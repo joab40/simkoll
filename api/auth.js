@@ -95,7 +95,8 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { account: (await result.json())[0] })
     }
     const role = request.body.role === 'superadmin' ? 'superadmin' : 'coach'
-    const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ role }) })
+    const status = request.body.approved === true ? 'active' : undefined
+    const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ role, ...(status ? { status, approved_at: new Date().toISOString() } : {}) }) })
     if (!result.ok) throw new Error(`Coach role update failed: ${result.status}`)
     await writeAuditLog(request, { eventType: 'coach_account_role_change', role: 'coach', details: { actorName: actor.name, targetAccountId: accountId, role } })
     return sendJson(response, 200, { account: (await result.json())[0] })
