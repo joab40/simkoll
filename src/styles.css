@@ -1539,6 +1539,8 @@ button { cursor: pointer; }
 .competition-form input, .competition-form select, .competition-form button { max-width: 100%; box-sizing: border-box; }
 @media (max-width: 600px) { .competition-form { padding: 14px; } .competition-form-grid { grid-template-columns: 1fr; } .competition-form > .primary-button { width: 100%; white-space: normal; } }
 .webapp-settings { display: grid; gap: 16px; }
+.coach-settings-stack { display: grid; gap: 26px; }
+.coach-settings-stack > .webapp-settings { min-width: 0; }
 .settings-card { padding: 20px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; }
 .settings-card h2 { margin: 0 0 12px; }
 .settings-help { margin: -4px 0 12px; color: var(--muted); font-size: 12px; }
@@ -1563,6 +1565,7 @@ button { cursor: pointer; }
 .swimmer-planning .period-heading { margin-bottom: 20px; }
 .swimmer-planning-week-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; padding: 10px; background: #eef7f4; border: 1px solid #d5e8e2; border-radius: 14px; }
 .swimmer-planning-week-controls strong { color: var(--ink); text-align: center; white-space: nowrap; }
+@media (max-width: 600px) { .coach-settings-stack { gap: 18px; } .coach-settings-stack .settings-card { padding: 16px; } }
 .swimmer-planning-list article { padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .swimmer-planning-list h2 { margin: 3px 0; }
 .swimmer-planning-list p { color: var(--muted); }

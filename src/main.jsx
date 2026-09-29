@@ -1739,7 +1739,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'competition-entries' ? (
           <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} initialCompetitionId={submissionCompetitionId} /></CompetitionSubmissionBoundary>
         ) : view === 'settings' ? (
-          <><SportAdminCalendarSettings code={code} /><SessionSettings code={code} /><WebappSettings code={code} /></>
+          <div className="coach-settings-stack"><WebappSettings code={code} /><SportAdminCalendarSettings code={code} /><SessionSettings code={code} /></div>
         ) : view === 'groups' ? (
           <CoachGroups code={code} profiles={groupFilteredProfiles} onProfilesChange={onProfilesChange} />
         ) : view === 'app-feedback' ? (
