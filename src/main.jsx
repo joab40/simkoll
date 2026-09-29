@@ -2950,6 +2950,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
   })), [responses])
   const selectedItems = selectedFeeling ? responses.filter((item) => item.feeling === selectedFeeling) : []
   const identifiedItems = selectedItems.filter((item) => item.profileId && profileById.has(item.profileId))
+  const anonymousCount = responses.filter((item) => !item.profileId || !profileById.has(item.profileId)).length
   const latestByProfile = [...identifiedItems].sort((a, b) => responseDate(b) - responseDate(a)).reduce((result, item) => {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
@@ -2962,7 +2963,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
 
   return (
     <>
-      <div className="period-heading"><div><p className="eyebrow">{periodLabel}</p><h2>{title}</h2></div><div className="big-count"><strong>{responses.length}</strong><span>anonyma svar</span></div></div>
+      <div className="period-heading"><div><p className="eyebrow">{periodLabel}</p><h2>{title}</h2></div><div className="big-count"><strong>{anonymousCount}</strong><span>anonyma svar</span></div></div>
       <section className="stats-grid">
         <Stat title="Gruppens känsla" helpTerm="Känsla" value={`${average('feeling', responses)} / 5`} note="Alla svar" />
         <Stat title="Upplevd ansträngning" helpTerm="RPE" value={`${average('rpe', after)} / 10`} note={`${after.length} efter passet`} />
