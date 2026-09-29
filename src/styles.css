@@ -896,6 +896,9 @@ button { cursor: pointer; }
 .swimmer-setup-indicator.yellow { color: #a47612; background: #fff8df; }
 .swimmer-setup-indicator.green { color: #277c6c; background: #e9f6f1; }
 .swimmer-setup-indicator.gray { color: #7b8583; background: #eef1ef; }
+.swimmer-feature-icon { display: inline-grid; place-items: center; width: 21px; height: 21px; font-size: 16px; line-height: 1; cursor: help; }
+.club-brand.assistant-disabled { cursor: default; }
+.club-brand.assistant-disabled:hover { transform: none; }
 .swimmer-setup-help { margin: -2px 18px 12px; padding: 10px 12px; border-radius: 11px; background: #f4f8f6; color: #40565b; font-size: 11px; }
 .swimmer-setup-help.red { background: #fff0ed; }
 .swimmer-setup-help.yellow { background: #fff8df; }

@@ -40,6 +40,7 @@ async function answerAssistant(request, role) {
   if (!question) return { error: 'Skriv en fråga först.' }
   const profile = role === 'swimmer' ? await getSessionProfile(request) : null
   if (role === 'swimmer' && !profile) return { error: 'Logga in med din simmarprofil först.' }
+  if (role === 'swimmer' && profile?.assistant_enabled === false) return { error: 'Simkoll-assistenten är avstängd för din profil.' }
   const profileFilter = profile ? encodeURIComponent(profile.id) : ''
   const [plansResult, workoutsResult, competitionsResult, resultsResult, sportAdminActivities, swimGoalsResult, crossGoalsResult, sessionsResult, plannedSessionsResult, developmentGoalsResult] = await Promise.all([
     cachedAssistantRows('training_plans?select=*&order=plan_date.asc&limit=40'),

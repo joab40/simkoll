@@ -31,6 +31,7 @@ export function publicProfile(profile) {
     trainingGroup: profile.training_group || null,
     primaryStroke: profile.primary_stroke || null,
     secondaryStroke: profile.secondary_stroke || null,
+    assistantEnabled: profile.assistant_enabled !== false,
     tempusId: profile.tempus_id || null,
     approvalStatus: profile.approval_status || 'approved',
     aiAnalysisStatus: profile.ai_analysis_status || 'not_requested',
