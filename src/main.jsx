@@ -1836,7 +1836,7 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
   const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? `${bestTime(profile).toFixed(1)} s` : 'Tid saknas'
   const create = () => {
-    const sorted = profiles.slice().sort((a, b) => bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv'))
+    const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (strokeLabel[a.primaryStroke] || 'Frisim').localeCompare(strokeLabel[b.primaryStroke] || 'Frisim', 'sv') : 0) || bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv'))
     const next = {}
     const count = Math.max(1, Number(lanes) || 1)
     const requested = strokePlan.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
