@@ -1847,6 +1847,7 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   const [mode, setMode] = useState('balanced_freestyle')
   const [distance, setDistance] = useState(50)
   const [fastLane, setFastLane] = useState('none')
+  const [extraLane, setExtraLane] = useState(false)
   const [laneConfig, setLaneConfig] = useState(() => Array.from({ length: 4 }, () => ({ stroke: 'freestyle', sprinters: false })))
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1872,14 +1873,66 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
       if (mode === 'special') { const preferred = laneConfig.findIndex((config) => config.stroke === (profile.primaryStroke || 'freestyle') && !config.sprinters); lane = preferred >= 0 ? preferred : lane }
       if (mode === 'special' && sprintLane >= 0 && index < fastestCount) lane = sprintLane
       if (mode === 'balanced_freestyle' && fastLane !== 'none' && index < fastestCount) lane = Number(fastLane) - 1
-      const row = Math.floor(index / count); if (mode !== 'special' && row % 2) lane = count - 1 - lane
       next[profile.id] = lane + 1
     })
     setLaneMap(next); setGenerated(true); setPublished(false)
   }
-  const assignments = Array.from({ length: Math.max(1, Number(lanes) || 1) }, (_, index) => profiles.filter((profile) => laneMap[profile.id] === index + 1))
+  const count = Math.max(1, Number(lanes) || 1)
+  const assignmentCount = count + (extraLane ? 1 : 0)
+  const assignments = Array.from({ length: assignmentCount }, (_, index) => profiles.filter((profile) => laneMap[profile.id] === index + 1))
+  useEffect(() => {
+    if (!generated || !profiles.length || count < 2) return
+    const counts = Array.from({ length: count }, (_, lane) => profiles.filter((profile) => Number(laneMap[profile.id]) === lane + 1).length)
+    const max = Math.max(...counts), min = Math.min(...counts)
+    if (max - min <= 1) return
+    const from = counts.indexOf(max) + 1, to = counts.indexOf(min) + 1
+    const candidate = profiles.find((profile) => Number(laneMap[profile.id]) === from)
+    if (candidate) setLaneMap((current) => ({ ...current, [candidate.id]: to }))
+  }, [generated, laneMap, profiles, count])
+  const moveProfile = (profileId, targetLane) => {
+    const target = Number(targetLane)
+    if (!target || target < 1 || target > assignmentCount) return
+    setLaneMap((current) => {
+      const next = { ...current }, source = Number(next[profileId] || 0)
+      if (!source || source === target) return current
+      const occupant = profiles.find((profile) => Number(next[profile.id]) === target && profile.id !== profileId)
+      next[profileId] = target
+      if (occupant) next[occupant.id] = source
+      if (target <= count && source <= count && !occupant) {
+        const counts = Array.from({ length: count }, (_, lane) => profiles.filter((profile) => Number(next[profile.id]) === lane + 1).length)
+        const max = Math.max(...counts), min = Math.min(...counts)
+        if (max - min > 1) { const from = counts.indexOf(max) + 1, to = counts.indexOf(min) + 1; const rebalance = profiles.find((profile) => Number(next[profile.id]) === from && profile.id !== profileId); if (rebalance) next[rebalance.id] = to }
+      }
+      return next
+    })
+    setPublished(false)
+  }
   const toggleFullscreen = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else if (plannerRef.current?.requestFullscreen) await plannerRef.current.requestFullscreen(); else setFullScreen((value) => !value) } catch { setFullScreen((value) => !value) } }
   return <div className="lane-planner-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={plannerRef} className={`lane-planner-modal${fullScreen ? ' lane-planner-fullscreen' : ''}`} role="dialog" aria-modal="true" aria-labelledby="lane-planner-title"><div className="lane-planner-heading"><div><p className="eyebrow">Närvarande idag · {profiles.length} simmare</p><h2 id="lane-planner-title">Banindelning</h2></div><div className="lane-planner-heading-actions"><button type="button" className="secondary-button" onClick={toggleFullscreen}>{fullScreen || document.fullscreenElement ? '↙ Lämna fullskärm' : '⛶ Fullskärm'}</button><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></div></div><div className="lane-planner-form"><label>Antal banor<input type="number" min="1" max="20" value={lanes} onChange={(event) => { setLanes(event.target.value); setGenerated(false) }} /></label><label>Upplägg<select value={mode} onChange={(event) => { setMode(event.target.value); setGenerated(false) }}><option value="balanced_freestyle">Jämna heat frisim</option><option value="balanced_special">Jämna heat special</option><option value="special">Specialpass efter simsätt</option></select></label><label>Relevant distans<select value={distance} onChange={(event) => { setDistance(Number(event.target.value)); setGenerated(false) }}><option value="50">50 m · fart</option><option value="100">100 m</option><option value="200">200 m · längre serie</option><option value="400">400 m+</option></select></label>{mode === 'balanced_freestyle' && <label>Snabb bana<select value={fastLane} onChange={(event) => { setFastLane(event.target.value); setGenerated(false) }}><option value="none">Ingen – fördela jämnt</option>{Array.from({ length: Math.max(1, Number(lanes) || 1) }, (_, index) => <option key={index + 1} value={index + 1}>Bana {index + 1} – snabbaste gruppen</option>)}</select></label>}{mode === 'special' && <div className="lane-config-grid lane-planner-wide"><strong>Simsätt per bana</strong><small>Tryck på varje bana och välj simsätt. Markera en bana för sprinters om den ska samla de snabbaste simmarna.</small>{laneConfig.map((config, index) => <article key={index}><strong>Bana {index + 1}</strong><select value={config.stroke} onChange={(event) => { setLaneConfig((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stroke: event.target.value } : item)); setGenerated(false) }}>{STROKE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><label><input type="checkbox" checked={Boolean(config.sprinters)} onChange={(event) => { setLaneConfig((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sprinters: event.target.checked } : item)); setGenerated(false) }} /> Sprinterbana</label></article>)}</div>}</div><p className="lane-planner-help">{loading ? 'Hämtar relevanta Tempus-resultat…' : 'Snabbaste sparade tid på vald distans läggs först. Välj snabb bana om de snabbaste ska samlas på samma bana.'}</p><button type="button" className="primary-button" onClick={create}>Skapa banfördelning →</button>{generated && <><div className="lane-planner-results">{assignments.map((lane, index) => <article key={index}><label className="lane-number">Bana <input type="number" min="1" max={Math.max(1, Number(lanes) || 1)} value={index + 1} onChange={(event) => { const next = Number(event.target.value); if (!next || next === index + 1) return; setLaneMap((current) => Object.fromEntries(Object.entries(current).map(([id, value]) => [id, value === index + 1 ? next : value === next ? index + 1 : value]))) }} /></label>{lane.length ? lane.map((profile) => <span key={profile.id}><span>{profile.emoji} {profile.displayName}</span><small>{timeLabel(profile)}</small><select aria-label={`Bana för ${profile.displayName}`} value={laneMap[profile.id] || index + 1} onChange={(event) => setLaneMap((current) => ({ ...current, [profile.id]: Number(event.target.value) }))}>{Array.from({ length: Math.max(1, Number(lanes) || 1) }, (_, laneIndex) => <option key={laneIndex + 1} value={laneIndex + 1}>Bana {laneIndex + 1}</option>)}</select></span>) : <small>Tom</small>}</article>)}</div><div className="lane-planner-publish-actions"><button type="button" className="secondary-button" onClick={() => setPublished(true)}>Publicera banfördelning</button>{published && <span>Publicerad för närvarande grupp</span>}</div>{published && <section className="lane-published-view"><p className="eyebrow">Publicerad banfördelning</p><h3>Så här ser dagens upplägg ut</h3><div>{assignments.map((lane, index) => <article key={index}><strong>Bana {index + 1}</strong><small>{laneConfig[index] ? `${strokeLabel[laneConfig[index].stroke] || 'Frisim'}${laneConfig[index].sprinters ? ' · Sprinters' : ''}` : 'Frisim'}</small>{lane.length ? lane.map((profile) => <span key={profile.id}>{profile.emoji} {profile.displayName}</span>) : <em>Tom bana</em>}</article>)}</div></section>}</>}</section></div>
+}
+
+function LaneAssignmentAssistantNewDraft({ code, profiles, onClose }) {
+  const [lanes, setLanes] = useState(4)
+  const [distance, setDistance] = useState(50)
+  const [fastLane, setFastLane] = useState('none')
+  const [extraLane, setExtraLane] = useState(false)
+  const [results, setResults] = useState([])
+  const [generated, setGenerated] = useState(false)
+  const [published, setPublished] = useState(false)
+  const [laneMap, setLaneMap] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [fullScreen, setFullScreen] = useState(false)
+  const plannerRef = useRef(null)
+  const count = Math.max(1, Number(lanes) || 1), totalLanes = count + (extraLane ? 1 : 0)
+  useEffect(() => { apiRequest('/api/profiles?tempusResults=true', code).then((data) => setResults(data.results || [])).catch(() => {}).finally(() => setLoading(false)) }, [code])
+  const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
+  const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
+  const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? `${bestTime(profile).toFixed(1)} s` : 'Tid saknas'
+  const assignments = Array.from({ length: totalLanes }, (_, index) => profiles.filter((profile) => Number(laneMap[profile.id]) === index + 1))
+  const create = () => { const sorted = profiles.slice().sort((a, b) => bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv')); const next = {}; const fastestCount = Math.max(1, Math.ceil(sorted.length / count)); sorted.forEach((profile, index) => { next[profile.id] = fastLane !== 'none' && index < fastestCount ? Number(fastLane) : (index % count) + 1 }); setLaneMap(next); setGenerated(true); setPublished(false) }
+  const moveProfile = (profileId, value) => { const target = Number(value); if (!target || target > totalLanes) return; setLaneMap((current) => { const next = { ...current }, source = Number(next[profileId]); if (!source || source === target) return current; const occupant = profiles.find((profile) => Number(next[profile.id]) === target && profile.id !== profileId); next[profileId] = target; if (occupant) next[occupant.id] = source; return next }); setPublished(false) }
+  const toggleFullscreen = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else if (plannerRef.current?.requestFullscreen) await plannerRef.current.requestFullscreen(); else setFullScreen((value) => !value) } catch { setFullScreen((value) => !value) } }
+  return <div className="lane-planner-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={plannerRef} className={`lane-planner-modal${fullScreen ? ' lane-planner-fullscreen' : ''}`} role="dialog" aria-modal="true" aria-labelledby="lane-planner-title"><div className="lane-planner-heading"><div><p className="eyebrow">Närvarande idag · {profiles.length} simmare</p><h2 id="lane-planner-title">Banindelning</h2></div><div className="lane-planner-heading-actions"><button type="button" className="secondary-button" onClick={toggleFullscreen}>{fullScreen || document.fullscreenElement ? '↙ Lämna fullskärm' : '⛶ Fullskärm'}</button><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></div></div><div className="lane-planner-form"><label>Antal ordinarie banor<input type="number" min="1" max="20" value={lanes} onChange={(event) => { setLanes(event.target.value); setGenerated(false) }} /></label><label>Relevant distans<select value={distance} onChange={(event) => { setDistance(Number(event.target.value)); setGenerated(false) }}><option value="50">50 m · fart</option><option value="100">100 m</option><option value="200">200 m · längre serie</option><option value="400">400 m+</option></select></label><label>Snabb bana<select value={fastLane} onChange={(event) => { setFastLane(event.target.value); setGenerated(false) }}><option value="none">Ingen – jämna heat</option>{Array.from({ length: count }, (_, index) => <option key={index + 1} value={index + 1}>Bana {index + 1} – snabbaste gruppen</option>)}</select></label><label className="lane-extra-toggle"><span>Extra bana</span><input type="checkbox" checked={extraLane} onChange={(event) => { setExtraLane(event.target.checked); setGenerated(false); setPublished(false) }} /> Visa Bana X</label></div><p className="lane-planner-help">{loading ? 'Hämtar sparade tider…' : 'Snabbaste simmarna placeras först på bana 1, 2, 3 osv. Välj snabb bana om de ska samlas på samma bana.'}</p><button type="button" className="primary-button" onClick={create}>Skapa banfördelning →</button>{generated && <><div className="lane-planner-results">{assignments.map((lane, index) => <article key={index}><strong>{index === count ? 'Bana X' : `Bana ${index + 1}`}</strong>{lane.length ? lane.map((profile) => <span key={profile.id}><span>{profile.emoji} {profile.displayName}</span><small>{timeLabel(profile)}</small><select aria-label={`Flytta ${profile.displayName}`} value={laneMap[profile.id]} onChange={(event) => moveProfile(profile.id, event.target.value)}>{Array.from({ length: totalLanes }, (_, laneIndex) => <option key={laneIndex + 1} value={laneIndex + 1}>{laneIndex === count ? 'Bana X' : `Bana ${laneIndex + 1}`}</option>)}</select></span>) : <small>Tom</small>}</article>)}</div><div className="lane-planner-publish-actions"><button type="button" className="secondary-button" onClick={() => setPublished(true)}>Publicera banfördelning</button>{published && <span>Publicerad för närvarande grupp</span>}</div>{published && <section className="lane-published-view"><p className="eyebrow">Publicerad banfördelning</p><h3>Så här ser dagens upplägg ut</h3><div>{assignments.map((lane, index) => <article key={index}><strong>{index === count ? 'Bana X' : `Bana ${index + 1}`}</strong><small>{index === count ? 'Extra simmare' : 'Jämnt heat'}</small>{lane.length ? lane.map((profile) => <span key={profile.id}>{profile.emoji} {profile.displayName}</span>) : <em>Tom bana</em>}</article>)}</div></section>}</>}</section></div>
 }
 
 function TodayWorkoutSummary({ workouts = [], selectedGroups = [] }) {
