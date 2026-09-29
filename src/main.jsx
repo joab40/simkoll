@@ -1821,29 +1821,36 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
 
 function LaneAssignmentAssistant({ code, profiles, onClose }) {
   const [lanes, setLanes] = useState(4)
-  const [mode, setMode] = useState('balanced')
+  const [mode, setMode] = useState('balanced_freestyle')
   const [distance, setDistance] = useState(50)
   const [strokePlan, setStrokePlan] = useState('Frisim, Frisim, Bröstsim, Ryggsim')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [generated, setGenerated] = useState(false)
+  const [laneMap, setLaneMap] = useState({})
+  const [fullScreen, setFullScreen] = useState(false)
+  const plannerRef = useRef(null)
   useEffect(() => { apiRequest('/api/profiles?tempusResults=true', code).then((data) => setResults(data.results || [])).catch(() => {}).finally(() => setLoading(false)) }, [code])
   const strokeLabel = { freestyle: 'Frisim', backstroke: 'Ryggsim', breaststroke: 'Bröstsim', butterfly: 'Fjäril', individual_medley: 'Medley' }
-  const bestTime = (profile) => {
-    const rows = results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || '')))
-    return rows.reduce((best, item) => Math.min(best, Number(item.result_time)), Infinity)
-  }
-  const create = () => setGenerated(true)
-  const assignments = useMemo(() => {
+  const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
+  const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
+  const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? `${bestTime(profile).toFixed(1)} s` : 'Tid saknas'
+  const create = () => {
     const sorted = profiles.slice().sort((a, b) => bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv'))
-    const output = Array.from({ length: Math.max(1, Number(lanes) || 1) }, () => [])
+    const next = {}
+    const count = Math.max(1, Number(lanes) || 1)
     const requested = strokePlan.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
-    if (mode === 'special') {
-      sorted.forEach((profile) => { const stroke = strokeLabel[profile.primaryStroke] || 'Frisim'; let lane = requested.findIndex((item) => item.includes(stroke.toLowerCase())); if (lane < 0) lane = sorted.indexOf(profile) % output.length; output[lane].push(profile) })
-    } else sorted.forEach((profile, index) => { const row = Math.floor(index / output.length); const offset = index % output.length; const lane = row % 2 ? output.length - 1 - offset : offset; output[lane].push(profile) })
-    return output
-  }, [generated, lanes, mode, profiles, results, distance, strokePlan])
-  return <div className="lane-planner-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="lane-planner-modal" role="dialog" aria-modal="true" aria-labelledby="lane-planner-title"><div className="lane-planner-heading"><div><p className="eyebrow">Närvarande idag · {profiles.length} simmare</p><h2 id="lane-planner-title">Banindelning</h2></div><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></div><div className="lane-planner-form"><label>Antal banor<input type="number" min="1" max="20" value={lanes} onChange={(event) => { setLanes(event.target.value); setGenerated(false) }} /></label><label>Upplägg<select value={mode} onChange={(event) => { setMode(event.target.value); setGenerated(false) }}><option value="balanced">Jämna heat</option><option value="special">Specialpass efter simsätt</option></select></label><label>Relevant distans<select value={distance} onChange={(event) => { setDistance(Number(event.target.value)); setGenerated(false) }}><option value="50">50 m · fart</option><option value="100">100 m</option><option value="200">200 m · längre serie</option><option value="400">400 m+</option></select></label>{mode === 'special' && <label className="lane-planner-wide">Simsätt per bana, från bana 1<textarea rows="2" value={strokePlan} onChange={(event) => { setStrokePlan(event.target.value); setGenerated(false) }} placeholder="Frisim, Frisim, Bröstsim, Ryggsim" /></label>}</div><p className="lane-planner-help">{loading ? 'Hämtar relevanta Tempus-resultat…' : 'Snabbaste sparade tid på vald distans används när den finns. Saknade tider ersätts med en jämn alfabetisk ordning.'}</p><button type="button" className="primary-button" onClick={create}>Skapa banfördelning →</button>{generated && <div className="lane-planner-results">{assignments.map((lane, index) => <article key={index}><strong>Bana {index + 1}</strong>{lane.length ? lane.map((profile) => <span key={profile.id}>{profile.emoji} {profile.displayName}{Number.isFinite(bestTime(profile)) && <small>{bestTime(profile).toFixed(2)} s</small>}</span>) : <small>Tom</small>}</article>)}</div>}</section></div>
+    sorted.forEach((profile, index) => {
+      let lane = index % count
+      if (mode === 'special') { const stroke = strokeLabel[profile.primaryStroke] || 'Frisim'; const preferred = requested.findIndex((item) => item.includes(stroke.toLowerCase())); lane = preferred >= 0 ? preferred % count : lane }
+      const row = Math.floor(index / count); if (mode !== 'special' && row % 2) lane = count - 1 - lane
+      next[profile.id] = lane + 1
+    })
+    setLaneMap(next); setGenerated(true)
+  }
+  const assignments = Array.from({ length: Math.max(1, Number(lanes) || 1) }, (_, index) => profiles.filter((profile) => laneMap[profile.id] === index + 1))
+  const toggleFullscreen = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else if (plannerRef.current?.requestFullscreen) await plannerRef.current.requestFullscreen(); else setFullScreen((value) => !value) } catch { setFullScreen((value) => !value) } }
+  return <div className="lane-planner-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={plannerRef} className={`lane-planner-modal${fullScreen ? ' lane-planner-fullscreen' : ''}`} role="dialog" aria-modal="true" aria-labelledby="lane-planner-title"><div className="lane-planner-heading"><div><p className="eyebrow">Närvarande idag · {profiles.length} simmare</p><h2 id="lane-planner-title">Banindelning</h2></div><div className="lane-planner-heading-actions"><button type="button" className="secondary-button" onClick={toggleFullscreen}>{fullScreen || document.fullscreenElement ? '↙ Lämna fullskärm' : '⛶ Fullskärm'}</button><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></div></div><div className="lane-planner-form"><label>Antal banor<input type="number" min="1" max="20" value={lanes} onChange={(event) => { setLanes(event.target.value); setGenerated(false) }} /></label><label>Upplägg<select value={mode} onChange={(event) => { setMode(event.target.value); setGenerated(false) }}><option value="balanced_freestyle">Jämna heat frisim</option><option value="balanced_special">Jämna heat special</option><option value="special">Specialpass efter simsätt</option></select></label><label>Relevant distans<select value={distance} onChange={(event) => { setDistance(Number(event.target.value)); setGenerated(false) }}><option value="50">50 m · fart</option><option value="100">100 m</option><option value="200">200 m · längre serie</option><option value="400">400 m+</option></select></label>{mode === 'special' && <label className="lane-planner-wide">Simsätt per bana, från bana 1<textarea rows="2" value={strokePlan} onChange={(event) => { setStrokePlan(event.target.value); setGenerated(false) }} placeholder="Frisim, Frisim, Bröstsim, Ryggsim" /></label>}</div><p className="lane-planner-help">{loading ? 'Hämtar relevanta Tempus-resultat…' : 'Snabbaste sparade tid på vald distans används när den finns. Efter generering kan varje simmare flyttas till en annan bana.'}</p><button type="button" className="primary-button" onClick={create}>Skapa banfördelning →</button>{generated && <div className="lane-planner-results">{assignments.map((lane, index) => <article key={index}><label className="lane-number">Bana <input type="number" min="1" max="20" value={index + 1} onChange={(event) => { const next = Number(event.target.value); if (!next || next === index + 1) return; setLaneMap((current) => Object.fromEntries(Object.entries(current).map(([id, value]) => [id, value === index + 1 ? next : value === next ? index + 1 : value]))) }} /></label>{lane.length ? lane.map((profile) => <span key={profile.id}><span>{profile.emoji} {profile.displayName}</span><small>{timeLabel(profile)}</small><select aria-label={`Bana för ${profile.displayName}`} value={laneMap[profile.id] || index + 1} onChange={(event) => setLaneMap((current) => ({ ...current, [profile.id]: Number(event.target.value) }))}>{Array.from({ length: Math.max(1, Number(lanes) || 1) }, (_, laneIndex) => <option key={laneIndex + 1} value={laneIndex + 1}>Bana {laneIndex + 1}</option>)}</select></span>) : <small>Tom</small>}</article>)}</div>}</section></div>
 }
 
 function TodayWorkoutSummary({ workouts = [], selectedGroups = [] }) {

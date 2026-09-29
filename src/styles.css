@@ -456,6 +456,9 @@ button { cursor: pointer; }
 .lane-planner-modal { width: min(680px, 100%); max-height: min(90vh, 780px); overflow: auto; border-radius: 20px; background: var(--paper); padding: 22px; box-shadow: 0 20px 60px rgba(13, 43, 45, .25); }
 .lane-planner-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .lane-planner-heading h2 { margin: 0; }
+.lane-planner-heading-actions { display: flex; align-items: center; gap: 8px; }
+.lane-planner-fullscreen { width: 100vw; height: 100vh; max-height: none; border-radius: 0; padding: 28px; }
+.lane-planner-modal:fullscreen { width: 100vw; height: 100vh; max-height: none; border-radius: 0; }
 .lane-planner-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
 .lane-planner-form label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .lane-planner-form input, .lane-planner-form select, .lane-planner-form textarea { width: 100%; box-sizing: border-box; min-height: 38px; border: 1px solid #cdded9; border-radius: 9px; padding: 8px 9px; background: white; color: var(--ink); }
@@ -464,8 +467,11 @@ button { cursor: pointer; }
 .lane-planner-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 9px; margin-top: 17px; }
 .lane-planner-results article { display: grid; align-content: start; gap: 7px; min-height: 82px; padding: 11px; border-radius: 12px; background: #edf6f3; }
 .lane-planner-results article > strong { color: var(--teal); font-size: 12px; }
-.lane-planner-results article > span { display: flex; justify-content: space-between; gap: 5px; font-size: 11px; }
+.lane-planner-results article > span { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; font-size: 11px; }
 .lane-planner-results article small { color: var(--muted); font-size: 9px; }
+.lane-number { display: flex; align-items: center; gap: 5px; color: var(--teal); font-size: 12px; font-weight: 800; }
+.lane-number input { width: 40px; min-height: 27px; border: 1px solid #bdd6cf; border-radius: 7px; padding: 3px 5px; font-weight: 800; color: var(--teal); }
+.lane-planner-results article > span select { grid-column: 1 / -1; min-height: 28px; border: 1px solid #cdded9; border-radius: 7px; background: white; color: var(--muted); font-size: 10px; }
 @media (max-width: 560px) { .attendance-panel-head { flex-direction: column; padding-right: 0; } .lane-planner-button { min-height: 40px; margin: 0 10px 10px; } .lane-planner-form { grid-template-columns: 1fr; } .lane-planner-wide { grid-column: auto; } }
 .attendance-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; background: transparent; padding: 16px 18px; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; text-align: left; }
 .attendance-toggle span { color: var(--muted); font-size: .85rem; font-weight: 600; white-space: nowrap; }
