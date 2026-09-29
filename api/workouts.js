@@ -16,6 +16,15 @@ function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
 }
 
+let assistantCalendarCache = { expiresAt: 0, activities: [] }
+async function cachedAssistantCalendarActivities() {
+  if (assistantCalendarCache.expiresAt > Date.now()) return assistantCalendarCache.activities
+  const calendars = await configuredSportAdminCalendars()
+  const activities = await readSportAdminCalendars(calendars)
+  assistantCalendarCache = { expiresAt: Date.now() + 5 * 60 * 1000, activities }
+  return activities
+}
+
 async function answerAssistant(request, role) {
   const question = String(request.body?.question || '').trim().slice(0, 600)
   const history = Array.isArray(request.body?.history) ? request.body.history.filter((item) => item && (item.from === 'user' || item.from === 'assistant') && typeof item.text === 'string').slice(-10).map((item) => ({ role: item.from === 'user' ? 'user' : 'assistant', content: item.text.slice(0, 1200) })) : []
@@ -27,7 +36,7 @@ async function answerAssistant(request, role) {
     supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=40'),
     supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=30'),
     profile ? supabaseRequest(`competition_results?profile_id=eq.${encodeURIComponent(profile.id)}&select=event,pool,swim_time,result_date&order=result_time.asc&limit=60`) : Promise.resolve(null),
-    configuredSportAdminCalendars().then(readSportAdminCalendars).catch(() => []),
+    cachedAssistantCalendarActivities().catch(() => []),
     profile ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=title,target_sessions_per_week,start_date,end_date,active,reflection&order=start_date.desc&limit=20`) : Promise.resolve(null),
     profile ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profile.id)}&select=strength_sessions_per_week,dryland_sessions_per_week,start_date,end_date&order=start_date.desc&limit=20`) : Promise.resolve(null),
     profile ? supabaseRequest(`personal_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&select=activity_type,session_slot,session_date,source&order=session_date.desc&limit=200`) : Promise.resolve(null),

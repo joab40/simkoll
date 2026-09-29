@@ -481,7 +481,13 @@ function Assistant({ code, role, profile, onClose }) {
   useEffect(() => { try { window.localStorage.setItem(historyKey, JSON.stringify(messages.slice(-40))) } catch {} }, [historyKey, messages])
   const ask = async (text = question) => {
     const value = String(text || '').trim(); if (!value || loading) return
-    setMessages((current) => [...current, { from: 'user', text: value }]); setQuestion(''); setLoading(true)
+    const quickIntro = /^(vad är|vad ar|berätta om|beratta om)\s+simkoll\??$/i.test(value)
+    setMessages((current) => [...current, { from: 'user', text: value }]); setQuestion('')
+    if (quickIntro) {
+      setMessages((current) => [...current, { from: 'assistant', text: 'Simkoll är som en digital träningsdagbok där du står i fokus. Du kan följa dina pass och mål, checka in hur träningen känns, se din närvaro och utveckling samt få uppmuntran från tränarna. Appen hjälper dig att reflektera och följa din träning – den ersätter inte samtal med tränare eller vårdnadshavare.' }])
+      return
+    }
+    setLoading(true)
     try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-chat', question: value, history: messages.slice(-10) }) }); setMessages((current) => [...current, { from: 'assistant', text: data.text || data.error || 'Jag kunde inte hitta ett svar.' }]) } catch (error) { setMessages((current) => [...current, { from: 'assistant', text: error.message }]) } finally { setLoading(false) }
   }
   const stopRecording = () => { recorderRef.current?.stop(); setRecording(false) }
