@@ -144,7 +144,7 @@ export default async function handler(request, response) {
           if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
           return sendJson(response, 200, { results: await result.json() })
         }
-        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,tempus_id,active,approval_status,is_test_profile,ai_analysis_status,terms_accepted_at,terms_version,created_at&active=eq.true&order=display_name.asc')
+        const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,primary_stroke,secondary_stroke,tempus_id,active,approval_status,is_test_profile,ai_analysis_status,terms_accepted_at,terms_version,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
         const profiles = (await result.json()).map(publicProfile)
         return sendJson(response, 200, { profiles: profiles.filter((item) => item.approvalStatus === 'approved'), pendingProfiles: profiles.filter((item) => item.approvalStatus === 'pending') })
@@ -317,6 +317,18 @@ export default async function handler(request, response) {
         if (!groupResult.ok || !(await groupResult.json()).length) return sendJson(response, 400, { error: 'Ogiltig eller arkiverad träningsgrupp.' })
       }
       const updated = await updateProfile(profileId, { training_group: trainingGroup })
+      return sendJson(response, 200, { profile: publicProfile(updated) })
+    }
+
+    if (action === 'set-specialties') {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra simsätt.' })
+      const profileId = String(request.body.profileId || '')
+      const primaryStroke = request.body.primaryStroke ? String(request.body.primaryStroke) : null
+      const secondaryStroke = request.body.secondaryStroke ? String(request.body.secondaryStroke) : null
+      const allowed = new Set(['freestyle', 'backstroke', 'breaststroke', 'butterfly', 'individual_medley'])
+      if (!profileId || (primaryStroke && !allowed.has(primaryStroke)) || (secondaryStroke && !allowed.has(secondaryStroke))) return sendJson(response, 400, { error: 'Välj ett giltigt simsätt.' })
+      if (primaryStroke && secondaryStroke && primaryStroke === secondaryStroke) return sendJson(response, 400, { error: 'Primärt och sekundärt simsätt måste vara olika.' })
+      const updated = await updateProfile(profileId, { primary_stroke: primaryStroke, secondary_stroke: secondaryStroke })
       return sendJson(response, 200, { profile: publicProfile(updated) })
     }
 

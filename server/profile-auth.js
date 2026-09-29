@@ -29,6 +29,8 @@ export function publicProfile(profile) {
     displayName: profile.display_name,
     emoji: profile.emoji,
     trainingGroup: profile.training_group || null,
+    primaryStroke: profile.primary_stroke || null,
+    secondaryStroke: profile.secondary_stroke || null,
     tempusId: profile.tempus_id || null,
     approvalStatus: profile.approval_status || 'approved',
     aiAnalysisStatus: profile.ai_analysis_status || 'not_requested',

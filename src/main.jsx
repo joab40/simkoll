@@ -24,6 +24,7 @@ const DAY_TYPES = [
 const WORKOUT_FOCUSES = [
   ['kondition_frisim', 'Kondition frisim'], ['kondition_special', 'Kondition special'], ['fart', 'Fart'], ['troskel', 'Tröskel'], ['syra', 'Syra'], ['f2_frisim', 'F2 Frisim'], ['f2_spec', 'F2 Spec'], ['distans', 'Distans'], ['teknik', 'Teknik'], ['aterhamtning', 'Återhämtning'],
 ]
+const STROKE_OPTIONS = [['freestyle', 'Frisim'], ['backstroke', 'Ryggsim'], ['breaststroke', 'Bröstsim'], ['butterfly', 'Fjärilsim'], ['individual_medley', 'Medley']]
 
 const GAME_CATALOG = [
   { key: 'swimgames', title: 'Swimgames 25', emoji: '🏊', description: '25 meter frisim mot klockan.', route: 'swimgames' },
@@ -510,6 +511,21 @@ function ClubBrand({ onAssistant }) {
       <span>Sundsvalls Simsällskap</span>
     </button>
   )
+}
+
+function SwimmerSpecialtyEditor({ profile, code, onSaved }) {
+  const [primary, setPrimary] = useState(profile.primaryStroke || '')
+  const [secondary, setSecondary] = useState(profile.secondaryStroke || '')
+  const [status, setStatus] = useState('')
+  useEffect(() => { setPrimary(profile.primaryStroke || ''); setSecondary(profile.secondaryStroke || '') }, [profile.id, profile.primaryStroke, profile.secondaryStroke])
+  const save = async (event) => {
+    event.preventDefault(); setStatus('Sparar…')
+    try {
+      const data = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-specialties', profileId: profile.id, primaryStroke: primary || null, secondaryStroke: secondary || null }) })
+      onSaved(data.profile); setStatus('Sparat ✓')
+    } catch (error) { setStatus(error.message || 'Kunde inte spara simsätt.') }
+  }
+  return <form className="swimmer-specialty-editor" onSubmit={save}><div><strong>Simsätt</strong><small>Tränarens bedömning av specialinriktning</small></div><div className="specialty-selects"><label>Primärt<select value={primary} onChange={(event) => setPrimary(event.target.value)}><option value="">Välj</option>{STROKE_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Sekundärt<select value={secondary} onChange={(event) => setSecondary(event.target.value)}><option value="">Välj</option>{STROKE_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><button type="submit">Spara</button></div>{status && <small>{status}</small>}</form>
 }
 
 function Logo({ compact = false }) {
@@ -2925,6 +2941,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             <SwimmerNotes profile={profile} code={code} />
             <div className="tempus-edit"><div><strong>Tempus-ID</strong><small>{profile.tempusId ? 'Används i Tävlingsresultat' : 'Lägg till för att koppla resultat'}</small></div><form onSubmit={(event) => { event.preventDefault(); const value = event.currentTarget.elements.tempusId.value.trim(); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-tempus-id', profileId: profile.id, tempusId: value }) }).then(() => onProfilesChange()).catch((error) => window.alert(error.message)) }}><label><input name="tempusId" inputMode="numeric" pattern="[0-9]{1,12}" maxLength="12" defaultValue={profile.tempusId || ''} placeholder="t.ex. 273688" /></label><button type="submit">Spara</button></form></div>
             <div className="tempus-edit"><div><strong>Träningsgrupp</strong><small>Styr vilka pass simmaren ser</small></div><label><select value={profile.trainingGroup || ''} onChange={(event) => saveGroup(profile, event.target.value)}><option value="">Ingen grupp</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label>{groupStatus[profile.id] && <small>{groupStatus[profile.id]}</small>}</div>
+            <SwimmerSpecialtyEditor profile={profile} code={code} onSaved={() => onProfilesChange()} />
             {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
             <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra överenskomna mål</summary><form onSubmit={(event) => { event.preventDefault(); saveTrainingGoals(profile, swimGoal, crossGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={trainingGoalDrafts[profile.id]?.swim ?? swimGoal?.target ?? ''} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), swim: event.target.value } }))} /></label><label>Land / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.dryland ?? crossGoal?.drylandTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), dryland: event.target.value } }))} /></label><label>Styrka / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.strength ?? crossGoal?.strengthTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), strength: event.target.value } }))} /></label><button type="submit">Spara mål</button>{trainingGoalStatus[profile.id] && <small>{trainingGoalStatus[profile.id]}</small>}</form><small>Ändras efter dialog med simmaren.</small></details></section>
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
