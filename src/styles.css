@@ -891,6 +891,11 @@ button { cursor: pointer; }
 .swimmer-traffic-reasons span { font-size: 10px; }
 .swimmer-attention { color: var(--muted); font-size: 11px; font-weight: 700; }
 .swimmer-attention.needs-attention { color: #a95454; }
+.swimmer-setup-indicator { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; border: 1.5px solid currentColor; font: 800 12px/1 'Manrope', sans-serif; }
+.swimmer-setup-indicator.red { color: #b74a4a; background: #fff0ed; }
+.swimmer-setup-indicator.yellow { color: #a47612; background: #fff8df; }
+.swimmer-setup-indicator.green { color: #277c6c; background: #e9f6f1; }
+.swimmer-setup-indicator.gray { color: #7b8583; background: #eef1ef; }
 .swimmer-expand-hint { color: var(--teal); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .swimmer-card-details { padding: 0 22px 22px; }
 .swimmer-card.compact .swimmer-name > span { width: 42px; height: 42px; font-size: 25px; }

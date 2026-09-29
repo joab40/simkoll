@@ -2928,11 +2928,23 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const hasActivityData = recentItems.length > 0 || profileSessions.length > 0 || plannedRecent.length > 0
         const traffic = !hasActivityData ? { color: 'unknown', label: 'För lite data', icon: '⚪' } : (sickDays >= 2 || missedPlanned >= 3 || (lowBody >= 2 && lowFeeling >= 2)) ? { color: 'red', label: 'Följ upp', icon: '🔴' } : signalReasons.length ? { color: 'yellow', label: 'Var uppmärksam', icon: '🟡' } : { color: 'green', label: 'Ser stabilt ut', icon: '🟢' }
         const trainingGoals = [{ icon: '🏊', label: 'Simning', completed: profileSessions.filter((item) => item.type === 'swim').length, target: swimGoal?.target }, { icon: '🤸', label: 'Landträning', completed: profileSessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget ?? 3 }, { icon: '🏋️', label: 'Styrka', completed: profileSessions.filter((item) => item.type === 'strength').length, target: crossGoal?.strengthTarget ?? 3 }].filter((item) => item.target > 0)
+        const setupChecks = [
+          { key: 'tempus', label: 'Tempus-ID', complete: Boolean(profile.tempusId) },
+          { key: 'stroke', label: 'specialinriktning', complete: Boolean(profile.primaryStroke || profile.secondaryStroke) },
+          { key: 'goals', label: 'överenskomna mål för simning, landträning och styrka', complete: Boolean(swimGoal?.target != null && crossGoal?.drylandTarget != null && crossGoal?.strengthTarget != null) },
+          { key: 'group', label: 'träningsgrupp', complete: Boolean(profile.trainingGroup) },
+        ]
+        const setupCompleteCount = setupChecks.filter((item) => item.complete).length
+        const setupIndicatorColor = setupCompleteCount === 3 ? 'gray' : setupCompleteCount === 2 ? 'green' : setupCompleteCount === 1 ? 'yellow' : 'red'
+        const setupMissing = setupChecks.filter((item) => !item.complete).map((item) => item.label)
+        const setupIndicatorTitle = setupCompleteCount === 4
+          ? 'Profilinställningar kompletta'
+          : `${setupCompleteCount} av 4 profilinställningar klara. Saknas: ${setupMissing.join(', ')}.`
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
           <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
             <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
-            <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span><span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
+            <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>{!isExpanded && <span className={`swimmer-setup-indicator ${setupIndicatorColor}`} title={setupIndicatorTitle} aria-label={setupIndicatorTitle}>?</span>}<span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
           </button>
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
