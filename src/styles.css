@@ -461,8 +461,8 @@ button { cursor: pointer; }
 .lane-planner-modal:fullscreen { width: 100vw; height: 100vh; max-height: none; border-radius: 0; }
 .lane-planner-fullscreen .lane-planner-form, .lane-planner-fullscreen .lane-planner-help, .lane-planner-fullscreen > .primary-button, .lane-planner-fullscreen .lane-planner-publish-actions { display: none; }
 .lane-planner-fullscreen .lane-planner-results { margin-top: 22px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.lane-planner-fullscreen .lane-planner-results article { min-height: 150px; align-content: center; padding: 18px; }
-.lane-planner-fullscreen .lane-planner-results article > span { font-size: 15px; padding: 10px; }
+.lane-planner-fullscreen .lane-planner-results article { min-height: 150px; align-content: start; justify-items: stretch; text-align: left; padding: 18px; }
+.lane-planner-fullscreen .lane-planner-results article > span { font-size: 15px; padding: 10px; text-align: left; align-items: start; }
 .lane-planner-fullscreen .lane-drag-hint { display: none; }
 .lane-planner-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
 .lane-planner-form label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
