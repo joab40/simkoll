@@ -198,6 +198,7 @@ async function interpretWorkoutAttachment(request, fileData, mimeType, fileName 
 
 Viktiga tolkningsregler:
 - Läs tabellen visuellt från vänster till höger och uppifrån och ned. Första kolumnen kan innehålla blockrubriker som INSIM, BEN, SS, ARM och AVSIM; rubriker som slutar med kolon ska stå på egna rader.
+- "Insim 1", "Insim 2" och liknande är alltid rubriker. Siffran efter Insim är en del av rubrikens namn och får aldrig tolkas som 1x/2x. En blockmultiplikator får bara skapas när ett tydligt "2x"/"3x" faktiskt står ensamt i en separat kolumn bredvid ett block, som 2x-markeringen bredvid SS i kalkylbladet.
 - Knyt en ensam 2x/3x-markering till alla serier i blocket. Behåll däremot innersta serier som 2x100, 4x25, 1x100 och 8x25 exakt som de står. Blanda aldrig ihop en blockmultiplikator med en serie-multiplikator.
 - Skriv blockmultiplikatorn en gång som "2x [" eller "3x [" på en egen indragen rad, följ blockets serier på indragna rader och avsluta med "]". Exempel: "BEN:\n2x [\n  200 fr · F2\n  4x25 F.K.P.R · 15 max–10 löst\n]". Om bilden inte tydligt visar att en markering gäller ett block, gissa inte och lägg inte till den.
 - Bevara ordning, radbrytningar, parenteser, förkortningar, simsätt, instruktioner och eventuella starttider. Duplicera inte rubriker (till exempel flera INSIM) och slå inte ihop olika block.
