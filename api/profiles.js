@@ -431,11 +431,19 @@ export default async function handler(request, response) {
 
     if (action === 'sync-tempus-results') {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan synka Tempus-resultat.' })
-      const requested = request.body.profileId ? [String(request.body.profileId)] : null
-      const profilesResult = await supabaseRequest(`profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id${requested ? `&id=in.(${requested.join(',')})` : ''}`)
+      const requestedProfileId = request.body.profileId ? String(request.body.profileId).trim() : ''
+      // En profilsynk ska alltid vara strikt begränsad till det valda UUID:t.
+      // Använd eq i stället för in så att ett felaktigt/oväntat filter aldrig
+      // kan göra att hela gruppen hämtas av misstag.
+      const profileScope = requestedProfileId ? `&id=eq.${encodeURIComponent(requestedProfileId)}` : ''
+      const profilesResult = await supabaseRequest(`profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id${profileScope}`)
       if (!profilesResult.ok) throw new Error(`Tempus profiles lookup failed: ${profilesResult.status}`)
+      const targetProfiles = await profilesResult.json()
+      if (requestedProfileId && !targetProfiles.some((profile) => String(profile.id) === requestedProfileId)) {
+        return sendJson(response, 404, { error: 'Simmaren saknar godkänt Tempus-ID eller är inte tillgänglig.', profileId: requestedProfileId })
+      }
       let synced = 0, attempted = 0, failures = []
-      for (const profile of await profilesResult.json()) {
+      for (const profile of targetProfiles) {
         const to = new Date()
         const params = new URLSearchParams({ best_time_only: '0', from_date: '2000-01-01', to_date: to.toISOString().slice(0, 10) })
         const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming?${params}`)
@@ -455,7 +463,7 @@ export default async function handler(request, response) {
           const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) { synced += rows.length; if (improved.length) await awardCompetitionBest(profile.id, improved) } else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`)
         }
       }
-      return sendJson(response, 200, { synced, attempted, failures })
+      return sendJson(response, 200, { synced, attempted, failures, profileId: requestedProfileId || null, profileCount: targetProfiles.length })
     }
 
     if (action === 'delete-profile') {
