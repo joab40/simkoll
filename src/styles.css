@@ -1677,6 +1677,12 @@ button { cursor: pointer; }
 .swimmer-planning-list article { padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .swimmer-planning-list h2 { margin: 3px 0; }
 .swimmer-planning-list p { color: var(--muted); }
+.swimmer-planning-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.swimmer-planning-title h2 { min-width: 0; overflow-wrap: anywhere; }
+.swimmer-planning-list article > small { display: block; margin-top: 9px; color: var(--muted); white-space: pre-line; }
+.planning-locked-item { border-color: #e2c98c !important; background: #fffaf0 !important; }
+.planning-checkin-lock { display: grid; gap: 4px; margin-top: 10px; padding: 11px 12px; border-radius: 11px; background: #fff1d2; color: #765b24; }
+.planning-checkin-lock small { color: #8b7345; }
 .planning-workout p { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
 .planning-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .planning-edit { margin-top: 10px; padding: 0; }
