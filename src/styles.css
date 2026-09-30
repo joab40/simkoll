@@ -1689,6 +1689,12 @@ button { cursor: pointer; }
 .swimmer-planning-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .swimmer-planning-title h2 { min-width: 0; overflow-wrap: anywhere; }
 .swimmer-planning-list article > small { display: block; margin-top: 9px; color: var(--muted); white-space: pre-line; }
+.swimmer-planning-pm { margin-top: 12px; border-top: 1px solid #dbe8e5; padding-top: 10px; }
+.swimmer-planning-pm summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; color: var(--teal); font-weight: 800; list-style: none; }
+.swimmer-planning-pm summary::-webkit-details-marker { display: none; }
+.swimmer-planning-pm summary span { color: var(--muted); font-size: .78rem; font-weight: 700; }
+.swimmer-planning-pm[open] summary span { color: var(--teal); }
+.swimmer-planning-pm > div { margin-top: 9px; color: var(--muted); font-size: .9rem; line-height: 1.5; }
 .planning-locked-item { border-color: #e2c98c !important; background: #fffaf0 !important; }
 .planning-checkin-lock { display: grid; gap: 4px; margin-top: 10px; padding: 11px 12px; border-radius: 11px; background: #fff1d2; color: #765b24; }
 .planning-checkin-lock small { color: #8b7345; }

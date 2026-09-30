@@ -498,6 +498,7 @@ function SwimmerPlanning({ code, onBack }) {
   const currentDate = todayKey()
   const swimmerPlanningMeters = visiblePlans.reduce((sum, item) => sum + (Number(item.distanceMeters) || 0), 0)
   const swimmerPlanningMinutes = visiblePlans.reduce((sum, item) => sum + (Number(item.durationMinutes) || 0), 0)
+  const cleanSwimmerCompetitionPm = (value) => String(value || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => !/^\s*(?:egen\s*avgift|anmälningsavgift|kostnad)\s*:/i.test(line) && !/\bergenavgift\b/i.test(line)).join('\n').replace(/\n{3,}/g, '\n\n').trim()
   useEffect(() => {
     document.querySelectorAll('.swimmer-planning-list article').forEach((card) => {
       const date = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
@@ -530,6 +531,19 @@ function SwimmerPlanning({ code, onBack }) {
       }
       summary.innerHTML = `<div><strong>${swimmerPlanningMeters ? swimmerPlanningMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>${swimmerPlanningMinutes || '–'}</strong><span>minuter</span></div><div><strong>${visiblePlans.length}</strong><span>aktiviteter</span></div>`
     }
+    const cards = document.querySelectorAll('.swimmer-planning-list article')
+    cards.forEach((card, index) => {
+      card.querySelectorAll('.swimmer-planning-pm').forEach((item) => item.remove())
+      const plan = visiblePlans[index]
+      if (!plan || !(plan.source === 'SportAdmin' || plan.activityType === 'sportadmin' || plan.calendarItems?.length)) return
+      const pm = cleanSwimmerCompetitionPm(plan.notes)
+      if (!pm) return
+      card.querySelectorAll(':scope > small').forEach((item) => item.remove())
+      const details = document.createElement('details')
+      details.className = 'swimmer-planning-pm'
+      details.innerHTML = `<summary>📄 Tävlings-PM <span>Visa</span></summary><div>${pm.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
+      card.append(details)
+    })
   }, [visiblePlans.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
   return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>{weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{visiblePlans.length ? <div className="swimmer-planning-list">{visiblePlans.map((plan) => { const requiresCheckIn = plan.date === todayKey() && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && todayWorkoutAccess.locked; const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']; return <article key={plan.id} className={`${plan.source === 'SportAdmin' ? 'calendar-planning-item ' : ''}${requiresCheckIn ? 'planning-locked-item' : ''}`}><p className="eyebrow">{plan.date}</p><div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{requiresCheckIn ? 'Dagens simpass' : plan.title}</h2></div>{plan.focus && !requiresCheckIn && <span className="workout-focus-pill">{plan.focus}</span>}{requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se dagens pass</strong><small>Planeringen är synlig, men själva passet låses upp efter din check-in.</small></div> : <><div className="workout-library-stats">{plan.time && <span>⏰ {plan.time}</span>}{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map((group) => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}<small>{plan.source !== 'SportAdmin' && plan.notes}</small></>}</article> })}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}</section>
 }
