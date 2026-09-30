@@ -439,8 +439,8 @@ function SwimmerPlanning({ code, onBack }) {
   const matchedCalendarIds = new Set()
   const mergedPlans = planningRows.map((plan) => {
     const planGroups = new Set(plan.targetGroups || [])
-    const candidates = calendarRows.filter((item) => item.date === plan.date && (!planGroups.size || !item.targetGroups?.length || item.targetGroups.some((group) => planGroups.has(group))) && (!plan.timeOfDay || !item.time || calendarTimeOfDay(item.time) === plan.timeOfDay) && (!plan.location || !item.location || plan.location === item.location))
-    const locationMatches = plan.location ? candidates.filter((item) => item.location && item.location === plan.location) : []
+    const candidates = calendarRows.filter((item) => item.date === plan.date && (!planGroups.size || !item.targetGroups?.length || item.targetGroups.some((group) => planGroups.has(group))) && (!plan.timeOfDay || !item.time || calendarTimeOfDay(item.time) === plan.timeOfDay))
+    const locationMatches = plan.location ? candidates.filter((item) => item.location && (item.location === plan.location || item.location.includes(plan.location) || plan.location.includes(item.location))) : []
     const matching = locationMatches.length === 1 ? locationMatches : candidates.length === 1 ? candidates : []
     if (!matching.length) return plan
     matching.forEach((item) => matchedCalendarIds.add(item.id))
