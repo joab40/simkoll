@@ -427,19 +427,22 @@ function Login({ onLogin }) {
 
 function SwimmerPlanning({ code, onBack }) {
   const [plans, setPlans] = useState([])
+  const [workouts, setWorkouts] = useState([])
   const [sportAdminActivities, setSportAdminActivities] = useState([])
   const [todayWorkoutAccess, setTodayWorkoutAccess] = useState({ locked: false, hasWorkout: false })
   const [weekOffset, setWeekOffset] = useState(0)
   useEffect(() => {
     Promise.all([apiRequest('/api/workouts?planning=true', code), apiRequest(`/api/workouts?date=${todayKey()}`, code)])
-      .then(([planningData, workoutData]) => { setPlans(planningData.plans || []); setSportAdminActivities(planningData.sportAdminActivities || []); setTodayWorkoutAccess({ locked: workoutData.locked === true, hasWorkout: Boolean(workoutData.workout || workoutData.workouts?.length) }) })
+      .then(([planningData, workoutData]) => { setPlans(planningData.plans || []); setWorkouts(planningData.workouts || []); setSportAdminActivities(planningData.sportAdminActivities || []); setTodayWorkoutAccess({ locked: workoutData.locked === true, hasWorkout: Boolean(workoutData.workout || workoutData.workouts?.length) }) })
       .catch(() => {})
   }, [code])
   const selectedStart = useMemo(() => { const start = weekStart(new Date()); start.setDate(start.getDate() + weekOffset * 7); return start }, [weekOffset])
   const selectedEnd = useMemo(() => { const end = new Date(selectedStart); end.setDate(end.getDate() + 7); return end }, [selectedStart])
   const startKey = dateKey(selectedStart), endKey = dateKey(selectedEnd)
   const calendarTimeOfDay = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
-  const planningRows = plans.filter((plan) => plan.date >= startKey && plan.date < endKey)
+  const linkedWorkoutIds = new Set(plans.map((plan) => plan.sourceWorkoutId).filter(Boolean))
+  const publishedWorkoutPlans = workouts.filter((workout) => !linkedWorkoutIds.has(workout.id)).map((workout) => ({ ...workout, activityType: 'swim', sourceWorkoutId: workout.id, syncStatus: 'linked' }))
+  const planningRows = [...plans, ...publishedWorkoutPlans].filter((plan) => plan.date >= startKey && plan.date < endKey)
   // Äldre importer kan ha lämnat flera identiska planeringskort efter sig.
   // Behåll den mest informativa raden, men slå inte ihop separata morgon- och
   // eftermiddagspass (timeOfDay ingår därför i nyckeln).
