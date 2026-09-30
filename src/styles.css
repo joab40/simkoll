@@ -1682,6 +1682,10 @@ button { cursor: pointer; }
 .swimmer-planning-summary > div { display: grid; gap: 2px; text-align: center; }
 .swimmer-planning-summary strong { color: var(--ink); font-size: 1.08rem; }
 .swimmer-planning-summary span { color: var(--muted); font-size: .76rem; }
+.weekly-volume-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 8px; }
+.weekly-volume-summary span { display: grid; gap: 2px; padding: 9px 10px; background: #eef7f4; border: 1px solid #d5e8e2; border-radius: 10px; }
+.weekly-volume-summary strong { color: var(--ink); font-size: 1rem; }
+.weekly-volume-summary small { color: var(--muted); font-size: .74rem; }
 @media (max-width: 600px) { .coach-settings-stack { gap: 18px; } .coach-settings-stack .settings-card { padding: 16px; } }
 .swimmer-planning-list article { padding: 16px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 14px; }
 .swimmer-planning-list h2 { margin: 3px 0; }

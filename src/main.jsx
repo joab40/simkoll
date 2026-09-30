@@ -1165,6 +1165,9 @@ function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPl
   const start = weekStart(), today = todayKey()
   const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(start); date.setDate(date.getDate() + index); return { date: dateKey(date), label: date.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), future: dateKey(date) > today } })
   const weeklySessions = (localSessions || []).filter((item) => item.date >= dateKey(start) && item.date <= today)
+  const weeklySwimSessions = weeklySessions.filter((item) => item.type === 'swim')
+  const weeklyMeters = weeklySwimSessions.reduce((sum, item) => sum + (Number(item.distanceMeters) || 0), 0)
+  const weeklyMinutes = weeklySwimSessions.reduce((sum, item) => sum + (Number(item.durationMinutes) || 0), 0)
   const plannedSessions = (localPlans || []).filter((item) => item.weekStart === dateKey(start))
   const plannedDays = new Set(plannedSessions.map((item) => item.date)).size
   const crossGoal = training?.crossGoals?.find((item) => item.startDate <= today && (!item.endDate || item.endDate >= today))
@@ -1173,6 +1176,16 @@ function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPl
     dryland: { completed: weeklySessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget || 0 },
   }
   const stars = currentStarState(training)
+  useEffect(() => {
+    const card = document.querySelector('.weekly-training-card .weekly-summary')
+    const heading = card?.querySelector('h3')
+    if (!card || !heading) return
+    card.querySelectorAll('.weekly-volume-summary').forEach((item) => item.remove())
+    const volume = document.createElement('div')
+    volume.className = 'weekly-volume-summary'
+    volume.innerHTML = `<span><strong>${weeklyMeters ? weeklyMeters.toLocaleString('sv-SE') : '–'}</strong><small>genomförda simmeter</small></span><span><strong>${weeklyMinutes || '–'}</strong><small>genomförda minuter</small></span>`
+    heading.insertAdjacentElement('afterend', volume)
+  }, [weeklyMeters, weeklyMinutes, weeklySessions.length])
   const toggle = async (date, slot, checked) => { const key = `${date}-${slot}`; const previous = localSessions || []; const type = slot.includes('swim') ? 'swim' : slot; const next = checked ? [...previous.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, type }] : previous.filter((item) => !(item.date === date && item.slot === slot)); setLocalSessions(next); setSaving(key); try { const result = await onToggle(date, slot, checked); setCheer(result?.message || (checked ? 'Passet är registrerat! ✓' : 'Passet är avmarkerat.')) } catch (error) { setLocalSessions(previous); window.alert(error.message) } finally { setSaving('') } }
   const togglePlan = async (date, slot, checked) => { const key = `plan-${date}-${slot}`; const previous = localPlans || []; const next = checked ? [...previous.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, weekStart: dateKey(start) }] : previous.filter((item) => !(item.date === date && item.slot === slot)); setLocalPlans(next); setSaving(key); try { const result = await onPlan(date, slot, checked); setCheer(result?.message || (checked ? 'Passet är planerat! 🗓️' : 'Planeringen är uppdaterad.')) } catch (error) { setLocalPlans(previous); window.alert(error.message) } finally { setSaving('') } }
   const percentage = goal ? Math.round((completed / goal.target) * 100) : null
