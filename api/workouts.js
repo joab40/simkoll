@@ -257,6 +257,16 @@ async function configuredSportAdminCalendars() {
   return Array.isArray(value.sportAdminCalendars) ? value.sportAdminCalendars : []
 }
 
+async function updatePlanningHiddenDate(date, hidden) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return
+  const current = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+  if (!current.ok) return
+  const settings = (await current.json())[0]?.setting_value || {}
+  const dates = new Set(Array.isArray(settings.planningHiddenDates) ? settings.planningHiddenDates : [])
+  if (hidden) dates.add(date); else dates.delete(date)
+  await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, planningHiddenDates: [...dates].slice(-120) }, updated_at: new Date().toISOString() }) })
+}
+
 async function readSportAdminCalendars(calendars) {
   const safe = Array.isArray(calendars) ? calendars : []
   const results = await Promise.all(safe.filter((calendar) => calendar.enabled !== false && calendar.url).map(async (calendar) => {
@@ -287,20 +297,21 @@ async function syncPlanningFromWorkout(workout) {
   else if (!current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload }) })
   else if (current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
 }
-async function backfillPlanningFromWorkouts(plans) {
+async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
+  const hidden = new Set(Array.isArray(hiddenDates) ? hiddenDates : [])
   const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=200')
   if (!workoutsResult.ok) return plans
   const workouts = await workoutsResult.json()
   const linkedWorkoutIds = new Set(plans.filter((item) => item.activity_type === 'swim' && item.source_workout_id).map((item) => item.source_workout_id))
   // Kör kopplingen sekventiellt. Om flera pass sparas samtidigt kan parallella
   // matchningar annars välja samma planeringsrad och skriva över varandra.
-  for (const workout of workouts.filter((item) => !linkedWorkoutIds.has(item.id))) await syncPlanningFromWorkout(workout)
+  for (const workout of workouts.filter((item) => !hidden.has(item.workout_date) && !linkedWorkoutIds.has(item.id))) await syncPlanningFromWorkout(workout)
   const competitionsResult = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
   const competitions = competitionsResult.ok ? await competitionsResult.json() : []
   const planDates = new Set(plans.map((item) => `${item.plan_date}:${item.activity_type}`))
   await Promise.all(competitions.flatMap((competition) => {
     const start = new Date(`${competition.start_date}T12:00:00`), end = new Date(`${competition.end_date}T12:00:00`), entries = []
-    for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) { const date = day.toISOString().slice(0, 10); if (!planDates.has(`${date}:competition`)) entries.push(supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'competition', title: competition.title, target_groups: competition.target_groups, location: competition.location, notes: competition.notes, updated_at: new Date().toISOString() }) })) }
+    for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) { const date = day.toISOString().slice(0, 10); if (!hidden.has(date) && !planDates.has(`${date}:competition`)) entries.push(supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'competition', title: competition.title, target_groups: competition.target_groups, location: competition.location, notes: competition.notes, updated_at: new Date().toISOString() }) })) }
     return entries
   }))
   if (!workouts.length && !competitions.length) return plans
@@ -506,7 +517,9 @@ export default async function handler(request, response) {
       if (request.query?.planning === 'true') {
         const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
         if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
-        const plans = await backfillPlanningFromWorkouts(await result.json())
+        const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+        const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
+        const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [])
         const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         const [workoutsResult, sportAdminActivities] = await Promise.all([
           supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000'),
@@ -677,6 +690,7 @@ export default async function handler(request, response) {
         const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['swim', 'strength', 'dryland', 'competition'].includes(activityType) || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, aktivitet, rubrik och minst en grupp.' })
         const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, time_of_day: ['morning', 'afternoon'].includes(body.timeOfDay) ? body.timeOfDay : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, sync_status: 'manual', updated_at: new Date().toISOString() }
+        await updatePlanningHiddenDate(date, false)
         const endpoint = body.id ? `training_plans?id=eq.${body.id}` : 'training_plans'
         const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Training plan save failed: ${result.status} ${await result.text()}`)
@@ -748,6 +762,7 @@ export default async function handler(request, response) {
       }
       const payload = { workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, time_of_day: timeOfDay || null, target_groups: targetGroups, updated_at: new Date().toISOString() }
       const workoutId = String(request.body?.id || '')
+      await updatePlanningHiddenDate(date, false)
       const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : 'daily_workouts', {
         method: workoutId ? 'PATCH' : 'POST',
         headers: { Prefer: 'return=representation' },
@@ -771,6 +786,7 @@ export default async function handler(request, response) {
         const id = String(request.query?.id || '')
         const date = String(request.query?.date || '')
         if (!id && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Välj en planeringsaktivitet eller dag.' })
+        if (!id) await updatePlanningHiddenDate(date, true)
         const result = await supabaseRequest(id ? `training_plans?id=eq.${encodeURIComponent(id)}` : `training_plans?plan_date=eq.${encodeURIComponent(date)}`, { method: 'DELETE' })
         if (!result.ok) throw new Error(`Training plan DELETE failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { ok: true })
