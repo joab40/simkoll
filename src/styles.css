@@ -1585,7 +1585,7 @@ button { cursor: pointer; }
 .planning-day > header > div { display: grid; gap: 2px; }
 .planning-day > header strong { text-transform: capitalize; }
 .planning-day > header small { color: var(--muted); }
-.planning-workout { margin-top: 10px; }
+.planning-workout { display: grid; gap: 8px; margin-top: 12px; padding: 14px; background: #fbfefd; border: 1px solid #dcebe7; border-radius: 14px; box-shadow: 0 2px 8px rgba(25, 68, 67, .04); }
 .coach-planning .planning-controls > label { display: none; }
 .planning-day-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .planning-delete-button, .planning-detach-button { color: #b42318; font-size: 12px; }
@@ -1597,13 +1597,18 @@ button { cursor: pointer; }
 .sportadmin-calendar-list article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; }
 .sportadmin-calendar-list article div { min-width: 0; display: grid; gap: 3px; }
 .sportadmin-calendar-list small { overflow-wrap: anywhere; color: var(--muted); }
-.planning-workout h2 { margin: 0 0 8px; font-size: 17px; }
-.planning-activity-title { display: flex; align-items: center; gap: 8px; }
+.planning-workout h2 { min-width: 0; margin: 0; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+.planning-activity-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.planning-activity-title .planning-type { flex: 0 0 auto; }
 .planning-activity-title h2 { margin-bottom: 0; }
 .planning-type { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #e7f0ee; color: var(--teal); font-size: 11px; font-weight: 800; }
 .planning-type-competition { background: #fff0d8; color: #98641b; }
 .planning-type-strength { background: #e8e5f7; color: #5b4b93; }
 .planning-type-dryland { background: #e1f1e7; color: #39734f; }
+.planning-workout .workout-library-stats { gap: 6px; }
+.planning-workout .workout-library-stats span { padding: 4px 8px; border-radius: 8px; background: #eef6f3; }
+.planning-workout .planning-group-pills { margin-top: 0; }
+.planning-workout > .text-button { justify-self: start; }
 .competition-form { display: grid; gap: 14px; padding: 20px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 16px; }
 .competition-form h2 { margin: 0; }
 .competition-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -1679,7 +1684,7 @@ button { cursor: pointer; }
 .planning-type-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .planning-type-buttons button { padding: 11px 8px; border: 1px solid #dbe8e5; border-radius: 11px; background: #f7fbf9; color: var(--ink); font-weight: 700; cursor: pointer; }
 .planning-type-buttons button.active { border-color: var(--teal); background: #e2f1ed; color: var(--teal); }
-@media (max-width: 520px) { .planning-summary { grid-template-columns: 1fr 1fr; } .planning-summary > div:last-child { grid-column: 1 / -1; } .planning-day > header { align-items: flex-start; flex-direction: column; gap: 7px; } }
+@media (max-width: 520px) { .planning-summary { grid-template-columns: 1fr 1fr; } .planning-summary > div:last-child { grid-column: 1 / -1; } .planning-day > header { align-items: flex-start; flex-direction: column; gap: 7px; } .planning-day-actions { width: 100%; justify-content: flex-start; } .planning-activity-title { align-items: flex-start; flex-direction: column; gap: 6px; } .planning-workout { padding: 13px; } }
 .tempus-results { display: grid; gap: 7px; margin-top: 12px; }
 .tempus-results > strong { font-size: 13px; }
 .tempus-results > div { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 13px; }

@@ -2398,8 +2398,11 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     const duplicateKeys = new Map()
     rawActivities.forEach((item) => {
       const groups = [...new Set((item.targetGroups || []).map(planningGroupKey).filter(Boolean))].sort().join(',')
-      const activityKey = [item.date || key, item.activityType || '', item.distanceMeters || '', item.durationMinutes || '', item.timeOfDay || '', groups].join('|')
-      const previousIndex = duplicateKeys.get(activityKey)
+      const baseKey = [item.date || key, item.activityType || '', item.distanceMeters || '', item.durationMinutes || '', groups].join('|')
+      const activityKey = `${baseKey}|${item.timeOfDay || ''}`
+      // An unspecified time is a wildcard for duplicate cleanup, but two
+      // explicit sessions (morning vs afternoon) must remain separate.
+      const previousIndex = duplicateKeys.get(activityKey) ?? duplicateKeys.get(`${baseKey}|`) ?? [...duplicateKeys.entries()].find(([candidate]) => candidate.startsWith(`${baseKey}|`) && (!candidate.split('|').pop() || !item.timeOfDay))?.[1]
       if (previousIndex == null) { duplicateKeys.set(activityKey, deduplicated.length); deduplicated.push(item); return }
       const previous = deduplicated[previousIndex]
       const preferred = activityRank(item) > activityRank(previous) ? item : previous
