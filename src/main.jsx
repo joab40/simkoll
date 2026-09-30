@@ -440,9 +440,35 @@ function SwimmerPlanning({ code, onBack }) {
   const startKey = dateKey(selectedStart), endKey = dateKey(selectedEnd)
   const calendarTimeOfDay = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
   const planningRows = plans.filter((plan) => plan.date >= startKey && plan.date < endKey)
+  // Äldre importer kan ha lämnat flera identiska planeringskort efter sig.
+  // Behåll den mest informativa raden, men slå inte ihop separata morgon- och
+  // eftermiddagspass (timeOfDay ingår därför i nyckeln).
+  const planningPlaceholder = (title) => /^(image\.jpg|importerat träningspass)$/i.test(String(title || '').trim())
+  const planningRank = (plan) => (plan.sourceWorkoutId ? 4 : 0) + (plan.focus ? 2 : 0) + (plan.location ? 1 : 0) + (plan.title && !planningPlaceholder(plan.title) ? 2 : 0)
+  const deduplicatedPlanningRows = []
+  const planningDuplicates = new Map()
+  planningRows.forEach((plan) => {
+    const groups = [...new Set((plan.targetGroups || []).map((group) => String(group).trim()).filter(Boolean))].sort().join(',')
+    const fingerprint = [plan.date, plan.activityType, plan.distanceMeters || '', plan.durationMinutes || '', plan.focus || '', plan.timeOfDay || '', plan.location || '', groups].join('|')
+    const previousIndex = planningDuplicates.get(fingerprint)
+    if (previousIndex == null) {
+      planningDuplicates.set(fingerprint, deduplicatedPlanningRows.length)
+      deduplicatedPlanningRows.push(plan)
+      return
+    }
+    const previous = deduplicatedPlanningRows[previousIndex]
+    const sameMeaningfulTitle = previous.title === plan.title && !planningPlaceholder(previous.title) && !planningPlaceholder(plan.title)
+    if (sameMeaningfulTitle || planningPlaceholder(previous.title) || planningPlaceholder(plan.title)) {
+      if (planningRank(plan) > planningRank(previous)) deduplicatedPlanningRows[previousIndex] = plan
+    } else {
+      // Två riktiga pass med samma siffror får fortfarande visas separat.
+      deduplicatedPlanningRows.push(plan)
+    }
+  })
+  const uniquePlanningRows = deduplicatedPlanningRows
   const calendarRows = sportAdminActivities.filter((item) => item.date >= startKey && item.date < endKey).map((item) => ({ ...item, id: `sportadmin-${item.id}`, activityType: 'sportadmin', title: item.title || 'Kalenderaktivitet', time: item.time || '', source: 'SportAdmin' }))
   const matchedCalendarIds = new Set()
-  const mergedPlans = planningRows.map((plan) => {
+  const mergedPlans = uniquePlanningRows.map((plan) => {
     const planGroups = new Set(plan.targetGroups || [])
     const candidates = calendarRows.filter((item) => item.date === plan.date && (!planGroups.size || !item.targetGroups?.length || item.targetGroups.some((group) => planGroups.has(group))) && (!plan.timeOfDay || !item.time || calendarTimeOfDay(item.time) === plan.timeOfDay))
     const locationMatches = plan.location ? candidates.filter((item) => item.location && (item.location === plan.location || item.location.includes(plan.location) || plan.location.includes(item.location))) : []
