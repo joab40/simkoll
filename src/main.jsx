@@ -479,7 +479,7 @@ function SwimmerPlanning({ code, onBack }) {
     if (!matching.length) return plan
     matching.forEach((item) => matchedCalendarIds.add(item.id))
     const first = matching[0]
-    return { ...plan, time: plan.time || first.time || '', location: plan.location || first.location || '', notes: first.notes || plan.notes || '' }
+    return { ...plan, time: plan.time || (first.time && first.time !== '00:00' ? first.time : ''), location: plan.location || first.location || '', notes: first.notes || plan.notes || '' }
   })
   const normalizeCalendarText = (value) => String(value || '').toLocaleLowerCase('sv-SE').replace(/[^a-zåäö0-9]+/g, ' ').trim()
   // If the plan already contains the detailed/processed SportAdmin text,
@@ -537,6 +537,11 @@ function SwimmerPlanning({ code, onBack }) {
     const cards = document.querySelectorAll('.swimmer-planning-list article')
     cards.forEach((card, index) => {
       card.querySelectorAll('.swimmer-planning-pm').forEach((item) => item.remove())
+      card.querySelectorAll(':scope > small').forEach((item) => {
+        const cleaned = cleanSwimmerCompetitionPm(item.textContent)
+        if (cleaned) item.textContent = cleaned
+        else item.remove()
+      })
       const cardDate = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
       const cardTitle = card.querySelector('h2')?.textContent?.trim() || ''
       const plan = visiblePlans.find((item) => item.date === cardDate && (item.title === cardTitle || (cardTitle === 'Dagens simpass' && item.date === currentDate))) || visiblePlans[index]
