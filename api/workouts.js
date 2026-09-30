@@ -352,7 +352,10 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
   // Raderade upplagda pass kan lämna kvar sin länk i training_plans. Dessa
   // rader ska inte fortsätta synas i vare sig tränar- eller simmarvyn.
   const activeWorkoutIds = new Set(workouts.map((item) => String(item.id)))
-  const orphanPlans = currentPlans.filter((item) => item.activity_type === 'swim' && item.source_workout_id && !activeWorkoutIds.has(String(item.source_workout_id)))
+  const normalizeGroups = (value) => [...new Set((Array.isArray(value) ? value : []).map((group) => String(group).trim()).filter(Boolean))].sort().join(',')
+  const isImportedPlaceholder = (item) => /^(image\.jpg|importerat träningspass)$/i.test(String(item.title || '').trim())
+  const hasMatchingWorkout = (plan) => workouts.some((workout) => workout.workout_date === plan.plan_date && Number(workout.distance_meters || 0) === Number(plan.distance_meters || 0) && Number(workout.duration_minutes || 0) === Number(plan.duration_minutes || 0) && (!plan.focus || !workout.focus || plan.focus === workout.focus) && (!plan.time_of_day || !workout.time_of_day || plan.time_of_day === workout.time_of_day) && (!normalizeGroups(plan.target_groups) || !normalizeGroups(workout.target_groups) || normalizeGroups(plan.target_groups) === normalizeGroups(workout.target_groups)))
+  const orphanPlans = currentPlans.filter((item) => (item.activity_type === 'swim' && item.source_workout_id && !activeWorkoutIds.has(String(item.source_workout_id))) || (item.activity_type === 'swim' && !item.source_workout_id && isImportedPlaceholder(item) && !hasMatchingWorkout(item)))
   if (orphanPlans.length) {
     await Promise.all(orphanPlans.map((item) => supabaseRequest(`training_plans?id=eq.${encodeURIComponent(item.id)}`, { method: 'DELETE' })))
   }
