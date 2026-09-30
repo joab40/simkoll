@@ -1938,16 +1938,11 @@ function LaneAssignmentAssistant({ code, profiles, date, slot, onClose }) {
     const target = Number(targetLane)
     if (!target || target < 1 || target > assignmentCount) return
     setLaneMap((current) => {
-      const next = { ...current }, source = Number(next[profileId] || 0)
-      if (!source || source === target) return current
-      const occupant = profiles.find((profile) => Number(next[profile.id]) === target && profile.id !== profileId)
+      const next = { ...current }
+      if (!next[profileId] || Number(next[profileId]) === target) return current
+      // En manuell flytt ska bara flytta den valda simmaren. Mållanan kan
+      // därför tillfälligt innehålla fler simmare – tränaren styr upplägget.
       next[profileId] = target
-      if (occupant) next[occupant.id] = source
-      if (target <= count && source <= count && !occupant) {
-        const counts = Array.from({ length: count }, (_, lane) => profiles.filter((profile) => Number(next[profile.id]) === lane + 1).length)
-        const max = Math.max(...counts), min = Math.min(...counts)
-        if (max - min > 1) { const from = counts.indexOf(max) + 1, to = counts.indexOf(min) + 1; const rebalance = profiles.find((profile) => Number(next[profile.id]) === from && profile.id !== profileId); if (rebalance) next[rebalance.id] = to }
-      }
       return next
     })
     setPublished(false)
