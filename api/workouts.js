@@ -31,7 +31,11 @@ async function listGoogleDriveFolder(folderId) {
   const result = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`)
   if (!result.ok) throw new Error(`Google Drive kunde inte läsas (${result.status}).`)
   const payload = await result.json()
-  return (Array.isArray(payload.files) ? payload.files : []).map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType, modifiedTime: item.modifiedTime || null, size: item.size ? Number(item.size) : null, webViewLink: item.webViewLink || null, folder: item.mimeType === 'application/vnd.google-apps.folder' }))
+  return (Array.isArray(payload.files) ? payload.files : []).map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType, modifiedTime: item.modifiedTime || null, size: item.size ? Number(item.size) : null, webViewLink: item.webViewLink || null, folder: item.mimeType === 'application/vnd.google-apps.folder' })).sort((a, b) => {
+    if (a.folder !== b.folder) return a.folder ? -1 : 1
+    const timeDifference = (Date.parse(b.modifiedTime || '') || 0) - (Date.parse(a.modifiedTime || '') || 0)
+    return timeDifference || a.name.localeCompare(b.name, 'sv')
+  })
 }
 async function readGoogleDriveSheet(fileId) {
   const { apiKey } = driveConfig()
