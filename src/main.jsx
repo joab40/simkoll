@@ -445,7 +445,7 @@ function SwimmerPlanning({ code, onBack }) {
     if (!matching.length) return plan
     matching.forEach((item) => matchedCalendarIds.add(item.id))
     const first = matching[0]
-    return { ...plan, time: plan.time || first.time || '', location: plan.location || first.location || '', notes: plan.notes || first.notes || '' }
+    return { ...plan, time: plan.time || first.time || '', location: plan.location || first.location || '', notes: first.notes || plan.notes || '' }
   })
   const visiblePlans = [...mergedPlans, ...calendarRows.filter((item) => !matchedCalendarIds.has(item.id))].sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '').localeCompare(String(b.time || '')))
   const weekLabel = `${selectedStart.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${new Date(selectedEnd.getTime() - 1).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
@@ -2418,7 +2418,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
       matching.forEach((item) => linkedCalendarIds.add(item.id))
       if (!matching.length) return plan
       const calendarNote = matching.map((item) => [item.time, item.location, item.notes].filter(Boolean).join(' · ')).filter(Boolean).join(' | ')
-      return { ...plan, location: plan.location || matching.find((item) => item.location)?.location || '', notes: plan.notes || calendarNote, targetGroups: [...new Set([...(plan.targetGroups || []), ...matching.flatMap((item) => item.targetGroups || [])])], calendarItems: matching }
+      return { ...plan, location: plan.location || matching.find((item) => item.location)?.location || '', notes: calendarNote || plan.notes || '', targetGroups: [...new Set([...(plan.targetGroups || []), ...matching.flatMap((item) => item.targetGroups || [])])], calendarItems: matching }
     })
     const rawActivities = [...plannedWithCalendar, ...imported.filter((item) => !linkedCalendarIds.has(item.id))]
     // A pass can exist both as an older grundplan row and as an imported or
