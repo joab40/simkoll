@@ -194,16 +194,27 @@ async function interpretWorkoutAttachment(request, fileData, mimeType, fileName 
   const key = process.env.OPENAI_API_KEY
   if (!key) return { error: 'OPENAI_API_KEY saknas.' }
   if (!/^image\/(png|jpe?g|webp)$/i.test(mimeType)) return { error: 'Bildtolkning stöder PNG, JPG och WebP. För dokument: kopiera texten till huvudserien eller använd Google Drive-importen.' }
-  const prompt = 'Tolka bilden av ett svenskt simträningspass. Returnera strikt JSON med title, content, note, distanceMeters, durationMinutes och focus. Behåll alla serier, 2x/3x-klamrar, indrag, starttider och ordningen. Skriv content som ren text med rubriker på egna rader och varje serie på egen rad. Hitta inte på något som inte syns. Skriv kommande tävlingar i note om de syns. Filnamn: ' + fileName
+  const prompt = `Analysera bilden som ett strukturerat svenskt simträningspass. Bilden kan vara ett kalkylblad där en siffra följt av x (till exempel 2x eller 3x) står i en egen kolumn eller i en sammanslagen cell till vänster om flera rader. Den markeringen gäller hela blocket fram till nästa rubrik eller tomma block, inte bara raden bredvid.
+
+Viktiga tolkningsregler:
+- Läs tabellen visuellt från vänster till höger och uppifrån och ned. Första kolumnen kan innehålla blockrubriker som INSIM, BEN, SS, ARM och AVSIM; rubriker som slutar med kolon ska stå på egna rader.
+- Knyt en ensam 2x/3x-markering till alla serier i blocket. Behåll däremot innersta serier som 2x100, 4x25, 1x100 och 8x25 exakt som de står. Blanda aldrig ihop en blockmultiplikator med en serie-multiplikator.
+- Skriv blockmultiplikatorn en gång som "2x [" eller "3x [" på en egen indragen rad, följ blockets serier på indragna rader och avsluta med "]". Exempel: "BEN:\n2x [\n  200 fr · F2\n  4x25 F.K.P.R · 15 max–10 löst\n]". Om bilden inte tydligt visar att en markering gäller ett block, gissa inte och lägg inte till den.
+- Bevara ordning, radbrytningar, parenteser, förkortningar, simsätt, instruktioner och eventuella starttider. Duplicera inte rubriker (till exempel flera INSIM) och slå inte ihop olika block.
+- Läs endast tävlingsinformation till note om den faktiskt syns i bilden. Läs "Summa" som distanceMeters och "Tid" som durationMinutes när de finns. Använd heltal utan enheter i dessa två fält.
+- Hitta inte på titel, meter, tider eller träningsinnehåll. Om ett värde saknas ska fältet vara tomt.
+
+Returnera strikt JSON med exakt nycklarna title, content, note, distanceMeters, durationMinutes och focus. "content" ska vara ren text (inte markdown-tabell), med rubriker på egna rader och blockstrukturen enligt reglerna ovan. Filnamn: ${fileName}`
   try {
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 1400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON.' }, { role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: fileData, detail: 'high' } }] }] }) })
+    const model = process.env.OPENAI_WORKOUT_IMAGE_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 2200, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du är en noggrann simtränare och tabelltolkare. Läs layout, sammanslagna celler och indrag som struktur. Returnera alltid strikt JSON med exakt de efterfrågade nycklarna och ändra aldrig träningsfakta.' }, { role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: fileData, detail: 'high' } }] }] }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'workout_image_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Bildtolkningen kunde inte genomföras.' } }
     const payload = await result.json()
     await writeAiUsage(request, { feature: 'workout_image_import', model, role: 'coach', response: payload })
     const raw = String(payload.choices?.[0]?.message?.content || '{}'), first = raw.indexOf('{'), last = raw.lastIndexOf('}')
     const parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
-    return { draft: { title: String(parsed.title || 'Importerat träningspass').slice(0, 80), content: String(parsed.content || '').slice(0, 5000), note: String(parsed.note || '').slice(0, 500), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : '', durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : '', focus: typeof parsed.focus === 'string' ? parsed.focus : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] } }
+    const content = String(parsed.content || '').replace(/\r\n?/g, '\n').split('\n').map((line) => line.replace(/[ \t]+$/g, '')).filter((line, index, lines) => line.trim() || (index > 0 && index < lines.length - 1 && lines[index - 1]?.trim())).join('\n').trim().slice(0, 5000)
+    return { draft: { title: String(parsed.title || 'Importerat träningspass').slice(0, 80), content, note: String(parsed.note || '').slice(0, 500), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : '', durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : '', focus: typeof parsed.focus === 'string' ? parsed.focus : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] } }
   } catch (error) { console.warn('Workout image AI fallback:', error.message); return { error: 'Bildtolkningen kunde inte läsas.' } }
 }
 
