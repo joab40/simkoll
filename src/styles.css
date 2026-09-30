@@ -1310,7 +1310,8 @@ button { cursor: pointer; }
 .analysis-metric small.up, .analysis-metric small.down { color: var(--teal); }
 .privacy-limit { background: #edf5f2; border-radius: 11px; padding: 11px 14px; color: var(--muted); font-size: 11px; }
 .analysis-columns { display: grid; grid-template-columns: 1.45fr .55fr; gap: 12px; }
-.trend-bars { min-height: 235px; display: flex; align-items: stretch; gap: 5px; overflow-x: auto; border-bottom: 1px solid #dce7e4; padding: 12px 2px 0; }
+.analysis-columns > *, .trend-card { min-width: 0; max-width: 100%; }
+.trend-bars { min-width: 0; max-width: 100%; min-height: 235px; display: flex; align-items: stretch; gap: 5px; overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; border-bottom: 1px solid #dce7e4; padding: 12px 2px 0; }
 .trend-bars > div { flex: 1 0 38px; display: grid; grid-template-rows: 180px 23px 17px; text-align: center; }
 .trend-bars > div > div { display: flex; align-items: end; justify-content: center; gap: 3px; }
 .trend-bars i { position: relative; width: 10px; min-height: 2px; max-height: 90%; border-radius: 5px 5px 1px 1px; background: var(--aqua); cursor: help; }
@@ -1336,7 +1337,7 @@ button { cursor: pointer; }
 .trend-line-legend i, .trend-hover-card i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .trend-hover-card { display: grid; gap: 4px; margin: 8px 0; padding: 9px 11px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 11px; }
 .trend-hover-card strong { font-size: 12px; }
-.trend-line-wrap { overflow-x: auto; border-bottom: 1px solid #dce7e4; }
+.trend-line-wrap { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; border-bottom: 1px solid #dce7e4; }
 .trend-line-chart { display: block; min-width: 560px; width: 100%; height: 230px; overflow: visible; }
 .trend-line-chart line { stroke: #e3ecea; stroke-width: 1; }
 .trend-line-chart text { fill: var(--muted); font-size: 10px; }
