@@ -18,6 +18,29 @@ function publicCoachNote(item) {
 
 let assistantCalendarCache = { expiresAt: 0, activities: [] }
 const assistantRowsCache = new Map()
+
+const DEFAULT_DRIVE_FOLDER_ID = '10yTsKP2-Z4a1oNafx76MyyybkOzydBO1'
+function driveConfig() {
+  return { apiKey: String(process.env.GOOGLE_DRIVE_API_KEY || '').trim(), folderId: String(process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID).trim() }
+}
+async function listGoogleDriveFolder(folderId) {
+  const { apiKey } = driveConfig()
+  if (!apiKey) throw new Error('Google Drive API-nyckel saknas i Vercel.')
+  const query = `'${String(folderId).replace(/'/g, '')}' in parents and trashed = false`
+  const params = new URLSearchParams({ q: query, key: apiKey, pageSize: '100', orderBy: 'folder,name', fields: 'files(id,name,mimeType,modifiedTime,size,webViewLink)' })
+  const result = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`)
+  if (!result.ok) throw new Error(`Google Drive kunde inte läsas (${result.status}).`)
+  const payload = await result.json()
+  return (Array.isArray(payload.files) ? payload.files : []).map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType, modifiedTime: item.modifiedTime || null, size: item.size ? Number(item.size) : null, webViewLink: item.webViewLink || null, folder: item.mimeType === 'application/vnd.google-apps.folder' }))
+}
+async function readGoogleDriveSheet(fileId) {
+  const { apiKey } = driveConfig()
+  if (!apiKey) throw new Error('Google Drive API-nyckel saknas i Vercel.')
+  const params = new URLSearchParams({ mimeType: 'text/csv', key: apiKey })
+  const result = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?${params.toString()}`)
+  if (!result.ok) throw new Error(`Google Drive-filen kunde inte läsas (${result.status}).`)
+  return result.text()
+}
 async function cachedAssistantRows(path) {
   const hit = assistantRowsCache.get(path)
   if (hit && hit.expiresAt > Date.now()) return hit
@@ -514,6 +537,16 @@ export default async function handler(request, response) {
     if (request.method === 'GET') {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })
+      if (role === 'coach' && request.query?.drive === 'true') {
+        try {
+          const { folderId } = driveConfig()
+          const requestedFolder = String(request.query.folderId || folderId).trim()
+          if (!/^[a-zA-Z0-9_-]+$/.test(requestedFolder)) return sendJson(response, 400, { error: 'Ogiltigt Google Drive-mapp-ID.' })
+          return sendJson(response, 200, { folderId: requestedFolder, items: await listGoogleDriveFolder(requestedFolder) })
+        } catch (error) {
+          return sendJson(response, 502, { error: error.message || 'Google Drive-mappen kunde inte läsas.' })
+        }
+      }
       if (request.query?.planning === 'true') {
         const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
         if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
@@ -714,6 +747,21 @@ export default async function handler(request, response) {
         const fallback = parseWorkoutCsv(text)
         const draft = await improveWorkoutWithAi(request, text, fallback)
         return sendJson(response, 200, { draft })
+      }
+      if (request.body?.action === 'import-drive-file') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa in pass från Google Drive.' })
+        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const fileId = String(request.body.fileId || '').trim()
+        if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) return sendJson(response, 400, { error: 'Ogiltigt Google Drive-fil-ID.' })
+        if (request.body.mimeType !== 'application/vnd.google-apps.spreadsheet') return sendJson(response, 400, { error: 'Välj ett Google Kalkylark. Andra filformat kan läggas till senare.' })
+        try {
+          const text = await readGoogleDriveSheet(fileId)
+          const fallback = parseWorkoutCsv(text)
+          const draft = await improveWorkoutWithAi(request, text.slice(0, 50000), fallback)
+          return sendJson(response, 200, { draft })
+        } catch (error) {
+          return sendJson(response, 502, { error: error.message || 'Google Drive-filen kunde inte läsas.' })
+        }
       }
       if (request.body?.action === 'generate-from-library') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })

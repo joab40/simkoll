@@ -681,6 +681,14 @@ button { cursor: pointer; }
 .workout-editor { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 30px; }
 .workout-editor > .period-heading { align-items: flex-start; gap: 24px; margin-bottom: 28px; }
 .editor-import-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.drive-picker { margin: 14px 0; }
+.drive-picker-list { display: grid; gap: 8px; max-height: 360px; overflow: auto; margin-top: 12px; }
+.drive-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; text-align: left; border: 1px solid #d5e7e1; border-radius: 14px; background: #fff; color: var(--ink); cursor: pointer; }
+.drive-item:hover { border-color: #8bbcaf; background: #f4faf7; }
+.drive-item strong, .drive-item small { display: block; }
+.drive-item small { margin-top: 3px; color: var(--muted); font-size: .82rem; }
+.drive-item b { color: var(--accent-dark, #267064); font-size: .82rem; white-space: nowrap; }
+.drive-back { background: #f3f8f5; }
 .workout-import-hint { display: block; color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.45; }
 .workout-picker { margin: 0 0 20px; padding: 18px; background: #eef7f3; border: 1px solid #cfe4dd; border-radius: 16px; }
 .workout-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }.workout-picker h3 { margin: 0; }.workout-picker > p { color: var(--muted); margin: 6px 0 14px; }
