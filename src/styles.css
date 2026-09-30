@@ -459,6 +459,11 @@ button { cursor: pointer; }
 .lane-planner-heading-actions { display: flex; align-items: center; gap: 8px; }
 .lane-planner-fullscreen { width: 100vw; height: 100vh; max-height: none; border-radius: 0; padding: 28px; }
 .lane-planner-modal:fullscreen { width: 100vw; height: 100vh; max-height: none; border-radius: 0; }
+.lane-planner-fullscreen .lane-planner-form, .lane-planner-fullscreen .lane-planner-help, .lane-planner-fullscreen > .primary-button, .lane-planner-fullscreen .lane-planner-publish-actions, .lane-planner-fullscreen .lane-number input { display: none; }
+.lane-planner-fullscreen .lane-planner-results { margin-top: 22px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.lane-planner-fullscreen .lane-planner-results article { min-height: 150px; align-content: center; padding: 18px; }
+.lane-planner-fullscreen .lane-planner-results article > span { font-size: 15px; padding: 10px; }
+.lane-planner-fullscreen .lane-drag-hint { display: none; }
 .lane-planner-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
 .lane-planner-form label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .lane-planner-form input, .lane-planner-form select, .lane-planner-form textarea { width: 100%; box-sizing: border-box; min-height: 38px; border: 1px solid #cdded9; border-radius: 9px; padding: 8px 9px; background: white; color: var(--ink); }
