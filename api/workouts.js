@@ -344,25 +344,34 @@ async function syncPlanningFromWorkout(workout) {
   else if (current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
 }
 async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
+  const currentPlans = Array.isArray(plans) ? plans : []
   const hidden = new Set(Array.isArray(hiddenDates) ? hiddenDates : [])
   const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=200')
-  if (!workoutsResult.ok) return plans
+  if (!workoutsResult.ok) return currentPlans
   const workouts = await workoutsResult.json()
-  const linkedWorkoutIds = new Set(plans.filter((item) => item.activity_type === 'swim' && item.source_workout_id).map((item) => item.source_workout_id))
+  // Raderade upplagda pass kan lämna kvar sin länk i training_plans. Dessa
+  // rader ska inte fortsätta synas i vare sig tränar- eller simmarvyn.
+  const activeWorkoutIds = new Set(workouts.map((item) => String(item.id)))
+  const orphanPlans = currentPlans.filter((item) => item.activity_type === 'swim' && item.source_workout_id && !activeWorkoutIds.has(String(item.source_workout_id)))
+  if (orphanPlans.length) {
+    await Promise.all(orphanPlans.map((item) => supabaseRequest(`training_plans?id=eq.${encodeURIComponent(item.id)}`, { method: 'DELETE' })))
+  }
+  const cleanPlans = currentPlans.filter((item) => !orphanPlans.some((orphan) => String(orphan.id) === String(item.id)))
+  const linkedWorkoutIds = new Set(cleanPlans.filter((item) => item.activity_type === 'swim' && item.source_workout_id).map((item) => item.source_workout_id))
   // Kör kopplingen sekventiellt. Om flera pass sparas samtidigt kan parallella
   // matchningar annars välja samma planeringsrad och skriva över varandra.
   for (const workout of workouts.filter((item) => !hidden.has(item.workout_date) && !linkedWorkoutIds.has(item.id))) await syncPlanningFromWorkout(workout)
   const competitionsResult = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
   const competitions = competitionsResult.ok ? await competitionsResult.json() : []
-  const planDates = new Set(plans.map((item) => `${item.plan_date}:${item.activity_type}`))
+  const planDates = new Set(cleanPlans.map((item) => `${item.plan_date}:${item.activity_type}`))
   await Promise.all(competitions.flatMap((competition) => {
     const start = new Date(`${competition.start_date}T12:00:00`), end = new Date(`${competition.end_date}T12:00:00`), entries = []
     for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) { const date = day.toISOString().slice(0, 10); if (!hidden.has(date) && !planDates.has(`${date}:competition`)) entries.push(supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'competition', title: competition.title, target_groups: competition.target_groups, location: competition.location, notes: competition.notes, updated_at: new Date().toISOString() }) })) }
     return entries
   }))
-  if (!workouts.length && !competitions.length) return plans
+  if (!workouts.length && !competitions.length) return cleanPlans
   const refreshed = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
-  return refreshed.ok ? await refreshed.json() : plans
+  return refreshed.ok ? await refreshed.json() : cleanPlans
 }
 
 function parseWorkoutCsv(csv) {
@@ -867,6 +876,12 @@ export default async function handler(request, response) {
       }
       const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const workoutId = String(request.query?.id || '')
+      // Ta även bort den automatiskt synkade planeringsraden. Manuellt skapade
+      // planeringar lämnas orörda så att en raderad dag inte tar bort annat.
+      const linkedPlanQuery = workoutId
+        ? `training_plans?source_workout_id=eq.${encodeURIComponent(workoutId)}`
+        : `training_plans?plan_date=eq.${encodeURIComponent(date)}&source_workout_id=not.is.null`
+      await supabaseRequest(linkedPlanQuery, { method: 'DELETE' })
       const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : `daily_workouts?workout_date=eq.${date}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Workout DELETE failed: ${result.status} ${await result.text()}`)
       return sendJson(response, 200, { ok: true })
