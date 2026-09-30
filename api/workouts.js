@@ -290,7 +290,7 @@ function normalizeSportAdminGroups(values) {
 function inferSportAdminGroups(item, fallback) {
   const text = `${item.title || ''} ${item.notes || ''}`.toLowerCase()
   const inferred = []
-  if (/junior(er)?/.test(text)) inferred.push('junior')
+  if (/\bjunior(er)?\b/.test(text)) inferred.push('junior')
   if (/ungdoms?\s*svart|\bsvart\b/.test(text)) inferred.push('ungdom_svart')
   if (/ungdoms?\s*orange|\borange\b/.test(text)) inferred.push('ungdom_orange')
   return inferred.length ? normalizeSportAdminGroups(inferred) : normalizeSportAdminGroups(fallback)
