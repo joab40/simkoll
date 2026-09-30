@@ -496,13 +496,26 @@ function SwimmerPlanning({ code, onBack }) {
   const groupLabels = { ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }
   const activityLabels = { swim: ['🏊', 'Simning'], strength: ['🏋️', 'Styrka'], dryland: ['🤸', 'Landträning'], sportadmin: ['📅', 'Kalender'], competition: ['🏆', 'Tävling'] }
   const currentDate = todayKey()
+  const swimmerPlanningMeters = visiblePlans.reduce((sum, item) => sum + (Number(item.distanceMeters) || 0), 0)
+  const swimmerPlanningMinutes = visiblePlans.reduce((sum, item) => sum + (Number(item.durationMinutes) || 0), 0)
   useEffect(() => {
     document.querySelectorAll('.swimmer-planning-list article').forEach((card) => {
       const date = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
       card.classList.toggle('planning-past', /^\d{4}-\d{2}-\d{2}$/.test(date) && date < currentDate)
       card.classList.toggle('planning-today', date === currentDate)
     })
-  }, [visiblePlans.length, currentDate, weekOffset])
+    const controls = document.querySelector('.swimmer-planning-week-controls')
+    const container = controls?.parentElement
+    if (controls && container) {
+      let summary = container.querySelector('.swimmer-planning-summary')
+      if (!summary) {
+        summary = document.createElement('div')
+        summary.className = 'swimmer-planning-summary'
+        controls.insertAdjacentElement('afterend', summary)
+      }
+      summary.innerHTML = `<div><strong>${swimmerPlanningMeters ? swimmerPlanningMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>${swimmerPlanningMinutes || '–'}</strong><span>minuter</span></div><div><strong>${visiblePlans.length}</strong><span>aktiviteter</span></div>`
+    }
+  }, [visiblePlans.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
   return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>{weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{visiblePlans.length ? <div className="swimmer-planning-list">{visiblePlans.map((plan) => { const requiresCheckIn = plan.date === todayKey() && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && todayWorkoutAccess.locked; const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']; return <article key={plan.id} className={`${plan.source === 'SportAdmin' ? 'calendar-planning-item ' : ''}${requiresCheckIn ? 'planning-locked-item' : ''}`}><p className="eyebrow">{plan.date}</p><div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{requiresCheckIn ? 'Dagens simpass' : plan.title}</h2></div>{plan.focus && !requiresCheckIn && <span className="workout-focus-pill">{plan.focus}</span>}{requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se dagens pass</strong><small>Planeringen är synlig, men själva passet låses upp efter din check-in.</small></div> : <><div className="workout-library-stats">{plan.time && <span>⏰ {plan.time}</span>}{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map((group) => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}<small>{plan.source !== 'SportAdmin' && plan.notes}</small></>}</article> })}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}</section>
 }
 
