@@ -473,13 +473,19 @@ function SwimmerPlanning({ code, onBack }) {
   const matchedCalendarIds = new Set()
   const mergedPlans = uniquePlanningRows.map((plan) => {
     const planGroups = new Set(plan.targetGroups || [])
-    const candidates = calendarRows.filter((item) => item.date === plan.date && (!planGroups.size || !item.targetGroups?.length || item.targetGroups.some((group) => planGroups.has(group))) && (!plan.timeOfDay || !item.time || calendarTimeOfDay(item.time) === plan.timeOfDay))
+    const sameCalendarEvent = (item) => {
+      const titleMatch = item.title && plan.title && (item.title === plan.title || item.title.includes(plan.title) || plan.title.includes(item.title))
+      const locationMatch = item.location && plan.location && (item.location === plan.location || item.location.includes(plan.location) || plan.location.includes(item.location))
+      return titleMatch || locationMatch
+    }
+    const candidates = calendarRows.filter((item) => (item.date === plan.date || (plan.activityType === 'competition' && sameCalendarEvent(item))) && (!planGroups.size || !item.targetGroups?.length || item.targetGroups.some((group) => planGroups.has(group))) && (!plan.timeOfDay || !item.time || calendarTimeOfDay(item.time) === plan.timeOfDay))
     const locationMatches = plan.location ? candidates.filter((item) => item.location && (item.location === plan.location || item.location.includes(plan.location) || plan.location.includes(item.location))) : []
     const matching = locationMatches.length === 1 ? locationMatches : candidates.length === 1 ? candidates : []
     if (!matching.length) return plan
     matching.forEach((item) => matchedCalendarIds.add(item.id))
     const first = matching[0]
-    return { ...plan, time: plan.time || (first.time && first.time !== '00:00' ? first.time : ''), location: plan.location || first.location || '', notes: first.notes || plan.notes || '' }
+    const sameDate = matching.find((item) => item.date === plan.date)
+    return { ...plan, time: plan.time || (sameDate?.time && sameDate.time !== '00:00' ? sameDate.time : ''), location: plan.location || first.location || '', notes: first.notes || plan.notes || '' }
   })
   const normalizeCalendarText = (value) => String(value || '').toLocaleLowerCase('sv-SE').replace(/[^a-zåäö0-9]+/g, ' ').trim()
   // If the plan already contains the detailed/processed SportAdmin text,
@@ -556,7 +562,7 @@ function SwimmerPlanning({ code, onBack }) {
       details.innerHTML = `<summary>${label} <span>Visa</span></summary><div>${pm.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
       card.append(details)
     })
-  }, [visiblePlans.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
+  }, [visiblePlans.length, sportAdminActivities.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
   return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>{weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{visiblePlans.length ? <div className="swimmer-planning-list">{visiblePlans.map((plan) => { const requiresCheckIn = plan.date === todayKey() && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && todayWorkoutAccess.locked; const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']; return <article key={plan.id} className={`${plan.source === 'SportAdmin' ? 'calendar-planning-item ' : ''}${requiresCheckIn ? 'planning-locked-item' : ''}`}><p className="eyebrow">{plan.date}</p><div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{requiresCheckIn ? 'Dagens simpass' : plan.title}</h2></div>{plan.focus && !requiresCheckIn && <span className="workout-focus-pill">{plan.focus}</span>}{requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se dagens pass</strong><small>Planeringen är synlig, men själva passet låses upp efter din check-in.</small></div> : <><div className="workout-library-stats">{plan.time && <span>⏰ {plan.time}</span>}{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map((group) => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}<small>{plan.source !== 'SportAdmin' && plan.notes}</small></>}</article> })}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}</section>
 }
 
