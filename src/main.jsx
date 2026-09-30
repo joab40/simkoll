@@ -1971,13 +1971,29 @@ function LaneAssignmentAssistant({ code, profiles, date, slot, onClose }) {
     setPublished(false)
   }
   const updateLaneLabel = (index, value) => {
-    setLaneLabels((current) => {
-      const next = [...current]
-      const other = next.findIndex((label, labelIndex) => labelIndex !== index && String(label).trim() === String(value).trim() && String(value).trim() !== '')
-      if (other >= 0) next[other] = next[index]
-      next[index] = value
-      return next
-    })
+    const currentLabels = laneLabels
+    const other = currentLabels.findIndex((label, labelIndex) => labelIndex !== index && String(label).trim() === String(value).trim() && String(value).trim() !== '')
+    const nextLabels = [...currentLabels]
+    if (other >= 0) {
+      nextLabels[other] = currentLabels[index]
+      setLaneMap((current) => {
+        const next = { ...current }
+        Object.keys(next).forEach((profileId) => {
+          if (Number(next[profileId]) === index + 1) next[profileId] = other + 1
+          else if (Number(next[profileId]) === other + 1) next[profileId] = index + 1
+        })
+        return next
+      })
+      setLaneConfig((current) => {
+        const next = [...current]
+        const temporary = next[index]
+        next[index] = next[other]
+        next[other] = temporary
+        return next
+      })
+    }
+    nextLabels[index] = value
+    setLaneLabels(nextLabels)
     setPublished(false)
   }
   const dropOnProfile = (event, targetProfileId) => {
