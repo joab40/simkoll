@@ -1873,10 +1873,13 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
     const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (strokeLabel[a.primaryStroke] || 'Frisim').localeCompare(strokeLabel[b.primaryStroke] || 'Frisim', 'sv') : 0) || compareTimes(a, b))
     const next = {}
     const count = Math.max(1, Number(lanes) || 1)
+    // I jämna frisimheat placeras de snabbaste centralt, sedan utåt.
+    // Exempel: 4 banor => 2, 3, 1, 4 · 3 banor => 2, 1, 3.
+    const centerOutOrder = Array.from({ length: count }, (_, index) => index).sort((a, b) => Math.abs(a - (count - 1) / 2) - Math.abs(b - (count - 1) / 2) || a - b)
     const sprintLane = laneConfig.findIndex((config) => config.sprinters)
     const fastestCount = Math.max(1, Math.ceil(sorted.length / count))
     sorted.forEach((profile, index) => {
-      let lane = index % count
+      let lane = mode === 'balanced_freestyle' ? centerOutOrder[index % count] : index % count
       if (mode === 'special') { const preferred = laneConfig.findIndex((config) => config.stroke === (profile.primaryStroke || 'freestyle') && !config.sprinters); lane = preferred >= 0 ? preferred : lane }
       if (mode === 'special' && sprintLane >= 0 && index < fastestCount) lane = sprintLane
       if (mode === 'balanced_freestyle' && fastLane !== 'none' && index < fastestCount) lane = Number(fastLane) - 1
