@@ -1862,9 +1862,11 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   useEffect(() => { apiRequest('/api/profiles?tempusResults=true', code).then((data) => setResults(data.results || [])).catch(() => {}).finally(() => setLoading(false)) }, [code])
   useEffect(() => { setLaneConfig((current) => Array.from({ length: Math.max(1, Number(lanes) || 1) }, (_, index) => current[index] || { stroke: 'freestyle', sprinters: false })); setGenerated(false); setPublished(false) }, [lanes])
   const strokeLabel = { freestyle: 'Frisim', backstroke: 'Ryggsim', breaststroke: 'Bröstsim', butterfly: 'Fjäril', individual_medley: 'Medley' }
-  const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
+  // Tempus-resultat är normalt lagrade som hundradelar (t.ex. 2773 = 27,73 s
+  // och 6004 = 1:00,04). Decimalvärden som redan är sekunder lämnas orörda.
+  const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 100 : number) : Infinity }
   const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
-  const formatSwimTime = (seconds) => { const minutes = Math.floor(seconds / 60); const remainder = (seconds - minutes * 60).toFixed(1).padStart(4, '0'); return `${minutes}:${remainder}` }
+  const formatSwimTime = (seconds) => { const minutes = Math.floor(seconds / 60); const remainder = (seconds - minutes * 60).toFixed(2).padStart(5, '0'); return `${minutes}:${remainder}` }
   const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? formatSwimTime(bestTime(profile)) : 'Tid saknas'
   const compareTimes = (a, b) => { const aTime = bestTime(a), bTime = bestTime(b); if (aTime !== bTime) { if (!Number.isFinite(aTime)) return 1; if (!Number.isFinite(bTime)) return -1; return aTime - bTime } return a.displayName.localeCompare(b.displayName, 'sv') }
   const create = () => {
@@ -1930,9 +1932,9 @@ function LaneAssignmentAssistantNewDraft({ code, profiles, onClose }) {
   const plannerRef = useRef(null)
   const count = Math.max(1, Number(lanes) || 1), totalLanes = count + (extraLane ? 1 : 0)
   useEffect(() => { apiRequest('/api/profiles?tempusResults=true', code).then((data) => setResults(data.results || [])).catch(() => {}).finally(() => setLoading(false)) }, [code])
-  const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 10 : number) : Infinity }
+  const normalizedTime = (value) => { const number = Number(value); return Number.isFinite(number) ? (number >= 100 ? number / 100 : number) : Infinity }
   const bestTime = (profile) => results.filter((item) => item.profile_id === profile.id && Number.isFinite(Number(item.result_time)) && new RegExp(`\\b${distance}\\s*(m|meter)?\\b`, 'i').test(String(item.event || ''))).reduce((best, item) => Math.min(best, normalizedTime(item.result_time)), Infinity)
-  const formatSwimTime = (seconds) => { const minutes = Math.floor(seconds / 60); const remainder = (seconds - minutes * 60).toFixed(1).padStart(4, '0'); return `${minutes}:${remainder}` }
+  const formatSwimTime = (seconds) => { const minutes = Math.floor(seconds / 60); const remainder = (seconds - minutes * 60).toFixed(2).padStart(5, '0'); return `${minutes}:${remainder}` }
   const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? formatSwimTime(bestTime(profile)) : 'Tid saknas'
   const assignments = Array.from({ length: totalLanes }, (_, index) => profiles.filter((profile) => Number(laneMap[profile.id]) === index + 1))
   const create = () => { const sorted = profiles.slice().sort((a, b) => bestTime(a) - bestTime(b) || a.displayName.localeCompare(b.displayName, 'sv')); const next = {}; const fastestCount = Math.max(1, Math.ceil(sorted.length / count)); sorted.forEach((profile, index) => { next[profile.id] = fastLane !== 'none' && index < fastestCount ? Number(fastLane) : (index % count) + 1 }); setLaneMap(next); setGenerated(true); setPublished(false) }
