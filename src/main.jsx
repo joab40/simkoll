@@ -433,7 +433,21 @@ function SwimmerPlanning({ code, onBack }) {
   const selectedStart = useMemo(() => { const start = weekStart(new Date()); start.setDate(start.getDate() + weekOffset * 7); return start }, [weekOffset])
   const selectedEnd = useMemo(() => { const end = new Date(selectedStart); end.setDate(end.getDate() + 7); return end }, [selectedStart])
   const startKey = dateKey(selectedStart), endKey = dateKey(selectedEnd)
-  const visiblePlans = [...plans.filter((plan) => plan.date >= startKey && plan.date < endKey), ...sportAdminActivities.filter((item) => item.date >= startKey && item.date < endKey).map((item) => ({ ...item, id: `sportadmin-${item.id}`, activityType: 'sportadmin', title: item.title || 'Kalenderaktivitet', time: item.time || '', source: 'SportAdmin' }))].sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '').localeCompare(String(b.time || '')))
+  const calendarTimeOfDay = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
+  const planningRows = plans.filter((plan) => plan.date >= startKey && plan.date < endKey)
+  const calendarRows = sportAdminActivities.filter((item) => item.date >= startKey && item.date < endKey).map((item) => ({ ...item, id: `sportadmin-${item.id}`, activityType: 'sportadmin', title: item.title || 'Kalenderaktivitet', time: item.time || '', source: 'SportAdmin' }))
+  const matchedCalendarIds = new Set()
+  const mergedPlans = planningRows.map((plan) => {
+    const planGroups = new Set(plan.targetGroups || [])
+    const candidates = calendarRows.filter((item) => item.date === plan.date && (!planGroups.size || !item.targetGroups?.length || item.targetGroups.some((group) => planGroups.has(group))) && (!plan.timeOfDay || !item.time || calendarTimeOfDay(item.time) === plan.timeOfDay) && (!plan.location || !item.location || plan.location === item.location))
+    const locationMatches = plan.location ? candidates.filter((item) => item.location && item.location === plan.location) : []
+    const matching = locationMatches.length === 1 ? locationMatches : candidates.length === 1 ? candidates : []
+    if (!matching.length) return plan
+    matching.forEach((item) => matchedCalendarIds.add(item.id))
+    const first = matching[0]
+    return { ...plan, time: plan.time || first.time || '', location: plan.location || first.location || '', notes: plan.notes || first.notes || '' }
+  })
+  const visiblePlans = [...mergedPlans, ...calendarRows.filter((item) => !matchedCalendarIds.has(item.id))].sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '').localeCompare(String(b.time || '')))
   const weekLabel = `${selectedStart.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${new Date(selectedEnd.getTime() - 1).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
   return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>{weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{visiblePlans.length ? <div className="swimmer-planning-list">{visiblePlans.map((plan) => <article key={plan.id} className={plan.source === 'SportAdmin' ? 'calendar-planning-item' : ''}><p className="eyebrow">{plan.date}</p><h2>{plan.title}</h2><p>{plan.activityType === 'swim' ? '🏊 Simning' : plan.activityType === 'strength' ? '🏋️ Styrka' : plan.activityType === 'dryland' ? '🤸 Landträning' : plan.activityType === 'sportadmin' ? '📅 Kalender' : '🏆 Tävling'}{plan.focus ? ` · ${plan.focus}` : ''}</p><small>{[plan.time && `⏰ ${plan.time}`, plan.distanceMeters && `${plan.distanceMeters} m`, plan.durationMinutes && `${plan.durationMinutes} min`, plan.location, plan.notes].filter(Boolean).join(' · ')}</small></article>)}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}</section>
 }
