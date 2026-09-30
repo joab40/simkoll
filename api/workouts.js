@@ -292,7 +292,9 @@ async function backfillPlanningFromWorkouts(plans) {
   if (!workoutsResult.ok) return plans
   const workouts = await workoutsResult.json()
   const linkedWorkoutIds = new Set(plans.filter((item) => item.activity_type === 'swim' && item.source_workout_id).map((item) => item.source_workout_id))
-  await Promise.all(workouts.filter((workout) => !linkedWorkoutIds.has(workout.id)).map((workout) => syncPlanningFromWorkout(workout)))
+  // Kör kopplingen sekventiellt. Om flera pass sparas samtidigt kan parallella
+  // matchningar annars välja samma planeringsrad och skriva över varandra.
+  for (const workout of workouts.filter((item) => !linkedWorkoutIds.has(item.id))) await syncPlanningFromWorkout(workout)
   const competitionsResult = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
   const competitions = competitionsResult.ok ? await competitionsResult.json() : []
   const planDates = new Set(plans.map((item) => `${item.plan_date}:${item.activity_type}`))

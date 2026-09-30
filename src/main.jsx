@@ -2318,6 +2318,14 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     window.addEventListener('simkoll-open-workout', openWorkout)
     return () => window.removeEventListener('simkoll-open-workout', openWorkout)
   }, [])
+  useEffect(() => {
+    const removeDetachedPlan = (event) => {
+      const id = event.detail?.id
+      if (id) setPlans((current) => current.filter((item) => item.id !== id))
+    }
+    window.addEventListener('simkoll-plan-detached', removeDetachedPlan)
+    return () => window.removeEventListener('simkoll-plan-detached', removeDetachedPlan)
+  }, [])
 
   const baseMonday = useMemo(() => {
     const value = new Date()
@@ -2564,30 +2572,31 @@ function CompetitionCalendar({ code, onOpenSubmissions }) {
   return <section className="competition-calendar"><div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Tävlingskalender</h1><small>Planerade tävlingar syns automatiskt i veckoplaneringen.</small></div><div className="big-count"><strong>{competitions.length}</strong><span>tävlingar</span></div></div><details className="competition-add-card"><summary>＋ Lägg till tävling</summary><form className="competition-form" onSubmit={save}><div className="competition-form-grid"><label>Från<input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label><label>Till<input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label><label>Tävlingsnamn<input required value={form.title} placeholder="t.ex. Sundsvall Swim" onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label>Plats<input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label></div><label>Typ av tävling<input value={form.category} placeholder="t.ex. mästerskap eller klubbtävling" onChange={(event) => setForm({ ...form, category: event.target.value })} /></label><fieldset><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{Object.entries(groupNames).map(([value, label]) => <label key={value}><input type="checkbox" checked={form.targetGroups.includes(value)} onChange={(event) => setForm({ ...form, targetGroups: event.target.checked ? [...form.targetGroups, value] : form.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset><label>Kommentar<input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label><button className="primary-button" type="submit">Spara tävling</button></form></details><div className="competition-calendar-list">{competitions.length ? competitions.map((competition) => <article key={competition.id}><div><p className="eyebrow">{competition.startDate === competition.endDate ? competition.startDate : `${competition.startDate} – ${competition.endDate}`}</p><h2>{competition.title}</h2><p>{[competition.category, competition.location].filter(Boolean).join(' · ')}</p><small>{competition.targetGroups.map((group) => groupNames[group] || group).join(' · ')}</small>{competition.notes && <p>{competition.notes}</p>}<button type="button" className={`competition-publish-button${competition.entriesOpen ? ' active' : ''}`} onClick={() => toggleEntries(competition)}>{competition.entriesOpen ? '✓ Anmälan synlig för simmare · återkalla' : 'Publicera grenanmälan för simmare'}</button>{onOpenSubmissions && <button type="button" className="competition-submissions-button" onClick={() => onOpenSubmissions(competition.id)}>Visa tävlingsanmälningar →</button>}<CompetitionProgramPanel code={code} competition={competition} /></div><button type="button" className="text-button" onClick={() => remove(competition)}>Ta bort</button></article>) : <p className="empty">Inga tävlingar inlagda ännu.</p>}</div></section>
 }
 
-function PlanningEditButton({ code, plan, date, group, onSaved, onOpenWorkout, label = 'Redigera' }) {
+function PlanningEditButton({ code, plan, date, group, onSaved, onDetached, onOpenWorkout, label = 'Redigera' }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(null)
+  const types = [['swim', 'Simning'], ['strength', 'Styrketräning'], ['dryland', 'Landträning'], ['competition', 'Tävling']]
+  const suggestions = { swim: 'Träningspass', strength: 'Styrkepass', dryland: 'Landträningspass', competition: 'Tävlingsdag' }
+  const detach = async () => {
+    if (!window.confirm('Koppla loss det upplagda passet från grundplaneringen? Själva passet finns kvar i passbiblioteket.')) return
+    try {
+      const result = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'detach-plan', id: plan.id }) })
+      window.dispatchEvent(new CustomEvent('simkoll-plan-detached', { detail: result.plan }))
+    } catch (error) { window.alert(error.message || 'Kunde inte koppla loss passet.') }
+  }
   useEffect(() => {
     if (!plan?.sourceWorkoutId || String(plan.id || '').startsWith('workout-')) return undefined
     const card = [...document.querySelectorAll('.planning-workout')].find((element) => element.querySelector('h2')?.textContent === plan.title)
     if (!card || card.querySelector('.planning-detach-button')) return undefined
-    const detachButton = document.createElement('button')
-    detachButton.type = 'button'
-    detachButton.className = 'text-button planning-detach-button'
-    detachButton.textContent = 'Koppla loss pass'
-    detachButton.title = 'Koppla loss passet från grundplaneringen'
-    detachButton.onclick = async () => {
-      if (!window.confirm('Koppla loss det upplagda passet från veckoplaneringen? Själva passet finns kvar i passbiblioteket.')) return
-      try {
-        const result = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'detach-plan', id: plan.id }) })
-        onSaved?.(result.plan)
-      } catch (error) { window.alert(error.message || 'Kunde inte koppla loss passet.') }
-    }
-    card.appendChild(detachButton)
-    return () => detachButton.remove()
-  }, [code, onSaved, plan])
-  const types = [['swim', 'Simning'], ['strength', 'Styrketräning'], ['dryland', 'Landträning'], ['competition', 'Tävling']]
-  const suggestions = { swim: 'Träningspass', strength: 'Styrkepass', dryland: 'Landträningspass', competition: 'Tävlingsdag' }
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'text-button planning-detach-button'
+    button.textContent = 'Koppla loss pass'
+    button.title = 'Koppla loss passet från grundplaneringen'
+    button.addEventListener('click', detach)
+    card.appendChild(button)
+    return () => { button.removeEventListener('click', detach); button.remove() }
+  }, [plan?.id, plan?.sourceWorkoutId, plan?.title])
   const openEditor = () => { if (plan?.linkedWorkout) { window.dispatchEvent(new CustomEvent('simkoll-open-workout', { detail: plan.linkedWorkout })); return } const activityType = plan?.activityType || 'swim'; setForm({ activityType, title: plan?.title || suggestions[activityType], focus: plan?.focus || '', distanceMeters: plan?.distanceMeters || '', durationMinutes: plan?.durationMinutes || (activityType === 'swim' ? 120 : ''), timeOfDay: plan?.timeOfDay || '', targetGroups: plan?.targetGroups?.length ? plan.targetGroups : group === 'all' ? ['ungdom_orange', 'ungdom_svart', 'junior'] : Array.isArray(group) ? group : [group], location: plan?.location || '', notes: plan?.notes || '' }); setOpen(true) }
   const selectType = (activityType) => setForm((current) => ({ ...current, activityType, title: current.title === suggestions[current.activityType] || !current.title ? suggestions[activityType] : current.title, durationMinutes: activityType === 'swim' && !current.durationMinutes ? 120 : current.durationMinutes }))
   if (plan?.linkedWorkout) label = 'Öppna upplagt pass →'
