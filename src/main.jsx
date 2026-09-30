@@ -545,14 +545,15 @@ function SwimmerPlanning({ code, onBack }) {
       const cardDate = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
       const cardTitle = card.querySelector('h2')?.textContent?.trim() || ''
       const plan = visiblePlans.find((item) => item.date === cardDate && (item.title === cardTitle || (cardTitle === 'Dagens simpass' && item.date === currentDate))) || visiblePlans[index]
-      if (!plan || !(plan.source === 'SportAdmin' || plan.activityType === 'sportadmin' || plan.calendarItems?.length)) return
+      if (!plan || !(plan.activityType === 'competition' || plan.source === 'SportAdmin' || plan.activityType === 'sportadmin' || plan.calendarItems?.length)) return
       const sourceNotes = [plan.notes, ...(plan.calendarItems || []).map((item) => item.notes)].filter(Boolean).join('\n\n')
       const pm = cleanSwimmerCompetitionPm(sourceNotes)
       if (!pm) return
       card.querySelectorAll(':scope > small').forEach((item) => item.remove())
       const details = document.createElement('details')
       details.className = 'swimmer-planning-pm'
-      details.innerHTML = `<summary>📅 Information från SportAdmin <span>Visa</span></summary><div>${pm.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
+      const label = plan.activityType === 'competition' ? '📄 Tävlingsinformation' : '📅 Information från SportAdmin'
+      details.innerHTML = `<summary>${label} <span>Visa</span></summary><div>${pm.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
       card.append(details)
     })
   }, [visiblePlans.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
