@@ -1928,15 +1928,6 @@ function LaneAssignmentAssistant({ code, profiles, date, slot, onClose }) {
   const count = Math.max(1, Number(lanes) || 1)
   const assignmentCount = count + (extraLane ? 1 : 0)
   const assignments = Array.from({ length: assignmentCount }, (_, index) => profiles.filter((profile) => laneMap[profile.id] === index + 1).sort((a, b) => compareTimes(a, b, mode === 'special' ? laneConfig[index]?.stroke : null)))
-  useEffect(() => {
-    if (!generated || !profiles.length || count < 2 || mode === 'special') return
-    const counts = Array.from({ length: count }, (_, lane) => profiles.filter((profile) => Number(laneMap[profile.id]) === lane + 1).length)
-    const max = Math.max(...counts), min = Math.min(...counts)
-    if (max - min <= 1) return
-    const from = counts.indexOf(max) + 1, to = counts.indexOf(min) + 1
-    const candidate = profiles.find((profile) => Number(laneMap[profile.id]) === from)
-    if (candidate) setLaneMap((current) => ({ ...current, [candidate.id]: to }))
-  }, [generated, laneMap, profiles, count, mode])
   const moveProfile = (profileId, targetLane) => {
     const target = Number(targetLane)
     if (!target || target < 1 || target > assignmentCount) return
