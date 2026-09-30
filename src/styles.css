@@ -471,7 +471,11 @@ button { cursor: pointer; }
 .lane-planner-results article small { color: var(--muted); font-size: 9px; }
 .lane-number { display: flex; align-items: center; gap: 5px; color: var(--teal); font-size: 12px; font-weight: 800; }
 .lane-number input { width: 40px; min-height: 27px; border: 1px solid #bdd6cf; border-radius: 7px; padding: 3px 5px; font-weight: 800; color: var(--teal); }
-.lane-planner-results article > span select { grid-column: 1 / -1; min-height: 28px; border: 1px solid #cdded9; border-radius: 7px; background: white; color: var(--muted); font-size: 10px; }
+.lane-planner-results article > span { cursor: grab; padding: 6px; border-radius: 8px; background: rgba(255,255,255,.72); border: 1px solid transparent; user-select: none; }
+.lane-planner-results article > span:active { cursor: grabbing; }
+.lane-planner-results article > span.is-dragging { opacity: .45; border-color: var(--teal); }
+.lane-planner-results article:has(> span.is-dragging) { outline: 2px dashed #8ccabd; outline-offset: 2px; }
+.lane-drag-hint { grid-column: 1 / -1; color: var(--muted); font-size: 9px; }
 .lane-config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; margin-top: 4px; }
 .lane-config-grid > strong, .lane-config-grid > small { grid-column: 1 / -1; }
 .lane-config-grid > strong { color: var(--teal); font-size: 12px; }
