@@ -2389,7 +2389,25 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
       const calendarNote = matching.map((item) => [item.time, item.location, item.notes].filter(Boolean).join(' · ')).filter(Boolean).join(' | ')
       return { ...plan, location: plan.location || matching.find((item) => item.location)?.location || '', notes: plan.notes || calendarNote, targetGroups: [...new Set([...(plan.targetGroups || []), ...matching.flatMap((item) => item.targetGroups || [])])], calendarItems: matching }
     })
-    const activities = [...plannedWithCalendar, ...imported.filter((item) => !linkedCalendarIds.has(item.id))]
+    const rawActivities = [...plannedWithCalendar, ...imported.filter((item) => !linkedCalendarIds.has(item.id))]
+    // A pass can exist both as an older grundplan row and as an imported or
+    // linked workout. Treat identical session data as one activity, while
+    // keeping separate morning/afternoon sessions visible.
+    const activityRank = (item) => (item.sourceWorkoutId ? 8 : 0) + (item.location ? 2 : 0) + (item.focus ? 2 : 0) + (item.notes ? 1 : 0) + (item.title && !/^image\.jpg$|^importerat träningspass$/i.test(item.title) ? 1 : 0)
+    const deduplicated = []
+    const duplicateKeys = new Map()
+    rawActivities.forEach((item) => {
+      const groups = [...new Set((item.targetGroups || []).map(planningGroupKey).filter(Boolean))].sort().join(',')
+      const activityKey = [item.date || key, item.activityType || '', item.distanceMeters || '', item.durationMinutes || '', item.timeOfDay || '', groups].join('|')
+      const previousIndex = duplicateKeys.get(activityKey)
+      if (previousIndex == null) { duplicateKeys.set(activityKey, deduplicated.length); deduplicated.push(item); return }
+      const previous = deduplicated[previousIndex]
+      const preferred = activityRank(item) > activityRank(previous) ? item : previous
+      const mergedGroups = [...new Set([...(previous.targetGroups || []), ...(item.targetGroups || [])])]
+      deduplicated[previousIndex] = { ...preferred, targetGroups: mergedGroups, calendarItems: [...(previous.calendarItems || []), ...(item.calendarItems || [])] }
+    })
+    const timeOrder = (item) => item.timeOfDay === 'morning' ? 0 : item.timeOfDay === 'afternoon' ? 1 : 2
+    const activities = deduplicated.sort((a, b) => timeOrder(a) - timeOrder(b) || String(a.time || '').localeCompare(String(b.time || '')) || activityRank(b) - activityRank(a))
     return { date, key, activities }
   }), [group, monday, plans, workouts, sportAdminActivities, topGroupFilter])
   const totalMeters = days.reduce((sum, day) => sum + day.activities.filter((item) => item.activityType === 'swim').reduce((inner, item) => inner + (Number(item.distanceMeters) || 0), 0), 0)
