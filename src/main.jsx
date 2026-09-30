@@ -449,7 +449,7 @@ function SwimmerPlanning({ code, onBack }) {
   const planningDuplicates = new Map()
   planningRows.forEach((plan) => {
     const groups = [...new Set((plan.targetGroups || []).map((group) => String(group).trim()).filter(Boolean))].sort().join(',')
-    const fingerprint = [plan.date, plan.activityType, plan.distanceMeters || '', plan.durationMinutes || '', plan.focus || '', plan.timeOfDay || '', plan.location || '', groups].join('|')
+    const fingerprint = [plan.date, plan.activityType, plan.distanceMeters || '', plan.durationMinutes || '', plan.timeOfDay || '', groups].join('|')
     const previousIndex = planningDuplicates.get(fingerprint)
     if (previousIndex == null) {
       planningDuplicates.set(fingerprint, deduplicatedPlanningRows.length)
@@ -504,6 +504,21 @@ function SwimmerPlanning({ code, onBack }) {
       card.classList.toggle('planning-past', /^\d{4}-\d{2}-\d{2}$/.test(date) && date < currentDate)
       card.classList.toggle('planning-today', date === currentDate)
     })
+    const list = document.querySelector('.swimmer-planning-list')
+    if (list) {
+      list.querySelectorAll('.planning-day-heading').forEach((heading) => heading.remove())
+      let lastDate = ''
+      Array.from(list.querySelectorAll('article')).forEach((card) => {
+        const date = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date === lastDate) return
+        lastDate = date
+        const value = new Date(`${date}T12:00:00`)
+        const heading = document.createElement('div')
+        heading.className = `planning-day-heading${date < currentDate ? ' planning-past' : date === currentDate ? ' planning-today' : ''}`
+        heading.innerHTML = `<strong>${value.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>${value.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}${date === currentDate ? ' · Idag' : ''}</small>`
+        list.insertBefore(heading, card)
+      })
+    }
     const controls = document.querySelector('.swimmer-planning-week-controls')
     const container = controls?.parentElement
     if (controls && container) {
