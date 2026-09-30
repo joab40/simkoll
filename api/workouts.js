@@ -247,12 +247,31 @@ Returnera strikt JSON med exakt nycklarna title, content, note, distanceMeters, 
   } catch (error) { console.warn('Workout image AI fallback:', error.message); return { error: 'Bildtolkningen kunde inte läsas.' } }
 }
 
+function compactSportAdminNotes(value) {
+  const text = String(value || '').replace(/\r\n?/g, '\n').trim()
+  if (!text) return ''
+  // Some SportAdmin feeds contain a short summary followed by the same
+  // labelled sections again. Keep the first occurrence of each section.
+  const labels = ['Priser', 'Grenar', 'Grupper från SSS', 'Ledare', 'Ta med']
+  const matcher = new RegExp(`(?=(?:${labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\s*:)`, 'gi')
+  const chunks = text.split(matcher)
+  const seen = new Set()
+  return chunks.filter((chunk) => {
+    const match = chunk.match(/^\s*(Priser|Grenar|Grupper från SSS|Ledare|Ta med)\s*:/i)
+    if (!match) return true
+    const key = match[1].toLocaleLowerCase('sv-SE')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).join('').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function parseSportAdminIcs(source) {
   const lines = String(source || '').replace(/\r\n[ \t]/g, '').split(/\r?\n/), events = []
   let event = null
   for (const line of lines) {
     if (line === 'BEGIN:VEVENT') { event = {}; continue }
-    if (line === 'END:VEVENT') { if (event?.date && event.title) events.push({ ...event, id: `sportadmin-${events.length}-${event.date}-${event.title}` }); event = null; continue }
+    if (line === 'END:VEVENT') { if (event?.date && event.title) events.push({ ...event, notes: compactSportAdminNotes(event.notes), id: `sportadmin-${events.length}-${event.date}-${event.title}` }); event = null; continue }
     if (!event) continue
     const separator = line.indexOf(':'); if (separator < 0) continue
     const key = line.slice(0, separator).split(';')[0], value = line.slice(separator + 1).replace(/\\n/g, '\n').replace(/\\,/g, ',').trim()
