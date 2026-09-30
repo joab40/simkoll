@@ -447,6 +447,19 @@ function SwimmerPlanning({ code, onBack }) {
     const first = matching[0]
     return { ...plan, time: plan.time || first.time || '', location: plan.location || first.location || '', notes: first.notes || plan.notes || '' }
   })
+  const normalizeCalendarText = (value) => String(value || '').toLocaleLowerCase('sv-SE').replace(/[^a-zåäö0-9]+/g, ' ').trim()
+  // If the plan already contains the detailed/processed SportAdmin text,
+  // suppress the raw calendar copy of the same message.
+  calendarRows.forEach((item) => {
+    const rawText = normalizeCalendarText(item.notes)
+    if (rawText.length < 120) return
+    const duplicate = planningRows.find((plan) => {
+      const groupsOverlap = !plan.targetGroups?.length || !item.targetGroups?.length || item.targetGroups.some((group) => plan.targetGroups.includes(group))
+      const planText = normalizeCalendarText(plan.notes)
+      return plan.date === item.date && groupsOverlap && planText.length >= 120 && (planText.slice(0, 100) === rawText.slice(0, 100) || planText.includes(rawText.slice(0, 100)) || rawText.includes(planText.slice(0, 100)))
+    })
+    if (duplicate) matchedCalendarIds.add(item.id)
+  })
   const visiblePlans = [...mergedPlans, ...calendarRows.filter((item) => !matchedCalendarIds.has(item.id))].sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '').localeCompare(String(b.time || '')))
   const weekLabel = `${selectedStart.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${new Date(selectedEnd.getTime() - 1).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
   return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>{weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{visiblePlans.length ? <div className="swimmer-planning-list">{visiblePlans.map((plan) => <article key={plan.id} className={plan.source === 'SportAdmin' ? 'calendar-planning-item' : ''}><p className="eyebrow">{plan.date}</p><h2>{plan.title}</h2><p>{plan.activityType === 'swim' ? '🏊 Simning' : plan.activityType === 'strength' ? '🏋️ Styrka' : plan.activityType === 'dryland' ? '🤸 Landträning' : plan.activityType === 'sportadmin' ? '📅 Kalender' : '🏆 Tävling'}{plan.focus ? ` · ${plan.focus}` : ''}</p><small>{[plan.time && `⏰ ${plan.time}`, plan.distanceMeters && `${plan.distanceMeters} m`, plan.durationMinutes && `${plan.durationMinutes} min`, plan.location, plan.notes].filter(Boolean).join(' · ')}</small></article>)}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}</section>
