@@ -1870,7 +1870,8 @@ function LaneAssignmentAssistant({ code, profiles, onClose }) {
   const timeLabel = (profile) => Number.isFinite(bestTime(profile)) ? formatSwimTime(bestTime(profile)) : 'Tid saknas'
   const compareTimes = (a, b) => { const aTime = bestTime(a), bTime = bestTime(b); if (aTime !== bTime) { if (!Number.isFinite(aTime)) return 1; if (!Number.isFinite(bTime)) return -1; return aTime - bTime } return a.displayName.localeCompare(b.displayName, 'sv') }
   const create = () => {
-    const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (strokeLabel[a.primaryStroke] || 'Frisim').localeCompare(strokeLabel[b.primaryStroke] || 'Frisim', 'sv') : 0) || compareTimes(a, b))
+    const specialStrokeOrder = { freestyle: 0, butterfly: 1, breaststroke: 2, backstroke: 3, individual_medley: 4 }
+    const sorted = profiles.slice().sort((a, b) => (mode === 'balanced_special' ? (specialStrokeOrder[a.primaryStroke] ?? 99) - (specialStrokeOrder[b.primaryStroke] ?? 99) : 0) || compareTimes(a, b))
     const next = {}
     const count = Math.max(1, Number(lanes) || 1)
     // I jämna frisimheat placeras de snabbaste centralt, sedan utåt.
