@@ -2350,7 +2350,24 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     }
     const workoutFingerprint = (item) => [item.date || item.workoutDate || '', item.title || '', item.focus || '', item.distanceMeters || '', item.durationMinutes || '', item.timeOfDay || '', Array.isArray(item.targetGroups) ? [...item.targetGroups].sort().join(',') : '', item.content || ''].join('|')
     const uniqueActivities = (items, keyFor) => { const seen = new Set(); return items.filter((item) => { const keyValue = keyFor(item); if (seen.has(keyValue)) return false; seen.add(keyValue); return true }) }
-    const planned = uniqueActivities(plans.filter((item) => item.date === key && matchesGroup(item)).map((item) => ({ ...item, linkedWorkout: workouts.find((workout) => workout.id === item.sourceWorkoutId) || null })), (item) => item.sourceWorkoutId ? `workout:${item.sourceWorkoutId}` : `plan:${item.date}|${item.activityType}|${item.title}|${item.focus}|${item.distanceMeters}|${item.durationMinutes}|${item.timeOfDay}|${(item.targetGroups || []).slice().sort().join(',')}`)
+    const findLinkedWorkout = (plan) => {
+      const exact = workouts.find((workout) => workout.id === plan.sourceWorkoutId)
+      const exactMatchesPlan = exact && exact.date === key && (!plan.timeOfDay || !exact.timeOfDay || exact.timeOfDay === plan.timeOfDay) && (!plan.distanceMeters || !exact.distanceMeters || Number(plan.distanceMeters) === Number(exact.distanceMeters))
+      if (exactMatchesPlan) return exact
+      if (plan.activityType !== 'swim') return null
+      const planGroups = new Set(plan.targetGroups || [])
+      const candidates = workouts.filter((workout) => workout.date === key && (!plan.timeOfDay || !workout.timeOfDay || workout.timeOfDay === plan.timeOfDay) && (!planGroups.size || !workout.targetGroups?.length || workout.targetGroups.some((group) => planGroups.has(group))))
+      return candidates.map((workout) => {
+        let score = 0
+        if (plan.focus && workout.focus === plan.focus) score += 5
+        if (Number(plan.distanceMeters) > 0 && Number(workout.distanceMeters) === Number(plan.distanceMeters)) score += 4
+        if (Number(plan.durationMinutes) > 0 && Number(workout.durationMinutes) === Number(plan.durationMinutes)) score += 3
+        if (plan.timeOfDay && workout.timeOfDay === plan.timeOfDay) score += 3
+        if (workout.title && plan.title && workout.title !== plan.title) score += 1
+        return { workout, score }
+      }).sort((a, b) => b.score - a.score)[0]?.workout || null
+    }
+    const planned = uniqueActivities(plans.filter((item) => item.date === key && matchesGroup(item)).map((item) => ({ ...item, linkedWorkout: findLinkedWorkout(item) })), (item) => item.sourceWorkoutId ? `workout:${item.sourceWorkoutId}` : `plan:${item.date}|${item.activityType}|${item.title}|${item.focus}|${item.distanceMeters}|${item.durationMinutes}|${item.timeOfDay}|${(item.targetGroups || []).slice().sort().join(',')}`)
     const linkedIds = new Set(planned.map((item) => item.sourceWorkoutId).filter(Boolean))
     const linkedFingerprints = new Set(planned.map((item) => item.linkedWorkout).filter(Boolean).map(workoutFingerprint))
     const published = uniqueActivities(workouts.filter((workout) => workout.date === key && !linkedIds.has(workout.id) && !linkedFingerprints.has(workoutFingerprint(workout)) && matchesGroup(workout)).map((workout) => ({ id: `workout-${workout.id}`, date: key, activityType: 'swim', title: workout.title, focus: workout.focus, distanceMeters: workout.distanceMeters, durationMinutes: workout.durationMinutes, targetGroups: workout.targetGroups, sourceWorkoutId: workout.id, linkedWorkout: workout, syncStatus: 'linked' })), (item) => `workout-fingerprint:${workoutFingerprint(item.linkedWorkout || item)}`)
