@@ -481,6 +481,9 @@ button { cursor: pointer; }
 .lane-planner-results article > span.is-dragging { opacity: .45; border-color: var(--teal); }
 .lane-planner-results article:has(> span.is-dragging) { outline: 2px dashed #8ccabd; outline-offset: 2px; }
 .lane-drag-hint { grid-column: 1 / -1; color: var(--muted); font-size: 9px; }
+.lane-order-controls { display: inline-flex; grid-column: 1 / -1; gap: 4px; }
+.lane-order-controls button { border: 1px solid #cdded9; border-radius: 6px; min-width: 28px; min-height: 26px; padding: 2px 8px; background: #fff; color: var(--teal); font-weight: 800; cursor: pointer; }
+.lane-order-controls button:hover { background: #e4f4ef; }
 .lane-exclude-button { grid-column: 1 / -1; border: 0; border-radius: 6px; padding: 4px 6px; background: #fff0ed; color: #a14d42; font-size: 9px; font-weight: 700; cursor: pointer; }
 .lane-excluded-list { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 12px; color: var(--muted); font-size: 10px; }
 .lane-excluded-list strong { color: var(--ink); }

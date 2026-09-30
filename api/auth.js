@@ -104,10 +104,12 @@ export default async function handler(request, response) {
 
   const role = getRole(String(request.body?.code || ''))
   if (!role) {
-    await writeAuditLog(request, { eventType: 'group_login', status: 'failure', details: { login: 'group-code' } })
+    await writeAuditLog(request, { eventType: 'group_code_verified', status: 'failure', details: { login: 'group-code' } })
     return sendJson(response, 401, { error: 'Koden stämmer inte. Försök igen.' })
   }
-  await writeAuditLog(request, { eventType: 'group_login', role, details: { login: 'group-code' } })
+  // A group code only opens the profile-login gate. It is not an anonymous
+  // swimmer login, so keep this event separate from profile_login in the audit log.
+  await writeAuditLog(request, { eventType: 'group_code_verified', role, details: { login: 'group-code', profileLoginRequired: role === 'swimmer' } })
   setCookie(response, 'simkoll_group_code', String(request.body.code), request.body?.remember === false ? undefined : (await getSessionDays(role)) * 86400)
   return sendJson(response, 200, { role })
 }
