@@ -288,7 +288,13 @@ function normalizeSportAdminGroups(values) {
   return (Array.isArray(values) ? values : []).map((value) => String(value).trim()).filter(Boolean).map((value) => SPORTADMIN_GROUP_ALIASES[value.toLowerCase()] || value).filter((value, index, all) => all.indexOf(value) === index)
 }
 function inferSportAdminGroups(item, fallback) {
+  const title = String(item.title || '').toLowerCase()
   const text = `${item.title || ''} ${item.notes || ''}`.toLowerCase()
+  const titleGroups = []
+  if (/\bjunior(er)?\b/.test(title)) titleGroups.push('junior')
+  if (/ungdoms?\s*svart|\bsvart\b/.test(title)) titleGroups.push('ungdom_svart')
+  if (/ungdoms?\s*orange|\borange\b/.test(title)) titleGroups.push('ungdom_orange')
+  if (titleGroups.length) return normalizeSportAdminGroups(titleGroups)
   const inferred = []
   if (/\bjunior(er)?\b/.test(text)) inferred.push('junior')
   if (/ungdoms?\s*svart|\bsvart\b/.test(text)) inferred.push('ungdom_svart')
