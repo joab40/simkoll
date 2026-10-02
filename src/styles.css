@@ -1687,11 +1687,6 @@ button { cursor: pointer; }
 .swimmer-planning-loading strong { color: var(--ink); font-size: 1rem; }
 .swimmer-planning-loading small { font-size: .82rem; }
 @keyframes swimmer-planning-wave { 0%, 100% { transform: translateX(-8px) rotate(-6deg); opacity: .55; } 50% { transform: translateX(8px) rotate(6deg); opacity: 1; } }
-.bike-run-board { position: relative; overflow: hidden; background: #bce9ee; }
-.bike-run-board canvas { display: block; width: 100%; height: auto; touch-action: none; }
-.bike-run-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-.bike-run-controls button { min-height: 54px; border: 1px solid #c9dfda; border-radius: 14px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 800; touch-action: none; }
-.bike-run-controls button:active { background: #dff2ec; transform: translateY(1px); }
 .weekly-volume-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 8px; }
 .weekly-volume-summary span { display: grid; gap: 2px; padding: 9px 10px; background: #eef7f4; border: 1px solid #d5e8e2; border-radius: 10px; }
 .weekly-volume-summary strong { color: var(--ink); font-size: 1rem; }
