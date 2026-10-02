@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import Phaser from 'phaser'
 import './styles.css'
 
 const APP_VERSION = __APP_VERSION__
@@ -31,6 +32,7 @@ const GAME_CATALOG = [
   { key: 'vanda', title: 'Startmästaren', emoji: '↻', description: 'Träna reaktion och timing vid vändningen.', route: 'vanda' },
   { key: 'simpaus', title: 'Vågjakten', emoji: '🌊', description: 'Håll dig mellan vågorna så länge du kan.', route: 'game' },
   { key: 'aljakten', title: 'Preppejakten', emoji: '🐍', description: 'Hjälp Preppe att samla energibubblor och växa.', route: 'aljakten' },
+  { key: 'bikerun', title: 'Bike Run', emoji: '🏍️', description: 'Balansera motorcykeln över en bana och slå din bästa tid.', route: 'bikerun' },
 ]
 
 const dateKey = (date) => {
@@ -222,6 +224,7 @@ function App() {
       {screen === 'vanda' && <Vandningsmastaren code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'swimgames' && <Swimgames code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'aljakten' && <Aljakten code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'bikerun' && <BikeRun code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'alltime-games' && <AllTimeGames code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'planning' && <SwimmerPlanning code={auth.code} onBack={() => setScreen('home')} />}
@@ -245,7 +248,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBikeRun={() => setScreen('bikerun')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -777,7 +780,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, appFeedbackEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, appFeedbackEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBikeRun, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
   const followUp = latestTodayResponse?.type === 'before'
@@ -825,7 +828,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
       {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
-      {profile && <GameCard games={availableGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onAllTime={onAllTime} />}
+      {profile && <GameCard games={availableGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBikeRun={onBikeRun} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
       {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
     </div>
@@ -873,8 +876,8 @@ function StartCard({ profile, onStart, followUp = false }) {
   return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>{followUp ? 'Hur gick simträningen?' : 'Hur är läget?'}</h2><p>{followUp ? 'Berätta kort hur passet kändes efteråt.' : 'Det tar mindre än 20 sekunder.'}</p></div><button className="primary-button" onClick={onStart}>{followUp ? 'Svara efter passet' : 'Checka in'} <span>→</span></button></section>
 }
 
-function GameCard({ games = GAME_CATALOG, onOpen, onVanda, onSwimgames, onAljakten, onAllTime }) {
-  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: onOpen, aljakten: onAljakten }
+function GameCard({ games = GAME_CATALOG, onOpen, onVanda, onSwimgames, onAljakten, onBikeRun, onAllTime }) {
+  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: onOpen, aljakten: onAljakten, bikerun: onBikeRun }
   return <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}{games.length > 0 && <button className="secondary-button" onClick={onAllTime}>All time-topplista 🏆</button>}</div></div></section>
 }
 
@@ -908,6 +911,41 @@ const formatRaceTime = (milliseconds) => { const total = Math.max(0, Math.round(
 const formatRaceTimeMs = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
 const SWIMGAMES_LENGTHS = 1
 const SWIMGAMES_DISTANCE_METERS = 25
+
+function BikeRun({ code, onBack, preview = false }) {
+  const mountRef = useRef(null), gameRef = useRef(null), sceneRef = useRef(null)
+  const [status, setStatus] = useState('ready'), [result, setResult] = useState(null), [fullscreen, setFullscreen] = useState(false), [gameData, setGameData] = useState({ leaderboard: [], ownBest: 0 })
+  useEffect(() => { if (!preview) apiRequest('/api/points?game=bikerun&lifetime=true', code).then(setGameData).catch(() => {}) }, [code, preview])
+  useEffect(() => {
+    if (!mountRef.current) return
+    const scene = new Phaser.Scene('BikeRunScene')
+    scene.create = function () {
+      this.cameras.main.setBackgroundColor('#c5edf1'); this.physics.world.setBounds(0, 0, 4300, 600); this.cameras.main.setBounds(0, 0, 4300, 600)
+      this.gfx = this.add.graphics(); this.hud = this.add.text(34, 28, '', { fontFamily: 'Manrope, sans-serif', fontSize: '18px', fontStyle: '800', color: '#ffffff' }).setScrollFactor(0); this.bike = { x: 110, y: 310, vy: 0, angle: 0 }; this.running = false; this.elapsed = 0; this.last = 0; this.control = 0; this.finish = 3900; this.ramps = [560, 1160, 1840, 2520, 3180]
+      this.startRun = () => { this.bike = { x: 110, y: this.groundY(110) - 35, vy: 0, angle: 0 }; this.elapsed = 0; this.last = this.time.now; this.control = 0; this.running = true; setStatus('running'); setResult(null) }
+      this.setControl = (value) => { this.control = value }
+      sceneRef.current = this
+      this.input.keyboard?.on('keydown-LEFT', () => { this.control = -1 }); this.input.keyboard?.on('keydown-RIGHT', () => { this.control = 1 }); this.input.keyboard?.on('keyup-LEFT', () => { if (this.control < 0) this.control = 0 }); this.input.keyboard?.on('keyup-RIGHT', () => { if (this.control > 0) this.control = 0 })
+    }
+    scene.groundY = function (x) { for (const ramp of this.ramps || []) { const d = x - ramp; if (d > -130 && d < 130) return 350 - Math.sin((d + 130) / 260 * Math.PI) * 75 } return 350 }
+    scene.draw = function () {
+      const g = this.gfx; const cam = this.cameras.main.scrollX; g.clear(); g.fillStyle(0xbee9ef, 1); g.fillRect(cam, 0, 980, 600); g.fillStyle(0xffffff, .45); for (let i = 0; i < 9; i += 1) { g.fillCircle(cam + 70 + i * 155, 70 + (i % 3) * 25, 20) }
+      g.fillStyle(0x6fa45b, 1); g.fillRect(cam, 350, 980, 250); g.lineStyle(5, 0x345944, 1); g.beginPath(); for (let x = cam; x < cam + 980; x += 12) g.lineTo(x, this.groundY(x)); g.strokePath()
+      this.ramps.forEach((ramp) => { g.fillStyle(0xe08046, 1); g.beginPath(); g.moveTo(ramp - 130, 350); g.lineTo(ramp, 275); g.lineTo(ramp + 130, 350); g.closePath(); g.fillPath() })
+      g.fillStyle(0xf3cb54, 1); g.fillRect(this.finish, 195, 9, 155); for (let y = 200; y < 300; y += 40) { g.fillStyle(0xffffff, 1); g.fillRect(this.finish + 9, y, 32, 20); g.fillStyle(0xe75d62, 1); g.fillRect(this.finish + 9, y + 20, 32, 20) }
+      const b = this.bike; g.save(); g.translate(b.x, b.y); g.rotate(b.angle); g.lineStyle(5, 0x153b4d, 1); g.beginPath(); g.moveTo(-28, 4); g.lineTo(0, -26); g.lineTo(30, 4); g.moveTo(-28, 4); g.lineTo(30, 4); g.moveTo(0, -26); g.lineTo(14, -43); g.strokePath(); g.fillStyle(0xe9654b, 1); g.fillRect(-4, -56, 9, 30); g.fillStyle(0x142b38, 1); g.fillCircle(-28, 8, 14); g.fillCircle(30, 8, 14); g.restore()
+      g.fillStyle(0x153b4d, .9); g.fillRoundedRect(cam + 18, 18, 220, 44, 12); this.hud.setText(`Tid ${this.elapsed.toFixed(1)} s                                      ${Math.min(100, Math.round(b.x / this.finish * 100))}%`)
+    }
+    scene.update = function (time) { if (!this.running) { this.draw(); return } const dt = Math.min(.035, (time - this.last) / 1000); this.last = time; this.elapsed += dt; this.bike.x += 270 * dt; this.bike.vy += 880 * dt; this.bike.y += this.bike.vy * dt; const floor = this.groundY(this.bike.x) - 35; if (this.bike.y >= floor) { this.bike.y = floor; this.bike.vy = 0; this.bike.angle *= .84 } else this.bike.angle += this.control * dt * .9; this.bike.angle = Phaser.Math.Clamp(this.bike.angle, -.8, .8); this.cameras.main.scrollX = Phaser.Math.Clamp(this.bike.x - 180, 0, 4300 - 900); if (this.bike.y > 560 || Math.abs(this.bike.angle) > 1.25) { this.running = false; setStatus('crashed'); this.draw(); return } if (this.bike.x >= this.finish) { this.running = false; const score = Math.max(1, Math.round(10000 - this.elapsed * 100)); setResult({ time: this.elapsed, score }); setStatus('over'); if (!preview) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'bikerun', score }) }).then(setGameData).catch(() => {}) } this.draw() }
+    gameRef.current = new Phaser.Game({ type: Phaser.AUTO, parent: mountRef.current, width: 900, height: 500, backgroundColor: '#bee9ef', physics: { default: 'arcade', arcade: { gravity: { y: 0 } } }, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene })
+    return () => { gameRef.current?.destroy(true); gameRef.current = null; sceneRef.current = null }
+  }, [code, preview])
+  const start = () => sceneRef.current?.startRun()
+  const setControl = (value) => sceneRef.current?.setControl(value)
+  const toggleFullscreen = async () => { const target = mountRef.current?.parentElement; if (!target) return; try { if (document.fullscreenElement) await document.exitFullscreen(); else if (target.requestFullscreen) await target.requestFullscreen(); else target.classList.toggle('bike-run-immersive') } catch { target.classList.toggle('bike-run-immersive') } setFullscreen(Boolean(document.fullscreenElement)) }
+  useEffect(() => { const handler = () => setFullscreen(Boolean(document.fullscreenElement)); document.addEventListener('fullscreenchange', handler); return () => document.removeEventListener('fullscreenchange', handler) }, [])
+  return <section className="game-page bike-run-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel · Bike Run</p><h1>Bike Run 🏍️</h1><p className="game-intro">Kör över den gemensamma banan, håll balansen i hoppen och slå din bästa tid.</p><div className="bike-run-shell"><button type="button" className="bike-run-fullscreen" onClick={toggleFullscreen}>{fullscreen ? '↙ Lämna fullskärm' : '⛶ Fullskärm'}</button><div ref={mountRef} className="bike-run-board" />{status !== 'running' && <div className="game-overlay"><span>{status === 'over' ? '🏁' : status === 'crashed' ? '💥' : '🏍️'}</span><strong>{status === 'over' ? `Mål på ${result.time.toFixed(1)} sekunder` : status === 'crashed' ? 'Cykeln välte' : 'Redo?'}</strong><small>{status === 'over' ? `${result.score} poäng · Försök slå tiden!` : 'Luta motorcykeln med knapparna i hoppen.'}</small><button className="primary-button" onClick={start}>{status === 'over' || status === 'crashed' ? 'Kör igen' : 'Starta banan'}</button></div>}</div><div className="bike-run-controls"><button onPointerDown={() => setControl(-1)} onPointerUp={() => setControl(0)} onPointerLeave={() => setControl(0)}>↙ Luta bakåt</button><button onPointerDown={() => setControl(1)} onPointerUp={() => setControl(0)} onPointerLeave={() => setControl(0)}>Luta framåt ↗</button></div></div><section className="game-scoreboard"><p className="eyebrow">Bike Run · all time</p><h2>Topplistan</h2><p className="game-best">Ditt bästa resultat: <strong>{gameData.ownBest || '—'}</strong></p>{gameData.leaderboard?.length ? <div>{gameData.leaderboard.map((item) => <article key={item.profileId}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har kört ännu.</p>}<small>Samma bana för alla. Högre poäng är bättre.</small></section></div></section>
+}
 
 function Swimgames({ code, onBack, preview = false }) {
   useLegacyGameFullscreen('.swimgames-board')
@@ -1750,7 +1788,7 @@ function CoachGameLibrary({ code }) {
   const save = async () => { setSaving(true); setMessage(''); try { const data = await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-game-schedule', schedule }) }); setSchedule(data.schedule || []); setMessage('Spelplaneringen är sparad.') } catch (error) { setMessage(error.message) } finally { setSaving(false) } }
   if (testing) {
     const game = catalog.find((item) => item.key === testing)
-    return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div>{testing === 'swimgames' && <Swimgames code={code} onBack={() => setTesting('')} preview />}{testing === 'vanda' && <Vandningsmastaren code={code} onBack={() => setTesting('')} preview />}{testing === 'simpaus' && <Simpaus code={code} onBack={() => setTesting('')} preview />}{testing === 'aljakten' && <Aljakten code={code} onBack={() => setTesting('')} preview />}</section>
+    return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div>{testing === 'swimgames' && <Swimgames code={code} onBack={() => setTesting('')} preview />}{testing === 'vanda' && <Vandningsmastaren code={code} onBack={() => setTesting('')} preview />}{testing === 'simpaus' && <Simpaus code={code} onBack={() => setTesting('')} preview />}{testing === 'aljakten' && <Aljakten code={code} onBack={() => setTesting('')} preview />}{testing === 'bikerun' && <BikeRun code={code} onBack={() => setTesting('')} preview />}</section>
   }
   return <section className="game-library"><div className="period-heading"><div><p className="eyebrow">Tränarverktyg</p><h1>Veckans spel</h1><small>Testa spelen först och planera sedan vad simmarna ska få tillgång till.</small></div><div className="big-count"><strong>{schedule.filter((item) => item.published).length}</strong><span>publicerade perioder</span></div></div><section className="settings-card game-library-catalog"><h2>Spelbibliotek</h2><p className="settings-help">Testläget använder samma spel, men sparar inga rekord eller poäng.</p><div className="game-library-list">{catalog.map((game) => <article key={game.key}><div><strong>{game.emoji} {game.title}</strong><small>{game.description}</small></div><button className="secondary-button" onClick={() => setTesting(game.key)}>Testa spelet</button></article>)}</div></section><section className="settings-card game-schedule-card"><div className="game-schedule-head"><div><h2>Planera publicering</h2><p className="settings-help">Lägg in perioder i kalendern. Avpublicerade spel syns inte för simmarna, men deras rekord finns kvar.</p></div><button className="secondary-button" onClick={add}>＋ Lägg till period</button></div>{loading ? <p className="empty">Hämtar spelplanering…</p> : schedule.length ? <div className="game-schedule-list">{schedule.map((item) => <article key={item.id}><select value={item.gameKey} onChange={(event) => update(item.id, 'gameKey', event.target.value)}>{catalog.map((game) => <option key={game.key} value={game.key}>{game.emoji} {game.title}</option>)}</select><label>Från<input type="date" value={item.startDate} onChange={(event) => update(item.id, 'startDate', event.target.value)} /></label><label>Till<input type="date" value={item.endDate} onChange={(event) => update(item.id, 'endDate', event.target.value)} /></label><label className="game-publish-toggle"><input type="checkbox" checked={item.published !== false} onChange={(event) => update(item.id, 'published', event.target.checked)} /> Publicerat</label><button className="text-button" onClick={() => remove(item.id)}>Ta bort</button></article>)}</div> : <p className="empty">Ingen period planerad ännu.</p>}<div className="settings-actions"><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara spelplanering'}</button>{message && <small className="settings-saved">{message}</small>}</div></section></section>
 }
