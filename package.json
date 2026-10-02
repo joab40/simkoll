@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
-    "phaser": "^3.90.0",
+    "vite": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "vite": "latest"
-  }
+    "react-dom": "latest"
+  },
+  "devDependencies": {}
 }
