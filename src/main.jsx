@@ -833,7 +833,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
 
       {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
-      {profile && chatVisible && <OpenChatCard onOpen={onCommunity} />}
+      {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunity} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
@@ -846,8 +846,11 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   )
 }
 
-function OpenChatCard({ onOpen }) {
-  return <section className="open-chat-card"><div><p className="eyebrow">Gemenskap</p><h2>Öppen gruppchatt 💬</h2><p>Skriv en hälsning till simmare och tränare. Alla i gruppen kan se chatten.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna chatten →</button></section>
+function OpenChatCard({ code, onOpen }) {
+  const [chat, setChat] = useState({ messages: [] }); const [expanded, setExpanded] = useState(false)
+  useEffect(() => { apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => setChat(data.openChat || { messages: [] })).catch(() => {}) }, [code])
+  const messages = (chat.messages || []).slice(expanded ? -6 : -2).reverse()
+  return <section className={`open-chat-card${expanded ? ' expanded' : ''}`}><div className="open-chat-card-head"><div><p className="eyebrow">Gemenskap</p><h2>Gemenskap 💬</h2><p>Klubbinfo och kontakt med tränarna på samma ställe.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna →</button></div>{messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty">Inga nya meddelanden ännu.</p>}<div className="open-chat-card-actions"><button type="button" className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Visa mindre ↑' : 'Visa allt i gemenskapen ↓'}</button><button type="button" className="text-button" onClick={onOpen}>Skriv till tränarna</button></div></section>
 }
 
 const CHAT_EMOJIS = ['🏊', '💙', '💚', '💛', '❤️', '💪', '👏', '🙌', '😊', '🤩', '🔥', '🌊']
