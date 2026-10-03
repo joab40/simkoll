@@ -1,6 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
+import { coachFromRequest } from '../server/coach-auth.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 
@@ -136,6 +137,7 @@ export default async function handler(request, response) {
       const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
       const webappSettings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
       const openChatEnabled = webappSettings.openChat?.enabled === true
+      const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
       if (role === 'coach' && request.query?.appFeedback === 'true') {
         const result = await supabaseRequest('app_feedback?select=rating,best_area,improve_area,feature_request,comment,created_at&order=created_at.desc&limit=1000')
         if (!result.ok) throw new Error(`App feedback GET failed: ${result.status} ${await result.text()}`)
@@ -164,7 +166,7 @@ export default async function handler(request, response) {
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
       const openChatMessages = openChatEnabled ? (await openChatResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender) : []
-      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, backgroundImage: webappSettings.openChat?.backgroundImage || '', messages: openChatMessages } })
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, backgroundImage: webappSettings.openChat?.backgroundImage || '', messages: openChatMessages } })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
@@ -185,6 +187,12 @@ export default async function handler(request, response) {
         if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
         const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Open chat delete failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
+      }
+      if (request.body?.action === 'clear-open-chat') {
+        if (!coachFromRequest(request)) return sendJson(response, 403, { error: 'Endast en inloggad tränare kan rensa chatten.' })
+        const result = await supabaseRequest('open_chat_messages?deleted_at=is.null', { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Open chat clear failed: ${result.status}`)
         return sendJson(response, 200, { ok: true })
       }
       if (request.body?.action === 'polish-community-post') {
@@ -238,13 +246,19 @@ export default async function handler(request, response) {
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
         const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
-        if (settings.openChat?.enabled !== true) return sendJson(response, 403, { error: 'Den öppna chatten är avstängd av tränarna.' })
+        if (settings.openChat?.enabled !== true || settings.openChat?.coachOnly === true) return sendJson(response, 403, { error: settings.openChat?.coachOnly === true ? 'Chatten är just nu öppen endast för tränare.' : 'Den öppna chatten är avstängd av tränarna.' })
         const moderation = await moderateCustomPep(request, content)
         if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
         const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'swimmer', sender_profile_id: profile.id, content }) })
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
         await touchProfileActivity(profile.id)
         return sendJson(response, 201, { ok: true })
+      }
+      if (request.body?.action === 'delete-open-chat-message') {
+        const id = String(request.body?.id || '')
+        const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}&sender_profile_id=eq.${encodeURIComponent(profile.id)}&deleted_at=is.null`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Open chat delete failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
       }
       if (request.body?.mode === 'coach') {
         const content = String(request.body?.content || '').trim()
