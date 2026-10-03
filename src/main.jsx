@@ -256,7 +256,10 @@ function App() {
       {screen === 'checkin' && (
         <CheckIn
           hasProfile={Boolean(profile)}
-          followUp={responses.filter((item) => dateKey(responseDate(item)) === todayKey()).slice().sort((a, b) => responseDate(b) - responseDate(a))[0]?.type === 'before'}
+          // Ett tävlingssvar har också typen "before", men ska inte följas upp
+          // med träningsfrågan. Tävlingscheck-in innehåller fartkänsla medan
+          // vanlig "ska träna" inte gör det.
+          followUp={(() => { const latest = responses.filter((item) => dateKey(responseDate(item)) === todayKey()).slice().sort((a, b) => responseDate(b) - responseDate(a))[0]; return latest?.type === 'before' && latest?.speedFeeling == null })()}
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
@@ -782,7 +785,7 @@ function StarProgress({ stars }) {
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, appFeedbackEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onGoals, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBikeRun, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
-  const followUp = latestTodayResponse?.type === 'before'
+  const followUp = latestTodayResponse?.type === 'before' && latestTodayResponse?.speedFeeling == null
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
   // already present in the UI so a just-submitted check-in is shown instantly.
