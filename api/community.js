@@ -138,6 +138,7 @@ export default async function handler(request, response) {
       const webappSettings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
       const openChatEnabled = webappSettings.openChat?.enabled === true
       const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
+      const openChatSwimmerPrivate = webappSettings.openChat?.swimmerPrivate !== false
       if (role === 'coach' && request.query?.appFeedback === 'true') {
         const result = await supabaseRequest('app_feedback?select=rating,best_area,improve_area,feature_request,comment,created_at&order=created_at.desc&limit=1000')
         if (!result.ok) throw new Error(`App feedback GET failed: ${result.status} ${await result.text()}`)
@@ -153,7 +154,7 @@ export default async function handler(request, response) {
         role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
           : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
-        openChatEnabled ? supabaseRequest('open_chat_messages?deleted_at=is.null&select=id,sender_role,sender_profile_id,content,created_at&order=created_at.asc&limit=300') : Promise.resolve({ ok: true, json: async () => [] }),
+        openChatEnabled ? supabaseRequest('open_chat_messages?deleted_at=is.null&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.asc&limit=300') : Promise.resolve({ ok: true, json: async () => [] }),
       ])
       if (!postsResult.ok || !groupResult.ok || !messagesResult.ok) throw new Error('Community feed failed')
       const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
@@ -165,8 +166,8 @@ export default async function handler(request, response) {
         privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: item.content || KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient && item.content)
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
-      const openChatMessages = openChatEnabled ? (await openChatResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender) : []
-      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, backgroundImage: webappSettings.openChat?.backgroundImage || '', messages: openChatMessages } })
+      const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches').map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender) : []
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '', messages: openChatMessages } })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
@@ -178,7 +179,7 @@ export default async function handler(request, response) {
         const enabledResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = enabledResult.ok ? ((await enabledResult.json())[0]?.setting_value || {}) : {}
         if (settings.openChat?.enabled !== true) return sendJson(response, 403, { error: 'Den öppna chatten är avstängd av tränarna.' })
-        const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', content }) })
+        const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', visibility: 'group', content }) })
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 201, { ok: true })
       }
@@ -249,7 +250,7 @@ export default async function handler(request, response) {
         if (settings.openChat?.enabled !== true || settings.openChat?.coachOnly === true) return sendJson(response, 403, { error: settings.openChat?.coachOnly === true ? 'Chatten är just nu öppen endast för tränare.' : 'Den öppna chatten är avstängd av tränarna.' })
         const moderation = await moderateCustomPep(request, content)
         if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
-        const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'swimmer', sender_profile_id: profile.id, content }) })
+        const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'swimmer', sender_profile_id: profile.id, visibility: settings.openChat?.swimmerPrivate !== false ? 'coaches' : 'group', content }) })
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
         await touchProfileActivity(profile.id)
         return sendJson(response, 201, { ok: true })
