@@ -133,6 +133,9 @@ export default async function handler(request, response) {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
       if (profile) await touchProfileActivity(profile.id)
+      const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+      const webappSettings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
+      const openChatEnabled = webappSettings.openChat?.enabled === true
       if (role === 'coach' && request.query?.appFeedback === 'true') {
         const result = await supabaseRequest('app_feedback?select=rating,best_area,improve_area,feature_request,comment,created_at&order=created_at.desc&limit=1000')
         if (!result.ok) throw new Error(`App feedback GET failed: ${result.status} ${await result.text()}`)
@@ -141,13 +144,14 @@ export default async function handler(request, response) {
         rows.forEach((item) => { if (item.rating) counts.ratings[item.rating] = (counts.ratings[item.rating] || 0) + 1; if (item.best_area) counts.bestAreas[item.best_area] = (counts.bestAreas[item.best_area] || 0) + 1; if (item.improve_area) counts.improveAreas[item.improve_area] = (counts.improveAreas[item.improve_area] || 0) + 1; if (item.feature_request) counts.featureRequests[item.feature_request] = (counts.featureRequests[item.feature_request] || 0) + 1 })
         return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: rows.filter((item) => item.comment?.trim()).map((item) => ({ comment: item.comment.trim(), createdAt: item.created_at })).slice(0, 100) })
       }
-      const [postsResult, groupResult, profiles, messagesResult] = await Promise.all([
+      const [postsResult, groupResult, profiles, messagesResult, openChatResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=100'),
         loadProfiles(),
         role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
           : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
+        openChatEnabled ? supabaseRequest('open_chat_messages?deleted_at=is.null&select=id,sender_role,sender_profile_id,content,created_at&order=created_at.asc&limit=300') : Promise.resolve({ ok: true, json: async () => [] }),
       ])
       if (!postsResult.ok || !groupResult.ok || !messagesResult.ok) throw new Error('Community feed failed')
       const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
@@ -159,10 +163,30 @@ export default async function handler(request, response) {
         privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: item.content || KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient && item.content)
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
-      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages })
+      const openChatMessages = openChatEnabled ? (await openChatResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender) : []
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, backgroundImage: webappSettings.openChat?.backgroundImage || '', messages: openChatMessages } })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
+      if (request.body?.action === 'open-chat-message') {
+        const content = String(request.body?.content || '').trim()
+        if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
+        const moderation = await moderateCustomPep(request, content)
+        if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
+        const enabledResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+        const settings = enabledResult.ok ? ((await enabledResult.json())[0]?.setting_value || {}) : {}
+        if (settings.openChat?.enabled !== true) return sendJson(response, 403, { error: 'Den öppna chatten är avstängd av tränarna.' })
+        const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', content }) })
+        if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 201, { ok: true })
+      }
+      if (request.body?.action === 'delete-open-chat-message') {
+        const id = String(request.body?.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
+        const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Open chat delete failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
+      }
       if (request.body?.action === 'polish-community-post') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const content = String(request.body?.content || '').trim()
@@ -209,6 +233,19 @@ export default async function handler(request, response) {
     if (request.method === 'POST') {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att skicka pepp.' })
+      if (request.body?.action === 'open-chat-message') {
+        const content = String(request.body?.content || '').trim()
+        if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
+        const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+        const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
+        if (settings.openChat?.enabled !== true) return sendJson(response, 403, { error: 'Den öppna chatten är avstängd av tränarna.' })
+        const moderation = await moderateCustomPep(request, content)
+        if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
+        const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'swimmer', sender_profile_id: profile.id, content }) })
+        if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
+        await touchProfileActivity(profile.id)
+        return sendJson(response, 201, { ok: true })
+      }
       if (request.body?.mode === 'coach') {
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på högst 1000 tecken.' })
