@@ -167,7 +167,7 @@ export default async function handler(request, response) {
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
       const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches').map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender) : []
-      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '', messages: openChatMessages } })
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: openChatMessages } })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
