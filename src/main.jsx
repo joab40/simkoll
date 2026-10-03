@@ -847,9 +847,10 @@ function Home({ code, responses, profile, points, notifications, onNotifications
 }
 
 function OpenChatCard({ code, onOpen }) {
-  const [chat, setChat] = useState({ messages: [] }); const [expanded, setExpanded] = useState(false)
-  useEffect(() => { apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => setChat(data.openChat || { messages: [] })).catch(() => {}) }, [code])
-  const messages = (chat.messages || []).slice(expanded ? -6 : -2).reverse()
+  const [chat, setChat] = useState({ messages: [], items: [] }); const [expanded, setExpanded] = useState(false)
+  useEffect(() => { apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => setChat({ ...(data.openChat || {}), items: data.items || [] })).catch(() => {}) }, [code])
+  const previewSource = chat.items?.length ? chat.items : (chat.messages || [])
+  const messages = previewSource.slice(expanded ? -6 : -2).reverse()
   return <section className={`open-chat-card${expanded ? ' expanded' : ''}`}><div className="open-chat-card-head"><div><p className="eyebrow">Gemenskap</p><h2>Gemenskap 💬</h2><p>Klubbinfo och kontakt med tränarna på samma ställe.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna →</button></div>{messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty">Inga nya meddelanden ännu.</p>}<div className="open-chat-card-actions"><button type="button" className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Visa mindre ↑' : 'Visa allt i gemenskapen ↓'}</button><button type="button" className="text-button" onClick={onOpen}>Skriv till tränarna</button></div></section>
 }
 
