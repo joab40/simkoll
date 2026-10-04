@@ -86,10 +86,11 @@ button { cursor: pointer; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
 .coach-letter-badge { position: absolute; z-index: 3; top: 22px; right: 24px; display: flex; align-items: center; gap: 10px; max-width: min(330px, 48%); padding: 10px 13px; border: 1px solid rgba(255,237,165,.65); border-radius: 16px; background: linear-gradient(135deg, #ffe98a, #ffc857); color: #4c3510; text-align: left; box-shadow: 0 8px 20px rgba(15,24,45,.22); animation: coach-letter-bob 2.8s ease-in-out infinite; }
 .coach-letter-badge { width: 50px; height: 50px; padding: 0; justify-content: center; border-radius: 16px; }
-.coach-letter-badge.opened { animation: none; opacity: .88; }
+.coach-letter-badge.opened { animation: none; opacity: .86; background: linear-gradient(135deg, #d7eee7, #b9ddd4); color: #145d5c; border-color: rgba(20,93,92,.28); }
 .coach-letter-badge > span:nth-child(2), .coach-letter-badge > b { display: none; }
 .coach-letter-badge:hover { transform: translateY(-2px) rotate(-1deg); }
 .coach-letter-envelope { font-size: 27px; filter: drop-shadow(0 3px 3px rgba(112,73,8,.2)); }
+.coach-letter-read-mark { position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 19px; height: 19px; border: 2px solid #f4fbf8; border-radius: 50%; background: #168b77; color: #fff; font-size: 12px; font-weight: 900; line-height: 1; box-shadow: 0 2px 6px rgba(15,67,61,.28); }
 .coach-letter-badge > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
 .coach-letter-badge strong { font-size: 12px; }
 .coach-letter-badge small { font-size: 10px; opacity: .78; }

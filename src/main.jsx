@@ -875,7 +875,7 @@ function CoachLetterBadge({ code, onOpen }) {
   useEffect(() => { let mounted = true; apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { if (mounted) setHasMessage((data.openChat?.messages || []).some((item) => item.senderRole === 'coach')) }).catch(() => {}); return () => { mounted = false } }, [code])
   if (!hasMessage) return null
   const open = () => { setOpened(true); try { localStorage.setItem(`simkoll-coach-info-opened-${code}`, '1') } catch {} onOpen() }
-  return <button type="button" className={`coach-letter-badge${opened ? ' opened' : ''}`} onClick={open} aria-label="Öppna info från tränarna" title="Info från tränarna"><span className="coach-letter-envelope" aria-hidden="true">{opened ? '📨' : '✉️'}</span></button>
+  return <button type="button" className={`coach-letter-badge${opened ? ' opened' : ''}`} onClick={open} aria-label={opened ? 'Info från tränarna, läst' : 'Öppna info från tränarna'} title={opened ? 'Info från tränarna · Läst' : 'Info från tränarna'}><span className="coach-letter-envelope" aria-hidden="true">{opened ? '📨' : '✉️'}</span>{opened && <span className="coach-letter-read-mark" aria-hidden="true">✓</span>}</button>
 }
 
 const CHAT_EMOJIS = ['🏊', '💙', '💚', '💛', '❤️', '💪', '👏', '🙌', '😊', '🤩', '🔥', '🌊']
