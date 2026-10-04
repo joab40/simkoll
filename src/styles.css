@@ -234,6 +234,11 @@ button { cursor: pointer; }
 .previous-games-card > summary > span { color: var(--teal); font-weight: 800; white-space: nowrap; }
 .previous-games-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 18px; border-top: 1px solid #e5efed; }
 .previous-games-list button { margin-top: 14px; }
+.all-time-games-button { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid #dbe8e5; border-radius: 18px; padding: 15px 18px; background: var(--paper); color: var(--ink); text-align: left; }
+.all-time-games-button > span:first-child { font-size: 24px; }
+.all-time-games-button > span:nth-child(2) { display: grid; gap: 2px; flex: 1; }
+.all-time-games-button small { color: var(--muted); }
+.all-time-games-button b { color: var(--teal); font-size: 18px; }
 .game-library { display: grid; gap: 14px; }
 .game-library-catalog, .game-schedule-card { margin: 0; }
 .game-library-list { display: grid; gap: 8px; }
