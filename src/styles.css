@@ -226,6 +226,8 @@ button { cursor: pointer; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
 .game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .game-card-stack { display: grid; gap: 12px; }
+.strength-previous-hint { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #eef7f2; color: #47706a; font-size: 13px; }
+.strength-previous-result { display: block; margin-top: 4px; color: #47706a; font-size: 12px; font-style: normal; }
 .previous-games-card { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 20px; overflow: hidden; }
 .previous-games-card > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 20px; list-style: none; cursor: pointer; }
 .previous-games-card > summary::-webkit-details-marker { display: none; }
