@@ -274,7 +274,14 @@ export default async function handler(request, response) {
       return sendJson(response, 201, { goal: mapSeasonGoal((await result.json())[0]) })
     }
     if (action === 'assign') {
-      const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ program_id: request.body.programId, profile_id: request.body.profileId }) })
+      const programId = String(request.body.programId || ''), profileId = String(request.body.profileId || '')
+      const programResult = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength&active=eq.true&select=id,program_type&limit=1`)
+      if (!programResult.ok || !(await programResult.json()).length) return sendJson(response, 404, { error: 'Programmet finns inte eller är arkiverat.' })
+      const existing = await supabaseRequest(`program_assignments?profile_id=eq.${encodeURIComponent(profileId)}&removed_at=is.null&select=id,training_programs!inner(program_type)`)
+      if (!existing.ok) throw new Error('Existing assignment lookup failed')
+      const oldStrength = (await existing.json()).filter((item) => item.training_programs?.program_type === 'strength')
+      if (oldStrength.length) await Promise.all(oldStrength.map((item) => supabaseRequest(`program_assignments?id=eq.${encodeURIComponent(item.id)}`, { method: 'PATCH', body: JSON.stringify({ removed_at: new Date().toISOString() }) })))
+      const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ program_id: programId, profile_id: profileId }) })
       if (!result.ok) throw new Error(`Assignment failed: ${result.status}`)
       return sendJson(response, 201, { ok: true })
     }
