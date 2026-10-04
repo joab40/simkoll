@@ -244,10 +244,17 @@ export default async function handler(request, response) {
       if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })
       if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in för att se veckans spel.' })
       const today = stockholmDate()
-      const currentGames = activeGames(schedule, today)
+      // Only the newest active publication is the featured weekly game.
+      // Older overlapping periods belong in the compact history card.
+      const activeItems = schedule
+        .filter((item) => item.published !== false && item.startDate <= today && item.endDate >= today)
+        .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)) || String(b.endDate).localeCompare(String(a.endDate)))
+      const currentGame = GAME_CATALOG.find((game) => game.key === activeItems[0]?.gameKey)
+      const currentGames = currentGame ? [currentGame] : []
       const currentKeys = new Set(currentGames.map((game) => game.key))
       const previousKeys = [...new Set(schedule
         .filter((item) => item.published !== false && item.endDate < today && !currentKeys.has(item.gameKey))
+        .concat(activeItems.slice(1).filter((item) => !currentKeys.has(item.gameKey)))
         .sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)))
         .map((item) => item.gameKey))]
       const previousGames = previousKeys.map((key) => GAME_CATALOG.find((game) => game.key === key)).filter(Boolean)
