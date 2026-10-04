@@ -243,7 +243,15 @@ export default async function handler(request, response) {
       const schedule = await loadGameSchedule()
       if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })
       if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in för att se veckans spel.' })
-      return sendJson(response, 200, { catalog: activeGames(schedule), schedule: [] })
+      const today = stockholmDate()
+      const currentGames = activeGames(schedule, today)
+      const currentKeys = new Set(currentGames.map((game) => game.key))
+      const previousKeys = [...new Set(schedule
+        .filter((item) => item.published !== false && item.endDate < today && !currentKeys.has(item.gameKey))
+        .sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)))
+        .map((item) => item.gameKey))]
+      const previousGames = previousKeys.map((key) => GAME_CATALOG.find((game) => game.key === key)).filter(Boolean)
+      return sendJson(response, 200, { catalog: currentGames, previousGames, schedule: [] })
     }
     if (requestedGame) {
       const profile = await getSessionProfile(request)
