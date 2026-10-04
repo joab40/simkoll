@@ -126,12 +126,29 @@ async function messagesSentToday(table, profileId) {
 }
 
 const coachFeedEventLabels = { personal_best: ['personal_best', '🏆 Nytt personbästa'], goal_complete: ['achievement', '🎯 Mål uppnått'], weekly_goal: ['achievement', '✅ Veckomål uppnått'], strength_weekly_goal: ['strength', '🏋️ Styrkemål uppnått'], dryland_weekly_goal: ['strength', '🤸 Landträningsmål uppnått'] }
+async function getCoachFeedVisibility() {
+  const result = await supabaseRequest('app_settings?setting_key=eq.coach_feed&select=setting_value&limit=1')
+  if (!result.ok) return { hiddenIds: [], clearedAt: null }
+  return (await result.json())[0]?.setting_value || { hiddenIds: [], clearedAt: null }
+}
+
+async function saveCoachFeedVisibility(value) {
+  const result = await supabaseRequest('app_settings?on_conflict=setting_key', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ setting_key: 'coach_feed', setting_value: value, updated_at: new Date().toISOString() }),
+  })
+  if (!result.ok) throw new Error(`Coach feed settings failed: ${result.status} ${await result.text()}`)
+}
+
 async function getCoachFeed() {
-  const [pointsResult, profilesResult, resultsResult] = await Promise.all([supabaseRequest('point_events?event_type=in.(personal_best,goal_complete,weekly_goal,strength_weekly_goal,dryland_weekly_goal)&select=profile_id,event_type,points,created_at,source_key&order=created_at.desc&limit=100'), supabaseRequest('profiles?select=id,display_name,emoji'), supabaseRequest('competition_results?select=profile_id,event,competition_name,result_date,swim_time&order=result_date.desc&limit=2000')])
+  const [pointsResult, profilesResult, resultsResult, visibility] = await Promise.all([supabaseRequest('point_events?event_type=in.(personal_best,goal_complete,weekly_goal,strength_weekly_goal,dryland_weekly_goal)&select=profile_id,event_type,points,created_at,source_key&order=created_at.desc&limit=100'), supabaseRequest('profiles?select=id,display_name,emoji'), supabaseRequest('competition_results?select=profile_id,event,competition_name,result_date,swim_time&order=result_date.desc&limit=2000'), getCoachFeedVisibility()])
   const profiles = profilesResult.ok ? Object.fromEntries((await profilesResult.json()).map((item) => [item.id, item])) : {}
   const competitionResults = resultsResult.ok ? await resultsResult.json() : []
   const automatic = pointsResult.ok ? (await pointsResult.json()).map((item) => { const [eventType, baseTitle] = coachFeedEventLabels[item.event_type] || ['achievement', '✨ Positiv utveckling']; const source = String(item.source_key || ''); const sourceParts = source.startsWith('pb_competition:') ? source.slice('pb_competition:'.length).split(':') : []; const competitionDate = sourceParts[0] || ''; const competitionName = sourceParts.slice(1).join(':'); const result = item.event_type === 'personal_best' ? competitionResults.find((row) => row.profile_id === item.profile_id && row.result_date === competitionDate && (!competitionName || row.competition_name === competitionName)) : null; const title = result?.event ? `${baseTitle} · ${result.event}` : baseTitle; return { id: `point-${item.created_at}-${item.profile_id}-${item.event_type}`, eventType, profileId: item.profile_id, title, detail: result?.competition_name ? `${result.competition_name} · ${result.swim_time || ''}`.trim() : item.source_key ? `Registrerad i Simkoll · ${item.source_key.split(':')[0]}` : '', points: item.points, stars: null, createdAt: item.created_at, sender: 'Simkoll', profile: profiles[item.profile_id] ? { displayName: profiles[item.profile_id].display_name, emoji: profiles[item.profile_id].emoji } : null } }) : []
-  return automatic.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 150)
+  const hiddenIds = new Set(Array.isArray(visibility.hiddenIds) ? visibility.hiddenIds : [])
+  const clearedAt = visibility.clearedAt ? new Date(visibility.clearedAt).getTime() : 0
+  return automatic.filter((item) => !hiddenIds.has(item.id) && (!clearedAt || new Date(item.createdAt).getTime() > clearedAt)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 150)
 }
 
 export default async function handler(request, response) {
@@ -181,6 +198,18 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
+      if (request.body?.action === 'delete-coach-feed-event') {
+        const id = String(request.body?.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Händelsen saknar id.' })
+        const current = await getCoachFeedVisibility()
+        const hiddenIds = [...new Set([...(Array.isArray(current.hiddenIds) ? current.hiddenIds : []), id])].slice(-1000)
+        await saveCoachFeedVisibility({ ...current, hiddenIds })
+        return sendJson(response, 200, { ok: true, deletedId: id })
+      }
+      if (request.body?.action === 'clear-coach-feed') {
+        await saveCoachFeedVisibility({ hiddenIds: [], clearedAt: new Date().toISOString() })
+        return sendJson(response, 200, { ok: true })
+      }
       if (request.body?.action === 'open-chat-message') {
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
