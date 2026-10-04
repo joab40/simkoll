@@ -820,6 +820,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
+        {profile && chatVisible && <CoachLetterBadge code={code} onOpen={onCommunity} />}
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
         {profile && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
@@ -840,7 +841,6 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
-      {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunity} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
@@ -865,7 +865,14 @@ function OpenChatCard({ code, onOpen }) {
   const previewSource = chat.items?.length ? chat.items : (chat.messages || [])
   const messages = previewSource.slice(expanded ? -6 : -2).reverse()
   const background = chat.backgroundImage || '/assets/open-chat-bg.png'
-  return <section className={`open-chat-card${expanded ? ' expanded' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}><div className="open-chat-card-head"><div><p className="eyebrow">Gemenskap</p><h2>Gemenskap 💬</h2><p>Klubbinfo och kontakt med tränarna på samma ställe.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna →</button></div>{messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty">Inga nya meddelanden ännu.</p>}<div className="open-chat-card-actions"><button type="button" className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Visa mindre ↑' : 'Visa allt i gemenskapen ↓'}</button><button type="button" className="text-button" onClick={onOpen}>Skriv till tränarna</button></div></section>
+  return <section className={`open-chat-card${expanded ? ' expanded' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}><div className="open-chat-card-head"><div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2><p>Klubbinfo och kontakt med tränarna på samma ställe.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna →</button></div>{messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty">Inga nya meddelanden ännu.</p>}<div className="open-chat-card-actions"><button type="button" className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Visa mindre ↑' : 'Visa allt i tränarinfo ↓'}</button><button type="button" className="text-button" onClick={onOpen}>Skriv till tränarna</button></div></section>
+}
+
+function CoachLetterBadge({ code, onOpen }) {
+  const [hasMessage, setHasMessage] = useState(false)
+  useEffect(() => { let mounted = true; apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { if (mounted) setHasMessage((data.openChat?.messages || []).some((item) => item.senderRole === 'coach')) }).catch(() => {}); return () => { mounted = false } }, [code])
+  if (!hasMessage) return null
+  return <button type="button" className="coach-letter-badge" onClick={onOpen} aria-label="Öppna info från tränarna"><span className="coach-letter-envelope" aria-hidden="true">✉️</span><span><strong>Info från tränarna</strong><small>Du har ett nytt meddelande</small></span><b>→</b></button>
 }
 
 const CHAT_EMOJIS = ['🏊', '💙', '💚', '💛', '❤️', '💪', '👏', '🙌', '😊', '🤩', '🔥', '🌊']
