@@ -8,6 +8,20 @@ import {
   hashToken, normalizeUsername, publicProfile, touchProfileActivity, validPin, validUsername, verifyPin, awardPoints,
 } from '../server/profile-auth.js'
 
+async function saveTempusSyncTimestamp(mode, details = {}) {
+  const syncedAt = new Date().toISOString()
+  try {
+    await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ setting_key: 'tempus_sync', setting_value: { syncedAt, mode, ...details }, updated_at: syncedAt }) })
+  } catch (error) { console.warn('Tempus sync timestamp could not be saved:', error.message) }
+  return syncedAt
+}
+
+async function getTempusSyncTimestamp() {
+  const result = await supabaseRequest('app_settings?setting_key=eq.tempus_sync&select=setting_value&limit=1')
+  if (!result.ok) return null
+  return (await result.json())[0]?.setting_value || null
+}
+
 async function runTempusCron() {
   const profilesResult = await supabaseRequest('profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id')
   if (!profilesResult.ok) throw new Error('Tempus profiles lookup failed')
@@ -29,7 +43,8 @@ async function runTempusCron() {
     synced += rows.length
     if (improved.length) { gratifications += await awardCompetitionBest(profile.id, improved); personalBests += improved.length }
   }
-  return { synced, personalBests, gratifications }
+  const syncedAt = await saveTempusSyncTimestamp('cron', { synced, personalBests, gratifications })
+  return { synced, personalBests, gratifications, syncedAt }
 }
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
@@ -142,7 +157,7 @@ export default async function handler(request, response) {
         if (request.query?.tempusResults === 'true') {
           const result = await supabaseRequest('competition_results?select=*&order=result_date.desc&limit=10000')
           if (!result.ok) throw new Error(`Competition results GET failed: ${result.status} ${await result.text()}`)
-          return sendJson(response, 200, { results: await result.json() })
+          return sendJson(response, 200, { results: await result.json(), tempusSync: await getTempusSyncTimestamp() })
         }
         const result = await supabaseRequest('profiles?select=id,username,display_name,emoji,training_group,primary_stroke,secondary_stroke,assistant_enabled,tempus_id,active,approval_status,is_test_profile,ai_analysis_status,terms_accepted_at,terms_version,created_at&active=eq.true&order=display_name.asc')
         if (!result.ok) throw new Error(`Profiles GET failed: ${result.status} ${await result.text()}`)
@@ -463,7 +478,8 @@ export default async function handler(request, response) {
           const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) { synced += rows.length; if (improved.length) await awardCompetitionBest(profile.id, improved) } else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`)
         }
       }
-      return sendJson(response, 200, { synced, attempted, failures, profileId: requestedProfileId || null, profileCount: targetProfiles.length })
+      const syncedAt = await saveTempusSyncTimestamp('manual', { synced, attempted, profileId: requestedProfileId || null, profileCount: targetProfiles.length })
+      return sendJson(response, 200, { synced, attempted, failures, profileId: requestedProfileId || null, profileCount: targetProfiles.length, syncedAt })
     }
 
     if (action === 'delete-profile') {
