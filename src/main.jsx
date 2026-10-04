@@ -78,7 +78,6 @@ function App() {
   const [identified, setIdentified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
-  const [communityView, setCommunityView] = useState('group')
   const [talksEnabled, setTalksEnabled] = useState(false)
   const [planningEnabled, setPlanningEnabled] = useState(false)
   const [starsEnabled, setStarsEnabled] = useState(true)
@@ -224,7 +223,7 @@ function App() {
   }
 
   return (
-    <Shell code={auth.code} role="swimmer" profile={profile} assistantEnabled={aiEnabled && profile?.assistantEnabled !== false} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCompetitions={() => setScreen('competition-entries')} onCommunity={() => { setCommunityView('group'); setScreen('community') }} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
+    <Shell code={auth.code} role="swimmer" profile={profile} assistantEnabled={aiEnabled && profile?.assistantEnabled !== false} talksEnabled={talksEnabled} planningEnabled={planningEnabled} onPlanning={() => setScreen('planning')} onCompetitions={() => setScreen('competition-entries')} onCommunity={() => setScreen('community')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onHelp={() => setScreen('faq')} onLegal={() => setScreen('legal')} onProfile={() => setScreen('profile')} onGame={() => setScreen('game')} onLogout={logout}>
       {screen === 'game' && <Simpaus code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'vanda' && <Vandningsmastaren code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'swimgames' && <Swimgames code={auth.code} onBack={() => setScreen('home')} />}
@@ -255,7 +254,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => { setCommunityView('group'); setScreen('community') }} onCommunityChat={() => { setCommunityView('chat'); setScreen('community') }} onGoals={() => setScreen('goals')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} />
@@ -298,7 +297,8 @@ function App() {
         />
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} tomorrowWorkout={tomorrowWorkout} onDone={() => setScreen('home')} />}
-      {screen === 'community' && <Community profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={communityView} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
+      {screen === 'community' && <Community profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
+      {screen === 'coach-info' && <CoachInfoPage code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onProfileChange={setProfile} onBack={() => setScreen('home')} onProfileLogout={async () => {
@@ -871,9 +871,11 @@ function OpenChatCard({ code, onOpen }) {
 
 function CoachLetterBadge({ code, onOpen }) {
   const [hasMessage, setHasMessage] = useState(false)
+  const [opened, setOpened] = useState(() => { try { return localStorage.getItem(`simkoll-coach-info-opened-${code}`) === '1' } catch { return false } })
   useEffect(() => { let mounted = true; apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { if (mounted) setHasMessage((data.openChat?.messages || []).some((item) => item.senderRole === 'coach')) }).catch(() => {}); return () => { mounted = false } }, [code])
   if (!hasMessage) return null
-  return <button type="button" className="coach-letter-badge" onClick={onOpen} aria-label="Öppna info från tränarna" title="Info från tränarna"><span className="coach-letter-envelope" aria-hidden="true">✉️</span></button>
+  const open = () => { setOpened(true); try { localStorage.setItem(`simkoll-coach-info-opened-${code}`, '1') } catch {} onOpen() }
+  return <button type="button" className={`coach-letter-badge${opened ? ' opened' : ''}`} onClick={open} aria-label="Öppna info från tränarna" title="Info från tränarna"><span className="coach-letter-envelope" aria-hidden="true">{opened ? '📨' : '✉️'}</span></button>
 }
 
 const CHAT_EMOJIS = ['🏊', '💙', '💚', '💛', '❤️', '💪', '👏', '🙌', '😊', '🤩', '🔥', '🌊']
@@ -1497,6 +1499,10 @@ const GROUP_PEP_OPTIONS = [
   ['group_fun', 'Kul att simma med er! 😊'], ['custom', 'Skriv eget gruppmeddelande…'],
 ]
 
+function CoachInfoPage({ code, onBack }) {
+  return <main className="page-content coach-info-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Från tränarna</p><h1>Info från tränarna</h1><p>Viktiga meddelanden och pepp från tränarna, samlat på ett ställe.</p></div></div><OpenChatPanel code={code} /></main>
+}
+
 function Community({ profile, code, points, customPepEnabled = true, openChatEnabled = false, initialView = 'group', onBack, onPointsChange }) {
   const [items, setItems] = useState([])
   const [privateKudos, setPrivateKudos] = useState([])
@@ -1542,7 +1548,7 @@ function Community({ profile, code, points, customPepEnabled = true, openChatEna
 
   return <div className="community-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="community-layout">
     <section className="feed-column"><div className="community-heading"><div><p className="eyebrow">Sundsvalls Simsällskap</p><h1>Peppflödet</h1></div>{points?.current && <span>{points.current.emoji} {points.total} p</span>}</div>
-      <nav className="feed-tabs"><button className={feedView === 'group' ? 'active' : ''} onClick={() => setFeedView('group')}>Öppna kanalen</button>{openChat.enabled && <button className={feedView === 'chat' ? 'active' : ''} onClick={() => setFeedView('chat')}>Info från tränarna 💬</button>}<button className={feedView === 'private' ? 'active' : ''} onClick={() => setFeedView('private')}>Min privata pepp</button></nav>
+      <nav className="feed-tabs"><button className={feedView === 'group' ? 'active' : ''} onClick={() => setFeedView('group')}>Öppna kanalen</button><button className={feedView === 'private' ? 'active' : ''} onClick={() => setFeedView('private')}>Min privata pepp</button></nav>
       {loading ? <p className="empty">Hämtar flödet…</p> : feedView === 'chat' ? <section className="open-chat-panel" style={openChat.backgroundImage ? { backgroundImage: `linear-gradient(rgba(4,16,65,.78),rgba(4,16,65,.78)),url(${openChat.backgroundImage})` } : undefined}><div className="open-chat-messages">{openChat.messages?.length ? openChat.messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || (item.senderRole === 'coach' ? 'Tränare' : 'Simmare')}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div><form className="open-chat-compose" onSubmit={sendOpenChat}><textarea value={chatContent} maxLength={1000} required placeholder="Skriv till gruppen…" onChange={(event) => setChatContent(event.target.value)} /><button className="primary-button">Skicka 💬</button>{chatStatus && <small>{chatStatus}</small>}</form></section> : feedView === 'group' ? (items.length ? <div className="feed-list">{items.map((item) => item.type === 'coach' ? <article className="feed-item coach-post" key={`post-${item.id}`}><span>📣</span><div><strong>Tränarna</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article> : <article className="feed-item kudos-post" key={`group-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.displayName} <b>→</b> hela gruppen</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Den öppna kanalen är tom än så länge.</p>) : (privateKudos.length ? <div className="feed-list">{privateKudos.map((item) => <article className="feed-item private-post" key={`private-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.id === profile.id ? `Du → ${item.recipient.emoji} ${item.recipient.displayName}` : `${item.sender.displayName} → dig`}</strong><p>{item.content}</p><small>🔒 Privat · {formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Du har ingen privat pepp ännu.</p>)}
       {feedView === 'private' && messages.length > 0 && <section className="private-messages"><p className="eyebrow">Privata meddelanden</p>{messages.map((item) => <article key={item.id}><span>✉️</span><div><strong>{item.fromCoach ? 'Tränarna → dig' : 'Du → tränarna'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</section>}
     </section>

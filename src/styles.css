@@ -86,6 +86,7 @@ button { cursor: pointer; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
 .coach-letter-badge { position: absolute; z-index: 3; top: 22px; right: 24px; display: flex; align-items: center; gap: 10px; max-width: min(330px, 48%); padding: 10px 13px; border: 1px solid rgba(255,237,165,.65); border-radius: 16px; background: linear-gradient(135deg, #ffe98a, #ffc857); color: #4c3510; text-align: left; box-shadow: 0 8px 20px rgba(15,24,45,.22); animation: coach-letter-bob 2.8s ease-in-out infinite; }
 .coach-letter-badge { width: 50px; height: 50px; padding: 0; justify-content: center; border-radius: 16px; }
+.coach-letter-badge.opened { animation: none; opacity: .88; }
 .coach-letter-badge > span:nth-child(2), .coach-letter-badge > b { display: none; }
 .coach-letter-badge:hover { transform: translateY(-2px) rotate(-1deg); }
 .coach-letter-envelope { font-size: 27px; filter: drop-shadow(0 3px 3px rgba(112,73,8,.2)); }
@@ -121,6 +122,9 @@ button { cursor: pointer; }
 @keyframes race-day-lines { from { background-position: 0 0; } to { background-position: 160px 80px; } }
 @keyframes race-day-bg { from { background-position: 0% 45%; } to { background-position: 100% 55%; } }
 @media (max-width: 640px) { .race-day-badge { top: 17px; right: 17px; font-size: 10px; padding: 7px 10px; } .coach-letter-badge { top: 16px; right: 16px; width: 46px; height: 46px; max-width: none; } }
+.coach-info-page { max-width: 980px; margin: 0 auto; }
+.coach-info-page .period-heading { margin: 1.25rem 0; }
+.coach-info-page .open-chat-panel { min-height: 28rem; }
 .mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
 .home.theme-halloween { background: radial-gradient(circle at 8% 18%, rgba(255,176,84,.12), transparent 23%), #fff8ef; }
 .home.theme-halloween .mood-hero { background: radial-gradient(circle at 84% 16%, rgba(255,186,76,.45), transparent 25%), radial-gradient(circle at 18% 90%, rgba(161,83,192,.24), transparent 30%), linear-gradient(120deg, #21152d 0%, #542640 52%, #bd612c 100%); border: 1px solid rgba(255,183,93,.24); box-shadow: 0 16px 38px rgba(66,34,79,.22), inset 0 1px 0 rgba(255,255,255,.1); }
