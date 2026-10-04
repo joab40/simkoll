@@ -2707,10 +2707,13 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     rawActivities.forEach((item) => {
       const groups = [...new Set((item.targetGroups || []).map(planningGroupKey).filter(Boolean))].sort().join(',')
       const baseKey = [item.date || key, item.activityType || '', item.distanceMeters || '', item.durationMinutes || '', groups].join('|')
-      const activityKey = `${baseKey}|${item.timeOfDay || ''}`
+      // SportAdmin can have a morning and an afternoon event with identical
+      // group metadata. Their clock time is therefore part of the identity;
+      // otherwise the later row is treated as a duplicate and disappears.
+      const activityKey = `${baseKey}|${item.activityType === 'sportadmin' ? (item.time || '') : ''}|${item.timeOfDay || ''}`
       // An unspecified time is a wildcard for duplicate cleanup, but two
       // explicit sessions (morning vs afternoon) must remain separate.
-      const previousIndex = duplicateKeys.get(activityKey) ?? duplicateKeys.get(`${baseKey}|`) ?? [...duplicateKeys.entries()].find(([candidate]) => candidate.startsWith(`${baseKey}|`) && (!candidate.split('|').pop() || !item.timeOfDay))?.[1]
+      const previousIndex = item.activityType === 'sportadmin' ? duplicateKeys.get(activityKey) : duplicateKeys.get(activityKey) ?? duplicateKeys.get(`${baseKey}||`) ?? [...duplicateKeys.entries()].find(([candidate]) => candidate.startsWith(`${baseKey}|`) && (!candidate.split('|').pop() || !item.timeOfDay))?.[1]
       if (previousIndex == null) { duplicateKeys.set(activityKey, deduplicated.length); deduplicated.push(item); return }
       const previous = deduplicated[previousIndex]
       const preferred = activityRank(item) > activityRank(previous) ? item : previous
