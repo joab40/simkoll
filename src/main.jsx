@@ -259,10 +259,8 @@ function App() {
       {screen === 'checkin' && (
         <CheckIn
           hasProfile={Boolean(profile)}
-          // Ett tävlingssvar har också typen "before", men ska inte följas upp
-          // med träningsfrågan. Tävlingscheck-in innehåller fartkänsla medan
-          // vanlig "ska träna" inte gör det.
-          followUp={(() => { const latest = responses.filter((item) => dateKey(responseDate(item)) === todayKey()).slice().sort((a, b) => responseDate(b) - responseDate(a))[0]; return latest?.type === 'before' && latest?.speedFeeling == null })()}
+          followUp={(() => { const today = responses.filter((item) => dateKey(responseDate(item)) === todayKey()); const raceBefore = today.some((item) => item.competition === true && item.type === 'before'); const raceAfter = today.some((item) => item.competition === true && item.type === 'after'); const latest = today.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]; return latest?.type === 'before' && latest?.speedFeeling == null && !(raceBefore && !raceAfter) })()}
+          raceFollowUp={(() => { const today = responses.filter((item) => dateKey(responseDate(item)) === todayKey()); return today.some((item) => item.competition === true && item.type === 'before') && !today.some((item) => item.competition === true && item.type === 'after') })()}
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
@@ -794,7 +792,10 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
-  const followUp = latestTodayResponse?.type === 'before' && latestTodayResponse?.speedFeeling == null
+  const raceBeforeToday = todayResponses.some((response) => response.competition === true && response.type === 'before')
+  const raceAfterToday = todayResponses.some((response) => response.competition === true && response.type === 'after')
+  const raceFollowUp = raceBeforeToday && !raceAfterToday
+  const followUp = latestTodayResponse?.type === 'before' && latestTodayResponse?.speedFeeling == null && !raceFollowUp
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
   // already present in the UI so a just-submitted check-in is shown instantly.
@@ -832,7 +833,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
 
       {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} />}
 
-      {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
+      {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunity} />}
@@ -843,7 +844,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard games={availableGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
-      {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
+      {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} raceFollowUp={raceFollowUp} />}
     </div>
   )
 }
@@ -907,8 +908,9 @@ function NotificationCard({ profile, notifications, onChange, onCommunity, onGoa
   return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => dismiss(item)}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => unread.forEach(dismiss)}>Markera alla som lästa</button>}</section>
 }
 
-function StartCard({ profile, onStart, followUp = false }) {
-  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>{followUp ? 'Hur gick simträningen?' : 'Hur är läget?'}</h2><p>{followUp ? 'Berätta kort hur passet kändes efteråt.' : 'Det tar mindre än 20 sekunder.'}</p></div><button className="primary-button" onClick={onStart}>{followUp ? 'Svara efter passet' : 'Checka in'} <span>→</span></button></section>
+function StartCard({ profile, onStart, followUp = false, raceFollowUp = false }) {
+  const followUpTitle = raceFollowUp ? 'Hur gick simtävlingen?' : 'Hur gick simträningen?'
+  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>{followUp || raceFollowUp ? followUpTitle : 'Hur är läget?'}</h2><p>{raceFollowUp ? 'Berätta kort hur tävlingen gick.' : followUp ? 'Berätta kort hur passet kändes efteråt.' : 'Det tar mindre än 20 sekunder.'}</p></div><button className="primary-button" onClick={onStart}>{followUp || raceFollowUp ? 'Svara efteråt' : 'Checka in'} <span>→</span></button></section>
 }
 
 function GameCard({ games = GAME_CATALOG, onOpen, onVanda, onSwimgames, onAljakten, onBikeRun, onTwenty48, onAllTime }) {
@@ -1633,9 +1635,9 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
   )
 }
 
-function CheckIn({ hasProfile, competitionToday, followUp = false, onBack, onSubmit }) {
+function CheckIn({ hasProfile, competitionToday, followUp = false, raceFollowUp = false, onBack, onSubmit }) {
   const [step, setStep] = useState(0)
-  const [form, setForm] = useState(() => followUp ? { type: 'after' } : {})
+  const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -1664,7 +1666,7 @@ function CheckIn({ hasProfile, competitionToday, followUp = false, onBack, onSub
   if (step === 0) {
     const showCompetitionChoice = competitionToday && hasProfile && competitionDecision === null
     content = (
-      <Question title={showCompetitionChoice ? 'Ska du tävla idag?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
+      <Question title={showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
         <div className="choice-stack">
           {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm((current) => ({ ...current, competition: true, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm((current) => ({ ...current, competition: true, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.map((type) => (
               <button key={type.value} className={`choice-card${followUp && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && (type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before')); setForm((current) => ({ ...current, type: type.value, registerTraining: countsAsAttendance, trainingSlot: type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before') ? 'afternoon_swim' : undefined })); next() }}>

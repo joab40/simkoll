@@ -33,6 +33,7 @@ function toDatabase(response, profileId) {
     comment: response.comment?.trim().slice(0, 300) || null,
     profile_id: profileId || null,
     race_concern: response.raceConcern || null,
+    competition: response.competition === true,
   }
 }
 
@@ -54,6 +55,7 @@ function fromDatabase(response, includeDetails) {
     comment: response.comment || '',
     profileId: response.profile_id || null,
     raceConcern: response.race_concern || null,
+    competition: response.competition === true,
   }
 }
 
