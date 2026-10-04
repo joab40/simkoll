@@ -261,6 +261,14 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error(`Assignment failed: ${result.status}`)
       return sendJson(response, 201, { ok: true })
     }
+    if (action === 'update-program') {
+      const programId = String(request.body.programId || ''), title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim(), content = String(request.body.content || '').trim()
+      if (!programId || !title || title.length > 100 || !description || description.length > 1000 || !content || content.length > 5000) return sendJson(response, 400, { error: 'Kontrollera programmets namn, beskrivning och innehåll.' })
+      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ title, description, content, updated_at: new Date().toISOString() }) })
+      if (!result.ok) throw new Error(`Program update failed: ${result.status}`)
+      const [program] = await result.json()
+      return sendJson(response, 200, { program: mapProgram(program) })
+    }
     if (action === 'program-goal') {
       const points = Number(request.body.rewardPoints), title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim()
       if (![5, 10, 20].includes(points) || !title || !description) return sendJson(response, 400, { error: 'Kontrollera programmålet.' })
