@@ -105,6 +105,7 @@ const POINT_RULES = [
   { activity: 'Veckoplanering', points: 2, limit: 'Minst tre planerade träningsdagar · en gång per vecka' },
   { activity: 'Ny artefakt', points: 5, limit: 'En gång per unik artefakt' },
   { activity: 'Personbästa på tävling', points: 3, limit: 'En gång per simmare och tävling, oavsett antal nya personbästa' },
+  { activity: 'Öppna tränarinfo', points: 1, limit: 'En gång per nytt tränarmeddelande' },
 ]
 
 export default async function handler(request, response) {
@@ -158,6 +159,14 @@ export default async function handler(request, response) {
         for (const [eventType, earned, sourceKey] of awards) if (earned && sourceKey) await awardPoints(profile.id, eventType, 1, sourceKey)
         const streak = Number(request.body?.streak)
         if (Number.isInteger(streak) && streak > 0) for (let milestone = 10; milestone <= streak; milestone += 10) await awardPoints(profile.id, 'streak_milestone', 10, `streak:${milestone}`)
+        return sendJson(response, 200, { ok: true })
+      }
+      if (role === 'swimmer' && action === 'coach-info-opened') {
+        const profile = await getSessionProfile(request)
+        const sourceKey = String(request.body?.sourceKey || '').slice(0, 120)
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil.' })
+        if (!sourceKey) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
+        await awardPoints(profile.id, 'coach_info_opened', 1, sourceKey)
         return sendJson(response, 200, { ok: true })
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
@@ -310,7 +319,7 @@ export default async function handler(request, response) {
     const total = events.reduce((sum, event) => sum + event.points, 0)
     const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
     const next = levels.find((level) => level.min_points > total) || null
-    const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥' }
+    const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥', coach_info_opened: 'Du läste info från tränarna! ✉️' }
     const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ id: event.id, message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
       total, current: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null,

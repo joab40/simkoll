@@ -871,10 +871,11 @@ function OpenChatCard({ code, onOpen }) {
 
 function CoachLetterBadge({ code, onOpen }) {
   const [hasMessage, setHasMessage] = useState(false)
+  const [messageKey, setMessageKey] = useState('')
   const [opened, setOpened] = useState(() => { try { return localStorage.getItem(`simkoll-coach-info-opened-${code}`) === '1' } catch { return false } })
-  useEffect(() => { let mounted = true; apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { if (mounted) setHasMessage((data.openChat?.messages || []).some((item) => item.senderRole === 'coach')) }).catch(() => {}); return () => { mounted = false } }, [code])
+  useEffect(() => { let mounted = true; apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { if (!mounted) return; const coachMessages = (data.openChat?.messages || []).filter((item) => item.senderRole === 'coach'); setHasMessage(coachMessages.length > 0); setMessageKey(coachMessages.at(-1)?.id || '') }).catch(() => {}); return () => { mounted = false } }, [code])
   if (!hasMessage) return null
-  const open = () => { setOpened(true); try { localStorage.setItem(`simkoll-coach-info-opened-${code}`, '1') } catch {} onOpen() }
+  const open = () => { if (!opened && messageKey) void apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-info-opened', sourceKey: messageKey }) }).catch(() => {}); setOpened(true); try { localStorage.setItem(`simkoll-coach-info-opened-${code}`, '1') } catch {} onOpen() }
   return <button type="button" className={`coach-letter-badge${opened ? ' opened' : ''}`} onClick={open} aria-label={opened ? 'Info från tränarna, läst' : 'Öppna info från tränarna'} title={opened ? 'Info från tränarna · Läst' : 'Info från tränarna'}><span className="coach-letter-envelope" aria-hidden="true">{opened ? '📨' : '✉️'}</span>{opened && <span className="coach-letter-read-mark" aria-hidden="true">✓</span>}</button>
 }
 
@@ -3268,7 +3269,7 @@ function CoachGoals({ code, profiles }) {
 function OpenChatPanel({ code, coach = false }) {
   const [chat, setChat] = useState({ enabled: false, backgroundImage: '', messages: [] }); const [content, setContent] = useState(''); const [status, setStatus] = useState('')
   const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => setChat(data.openChat || { enabled: false, messages: [] })).catch((error) => setStatus(error.message))
-  useEffect(() => { load() }, [code])
+  useEffect(() => { load(); if (!coach) return undefined; const refresh = window.setInterval(load, 15000); return () => window.clearInterval(refresh) }, [code, coach])
   const send = async (event) => { event.preventDefault(); if (!content.trim()) return; setStatus('Skickar…'); try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content }) }); setContent(''); setStatus(''); await load() } catch (error) { setStatus(error.message) } }
   const remove = async (id) => { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id }) }); await load() }
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
