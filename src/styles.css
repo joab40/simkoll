@@ -1951,25 +1951,6 @@ button { cursor: pointer; }
 .bike-run-shell:fullscreen .bike-run-canvas { width: 100%; height: 100%; }
 .bike-run-shell.bike-run-immersive { position: fixed; z-index: 1000; inset: 0; width: 100vw; height: 100vh; border: 0; border-radius: 0; }
 .bike-run-shell.bike-run-immersive .bike-run-canvas { width: 100vw; height: 100vh; }
-.preppe-runner-shell { position: relative; overflow: hidden; min-height: 390px; border: 1px solid #b6dfe0; border-radius: 24px; background: linear-gradient(180deg, #bfeef1 0%, #e5f9e7 66%, #ffdca8 66%, #f6b96c 100%); box-shadow: 0 18px 38px rgba(31, 75, 83, .18); cursor: pointer; touch-action: manipulation; }
-.preppe-runner-shell:fullscreen, .preppe-runner-shell.preppe-runner-immersive { width: 100vw; height: 100vh; min-height: 100vh; border: 0; border-radius: 0; }
-.preppe-runner-fullscreen { position: absolute; z-index: 5; top: 14px; right: 14px; border: 1px solid rgba(21, 59, 77, .2); border-radius: 999px; padding: 9px 13px; background: rgba(255, 255, 255, .88); color: #153b4d; font: inherit; font-size: .8rem; font-weight: 800; cursor: pointer; }
-.preppe-runner-hud { position: absolute; z-index: 3; top: 16px; left: 18px; display: flex; flex-wrap: wrap; gap: 8px; color: #16485a; font-weight: 800; }
-.preppe-runner-hud span { padding: 8px 11px; border-radius: 999px; background: rgba(255, 255, 255, .82); }
-.preppe-runner-sky { position: absolute; inset: 62px 0 auto; height: 120px; pointer-events: none; }
-.runner-cloud { position: absolute; font-size: 40px; opacity: .6; animation: runner-cloud-drift 12s linear infinite; }
-.cloud-one { left: 12%; top: 10px; }
-.cloud-two { left: 68%; top: 58px; animation-delay: -6s; transform: scale(.72); }
-@keyframes runner-cloud-drift { from { transform: translateX(-10px); } to { transform: translateX(28px); } }
-.preppe-runner-track { position: absolute; inset: 62px 0 0; overflow: hidden; }
-.runner-ground-line { position: absolute; inset: auto 0 18px; height: 5px; background: #d58d4e; box-shadow: 0 5px 0 rgba(160, 90, 42, .18); }
-.runner-preppe, .runner-obstacle, .runner-star { position: absolute; z-index: 2; display: grid; place-items: center; transform: translateX(-50%); user-select: none; }
-.runner-preppe { left: 18%; width: 58px; height: 58px; border-radius: 22px 26px 20px 28px; background: #ffd34d; font-size: 36px; filter: drop-shadow(0 7px 3px rgba(94, 66, 34, .2)); transition: bottom .03s linear; }
-.runner-obstacle { bottom: 18px; width: 42px; height: 48px; border-radius: 17px 17px 9px 9px; background: rgba(108, 75, 51, .92); font-size: 29px; box-shadow: inset 0 -6px rgba(62, 48, 38, .15), 0 6px 0 rgba(111, 67, 35, .2); }
-.runner-star { width: 34px; height: 34px; font-size: 27px; filter: drop-shadow(0 3px 3px rgba(199, 128, 26, .35)); animation: runner-star-bob .8s ease-in-out infinite alternate; }
-@keyframes runner-star-bob { from { margin-bottom: -3px; } to { margin-bottom: 5px; } }
-.preppe-runner-jump { width: 100%; margin-top: 14px; }
-@media (max-width: 560px) { .preppe-runner-shell { min-height: 340px; } .preppe-runner-hud { left: 12px; top: 13px; gap: 5px; font-size: .82rem; } .preppe-runner-hud span { padding: 7px 9px; } .runner-preppe { width: 50px; height: 50px; font-size: 31px; } }
 .twenty48-shell { position: relative; max-width: 520px; padding: 18px; border-radius: 22px; background: #a98168; box-shadow: 0 16px 34px rgba(88, 56, 39, .18); }
 .twenty48-shell:fullscreen { display: grid; place-items: center; width: 100vw; height: 100vh; max-width: none; border-radius: 0; }
 .zigzag-shell { position: relative; overflow: hidden; min-height: 390px; border: 1px solid #c6e5e5; border-radius: 24px; background: linear-gradient(160deg, #dff7f2, #b7e4ef 55%, #f9d9a8); box-shadow: 0 16px 34px rgba(31, 75, 83, .16); cursor: pointer; }
