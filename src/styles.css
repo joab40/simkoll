@@ -1168,6 +1168,27 @@ button { cursor: pointer; }
 .assigned-programs header small, .coach-program-list header small { color: var(--muted); }
 .assigned-programs pre, .coach-program-list pre { white-space: pre-wrap; font: inherit; line-height: 1.55; background: #eef5f3; padding: 15px; border-radius: 12px; }
 .assigned-programs > article > button { border: 0; border-radius: 10px; padding: 11px 14px; background: var(--teal); color: white; font-weight: 700; }
+.strength-program-runner { margin-top: 18px; background: #f5faf8; border: 1px solid #d9e9e4; border-radius: 16px; padding: 16px; }
+.strength-runner-intro { margin: 0 0 12px; color: var(--muted); }
+.strength-pass-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.strength-pass-picker button { border: 1px solid #cfe1dc; border-radius: 12px; background: white; color: var(--ink); padding: 11px 9px; text-align: left; font-weight: 800; cursor: pointer; }
+.strength-pass-picker button small { display: block; color: var(--muted); font-weight: 500; line-height: 1.25; margin-top: 4px; }
+.strength-pass-picker button.selected { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(15, 104, 103, .12); }
+.strength-pass-picker button.completed { background: #e4eee8; color: #54716b; }
+.strength-pass-form { margin-top: 15px; border-top: 1px solid #d9e9e4; padding-top: 15px; }
+.strength-pass-form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.strength-pass-form-heading h3 { margin: 2px 0 0; }
+.strength-weight-hint { color: var(--muted); font-size: .9rem; }
+.strength-exercise-list { display: grid; gap: 8px; }
+.strength-exercise-list label { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: white; border: 1px solid #e0ebe8; border-radius: 10px; padding: 10px 11px; }
+.strength-exercise-list label span { display: grid; gap: 2px; }
+.strength-exercise-list small { color: var(--muted); }
+.strength-exercise-list input { width: 120px; border: 1px solid #cfe1dc; border-radius: 8px; padding: 9px; }
+.strength-notes-field { display: grid; gap: 5px; margin: 12px 0; }
+.strength-notes-field textarea { min-height: 70px; border: 1px solid #cfe1dc; border-radius: 9px; padding: 9px; resize: vertical; }
+.strength-full-content { margin-top: 14px; }
+.strength-full-content pre { margin: 8px 0 0; max-height: 260px; overflow: auto; }
+@media (max-width: 640px) { .strength-pass-picker { grid-template-columns: 1fr; } .strength-exercise-list label { align-items: flex-start; } .strength-exercise-list input { width: 92px; } }
 .program-goal { background: #f4f7e7; border-radius: 12px; padding: 14px; margin-top: 13px; }
 .program-goal p { margin: 6px 0; }
 .program-goal button { display: block; margin-top: 10px; border: 0; border-radius: 8px; padding: 9px 11px; background: var(--lime); font-weight: 700; }

@@ -1503,6 +1503,52 @@ function formatFeedDate(value) {
 
 const GOAL_STATUS = { planned: 'Planerat', active: 'Pågår', paused: 'Pausat', complete: 'Klart' }
 
+const strengthPassNames = (program, number) => {
+  const title = program.title || ''
+  const names = title.includes('Frisim') ? ['Maxstyrka & asymmetrisk dragkraft', 'Unilateral balans & axelhälsa', 'Bålrotation & uthållig effekt']
+    : title.includes('Bröstsim') ? ['Höftextension & presskraft', 'Ljumskskydd & prehab', 'Bålkedja & explosiv glid']
+      : title.includes('Ryggsim') ? ['Posterior kedja & ryggstyrka', 'Axelhälsa & hållning', 'Armåterföring & bålkontroll']
+        : ['Symmetrisk maxkraft & delfinkick', 'Axelhälsa & ländryggsprehab', 'Explosiv effekt & bålkedja']
+  return names[number - 1] || `Styrkepass ${number}`
+}
+
+function strengthPasses(program) {
+  const sections = String(program.content || '').split(/\n={10,}\n/)
+  const isWeekly = /Veckoprogram/i.test(program.title || '')
+  return (isWeekly ? sections.slice(0, 3) : [program.content]).map((content, index) => ({ passNumber: index + 1, title: strengthPassNames(program, index + 1), content }))
+}
+
+function strengthExercises(content) {
+  return String(content || '').split('\n').map((line) => line.trim()).filter((line) => /^\d+\.\s+/.test(line)).map((line) => {
+    const match = line.match(/^\d+\.\s+(.+?)(?:\s+—\s+|\s+-\s+)(.*)$/)
+    return { name: (match ? match[1] : line.replace(/^\d+\.\s+/, '')).trim(), dosage: match ? match[2].split('·')[0].trim() : '' }
+  })
+}
+
+function StrengthProgramRunner({ assignment, logs, code, onSaved }) {
+  const passes = strengthPasses(assignment.program)
+  const [selectedPass, setSelectedPass] = useState(null)
+  const [weights, setWeights] = useState({})
+  const [notes, setNotes] = useState('')
+  const [status, setStatus] = useState('')
+  const thisWeek = dateKey(weekStart())
+  const today = todayKey()
+  const completed = (passNumber) => logs.some((log) => log.assignmentId === assignment.id && log.passNumber === passNumber && log.sessionDate >= thisWeek && log.sessionDate <= today)
+  const openPass = (pass) => {
+    const previous = logs.find((log) => log.assignmentId === assignment.id && log.passNumber === pass.passNumber && log.sessionDate >= thisWeek && log.sessionDate <= today)
+    setSelectedPass(pass); setWeights(previous?.weights || {}); setNotes(previous?.notes || ''); setStatus('')
+  }
+  const save = async (event) => {
+    event.preventDefault(); if (!selectedPass) return
+    setStatus('Sparar passet…')
+    try {
+      await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log-strength-pass', assignmentId: assignment.id, passNumber: selectedPass.passNumber, sessionDate: today, weights, notes }) })
+      setStatus('Passet är registrerat ✓'); await onSaved()
+    } catch (error) { setStatus(error.message) }
+  }
+  return <div className="strength-program-runner"><p className="strength-runner-intro">Välj veckans styrkepass. När ett pass är registrerat markeras det som klart till nästa vecka.</p><div className="strength-pass-picker">{passes.map((pass) => <button type="button" key={pass.passNumber} className={completed(pass.passNumber) ? 'completed' : selectedPass?.passNumber === pass.passNumber ? 'selected' : ''} onClick={() => openPass(pass)}>{completed(pass.passNumber) ? '✓ ' : ''}Pass {pass.passNumber}<small>{pass.title}</small></button>)}</div>{selectedPass && <form className="strength-pass-form" onSubmit={save}><div className="strength-pass-form-heading"><div><p className="eyebrow">Pass {selectedPass.passNumber}</p><h3>{selectedPass.title}</h3></div><button type="button" className="secondary-button" onClick={() => setSelectedPass(null)}>Stäng</button></div><p className="strength-weight-hint">Fyll i den vikt du använde. Skriv till exempel <em>40 kg</em>, <em>kroppsvikt</em> eller <em>assisterad 25 kg</em>.</p><div className="strength-exercise-list">{strengthExercises(selectedPass.content).map((exercise) => <label key={exercise.name}><span><strong>{exercise.name}</strong><small>{exercise.dosage}</small></span><input value={weights[exercise.name] || ''} placeholder="Vikt" onChange={(event) => setWeights((current) => ({ ...current, [exercise.name]: event.target.value }))} /></label>)}</div><label className="strength-notes-field">Kommentar (valfritt)<textarea maxLength="1000" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Hur kändes passet?" /></label><button className="primary-button">Spara pass och vikter ✓</button>{status && <small className="coach-note-status">{status}</small>}<details className="strength-full-content"><summary>Visa hela passet</summary><pre>{selectedPass.content}</pre></details></form>}</div>
+}
+
 function MyGoals({ code, onTrainingChange, onBack }) {
   const [goals, setGoals] = useState([])
   const [training, setTraining] = useState(null)
@@ -1534,7 +1580,7 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   const weekCount = currentWeekSwims(training)
   return <div className="goals-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="goals-content"><p className="eyebrow">Ditt ansvar · din utveckling</p><h1>Min träning och mina mål</h1>{loading ? <p className="empty">Hämtar mål…</p> : <>
     <section className="season-goal-section"><div className="section-title"><div><p className="eyebrow">Simmål per vecka</p><h2>Mitt terminsmål</h2></div>{activeSeason && <span>{weekCount} / {activeSeason.target} den här veckan</span>}</div>{activeSeason ? <div className="season-active"><div className="big-session-count"><strong>{weekCount}</strong><span>av {activeSeason.target} simpass</span></div><div><h3>{activeSeason.title}</h3><p>Du har själv valt {activeSeason.target} pass per vecka.</p><div className="session-dots">{Array.from({ length: activeSeason.target }, (_, index) => <i className={index < weekCount ? 'done' : ''} key={index} />)}</div><small>{activeSeason.startDate} – {activeSeason.endDate}</small></div></div> : <form className="season-form" onSubmit={saveSeasonGoal}><label>Vad kallar du målet?<input required value={seasonForm.title} onChange={(event) => setSeasonForm({ ...seasonForm, title: event.target.value })} /></label><label>Antal simpass per vecka<input type="number" min="1" max="14" required value={seasonForm.target} onChange={(event) => setSeasonForm({ ...seasonForm, target: event.target.value })} /></label><label>Från<input type="date" required value={seasonForm.startDate} onChange={(event) => setSeasonForm({ ...seasonForm, startDate: event.target.value })} /></label><label>Till<input type="date" required value={seasonForm.endDate} onChange={(event) => setSeasonForm({ ...seasonForm, endDate: event.target.value })} /></label><label className="wide">Min tanke efter utvecklingssamtalet<textarea maxLength="1000" value={seasonForm.reflection} onChange={(event) => setSeasonForm({ ...seasonForm, reflection: event.target.value })} /></label><button className="primary-button">Spara mitt mål →</button></form>}</section>
-    <section className="assigned-programs"><p className="eyebrow">Från tränarna</p><h2>Mina program</h2>{training?.assignments?.length ? training.assignments.map((assignment) => { const programGoals = training.programGoals.filter((goal) => goal.assignmentId === assignment.id); return <article key={assignment.id}><header><span>{assignment.program.type === 'strength' ? '🏋️' : '🤸'}</span><div><strong>{assignment.program.title}</strong><small>{assignment.program.type === 'strength' ? 'Styrketräning' : 'Landträning'}</small></div></header><p>{assignment.program.description}</p><pre>{assignment.program.content}</pre><button onClick={() => completeProgram(assignment)}>✓ Markera ett pass genomfört</button>{programGoals.map((goal) => <div className="program-goal" key={goal.id}><strong>🎯 {goal.title} · {goal.rewardPoints} poäng</strong><p>{goal.description}</p><span>{goal.status === 'approved' ? `Godkänt! ${goal.coachFeedback}` : goal.status === 'submitted' ? 'Väntar på tränaren' : goal.status === 'continue' ? `Fortsätt jobba · ${goal.coachFeedback}` : ''}</span>{['active', 'continue'].includes(goal.status) && <button onClick={() => submitProgramGoal(goal.id)}>Redo för godkännande →</button>}</div>)}</article> }) : <p className="empty">Inga styrke- eller landträningsprogram ännu.</p>}</section>
+    <section className="assigned-programs"><p className="eyebrow">Från tränarna</p><h2>Mina program</h2>{training?.assignments?.length ? training.assignments.map((assignment) => { const programGoals = training.programGoals.filter((goal) => goal.assignmentId === assignment.id); return <article key={assignment.id}><header><span>{assignment.program.type === 'strength' ? '🏋️' : '🤸'}</span><div><strong>{assignment.program.title}</strong><small>{assignment.program.type === 'strength' ? 'Styrketräning' : 'Landträning'}</small></div></header><p>{assignment.program.description}</p>{assignment.program.type === 'strength' ? <StrengthProgramRunner assignment={assignment} logs={training.strengthLogs || []} code={code} onSaved={load} /> : <><pre>{assignment.program.content}</pre><button onClick={() => completeProgram(assignment)}>✓ Markera ett pass genomfört</button></>}{programGoals.map((goal) => <div className="program-goal" key={goal.id}><strong>🎯 {goal.title} · {goal.rewardPoints} poäng</strong><p>{goal.description}</p><span>{goal.status === 'approved' ? `Godkänt! ${goal.coachFeedback}` : goal.status === 'submitted' ? 'Väntar på tränaren' : goal.status === 'continue' ? `Fortsätt jobba · ${goal.coachFeedback}` : ''}</span>{['active', 'continue'].includes(goal.status) && <button onClick={() => submitProgramGoal(goal.id)}>Redo för godkännande →</button>}</div>)}</article> }) : <p className="empty">Inga styrke- eller landträningsprogram ännu.</p>}</section>
     <section className="development-section"><p className="eyebrow">Privat mellan dig och tränarna</p><h2>Mina utvecklingsmål</h2>{goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Min reflektion'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Skriv en kort reflektion…" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button onClick={() => addReflection(goal.id)}>Skicka</button></div>}</article>)}</div> : <p className="empty">Inga utvecklingsmål ännu.</p>}</section>
   </>}</div></div>
 }
