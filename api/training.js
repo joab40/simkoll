@@ -3,6 +3,13 @@ import { awardArtifact, awardPoints, getSessionProfile, stockholmDate } from '..
 
 const mapProgram = (program) => ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active })
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
+const comparableStrengthValue = (value) => {
+  const text = String(value || '').toLocaleLowerCase('sv-SE').replace(',', '.')
+  const match = text.match(/(\d+(?:\.\d+)?)\s*(kg|kilo|reps?|sek|s)\b/)
+  if (!match) return null
+  const unit = /^kilo?$/.test(match[2]) ? 'kg' : /^rep/.test(match[2]) ? 'reps' : 'sek'
+  return { unit, value: Number(match[1]) }
+}
 
 async function loadTraining(profileId = null) {
   const profileFilter = profileId ? `&profile_id=eq.${profileId}` : ''
@@ -179,8 +186,18 @@ export default async function handler(request, response) {
         if (!assignment || assignment.profile_id !== profile.id) return sendJson(response, 403, { error: 'Programmet tillhör inte din profil.' })
         if (assignment.training_programs?.program_type !== 'strength' || !Number.isInteger(passNumber) || passNumber < 1 || passNumber > 3 || !/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) || sessionDate > stockholmDate()) return sendJson(response, 400, { error: 'Kontrollera passet och datumet.' })
         const safeWeights = Object.fromEntries(Object.entries(weights).slice(0, 40).map(([key, value]) => [String(key).slice(0, 120), String(value).trim().slice(0, 40)]).filter(([, value]) => value))
+        const previousResult = await supabaseRequest(`strength_program_logs?assignment_id=eq.${assignment.id}&pass_number=eq.${passNumber}&session_date=lt.${sessionDate}&select=session_date,weights&order=session_date.desc&limit=1`)
+        const previousLog = previousResult.ok ? (await previousResult.json())[0] : null
         const result = await supabaseRequest('strength_program_logs?on_conflict=assignment_id,pass_number,session_date', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ assignment_id: assignment.id, profile_id: profile.id, pass_number: passNumber, session_date: sessionDate, weights: safeWeights, notes: String(request.body.notes || '').trim().slice(0, 1000) || null, completed_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Strength log failed: ${result.status}`)
+        const improvements = Object.entries(safeWeights).map(([exercise, value]) => {
+          const before = comparableStrengthValue(previousLog?.weights?.[exercise]); const after = comparableStrengthValue(value)
+          return before && after && before.unit === after.unit && after.value > before.value ? { exercise, before: String(previousLog.weights[exercise]), after: String(value) } : null
+        }).filter(Boolean).slice(0, 6)
+        if (improvements.length) {
+          const details = encodeURIComponent(improvements.map((item) => `${item.exercise}|${item.before}|${item.after}`).join('~'))
+          await awardPoints(profile.id, 'strength_progress', 3, `strength_progress:${sessionDate}:${passNumber}:${details}`)
+        }
         const session = await supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ profile_id: profile.id, activity_type: 'strength', session_slot: 'strength', session_date: sessionDate, source: 'program' }) })
         if (!session.ok && session.status !== 409) throw new Error(`Strength session failed: ${session.status}`)
         return sendJson(response, 201, { ok: true, log: (await result.json())[0] || null })
