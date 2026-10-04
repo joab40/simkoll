@@ -833,6 +833,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
 
       {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
+      {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onGoals} />}
       {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunity} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
@@ -844,6 +845,12 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} />}
     </div>
   )
+}
+
+function StrengthProgramCard({ training, onOpen }) {
+  const assignment = training?.assignments?.find((item) => item.program?.type === 'strength')
+  if (!assignment) return null
+  return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt styrkeprogram 🏋️</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
 }
 
 function OpenChatCard({ code, onOpen }) {
