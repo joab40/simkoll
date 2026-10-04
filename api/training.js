@@ -11,7 +11,7 @@ async function loadTraining(profileId = null) {
     supabaseRequest(`cross_training_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
     supabaseRequest(`planned_training_sessions?select=*${profileFilter}&order=planned_date.asc&limit=1000`),
-    supabaseRequest(`program_assignments?select=*${profileFilter}`),
+    supabaseRequest(`program_assignments?select=*${profileFilter}&removed_at=is.null`),
     supabaseRequest('training_programs?select=*&order=created_at.desc'),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
     supabaseRequest(`responses?day_type=eq.after${profileId ? `&profile_id=eq.${profileId}` : ''}&select=profile_id,created_at&order=created_at.asc&limit=10000`),
@@ -55,12 +55,13 @@ async function loadTraining(profileId = null) {
     const workout = candidates[candidates.length - 1]
     swimMetrics.set(`${session.session_date}|${session.session_slot}`, { distanceMeters: Number(workout?.distance_meters || 0) || null, durationMinutes: Number(workout?.duration_minutes || 0) || null })
   })
+  const mappedPrograms = Object.values(programs).map((program) => ({ ...mapProgram(program), assignedCount: assignments.filter((item) => item.program_id === program.id).length }))
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
     sessions: sessionRows.map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at, ...(item.activity_type === 'swim' ? (swimMetrics.get(`${item.session_date}|${item.session_slot}`) || {}) : {}) })),
     plannedSessions: (await plannedResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, weekStart: item.week_start, date: item.planned_date, slot: item.session_slot })),
-    programs: Object.values(programs).map(mapProgram),
+    programs: mappedPrograms,
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     strengthLogs: strengthLogsResult.ok ? (await strengthLogsResult.json()).map((item) => ({ id: item.id, assignmentId: item.assignment_id, profileId: item.profile_id, passNumber: item.pass_number, sessionDate: item.session_date, weights: item.weights || {}, notes: item.notes || '', completedAt: item.completed_at })) : [],
     programGoals: (await programGoalsResult.json()).filter((item) => !profileId || allowedAssignments.has(item.assignment_id)).map((item) => ({ id: item.id, assignmentId: item.assignment_id, title: item.title, description: item.description, rewardPoints: item.reward_points, status: item.status, coachFeedback: item.coach_feedback || '', submittedAt: item.submitted_at, approvedAt: item.approved_at })),
@@ -276,6 +277,32 @@ export default async function handler(request, response) {
       const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ program_id: request.body.programId, profile_id: request.body.profileId }) })
       if (!result.ok) throw new Error(`Assignment failed: ${result.status}`)
       return sendJson(response, 201, { ok: true })
+    }
+    if (action === 'remove-assignment') {
+      const assignmentId = String(request.body.assignmentId || '')
+      if (!assignmentId) return sendJson(response, 400, { error: 'Tilldelningen saknas.' })
+      const result = await supabaseRequest(`program_assignments?id=eq.${encodeURIComponent(assignmentId)}`, { method: 'PATCH', body: JSON.stringify({ removed_at: new Date().toISOString() }) })
+      if (!result.ok) throw new Error(`Assignment removal failed: ${result.status}`)
+      return sendJson(response, 200, { ok: true })
+    }
+    if (action === 'archive-program') {
+      const programId = String(request.body.programId || '')
+      if (!programId) return sendJson(response, 400, { error: 'Programmet saknas.' })
+      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'PATCH', body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }) })
+      if (!result.ok) throw new Error(`Program archive failed: ${result.status}`)
+      return sendJson(response, 200, { ok: true })
+    }
+    if (action === 'delete-program') {
+      const programId = String(request.body.programId || '')
+      if (!programId) return sendJson(response, 400, { error: 'Programmet saknas.' })
+      const assignmentsResult = await supabaseRequest(`program_assignments?program_id=eq.${encodeURIComponent(programId)}&select=id&limit=1`)
+      if (!assignmentsResult.ok) throw new Error('Assignment lookup failed')
+      if ((await assignmentsResult.json()).length) return sendJson(response, 409, { error: 'Programmet används fortfarande av en eller flera simmare. Ta bort tilldelningarna först.' })
+      const logsResult = await supabaseRequest(`strength_program_logs?assignment_id=is.not.null&select=id,program_assignments!inner(program_id)&program_assignments.program_id=eq.${encodeURIComponent(programId)}&limit=1`)
+      if (logsResult.ok && (await logsResult.json()).length) return sendJson(response, 409, { error: 'Programmet har träningshistorik och kan inte raderas permanent. Arkivera det i stället.' })
+      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'DELETE' })
+      if (!result.ok) throw new Error(`Program deletion failed: ${result.status}`)
+      return sendJson(response, 200, { ok: true })
     }
     if (action === 'update-program') {
       const programId = String(request.body.programId || ''), title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim(), content = String(request.body.content || '').trim()

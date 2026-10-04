@@ -1203,6 +1203,13 @@ button { cursor: pointer; }
 .program-form { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 26px; }
 .program-form h3 { margin-top: 0; }
 .program-content-input { min-height: 180px !important; }
+.program-library-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+.strength-program-library-list article.archived { opacity: .65; }
+.strength-program-library-list em { color: var(--muted); font-size: .85em; font-style: normal; }
+.danger-button { border: 1px solid #e2bcbc; border-radius: 9px; padding: 8px 10px; background: #fff5f4; color: #9b4a48; font-weight: 700; cursor: pointer; }
+.assigned-strength-list { display: grid; gap: 7px; margin-top: 10px; }
+.assigned-strength-list > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #f2f7f5; border-radius: 9px; padding: 8px 10px; }
+.assigned-strength-list .danger-button { padding: 5px 8px; font-size: .82rem; }
 .program-form fieldset { border: 0; padding: 17px 0; }
 .program-form legend { font-size: 11px; font-weight: 700; margin-bottom: 8px; }
 .profile-checks { display: flex; flex-wrap: wrap; gap: 7px; }
