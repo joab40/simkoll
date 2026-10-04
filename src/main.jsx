@@ -2013,6 +2013,7 @@ function CoachProfileSettings({ code, groups, globalSettings = {}, onSaved }) {
 
 function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onClear }) {
   const [view, setView] = useState('today')
+  const [coachMessageCount, setCoachMessageCount] = useState(0)
   const [assistantOpen, setAssistantOpen] = useState(false)
   useEffect(() => { const open = () => setAssistantOpen(true); window.addEventListener('simkoll-assistant-open', open); return () => window.removeEventListener('simkoll-assistant-open', open) }, [])
   const [summaryDate, setSummaryDate] = useState(todayKey())
@@ -2026,6 +2027,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   const [talksGlobalEnabled, setTalksGlobalEnabled] = useState(true)
   const [navigationSettings, setNavigationSettings] = useState({ overview: {}, coach: {} })
   const [coachProfile, setCoachProfile] = useState(null)
+  useEffect(() => { const loadMessageCount = () => { apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { const privateIncoming = (data.messages || []).filter((item) => item.toCoach && !item.fromCoach).length; const swimmerQuestions = (data.openChat?.messages || []).filter((item) => item.senderRole === 'swimmer').length; setCoachMessageCount(privateIncoming + swimmerQuestions) }).catch(() => {}) }; loadMessageCount(); const timer = window.setInterval(loadMessageCount, 15000); return () => window.clearInterval(timer) }, [code])
   useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setNavigationSettings(data.settings || { overview: {}, coach: {} })).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/auth', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-profile' }) }).then((data) => { const account = data.account || {}; setCoachProfile(account); if (account.personal_settings_enabled && account.personal_settings) setNavigationSettings((current) => ({ ...current, ...account.personal_settings })); if (Array.isArray(account.managed_groups) && account.managed_groups.length) setSelectedGroups(account.managed_groups) }).catch(() => {}) }, [code])
@@ -2092,7 +2094,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
-            {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => { setView(item.key); if (item.key === 'competition') loadCompetitionResults() }}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}</button>)}
+            {orderedOverviewItems.filter((item) => overviewVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => { setView(item.key); if (item.key === 'competition') loadCompetitionResults() }}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}{item.key === 'community' && coachMessageCount > 0 && <b className="tab-count coach-message-count">{coachMessageCount}</b>}</button>)}
           </div></div>
           <details className="coach-tools-menu legacy-tools"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
             <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}><span className="desktop-tab-label">Grupptrend</span><span className="mobile-tab-label">Trend</span></button>

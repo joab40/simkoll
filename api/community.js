@@ -160,7 +160,14 @@ async function getCoachFeed() {
   })
   const hiddenIds = new Set(Array.isArray(visibility.hiddenIds) ? visibility.hiddenIds : [])
   const clearedAt = visibility.clearedAt ? new Date(visibility.clearedAt).getTime() : 0
-  return enrichedAutomatic.filter((item) => !hiddenIds.has(item.id) && (!clearedAt || new Date(item.createdAt).getTime() > clearedAt)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 150)
+  const seen = new Set()
+  return enrichedAutomatic.filter((item) => {
+    if (hiddenIds.has(item.id) || (clearedAt && new Date(item.createdAt).getTime() <= clearedAt)) return false
+    const key = `${item.eventType}|${item.profileId || 'group'}|${item.sourceKey || item.createdAt}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 150)
 }
 
 export default async function handler(request, response) {
