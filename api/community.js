@@ -125,9 +125,9 @@ async function messagesSentToday(table, profileId) {
   return (await result.json()).filter((item) => stockholmDay(item.created_at) === stockholmDay()).length
 }
 
-const coachFeedEventLabels = { personal_best: ['personal_best', '🏆 Nytt personbästa'], goal_complete: ['achievement', '🎯 Mål uppnått'], weekly_goal: ['achievement', '✅ Veckomål uppnått'], strength_weekly_goal: ['strength', '🏋️ Styrkemål uppnått'], dryland_weekly_goal: ['strength', '🤸 Landträningsmål uppnått'], kudos_received: ['achievement', '💬 Pepp mottagen'] }
+const coachFeedEventLabels = { personal_best: ['personal_best', '🏆 Nytt personbästa'], goal_complete: ['achievement', '🎯 Mål uppnått'], weekly_goal: ['achievement', '✅ Veckomål uppnått'], strength_weekly_goal: ['strength', '🏋️ Styrkemål uppnått'], dryland_weekly_goal: ['strength', '🤸 Landträningsmål uppnått'] }
 async function getCoachFeed() {
-  const [feedResult, pointsResult, profilesResult] = await Promise.all([supabaseRequest('coach_activity_feed?select=*&order=created_at.desc&limit=100'), supabaseRequest('point_events?event_type=in.(personal_best,goal_complete,weekly_goal,strength_weekly_goal,dryland_weekly_goal,kudos_received)&select=profile_id,event_type,points,created_at,source_key&order=created_at.desc&limit=100'), supabaseRequest('profiles?select=id,display_name,emoji')])
+  const [feedResult, pointsResult, profilesResult] = await Promise.all([supabaseRequest('coach_activity_feed?select=*&order=created_at.desc&limit=100'), supabaseRequest('point_events?event_type=in.(personal_best,goal_complete,weekly_goal,strength_weekly_goal,dryland_weekly_goal)&select=profile_id,event_type,points,created_at,source_key&order=created_at.desc&limit=100'), supabaseRequest('profiles?select=id,display_name,emoji')])
   if (!feedResult.ok) throw new Error('Coach feed lookup failed')
   const profiles = profilesResult.ok ? Object.fromEntries((await profilesResult.json()).map((item) => [item.id, item])) : {}
   const manual = (await feedResult.json()).map((item) => ({ id: item.id, eventType: item.event_type, profileId: item.profile_id, title: item.title, detail: item.detail || '', points: item.points, stars: item.stars, createdAt: item.created_at, sender: item.created_by || 'Tränare', profile: profiles[item.profile_id] ? { displayName: profiles[item.profile_id].display_name, emoji: profiles[item.profile_id].emoji } : null }))
@@ -182,13 +182,6 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
-      if (request.body?.action === 'coach-feed') {
-        const eventType = String(request.body.eventType || 'note'), title = String(request.body.title || '').trim(), detail = String(request.body.detail || '').trim()
-        if (!['achievement', 'personal_best', 'strength', 'attendance', 'star', 'note'].includes(eventType) || !title || title.length > 160 || detail.length > 1000) return sendJson(response, 400, { error: 'Kontrollera kategori och text.' })
-        const result = await supabaseRequest('coach_activity_feed', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ event_type: eventType, profile_id: request.body.profileId || null, title, detail: detail || null, points: Number.isFinite(Number(request.body.points)) ? Math.max(0, Math.min(1000, Number(request.body.points))) : null, stars: Number.isInteger(Number(request.body.stars)) ? Math.max(0, Math.min(4, Number(request.body.stars))) : null, created_by: 'Tränare' }) })
-        if (!result.ok) throw new Error(`Coach feed insert failed: ${result.status}`)
-        return sendJson(response, 201, { event: (await result.json())[0] })
-      }
       if (request.body?.action === 'open-chat-message') {
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
