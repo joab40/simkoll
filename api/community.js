@@ -217,6 +217,13 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
+      if (request.body?.action === 'delete-private-message') {
+        const id = String(request.body?.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
+        const result = await supabaseRequest(`private_messages?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+        if (!result.ok) throw new Error(`Private message delete failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
+      }
       if (request.body?.action === 'delete-coach-feed-event') {
         const id = String(request.body?.id || '')
         if (!id) return sendJson(response, 400, { error: 'Händelsen saknar id.' })
@@ -298,15 +305,17 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
-      const profile = await getSessionProfile(request)
-      if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att skicka pepp.' })
+      const profile = role === 'swimmer' ? await getSessionProfile(request) : null
       if (request.body?.action === 'delete-private-message') {
         const id = String(request.body?.id || '')
         if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
-        const result = await supabaseRequest(`private_messages?id=eq.${encodeURIComponent(id)}&sender_profile_id=eq.${encodeURIComponent(profile.id)}&sender_role=eq.swimmer`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+        if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Logga in på din profil.' })
+        const ownerFilter = role === 'coach' ? '' : `&sender_profile_id=eq.${encodeURIComponent(profile.id)}&sender_role=eq.swimmer`
+        const result = await supabaseRequest(`private_messages?id=eq.${encodeURIComponent(id)}${ownerFilter}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
         if (!result.ok) throw new Error(`Private message delete failed: ${result.status}`)
         return sendJson(response, 200, { ok: true })
       }
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att skicka pepp.' })
       if (request.body?.action === 'open-chat-message') {
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
