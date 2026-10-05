@@ -1,6 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
+import { coachFromRequest } from '../server/coach-auth.js'
 
 function publicWorkout(item) {
   if (!item) return null
@@ -838,6 +839,8 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { events: (await insert.json()).map(mapCompetitionEvent) })
       }
       if (request.body?.action === 'save-sportadmin-calendars' || request.body?.action === 'sync-sportadmin-calendars') {
+        const coachAccount = role === 'coach' ? coachFromRequest(request) : null
+        if (coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan ändra SportAdmin-kalendrar.' })
         const calendars = Array.isArray(request.body.calendars) ? request.body.calendars.map((item, index) => {
           const url = String(item.url || '').trim()
           const match = url.match(/^https:\/\/portalweb\.sportadmin\.se\/webcal\?id=([a-zA-Z0-9-]+)$/)

@@ -63,7 +63,7 @@ export function getRole(code) {
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null
     try {
       const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
-      return payload.exp > Math.floor(Date.now() / 1000) && (payload.role === 'coach' || payload.role === 'superadmin') ? 'coach' : null
+      return payload.exp > Math.floor(Date.now() / 1000) && (payload.role === 'coach' || payload.role === 'head_coach' || payload.role === 'superadmin') ? 'coach' : null
     } catch { return null }
   }
   if (process.env.SIMKOLL_COACH_CODE && code === process.env.SIMKOLL_COACH_CODE) return 'coach'

@@ -70,6 +70,7 @@ export default async function handler(request, response) {
     const account = (await result.json())[0]
     if (!account) return sendJson(response, 404, { error: 'Tränarkontot hittades inte.' })
     if (request.body?.update) {
+      if (actor.role === 'coach') return sendJson(response, 403, { error: 'Vanliga tränare kan inte ändra konto- eller vyinställningar.' })
       const groups = Array.isArray(request.body.managedGroups) ? [...new Set(request.body.managedGroups.map(String))].slice(0, 50) : []
       const personalSettings = request.body.personalSettings && typeof request.body.personalSettings === 'object' ? request.body.personalSettings : {}
       const save = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ managed_groups: groups, personal_settings_enabled: request.body.personalSettingsEnabled === true, personal_settings: personalSettings }) })
@@ -94,7 +95,8 @@ export default async function handler(request, response) {
       await writeAuditLog(request, { eventType: 'coach_account_access_change', role: 'coach', details: { actorName: actor.name, targetAccountId: accountId, status } })
       return sendJson(response, 200, { account: (await result.json())[0] })
     }
-    const role = request.body.role === 'superadmin' ? 'superadmin' : 'coach'
+    const requestedRole = String(request.body.role || '')
+    const role = ['coach', 'head_coach', 'superadmin'].includes(requestedRole) ? requestedRole : 'coach'
     const status = request.body.approved === true ? 'active' : undefined
     const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ role, ...(status ? { status, approved_at: new Date().toISOString() } : {}) }) })
     if (!result.ok) throw new Error(`Coach role update failed: ${result.status}`)

@@ -1,4 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { coachFromRequest } from '../server/coach-auth.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
@@ -53,12 +54,21 @@ async function findGoal(id) {
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
+  const coachAccount = role === 'coach' ? coachFromRequest(request) : null
+  const isSuperadmin = coachAccount?.role === 'superadmin'
+  const isHeadCoach = coachAccount?.role === 'head_coach'
   try {
     if (request.method === 'GET') {
       if (request.query?.settings === 'true') {
         const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const value = result.ok ? (await result.json())[0]?.setting_value : null
-        return sendJson(response, 200, { settings: value || { swimmer: {}, coach: {} } })
+        const full = value || { swimmer: {}, coach: {} }
+        // Global/sensitive settings are only exposed to superadmin. Head coaches
+        // still receive navigation settings so they can tailor the trainer view.
+        const visible = isSuperadmin || role !== 'coach'
+          ? full
+          : { overview: full.overview || {}, coach: full.coach || {} }
+        return sendJson(response, 200, { settings: visible })
       }
       if (request.query?.talks === 'true') {
         if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null), globalEnabled: await talksEnabled() })
@@ -75,9 +85,13 @@ export default async function handler(request, response) {
     if (request.method === 'POST' && role === 'coach') {
       const action = request.body?.action
       if (action === 'save-settings' || action === 'reset-settings') {
+        if (!isSuperadmin && !isHeadCoach) return sendJson(response, 403, { error: 'Endast huvudtränare eller superadmin kan ändra webapp-inställningar.' })
         const current = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const existing = current.ok ? ((await current.json())[0]?.setting_value || {}) : {}
-        const value = action === 'reset-settings' ? { swimmer: {}, coach: {}, sportAdminCalendars: existing.sportAdminCalendars || [] } : { ...existing, ...(request.body.settings || { swimmer: {}, coach: {} }) }
+        const submitted = request.body.settings || { swimmer: {}, coach: {} }
+        const value = action === 'reset-settings'
+          ? (isSuperadmin ? { swimmer: {}, coach: {}, sportAdminCalendars: existing.sportAdminCalendars || [] } : { ...existing, overview: {}, coach: {} })
+          : (isSuperadmin ? { ...existing, ...submitted } : { ...existing, overview: submitted.overview || existing.overview || {}, coach: submitted.coach || existing.coach || {} })
         const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: value, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Webapp settings save failed: ${result.status}`)
         return sendJson(response, 200, { settings: value })
