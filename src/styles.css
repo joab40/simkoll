@@ -90,14 +90,17 @@ button { cursor: pointer; }
 .coach-letter-badge > span:nth-child(2), .coach-letter-badge > b { display: none; }
 .coach-letter-badge:hover { transform: translateY(-2px) rotate(-1deg); }
 .coach-letter-envelope { font-size: 27px; filter: drop-shadow(0 3px 3px rgba(112,73,8,.2)); }
-.coach-letter-envelope svg { display: block; width: 34px; height: 28px; }
+.coach-letter-envelope svg { display: block; width: 34px; height: 28px; transform-origin: 50% 70%; animation: coach-envelope-wiggle 3.5s ease-in-out infinite; }
+.coach-letter-badge::after { content: ''; position: absolute; inset: -4px; border: 2px solid rgba(255, 222, 98, .8); border-radius: 20px; pointer-events: none; animation: coach-envelope-glow 3.5s ease-out infinite; }
+@keyframes coach-envelope-wiggle { 0%, 12%, 32%, 100% { transform: rotate(0); } 17% { transform: rotate(-12deg); } 22% { transform: rotate(12deg); } 27% { transform: rotate(-7deg); } }
+@keyframes coach-envelope-glow { 0%, 40%, 100% { opacity: 0; transform: scale(1); } 10% { opacity: .7; } 35% { opacity: 0; transform: scale(1.3); } }
 .coach-letter-read-mark { position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 19px; height: 19px; border: 2px solid #f4fbf8; border-radius: 50%; background: #168b77; color: #fff; font-size: 12px; font-weight: 900; line-height: 1; box-shadow: 0 2px 6px rgba(15,67,61,.28); }
 .coach-letter-badge > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
 .coach-letter-badge strong { font-size: 12px; }
 .coach-letter-badge small { font-size: 10px; opacity: .78; }
 .coach-letter-badge b { margin-left: auto; font-size: 18px; }
 @keyframes coach-letter-bob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-4px) rotate(1deg); } }
-@media (prefers-reduced-motion: reduce) { .coach-letter-badge { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .coach-letter-badge, .coach-letter-badge::after, .coach-letter-envelope svg { animation: none; } .coach-letter-badge::after { display: none; } }
 .streak-chip { position: relative; display: flex; width: max-content; align-items: center; gap: 7px; margin: 11px 0 0 auto; padding: 0; color: #fff4c2; font-size: 12px; }
 .streak-chip strong { font-size: 17px; color: #fff; }
 .streak-flame { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,186,79,.16); font-size: var(--streak-size, 1rem); transform-origin: 50% 85%; animation: streak-flame 1.15s ease-in-out infinite alternate; box-shadow: 0 0 14px rgba(255,151,57,.22); }
