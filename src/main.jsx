@@ -2211,7 +2211,20 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const [lanePlannerOpen, setLanePlannerOpen] = useState(false)
   const date = selectedDate || todayKey()
   const [slot, setSlot] = useState(new Date().getHours() < 13 ? 'morning_swim' : 'afternoon_swim')
-  useEffect(() => { apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then((data) => setAttendance(Object.fromEntries((data.attendance || []).map((item) => [item.profile_id, item.present])))).catch(() => {}) }, [code, date, slot])
+  useEffect(() => {
+    apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then(async (data) => {
+      const rows = data.attendance || []
+      const recorded = new Set(rows.map((item) => item.profile_id))
+      const next = Object.fromEntries(rows.map((item) => [item.profile_id, item.present]))
+      const checkinProfiles = responses.filter((item) => item.profileId && (item.type === 'before' || item.type === 'after')).map((item) => item.profileId)
+      const autoPresent = [...new Set(checkinProfiles)].filter((profileId) => !recorded.has(profileId))
+      autoPresent.forEach((profileId) => { next[profileId] = true })
+      setAttendance(next)
+      if (autoPresent.length) {
+        await Promise.all(autoPresent.map((profileId) => apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId, date, slot, present: true }) }).catch(() => null)))
+      }
+    }).catch(() => {})
+  }, [code, date, slot])
   const groupOrder = { ungdom_orange: 1, ungdom_svart: 2, junior: 3 }
   const visible = profiles.filter((profile) => group === 'all' || profile.trainingGroup === group).slice().sort((a, b) => {
     if (sortPresent && Boolean(attendance[b.id]) !== Boolean(attendance[a.id])) return Number(Boolean(attendance[b.id])) - Number(Boolean(attendance[a.id]))
