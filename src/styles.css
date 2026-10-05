@@ -69,6 +69,8 @@ button { cursor: pointer; }
 .app-shell > header { position: relative; z-index: 10; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .mobile-menu-toggle { display: none; }
+.swimmer-menu-icon, .swimmer-profile-label small, .swimmer-profile-arrow { display: none; }
+.profile-chip .swimmer-profile-label { font-size: 12px; margin: 0; }
 .profile-chip { border: 1px solid #d5e2df; background: white; border-radius: 20px; padding: 5px 11px 5px 6px; font-size: 12px; font-weight: 700; }
 .profile-chip span { font-size: 18px; margin-right: 5px; }
 .help-tip-wrap { position: relative; display: inline-flex; vertical-align: middle; }
@@ -1546,11 +1548,19 @@ button { cursor: pointer; }
   .app-shell > header .club-brand > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app-shell > header .mobile-menu-toggle { display: inline-flex; align-items: center; gap: 7px; justify-self: end; border: 1px solid #cdded9; border-radius: 10px; background: white; color: var(--teal); padding: 8px 11px; font-size: 12px; font-weight: 700; }
   .app-shell > header .mobile-menu-toggle span { font-size: 17px; line-height: 1; }
-  .app-shell > header .header-actions { display: none; flex: 0 0 100%; width: 100%; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 6px; overflow: hidden; }
+  .app-shell > header .header-actions { display: none; flex: 0 0 100%; width: 100%; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 8px; padding-top: 8px; overflow: hidden; }
   .app-shell > header .header-actions.open { display: grid; }
   .app-shell > header .header-actions > button { min-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .app-shell > header .menu-link { padding: 7px 3px; }
-  .app-shell > header .profile-chip { padding: 5px 6px; }
+  .app-shell > header .menu-link { display: flex; align-items: center; gap: 9px; min-height: 52px; padding: 11px 12px; border: 1px solid #dbe8e3; border-radius: 13px; background: #eef6f3; text-align: left; white-space: normal; line-height: 1.3; }
+  .app-shell > header .menu-link:hover, .app-shell > header .menu-link:focus-visible { background: #e0f1eb; border-color: #9ccbc0; }
+  .app-shell > header .swimmer-menu-icon { display: block; width: 21px; height: 21px; flex: none; color: #438b83; }
+  .app-shell > header .swimmer-menu-legal { grid-column: 1 / -1; min-height: 44px; background: #f5f8f5; }
+  .app-shell > header .profile-chip { display: flex; align-items: center; gap: 10px; grid-column: 1 / -1; max-width: none; padding: 11px 14px; margin-top: 4px; border-radius: 15px; text-align: left; }
+  .app-shell > header .swimmer-profile-emoji { display: grid; place-items: center; width: 36px; height: 36px; margin: 0; font-size: 24px; background: #eff6f3; border-radius: 11px; flex: none; }
+  .app-shell > header .swimmer-profile-label { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .app-shell > header .swimmer-profile-label strong { overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .app-shell > header .swimmer-profile-label small { display: block; color: var(--muted); font-size: 10px; font-weight: 500; }
+  .app-shell > header .swimmer-profile-arrow { display: block; color: var(--teal); margin: 0; }
   .page-content { padding-top: 16px; }
   .game-card { display: block; padding: 21px 22px; }
   .previous-games-card > summary { align-items: flex-start; padding: 16px; }

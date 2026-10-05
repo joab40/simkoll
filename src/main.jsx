@@ -586,13 +586,42 @@ function SwimmerCompetitionEntries({ code, onBack }) {
   return <section className="competition-entries"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Tävlingskalender</p><h1>Mina grenar</h1><small>Välj vilka grenar du vill simma. Tränarna ser när du skickar in.</small></div></div>{loading && <p className="empty">Hämtar tävlingsprogram…</p>}{!loading && !competitions.length && <p className="empty">Ingen kommande tävling är publicerad ännu.</p>}{competition && <><label className="settings-field"><strong>Tävling</strong><select value={selectedCompetition} onChange={(event) => setSelectedCompetition(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label>{events.length ? <div className="competition-entry-list">{events.map((event) => <label key={event.id}><input type="checkbox" disabled={event.selectable === false} checked={event.selectable !== false && selected.includes(event.id)} onChange={() => event.selectable !== false && setSelected((current) => current.includes(event.id) ? current.filter((id) => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender || 'Alla'} · {event.ageClass || 'Alla åldrar'}</small></span></label>)}</div> : <p className="empty">Tränaren har inte läst in något grenprogram ännu.</p>}<div className="settings-actions"><button className="secondary-button" disabled={saving} onClick={() => save(false)}>Spara utkast</button><button className="primary-button" disabled={saving || !selected.length} onClick={() => save(true)}>Skicka till tränarna</button></div></>}</section>
 }
 
+function SwimmerMenuIcon({ kind }) {
+  const paths = {
+    calendar: 'M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z',
+    heart: 'M12 20 4 12a5 5 0 0 1 8-6 5 5 0 0 1 8 6Z',
+    goal: 'M20 12a8 8 0 1 1-8-8m0 4a4 4 0 1 0 4 4m-4 0 8-8m-5 0h5v5',
+    help: 'M9 9a3 3 0 1 1 5 2c-2 1-2 2-2 3m0 3h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
+    info: 'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
+  }
+  return <svg className="swimmer-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={paths[kind]} /></svg>
+}
+
 function Shell({ children, code, role, profile, assistantEnabled = true, talksEnabled, planningEnabled, onPlanning, onCompetitions, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (event) => { if (event.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('keydown', close)
+    return () => document.removeEventListener('keydown', close)
+  }, [menuOpen])
   const go = (handler) => () => { setMenuOpen(false); handler() }
   return (
     <main className="app-shell">
-      <header><ClubBrand assistantEnabled={assistantEnabled} onAssistant={assistantEnabled ? () => setAssistantOpen(true) : undefined} /><button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span>{menuOpen ? '×' : '☰'}</span></button><div className={`header-actions ${menuOpen ? 'open' : ''}`}>{profile && planningEnabled && <button className="menu-link" onClick={go(onPlanning)}>Veckoplanering</button>}{profile && <button className="menu-link" onClick={go(onCommunity)}>Peppflödet</button>}{profile && <button className="menu-link" onClick={go(onGoals)}>Mina mål</button>}<button className="menu-link" onClick={go(onHelp)}>FAQ</button><button className="menu-link" onClick={go(onLegal)}>Info & villkor</button>{profile && <button className="profile-chip" onClick={go(onProfile)}><span>{profile.emoji}</span>{profile.displayName}</button>}{!profile && <button className="text-button" onClick={go(onLogout)}>Logga ut</button>}</div></header>
+      <header>
+        <ClubBrand assistantEnabled={assistantEnabled} onAssistant={assistantEnabled ? () => setAssistantOpen(true) : undefined} />
+        <button className="mobile-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="swimmer-navigation" onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'Stäng' : 'Meny'} <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span></button>
+        <nav id="swimmer-navigation" aria-label="Simmarmeny" className={`header-actions ${menuOpen ? 'open' : ''}`}>
+          {profile && planningEnabled && <button type="button" className="menu-link" onClick={go(onPlanning)}><SwimmerMenuIcon kind="calendar" /><span>Veckoplanering</span></button>}
+          {profile && <button type="button" className="menu-link" onClick={go(onCommunity)}><SwimmerMenuIcon kind="heart" /><span>Peppflödet</span></button>}
+          {profile && <button type="button" className="menu-link" onClick={go(onGoals)}><SwimmerMenuIcon kind="goal" /><span>Mina mål</span></button>}
+          <button type="button" className="menu-link" onClick={go(onHelp)}><SwimmerMenuIcon kind="help" /><span>FAQ</span></button>
+          <button type="button" className="menu-link swimmer-menu-legal" onClick={go(onLegal)}><SwimmerMenuIcon kind="info" /><span>Info & villkor</span></button>
+          {profile && <button type="button" className="profile-chip" onClick={go(onProfile)}><span className="swimmer-profile-emoji" aria-hidden="true">{profile.emoji}</span><span className="swimmer-profile-label"><strong>{profile.displayName}</strong><small>Min profil</small></span><span className="swimmer-profile-arrow" aria-hidden="true">→</span></button>}
+          {!profile && <button type="button" className="text-button" onClick={go(onLogout)}>Logga ut</button>}
+        </nav>
+      </header>
       {profile && talksEnabled && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
       {assistantOpen && <Assistant code={code} role={role} profile={profile} onClose={() => setAssistantOpen(false)} />}
       {children}
