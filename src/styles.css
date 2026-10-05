@@ -90,6 +90,7 @@ button { cursor: pointer; }
 .coach-letter-badge > span:nth-child(2), .coach-letter-badge > b { display: none; }
 .coach-letter-badge:hover { transform: translateY(-2px) rotate(-1deg); }
 .coach-letter-envelope { font-size: 27px; filter: drop-shadow(0 3px 3px rgba(112,73,8,.2)); }
+.coach-letter-envelope svg { display: block; width: 34px; height: 28px; }
 .coach-letter-read-mark { position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 19px; height: 19px; border: 2px solid #f4fbf8; border-radius: 50%; background: #168b77; color: #fff; font-size: 12px; font-weight: 900; line-height: 1; box-shadow: 0 2px 6px rgba(15,67,61,.28); }
 .coach-letter-badge > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
 .coach-letter-badge strong { font-size: 12px; }

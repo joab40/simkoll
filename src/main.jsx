@@ -895,9 +895,9 @@ function CoachLetterBadge({ code, profileId, onOpen }) {
     document.addEventListener('visibilitychange', refresh)
     return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
   }, [code, profileId])
-  if (!hasMessage) return null
+  if (!hasMessage || opened) return null
   const open = () => { if (!opened && messageKey) void apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-info-opened', sourceKey: messageKey }) }).catch(() => {}); onOpen() }
-  return <button type="button" className={`coach-letter-badge${opened ? ' opened' : ''}`} onClick={open} aria-label={opened ? 'Info från tränarna, läst' : 'Öppna info från tränarna'} title={opened ? 'Info från tränarna · Läst' : 'Info från tränarna'}><span className="coach-letter-envelope" aria-hidden="true">{opened ? '📨' : '✉️'}</span>{opened && <span className="coach-letter-read-mark" aria-hidden="true">✓</span>}</button>
+  return <button type="button" className="coach-letter-badge" onClick={open} aria-label="Nytt meddelande från tränarna – öppna" title="Nytt meddelande från tränarna"><span className="coach-letter-envelope" aria-hidden="true"><svg viewBox="0 0 48 36" focusable="false"><rect x="2" y="2" width="44" height="32" rx="5" fill="#ffdc59" stroke="#b77916" strokeWidth="2" /><path d="M3 30 18 17M45 30 30 17" fill="none" stroke="#d79928" strokeWidth="2" /><path d="m3 5 18 15a5 5 0 0 0 6 0L45 5" fill="#ffe995" stroke="#b77916" strokeWidth="2" strokeLinejoin="round" /></svg></span></button>
 }
 
 const CHAT_EMOJIS = ['🏊', '💙', '💚', '💛', '❤️', '💪', '👏', '🙌', '😊', '🤩', '🔥', '🌊']
