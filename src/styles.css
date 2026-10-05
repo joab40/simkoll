@@ -1843,6 +1843,26 @@ button { cursor: pointer; }
 .swimmer-planning-summary > div { display: grid; gap: 2px; text-align: center; }
 .swimmer-planning-summary strong { color: var(--ink); font-size: 1.08rem; }
 .swimmer-planning-summary span { color: var(--muted); font-size: .76rem; }
+@media (max-width: 640px) {
+  .swimmer-planning { padding-top: 18px; }
+  .swimmer-planning .back-button { display: inline-flex; align-items: center; margin: 0 0 16px; padding: 4px 0; font-size: 12px; }
+  .swimmer-planning .period-heading { margin-bottom: 16px; }
+  .swimmer-planning .period-heading .eyebrow { display: none; }
+  .swimmer-planning .period-heading h1 { margin: 0 0 7px; font-size: 26px; line-height: 1.2; }
+  .swimmer-planning .period-heading small { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .swimmer-planning-week-controls { display: grid; grid-template-columns: 42px minmax(0, 1fr) 42px; gap: 8px; padding: 7px; border-radius: 16px; background: #f7fbf9; margin-bottom: 10px; }
+  .swimmer-planning-week-controls strong { grid-column: 2; grid-row: 1; min-width: 0; white-space: normal; font-size: 13px; line-height: 1.3; }
+  .swimmer-planning-week-controls button:first-of-type { grid-column: 1; grid-row: 1; }
+  .swimmer-planning-week-controls button:last-of-type { grid-column: 3; grid-row: 1; }
+  .swimmer-planning-week-controls button { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border-radius: 12px; font-size: 0; }
+  .swimmer-planning-week-controls button::before { content: '←'; font-size: 22px; line-height: 1; }
+  .swimmer-planning-week-controls button:last-child::before { content: '→'; }
+  .swimmer-planning-summary { gap: 0; padding: 14px 8px; border-radius: 16px; }
+  .swimmer-planning-summary > div { gap: 4px; padding: 0 4px; }
+  .swimmer-planning-summary > div + div { border-left: 1px solid #e0ebe7; }
+  .swimmer-planning-summary strong { font-size: 19px; line-height: 1.2; }
+  .swimmer-planning-summary span { font-size: 10px; }
+}
 .swimmer-planning-loading { display: grid; justify-items: center; gap: 6px; margin: 20px 0; padding: 30px 18px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 18px; color: var(--muted); text-align: center; }
 .swimmer-planning-loading > span { display: block; color: var(--teal); font-size: 2.2rem; line-height: .7; animation: swimmer-planning-wave 1.2s ease-in-out infinite; }
 .swimmer-planning-loading strong { color: var(--ink); font-size: 1rem; }
