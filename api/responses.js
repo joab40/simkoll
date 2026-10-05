@@ -78,10 +78,15 @@ export default async function handler(request, response) {
       const isDetailed = role === 'coach' || Boolean(sessionProfile)
       const select = isDetailed ? '*' : 'id,created_at,feeling'
       const recent = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-      const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? '' : `&created_at=gte.${encodeURIComponent(recent)}`
+      const requestedDate = role === 'coach' ? String(request.query?.date || '') : ''
+      if (requestedDate && !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) return sendJson(response, 400, { error: 'Ogiltigt datum.' })
+      const start = requestedDate ? new Date(`${requestedDate}T00:00:00Z`) : null
+      const dateFilter = start ? `&created_at=gte.${encodeURIComponent(new Date(start.getTime() - 86400000).toISOString())}&created_at=lt.${encodeURIComponent(new Date(start.getTime() + 86400000).toISOString())}` : ''
+      const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? dateFilter : `&created_at=gte.${encodeURIComponent(recent)}`
       const result = await supabaseRequest(`responses?select=${select}${filter}&order=created_at.desc&limit=2000`)
       if (!result.ok) throw new Error(`Supabase GET failed: ${result.status} ${await result.text()}`)
       let rows = await result.json()
+      if (requestedDate) rows = rows.filter((item) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at)) === requestedDate)
       if (role === 'coach') {
         const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
         if (!testProfiles.ok) throw new Error('Test profile lookup failed')

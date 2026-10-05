@@ -2206,6 +2206,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
 function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const [open, setOpen] = useState(false)
   const [attendance, setAttendance] = useState({})
+  const [checkinResponses, setCheckinResponses] = useState([])
   const [loading, setLoading] = useState(false)
   const [sortPresent, setSortPresent] = useState(false)
   const [group, setGroup] = useState('all')
@@ -2216,12 +2217,15 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   useEffect(() => {
     let active = true
     setLoading(true)
+    setAttendance({})
+    setCheckinResponses([])
     Promise.all([
       apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code),
-      open ? fetchResponses(code) : Promise.resolve(responses),
+      apiRequest(`/api/responses?date=${date}`, code).then((data) => data.responses || []),
     ]).then(([data, currentResponses]) => {
       if (!active) return
       const dayResponses = currentResponses.filter((item) => dateKey(responseDate(item)) === date)
+      setCheckinResponses(dayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a)))
       setAttendance(attendanceFromCheckins(data.attendance || [], dayResponses))
     }).catch((error) => { if (active && open) window.alert(error.message || 'Kunde inte hämta närvaron.') })
       .finally(() => { if (active) setLoading(false) })
@@ -2234,7 +2238,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   })
   const presentCount = visible.filter((profile) => attendance[profile.id]).length
   const toggle = async (profile) => { const next = !attendance[profile.id]; setAttendance((current) => ({ ...current, [profile.id]: next })); setLoading(true); try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId: profile.id, date, slot, present: next }) }) } catch (error) { setAttendance((current) => ({ ...current, [profile.id]: !next })); window.alert(error.message) } finally { setLoading(false) } }
-  return <section className="attendance-panel"><div className="attendance-panel-head"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under simpass'}<span>{presentCount}/{visible.length} närvarande</span></button><button type="button" className="lane-planner-button" onClick={() => setLanePlannerOpen(true)} disabled={!presentCount}>🏊 Banor</button></div>{open && <div className="attendance-body"><div className="library-controls"><label>Simpass<select value={slot} onChange={(event) => setSlot(event.target.value)}><option value="morning_swim">Morgonpass</option><option value="afternoon_swim">Eftermiddag / kväll</option></select></label><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label><label className="attendance-sort"><input type="checkbox" checked={sortPresent} onChange={(event) => setSortPresent(event.target.checked)} /> Visa närvarande först</label></div><div className="attendance-list">{visible.map((profile) => { const item = responses.find((response) => response.profileId === profile.id); const raceBefore = item?.type === 'before' && item.speedFeeling != null; const raceAfter = item?.type === 'after' && item.speedFeeling != null; return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={loading} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{raceAfter ? '🏅 Har tävlat' : raceBefore ? '🏁 Ska tävla' : item?.type === 'after' ? '✓ Har checkat in' : item?.type === 'before' ? '→ Ska träna' : 'Ej checkat in'}</small><b>{attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}{lanePlannerOpen && <LaneAssignmentAssistant code={code} profiles={visible.filter((profile) => attendance[profile.id])} date={date} slot={slot} onClose={() => setLanePlannerOpen(false)} />}</section>
+return <section className="attendance-panel"><div className="attendance-panel-head"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under simpass'}<span>{presentCount}/{visible.length} närvarande</span></button><button type="button" className="lane-planner-button" onClick={() => setLanePlannerOpen(true)} disabled={loading || !presentCount}>🏊 Banor</button></div>{open && <div className="attendance-body"><div className="library-controls"><label>Simpass<select value={slot} onChange={(event) => setSlot(event.target.value)}><option value="morning_swim">Morgonpass</option><option value="afternoon_swim">Eftermiddag / kväll</option></select></label><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label><label className="attendance-sort"><input type="checkbox" checked={sortPresent} onChange={(event) => setSortPresent(event.target.checked)} /> Visa närvarande först</label></div><div className="attendance-list">{visible.map((profile) => { const item = checkinResponses.find((response) => response.profileId === profile.id); const raceBefore = item?.type === 'before' && item.competition === true; const raceAfter = item?.type === 'after' && item.competition === true; return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={loading} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{raceAfter ? '🏅 Har tävlat' : raceBefore ? '🏁 Ska tävla' : item?.type === 'after' ? '✓ Har tränat' : item?.type === 'before' ? '→ Ska träna' : 'Ej checkat in'}</small><b>{attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}{lanePlannerOpen && <LaneAssignmentAssistant code={code} profiles={visible.filter((profile) => attendance[profile.id])} date={date} slot={slot} onClose={() => setLanePlannerOpen(false)} />}</section>
 }
 
 function LaneAssignmentAssistant({ code, profiles, date, slot, onClose }) {
