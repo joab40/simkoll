@@ -3,7 +3,7 @@ import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { assistantCoachMessages } from '../server/assistant-messages.js'
-import { assistantScheduleLabels } from '../server/assistant-schedule.js'
+import { assistantScheduleLabels, addScheduleWeekdays } from '../server/assistant-schedule.js'
 
 function publicWorkout(item) {
   if (!item) return null
@@ -153,7 +153,12 @@ const prompt = `Du är Simkolls hjälpsamma assistent. ${audienceGuidance} Svara
     if (!result.ok) { await writeAiUsage(request, { feature: 'assistant_chat', model, role, status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Assistenten kunde inte svara just nu.' } }
     const payload = await result.json(); await writeAiUsage(request, { feature: 'assistant_chat', model, role, response: payload })
     const raw = String(payload.choices?.[0]?.message?.content || '{}'), first = raw.indexOf('{'), last = raw.lastIndexOf('}'), parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
-    return { text: String(parsed.text || '').trim().slice(0, 2500) || 'Jag kunde inte hitta ett tydligt svar i Simkoll.' }
+    let text = String(parsed.text || '').trim().slice(0, 2500)
+    if (/nästa|kommande/i.test(question) && /pass|träning/i.test(question)) {
+      const dates = [...context.upcomingPlans, ...context.workouts, ...context.calendarActivities].map((item) => item.date)
+      text = addScheduleWeekdays(text, dates)
+    }
+    return { text: text || 'Jag kunde inte hitta ett tydligt svar i Simkoll.' }
   } catch (error) { console.warn('Assistant AI fallback:', error.message); return { error: 'Assistenten kunde inte svara just nu.' } }
 }
 
