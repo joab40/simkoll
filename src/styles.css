@@ -84,6 +84,33 @@ button { cursor: pointer; }
 .page-content.race-day-page { position: relative; isolation: isolate; }
 .page-content.race-day-page::before { content: ''; position: fixed; z-index: -1; inset: 0; pointer-events: none; background: #eff6f4; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
+.swimmer-hero-carousel { min-width: 0; }
+.swimmer-hero-track { position: relative; display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 30px; }
+.swimmer-hero-track::-webkit-scrollbar { display: none; }
+.swimmer-hero-track:focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; }
+.swimmer-hero-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; display: flex; }
+.swimmer-hero-slide > section { width: 100%; min-width: 0; }
+.swimmer-hero-slide .hero-coach-preview { display: flex; margin: 0; padding: 32px 48px; border-radius: 30px; gap: 12px; box-shadow: none; }
+.hero-coach-preview h2 { font-size: clamp(25px, 4vw, 36px); }
+.hero-coach-preview .open-chat-preview { margin-top: 0; }
+.hero-coach-preview .open-chat-preview article > div { min-width: 0; }
+.hero-coach-preview .open-chat-preview article p { overflow-wrap: anywhere; }
+.hero-coach-preview > .primary-button { align-self: flex-start; margin-top: auto; }
+.hero-coach-preview > small { color: #577679; }
+.swimmer-hero-navigation { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 0 14px; color: var(--teal); }
+.hero-slide-arrow { width: 36px; height: 36px; border: 1px solid #c9ddda; border-radius: 50%; background: #fff; color: var(--teal); font-size: 20px; }
+.hero-slide-arrow:disabled { opacity: .35; cursor: default; }
+.hero-slide-indicators { display: flex; }
+.hero-slide-indicators button { display: grid; place-items: center; width: 30px; height: 36px; padding: 0; background: transparent; border: 0; border-radius: 12px; }
+.hero-slide-indicators span { width: 8px; height: 8px; border-radius: 50%; background: #b8ceca; transition: width .2s, background .2s; }
+.hero-slide-indicators [aria-pressed="true"] span { width: 22px; border-radius: 8px; background: var(--teal); }
+.hero-slide-label { min-width: 130px; font-size: 11px; text-align: center; }
+@media (max-width: 640px) {
+  .swimmer-hero-track { border-radius: 23px; }
+  .swimmer-hero-slide .hero-coach-preview { padding: 24px 23px; border-radius: 23px; }
+  .swimmer-hero-slide .hero-coach-preview > .primary-button { width: 100%; margin-top: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-slide-indicators span { transition: none; } }
 .coach-letter-badge { position: absolute; top: 10px; left: 50%; translate: -50% 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: 0; border: 1px solid rgba(255,237,165,.65); border-radius: 16px; background: linear-gradient(135deg, #ffe98a, #ffc857); color: #4c3510; text-align: left; box-shadow: 0 8px 20px rgba(15,24,45,.22); animation: coach-letter-bob 2.8s ease-in-out infinite; }
 .coach-letter-badge { width: 50px; height: 50px; padding: 0; justify-content: center; border-radius: 16px; }
 .coach-letter-badge.opened { animation: none; opacity: .86; background: linear-gradient(135deg, #d7eee7, #b9ddd4); color: #145d5c; border-color: rgba(20,93,92,.28); }

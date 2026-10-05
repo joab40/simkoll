@@ -797,6 +797,7 @@ function StarProgress({ stars }) {
 
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
+  const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
@@ -821,10 +822,11 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
+      <SwimmerHeroCarousel enabled={Boolean(profile && chatVisible)} infoRequest={coachPreviewRequest}>
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
-        {profile && chatVisible && <CoachLetterBadge code={code} profileId={profile.id} onOpen={onCommunityChat || onCommunity} />}
+        {profile && chatVisible && <CoachLetterBadge code={code} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
         {profile && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
@@ -839,6 +841,8 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
+      {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunityChat || onCommunity} />}
+      </SwimmerHeroCarousel>
 
       {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} />}
 
@@ -863,13 +867,79 @@ function StrengthProgramCard({ training, onOpen }) {
   return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt styrkeprogram 🏋️</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
 }
 
+function SwimmerHeroCarousel({ children, enabled, infoRequest }) {
+  const track = useRef(null)
+  const activeRef = useRef(0)
+  const [active, setActive] = useState(0)
+  const slides = React.Children.toArray(children)
+  const goTo = (index, smooth = true) => {
+    const element = track.current
+    if (!element) return
+    const slide = element.children[index]
+    if (!slide) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    element.scrollTo({ left: slide.offsetLeft - element.children[0].offsetLeft, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
+  }
+  useEffect(() => { if (enabled && infoRequest > 0) goTo(1) }, [infoRequest, enabled])
+  useEffect(() => {
+    if (!enabled || !track.current) { activeRef.current = 0; setActive(0); return }
+    let width = track.current.clientWidth
+    const observer = new ResizeObserver(() => {
+      const nextWidth = track.current?.clientWidth
+      if (nextWidth && nextWidth !== width) { width = nextWidth; goTo(activeRef.current, false) }
+    })
+    observer.observe(track.current)
+    return () => observer.disconnect()
+  }, [enabled])
+  if (!enabled) return slides[0]
+  const labels = ['Idag i gruppen', 'Info från tränarna']
+  return <div className="swimmer-hero-carousel" role="region" aria-label="Gruppens läge och tränarinfo" aria-roledescription="karusell">
+    <div className="swimmer-hero-track" ref={track} tabIndex={0} onScroll={(event) => {
+      const element = event.currentTarget
+      const distance = element.children[1].offsetLeft - element.children[0].offsetLeft
+      const index = Math.max(0, Math.min(1, Math.round(element.scrollLeft / distance)))
+      activeRef.current = index; setActive(index)
+    }} onKeyDown={(event) => {
+      if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+      event.preventDefault(); goTo(event.key === 'ArrowRight' ? 1 : 0)
+    }}>
+      {slides.map((slide, index) => <div key={index} className="swimmer-hero-slide" role="group" aria-roledescription="kort" aria-label={`${index + 1} av 2: ${labels[index]}`} inert={active !== index}>{slide}</div>)}
+    </div>
+    <div className="swimmer-hero-navigation">
+      <button type="button" className="hero-slide-arrow" disabled={active === 0} aria-label="Visa Idag i gruppen" onClick={() => goTo(0)}>←</button>
+      <div className="hero-slide-indicators">{labels.map((label, index) => <button type="button" key={label} aria-label={`Visa ${label}`} aria-pressed={active === index} onClick={() => goTo(index)}><span /></button>)}</div>
+      <span className="hero-slide-label" aria-live="polite">{labels[active]}</span>
+      <button type="button" className="hero-slide-arrow" disabled={active === 1} aria-label="Visa Info från tränarna" onClick={() => goTo(1)}>→</button>
+    </div>
+  </div>
+}
+
 function OpenChatCard({ code, onOpen }) {
-  const [chat, setChat] = useState({ messages: [], items: [] }); const [expanded, setExpanded] = useState(false)
-  useEffect(() => { apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => setChat({ ...(data.openChat || {}), items: data.items || [] })).catch(() => {}) }, [code])
-  const previewSource = chat.items?.length ? chat.items : (chat.messages || [])
-  const messages = previewSource.slice(expanded ? -6 : -2).reverse()
-  const background = chat.backgroundImage || '/assets/open-chat-bg.png'
-  return <section className={`open-chat-card${expanded ? ' expanded' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}><div className="open-chat-card-head"><div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2><p>Klubbinfo och kontakt med tränarna på samma ställe.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna →</button></div>{messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty">Inga nya meddelanden ännu.</p>}<div className="open-chat-card-actions"><button type="button" className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Visa mindre ↑' : 'Visa allt i tränarinfo ↓'}</button><button type="button" className="text-button" onClick={onOpen}>Skriv till tränarna</button></div></section>
+  const [chat, setChat] = useState(null)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      if (document.hidden) return
+      try {
+        const data = await apiRequest(`/api/community?feed=${Date.now()}`, code)
+        if (mounted) { setChat(data.openChat || { messages: [] }); setError(false) }
+      } catch { if (mounted) setError(true) }
+    }
+    load()
+    const interval = window.setInterval(load, 15000)
+    window.addEventListener('focus', load)
+    return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', load) }
+  }, [code])
+  // Preview only this channel's coach messages, never the separate pepp feed.
+  const messages = (chat?.messages || []).filter((item) => item.senderRole === 'coach').slice(-2).reverse()
+  const background = chat?.backgroundImage || '/assets/open-chat-bg-teal.png'
+  return <section className="open-chat-card hero-coach-preview" style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}>
+    <div><p className="eyebrow">Från tränarna</p><h2>Info från tränarna 💬</h2><p>Träningsinfo, samlingar och hälsningar.</p></div>
+    {messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span aria-hidden="true">{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty" role="status">{error ? 'Kunde inte hämta meddelanden just nu.' : !chat ? 'Laddar meddelanden…' : 'Inga meddelanden från tränarna ännu.'}</p>}
+    <button type="button" className="primary-button" onClick={onOpen}>Öppna tränarinfo →</button>
+    <small>Läs hela meddelanden och {chat?.coachOnly ? 'följ informationen från tränarna.' : 'ställ en fråga.'}</small>
+  </section>
 }
 
 function CoachLetterBadge({ code, profileId, onOpen }) {
