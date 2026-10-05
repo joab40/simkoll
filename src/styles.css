@@ -1736,6 +1736,17 @@ button { cursor: pointer; }
 .settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .settings-saved { color: #39804b; font-weight: 700; }
 .settings-note { color: var(--muted); font-size: 12px; }
+.settings-permission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.settings-permission-grid > div { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid #e8f0ee; border-radius: 12px; background: rgba(255,255,255,.45); }
+.settings-permission-grid strong { font-size: 13px; }
+.settings-permission-grid small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.webapp-settings > section.settings-card:nth-of-type(1)::after,
+.webapp-settings > section.settings-card:nth-of-type(2)::after,
+.webapp-settings > section.settings-card:nth-of-type(5)::after,
+.webapp-settings > section.settings-card:nth-of-type(6)::after,
+.webapp-settings > section.settings-card:nth-of-type(7)::after { content: 'Synligt och redigerbart för: endast superadmin'; display: block; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.open-chat-settings::after, .session-settings::after, .sportadmin-settings::after { content: 'Synligt och redigerbart för: endast superadmin'; display: block; margin-top: 12px; color: var(--muted); font-size: 11px; }
+@media (max-width: 700px) { .settings-permission-grid { grid-template-columns: 1fr; } }
 .swimmer-specialty-editor { display: grid; gap: 8px; margin: 10px 0; padding: 12px; border: 1px solid #dbe8e5; border-radius: 12px; background: #f8fcfa; }
 .swimmer-specialty-editor > div:first-child { display: grid; gap: 2px; }
 .swimmer-specialty-editor small { color: var(--muted); font-size: 11px; }
