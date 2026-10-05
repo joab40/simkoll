@@ -84,7 +84,7 @@ button { cursor: pointer; }
 .page-content.race-day-page { position: relative; isolation: isolate; }
 .page-content.race-day-page::before { content: ''; position: fixed; z-index: -1; inset: 0; pointer-events: none; background: #eff6f4; }
 .mood-hero { background: var(--ink); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
-.coach-letter-badge { position: absolute; z-index: 3; top: 22px; right: 24px; display: flex; align-items: center; gap: 10px; max-width: min(330px, 48%); padding: 10px 13px; border: 1px solid rgba(255,237,165,.65); border-radius: 16px; background: linear-gradient(135deg, #ffe98a, #ffc857); color: #4c3510; text-align: left; box-shadow: 0 8px 20px rgba(15,24,45,.22); animation: coach-letter-bob 2.8s ease-in-out infinite; }
+.coach-letter-badge { position: relative; z-index: 3; display: flex; align-items: center; gap: 10px; margin: 8px auto 20px; border: 1px solid rgba(255,237,165,.65); border-radius: 16px; background: linear-gradient(135deg, #ffe98a, #ffc857); color: #4c3510; text-align: left; box-shadow: 0 8px 20px rgba(15,24,45,.22); animation: coach-letter-bob 2.8s ease-in-out infinite; }
 .coach-letter-badge { width: 50px; height: 50px; padding: 0; justify-content: center; border-radius: 16px; }
 .coach-letter-badge.opened { animation: none; opacity: .86; background: linear-gradient(135deg, #d7eee7, #b9ddd4); color: #145d5c; border-color: rgba(20,93,92,.28); }
 .coach-letter-badge > span:nth-child(2), .coach-letter-badge > b { display: none; }
@@ -126,7 +126,7 @@ button { cursor: pointer; }
 @keyframes race-flag-wave-right { from { transform: scaleX(1) scale(.9) rotate(8deg); } to { transform: scaleX(1) scale(1.15) rotate(-8deg); } }
 @keyframes race-day-lines { from { background-position: 0 0; } to { background-position: 160px 80px; } }
 @keyframes race-day-bg { from { background-position: 0% 45%; } to { background-position: 100% 55%; } }
-@media (max-width: 640px) { .race-day-badge { top: 17px; right: 17px; font-size: 10px; padding: 7px 10px; } .coach-letter-badge { top: 16px; right: 16px; width: 46px; height: 46px; max-width: none; } }
+@media (max-width: 640px) { .race-day-badge { top: 17px; right: 17px; font-size: 10px; padding: 7px 10px; } .coach-letter-badge { width: 46px; height: 46px; margin: 8px auto 18px; } }
 .coach-info-page { max-width: 980px; margin: 0 auto; }
 .coach-info-page .period-heading { margin: 1.25rem 0; }
 .coach-info-page .open-chat-panel { min-height: 28rem; }
