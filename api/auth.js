@@ -90,6 +90,7 @@ export default async function handler(request, response) {
     if (!accountId) return sendJson(response, 400, { error: 'Tränarkonto saknas.' })
     if (action === 'coach-approve') {
       const status = request.body.approved === false ? 'suspended' : 'active'
+      if (accountId === actor.sub && status === 'suspended') return sendJson(response, 400, { error: 'Du kan inte stänga av ditt eget superadmin-konto.' })
       const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ status, approved_at: status === 'active' ? new Date().toISOString() : null }) })
       if (!result.ok) throw new Error(`Coach approval failed: ${result.status}`)
       await writeAuditLog(request, { eventType: 'coach_account_access_change', role: 'coach', details: { actorName: actor.name, targetAccountId: accountId, status } })
@@ -97,6 +98,7 @@ export default async function handler(request, response) {
     }
     const requestedRole = String(request.body.role || '')
     const role = ['coach', 'head_coach', 'superadmin'].includes(requestedRole) ? requestedRole : 'coach'
+    if (accountId === actor.sub && role !== 'superadmin') return sendJson(response, 400, { error: 'Du kan inte ta bort superadmin-behörigheten från ditt eget konto.' })
     const status = request.body.approved === true ? 'active' : undefined
     const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ role, ...(status ? { status, approved_at: new Date().toISOString() } : {}) }) })
     if (!result.ok) throw new Error(`Coach role update failed: ${result.status}`)
