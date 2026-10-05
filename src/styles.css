@@ -108,6 +108,9 @@ button { cursor: pointer; }
 .hero-slide-label { min-width: 130px; font-size: 11px; text-align: center; }
 @media (max-width: 640px) {
   .swimmer-hero-track { border-radius: 23px; }
+  .swimmer-hero-navigation { padding: 6px 0 8px; gap: 0; }
+  .swimmer-hero-navigation .hero-slide-arrow, .swimmer-hero-navigation .hero-slide-label { display: none; }
+  .hero-slide-indicators button { width: 36px; height: 32px; }
   .swimmer-hero-slide .hero-coach-preview { padding: 24px 23px; border-radius: 23px; }
   .swimmer-hero-slide .hero-coach-preview > .primary-button { width: 100%; margin-top: auto; }
 }
