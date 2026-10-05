@@ -279,13 +279,17 @@ button { cursor: pointer; }
 .game-card-stack { display: grid; gap: 12px; }
 .games-carousel { margin-top: 12px; }
 .games-carousel .swimmer-hero-track { border-radius: 22px; }
-.games-carousel .game-card { margin-top: 0; align-items: flex-start; }
-.games-carousel .game-card > div { width: 100%; min-width: 0; }
+.games-carousel .game-card { margin-top: 0; display: block; height: 340px; padding: 22px; }
+.games-carousel .game-card > div { width: 100%; min-width: 0; height: 100%; display: grid; grid-template-rows: 14px 30px 42px minmax(0, 1fr); gap: 8px; }
+.games-carousel .game-card .eyebrow { margin: 0; }
+.games-carousel .game-card h2 { margin: 0; font-size: 22px; line-height: 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.games-carousel .game-card h2 + p { margin: 0; font-size: 14px; line-height: 21px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.games-carousel .game-choice { margin-top: 0; align-content: start; overflow-y: auto; }
 .games-carousel .game-archive { background: linear-gradient(120deg, #f4f7ff, #edf6f4); }
 .games-carousel .game-records { background: linear-gradient(120deg, #fff7db, #f6f3e9); }
-.games-carousel .previous-games-list { margin-top: 12px; padding: 0 0 4px; max-height: 180px; overflow-y: auto; overscroll-behavior-y: contain; border-top: 0; }
-.games-carousel .previous-games-list button { margin-top: 0; }
-.games-carousel .game-records .primary-button { margin-top: 12px; }
+.games-carousel .previous-games-list { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0 0 4px; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; border-top: 0; }
+.games-carousel .previous-games-list button { margin: 0; width: 100%; min-height: 44px; padding: 10px 14px; text-align: left; }
+.games-carousel .game-records .primary-button { margin-top: 0; align-self: start; }
 .games-carousel .hero-slide-label { min-width: 0; width: 132px; }
 .strength-previous-hint { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #eef7f2; color: #47706a; font-size: 13px; }
 .strength-previous-result { display: block; margin-top: 4px; color: #47706a; font-size: 12px; font-style: normal; }
