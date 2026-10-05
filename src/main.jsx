@@ -1596,7 +1596,7 @@ const GROUP_PEP_OPTIONS = [
 ]
 
 function CoachInfoPage({ code, profile, onBack }) {
-  return <main className="page-content coach-info-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Från tränarna</p><h1>Info från tränarna</h1><p>Viktiga meddelanden och frågor, samlat på ett ställe.</p></div></div><OpenChatPanel code={code} profileId={profile?.id} /></main>
+  return <main className="page-content coach-info-page"><header className="coach-info-header"><button type="button" className="back-button" onClick={onBack} aria-label="Tillbaka">←</button><h1>Info från tränarna</h1></header><OpenChatPanel code={code} profileId={profile?.id} /></main>
 }
 
 function Community({ profile, code, points, customPepEnabled = true, openChatEnabled = false, initialView = 'group', onBack, onPointsChange }) {
@@ -3423,7 +3423,15 @@ function OpenChatPanel({ code, coach = false, profileId = '' }) {
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
   if (!chat.enabled) return null
   const chatBackground = chat.backgroundImage || '/assets/open-chat-bg-teal.png'
-  return <section className="open-chat-panel coach-open-chat" style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}><div className="open-chat-heading"><div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div><small>{coach ? 'Synlig för alla simmare och tränare' : chat.coachOnly ? 'Tränarna skriver · alla kan läsa' : 'Alla i gruppen kan läsa och skriva'}</small>{coach && <button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button>}</div><div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => <article className={item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'} key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Simmare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{(coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}</article>) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>{(!chat.coachOnly || coach) && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}</section>
+  return <section className="open-chat-panel coach-open-chat" style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
+    <div className="open-chat-heading">
+      {coach && <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div>}
+      <small>{coach ? 'Synlig för alla simmare och tränare' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor syns bara för tränarna' : 'Gruppen kan läsa och skriva här'}</small>
+      {coach && <button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button>}
+    </div>
+    <div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => <article className={item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'} key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Simmare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{(coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}</article>) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
+    {(!chat.coachOnly || coach) && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}
+  </section>
 }
 
 function CoachCommunity({ code, profiles }) {
