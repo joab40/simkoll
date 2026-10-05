@@ -867,7 +867,7 @@ function StrengthProgramCard({ training, onOpen }) {
   return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt styrkeprogram 🏋️</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
 }
 
-function SwimmerHeroCarousel({ children, enabled, infoRequest }) {
+function SwimmerHeroCarousel({ children, enabled, infoRequest, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '' }) {
   const track = useRef(null)
   const activeRef = useRef(0)
   const [active, setActive] = useState(0)
@@ -875,7 +875,7 @@ function SwimmerHeroCarousel({ children, enabled, infoRequest }) {
   const goTo = (index, smooth = true) => {
     const element = track.current
     if (!element) return
-    const slide = element.children[index]
+    const slide = element.children[Math.max(0, Math.min(slides.length - 1, index))]
     if (!slide) return
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     element.scrollTo({ left: slide.offsetLeft - element.children[0].offsetLeft, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
@@ -890,26 +890,26 @@ function SwimmerHeroCarousel({ children, enabled, infoRequest }) {
     })
     observer.observe(track.current)
     return () => observer.disconnect()
-  }, [enabled])
+  }, [enabled, slides.length])
   if (!enabled) return slides[0]
-  const labels = ['Idag i gruppen', 'Info från tränarna']
-  return <div className="swimmer-hero-carousel" role="region" aria-label="Gruppens läge och tränarinfo" aria-roledescription="karusell">
+  return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
     <div className="swimmer-hero-track" ref={track} tabIndex={0} onScroll={(event) => {
       const element = event.currentTarget
-      const distance = element.children[1].offsetLeft - element.children[0].offsetLeft
-      const index = Math.max(0, Math.min(1, Math.round(element.scrollLeft / distance)))
+      const distance = element.children[1]?.offsetLeft - element.children[0].offsetLeft
+      if (!distance) return
+      const index = Math.max(0, Math.min(slides.length - 1, Math.round(element.scrollLeft / distance)))
       activeRef.current = index; setActive(index)
     }} onKeyDown={(event) => {
       if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
-      event.preventDefault(); goTo(event.key === 'ArrowRight' ? 1 : 0)
+      event.preventDefault(); goTo(activeRef.current + (event.key === 'ArrowRight' ? 1 : -1))
     }}>
-      {slides.map((slide, index) => <div key={index} className="swimmer-hero-slide" role="group" aria-roledescription="kort" aria-label={`${index + 1} av 2: ${labels[index]}`} inert={active !== index}>{slide}</div>)}
+      {slides.map((slide, index) => <div key={index} className="swimmer-hero-slide" role="group" aria-roledescription="kort" aria-label={`${index + 1} av ${slides.length}: ${labels[index]}`} inert={active !== index}>{slide}</div>)}
     </div>
     <div className="swimmer-hero-navigation">
-      <button type="button" className="hero-slide-arrow" disabled={active === 0} aria-label="Visa Idag i gruppen" onClick={() => goTo(0)}>←</button>
+      <button type="button" className="hero-slide-arrow" disabled={active === 0} aria-label={`Visa ${labels[Math.max(0, active - 1)]}`} onClick={() => goTo(active - 1)}>←</button>
       <div className="hero-slide-indicators">{labels.map((label, index) => <button type="button" key={label} aria-label={`Visa ${label}`} aria-pressed={active === index} onClick={() => goTo(index)}><span /></button>)}</div>
       <span className="hero-slide-label" aria-live="polite">{labels[active]}</span>
-      <button type="button" className="hero-slide-arrow" disabled={active === 1} aria-label="Visa Info från tränarna" onClick={() => goTo(1)}>→</button>
+      <button type="button" className="hero-slide-arrow" disabled={active === slides.length - 1} aria-label={`Visa ${labels[Math.min(slides.length - 1, active + 1)]}`} onClick={() => goTo(active + 1)}>→</button>
     </div>
   </div>
 }
@@ -1021,7 +1021,11 @@ function StartCard({ profile, onStart, followUp = false, raceFollowUp = false })
 
 function GameCard({ games = GAME_CATALOG, previousGames = [], onOpen, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime }) {
   const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: onOpen, aljakten: onAljakten, breakout: onBreakout, bikerun: onBikeRun, twenty48: onTwenty48 }
-  return <div className="game-card-stack"><section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}</div></div></section>{previousGames.length > 0 && <details className="previous-games-card"><summary><div><p className="eyebrow">Spelhistorik</p><h2>Tidigare veckors spel 📚</h2><p>{previousGames.length} tidigare spel att välja mellan.</p></div><span>Visa →</span></summary><div className="previous-games-list">{previousGames.map((game) => <button type="button" className="secondary-button" key={game.key} onClick={() => actions[game.key]?.()}>{game.title} {game.emoji} →</button>)}</div></details>}<button type="button" className="all-time-games-button" onClick={onAllTime}><span>🏆</span><span><strong>All time-topplista</strong><small>Se rekord från alla spel</small></span><b>→</b></button></div>
+  return <SwimmerHeroCarousel enabled labels={['Veckans spel', 'Tidigare veckors spel', 'All time-topplista']} regionLabel="Spel och topplistor" className="games-carousel">
+    <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button type="button" key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}</div></div></section>
+    <section className="game-card game-archive"><div><p className="eyebrow">Spelhistorik</p><h2>Tidigare veckors spel 📚</h2><p>{previousGames.length ? `${previousGames.length} tidigare spel att välja mellan.` : 'Här samlas spelen när en ny spelvecka börjar.'}</p><div className="previous-games-list">{previousGames.map((game) => <button type="button" className="secondary-button" key={game.key} onClick={() => actions[game.key]?.()}>{game.title} {game.emoji} →</button>)}</div></div></section>
+    <section className="game-card game-records"><div><p className="eyebrow">Rekord genom tiderna</p><h2>All time-topplista 🏆</h2><p>Se de bästa resultaten från alla spel och tidigare veckor.</p><button type="button" className="primary-button" onClick={onAllTime}>Öppna topplistan →</button></div></section>
+  </SwimmerHeroCarousel>
 }
 
 function useLegacyGameFullscreen(selector) {

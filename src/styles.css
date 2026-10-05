@@ -273,6 +273,16 @@ button { cursor: pointer; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
 .game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .game-card-stack { display: grid; gap: 12px; }
+.games-carousel { margin-top: 12px; }
+.games-carousel .swimmer-hero-track { border-radius: 22px; }
+.games-carousel .game-card { margin-top: 0; align-items: flex-start; }
+.games-carousel .game-card > div { width: 100%; min-width: 0; }
+.games-carousel .game-archive { background: linear-gradient(120deg, #f4f7ff, #edf6f4); }
+.games-carousel .game-records { background: linear-gradient(120deg, #fff7db, #f6f3e9); }
+.games-carousel .previous-games-list { margin-top: 12px; padding: 0 0 4px; max-height: 180px; overflow-y: auto; overscroll-behavior-y: contain; border-top: 0; }
+.games-carousel .previous-games-list button { margin-top: 0; }
+.games-carousel .game-records .primary-button { margin-top: 12px; }
+.games-carousel .hero-slide-label { min-width: 0; width: 132px; }
 .strength-previous-hint { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #eef7f2; color: #47706a; font-size: 13px; }
 .strength-previous-result { display: block; margin-top: 4px; color: #47706a; font-size: 12px; font-style: normal; }
 .previous-games-card { background: var(--paper); border: 1px solid #dbe8e5; border-radius: 20px; overflow: hidden; }
