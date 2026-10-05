@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto'
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import { estimatedCostUsd } from '../server/ai-costs.js'
+import { coachFromRequest } from '../server/coach-auth.js'
 import { getSessionDays } from '../server/session-settings.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
@@ -118,6 +119,8 @@ export default async function handler(request, response) {
           return sendJson(response, 200, { format: 'simkoll-backup', formatVersion: 1, exportedAt: new Date().toISOString(), tables, counts, warnings })
         }
         if (request.query?.audit === 'true') {
+          const coachAccount = coachFromRequest(request)
+          if (coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan se loggar.' })
           const [logsResult, usageResult] = await Promise.all([
             supabaseRequest('audit_logs?select=id,event_type,role,status,details,ip_hash,created_at&order=created_at.desc&limit=300'),
             supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
