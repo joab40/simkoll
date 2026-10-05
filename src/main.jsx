@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { attendanceFromCheckins } from './attendance.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
@@ -867,10 +867,11 @@ function StrengthProgramCard({ training, onOpen }) {
   return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt styrkeprogram 🏋️</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
 }
 
-function SwimmerHeroCarousel({ children, enabled, infoRequest, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '' }) {
+function SwimmerHeroCarousel({ children, enabled, infoRequest, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
   const track = useRef(null)
   const activeRef = useRef(0)
   const [active, setActive] = useState(0)
+  const [height, setHeight] = useState(null)
   const slides = React.Children.toArray(children)
   const goTo = (index, smooth = true) => {
     const element = track.current
@@ -891,9 +892,19 @@ function SwimmerHeroCarousel({ children, enabled, infoRequest, labels = ['Idag i
     observer.observe(track.current)
     return () => observer.disconnect()
   }, [enabled, slides.length])
+  useLayoutEffect(() => {
+    if (!enabled || !autoHeight) { setHeight(null); return }
+    const slide = track.current?.children[active]
+    if (!slide) return
+    const measure = () => setHeight(Math.ceil(slide.getBoundingClientRect().height))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(slide)
+    return () => observer.disconnect()
+  }, [enabled, autoHeight, active, slides.length])
   if (!enabled) return slides[0]
   return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
-    <div className="swimmer-hero-track" ref={track} tabIndex={0} onScroll={(event) => {
+    <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { height } : undefined} ref={track} tabIndex={0} onScroll={(event) => {
       const element = event.currentTarget
       const distance = element.children[1]?.offsetLeft - element.children[0].offsetLeft
       if (!distance) return
@@ -1021,7 +1032,7 @@ function StartCard({ profile, onStart, followUp = false, raceFollowUp = false })
 
 function GameCard({ games = GAME_CATALOG, previousGames = [], onOpen, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime }) {
   const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: onOpen, aljakten: onAljakten, breakout: onBreakout, bikerun: onBikeRun, twenty48: onTwenty48 }
-  return <SwimmerHeroCarousel enabled labels={['Veckans spel', 'Tidigare veckors spel', 'All time-topplista']} regionLabel="Spel och topplistor" className="games-carousel">
+  return <SwimmerHeroCarousel enabled autoHeight labels={['Veckans spel', 'Tidigare veckors spel', 'All time-topplista']} regionLabel="Spel och topplistor" className="games-carousel">
     <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button type="button" key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}</div></div></section>
     <section className="game-card game-archive"><div><p className="eyebrow">Spelhistorik</p><h2>Tidigare veckors spel 📚</h2><p>{previousGames.length ? `${previousGames.length} tidigare spel att välja mellan.` : 'Här samlas spelen när en ny spelvecka börjar.'}</p><div className="previous-games-list">{previousGames.map((game) => <button type="button" className="secondary-button" key={game.key} onClick={() => actions[game.key]?.()}>{game.title} {game.emoji} →</button>)}</div></div></section>
     <section className="game-card game-records"><div><p className="eyebrow">Rekord genom tiderna</p><h2>All time-topplista 🏆</h2><p>Se de bästa resultaten från alla spel och tidigare veckor.</p><button type="button" className="primary-button" onClick={onAllTime}>Öppna topplistan →</button></div></section>
