@@ -2211,6 +2211,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const [lanePlannerOpen, setLanePlannerOpen] = useState(false)
   const date = selectedDate || todayKey()
   const [slot, setSlot] = useState(new Date().getHours() < 13 ? 'morning_swim' : 'afternoon_swim')
+  const responseSignature = responses.map((item) => `${item.profileId || ''}:${item.type || ''}`).join('|')
   useEffect(() => {
     apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code).then(async (data) => {
       const rows = data.attendance || []
@@ -2224,7 +2225,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
         await Promise.all(autoPresent.map((profileId) => apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId, date, slot, present: true }) }).catch(() => null)))
       }
     }).catch(() => {})
-  }, [code, date, slot])
+  }, [code, date, slot, responseSignature])
   const groupOrder = { ungdom_orange: 1, ungdom_svart: 2, junior: 3 }
   const visible = profiles.filter((profile) => group === 'all' || profile.trainingGroup === group).slice().sort((a, b) => {
     if (sortPresent && Boolean(attendance[b.id]) !== Boolean(attendance[a.id])) return Number(Boolean(attendance[b.id])) - Number(Boolean(attendance[a.id]))
