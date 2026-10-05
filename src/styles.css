@@ -259,6 +259,15 @@ button { cursor: pointer; }
 .reward-progress i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
 .reward-card small { color: var(--muted); font-size: 10px; }
 .reward-card > button { border: 1px solid #bdd4ce; background: white; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; }
+.swimmer-hero-slide .hero-level-card { margin: 0; padding: 30px 26px; border: 1px solid #d2e4d8; border-radius: 30px; background: radial-gradient(circle at 80% 20%, #f1f8d5, transparent 50%), linear-gradient(135deg, #e6f4ee, #f8fbf3); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; text-align: center; }
+.hero-level-card > span { display: grid; place-items: center; width: 80px; height: 80px; font-size: 50px; background: rgba(255,255,255,.65); border: 1px solid #d3e5da; border-radius: 25px; }
+.hero-level-card > div { width: 100%; max-width: 420px; }
+.hero-level-card .eyebrow { margin-bottom: 8px; }
+.hero-level-card h3 { font-size: clamp(21px, 3vw, 28px); margin-bottom: 16px; }
+.hero-level-card .reward-progress { width: 100%; height: 9px; margin-bottom: 8px; }
+.hero-level-card small { font-size: 12px; }
+.hero-level-card > button { min-height: 44px; padding: 11px 22px; border-radius: 13px; }
+@media (max-width: 640px) { .swimmer-hero-slide .hero-level-card { border-radius: 23px; } }
 .notification-card { margin-top: 14px; background: #fff8e7; border: 1px solid #ead79a; border-radius: 20px; padding: 20px 22px; }
 .notification-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .notification-heading h2 { margin: 0; font-size: 20px; }

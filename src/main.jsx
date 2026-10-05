@@ -827,6 +827,7 @@ function StarProgress({ stars }) {
 function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart }) {
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
+  const levelVisible = Boolean(profile && points?.current)
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
@@ -851,7 +852,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
-      <SwimmerHeroCarousel enabled={Boolean(profile && chatVisible)} infoRequest={coachPreviewRequest}>
+      <SwimmerHeroCarousel enabled={Boolean(levelVisible || (profile && chatVisible))} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={['Idag i gruppen', ...(levelVisible ? ['Din nivå'] : []), ...(profile && chatVisible ? ['Info från tränarna'] : [])]} regionLabel="Gruppens läge, din nivå och tränarinfo">
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
@@ -870,8 +871,10 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
+      {levelVisible && <RewardCard points={points} onCommunity={onCommunity} featured />}
       {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunityChat || onCommunity} />}
       </SwimmerHeroCarousel>
+      {profile && points?.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}
 
       {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} />}
 
@@ -881,7 +884,6 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
-      {profile && <RewardCard points={points} onCommunity={onCommunity} />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard games={availableGames} previousGames={previousGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBreakout={onBreakout} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
@@ -896,7 +898,7 @@ function StrengthProgramCard({ training, onOpen }) {
   return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt styrkeprogram 🏋️</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
 }
 
-function SwimmerHeroCarousel({ children, enabled, infoRequest, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
+function SwimmerHeroCarousel({ children, enabled, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
   const track = useRef(null)
   const activeRef = useRef(0)
   const [active, setActive] = useState(0)
@@ -910,9 +912,11 @@ function SwimmerHeroCarousel({ children, enabled, infoRequest, labels = ['Idag i
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     element.scrollTo({ left: slide.offsetLeft - element.children[0].offsetLeft, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
   }
-  useEffect(() => { if (enabled && infoRequest > 0) goTo(1) }, [infoRequest, enabled])
+  useEffect(() => { if (enabled && infoRequest > 0) goTo(infoIndex) }, [infoRequest, enabled, infoIndex])
   useEffect(() => {
     if (!enabled || !track.current) { activeRef.current = 0; setActive(0); return }
+    const index = Math.min(activeRef.current, slides.length - 1)
+    if (index !== activeRef.current) { activeRef.current = index; setActive(index); goTo(index, false) }
     let width = track.current.clientWidth
     const observer = new ResizeObserver(() => {
       const nextWidth = track.current?.clientWidth
@@ -1483,12 +1487,12 @@ function MiniGoal({ icon, label, completed, target }) {
   return <div><span>{icon}</span><p><strong>{label}: {completed} av {target}</strong><i><b style={{ width: `${Math.min(100, percentage)}%` }} /></i><small>{completed >= target ? 'Målet är klart!' : `${target - completed} pass kvar`}</small></p></div>
 }
 
-function RewardCard({ points, onCommunity }) {
+function RewardCard({ points, onCommunity, featured = false }) {
   if (!points?.current) return null
   const remaining = points.next ? points.next.minPoints - points.total : 0
   const range = points.next ? points.next.minPoints - points.current.minPoints : 1
   const progress = points.next ? ((points.total - points.current.minPoints) / range) * 100 : 100
-  return <>{points.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}<section className="reward-card"><span>{points.current.emoji}</span><div><p className="eyebrow">Din nivå</p><h3>{points.current.name} · {points.total} poäng</h3><div className="reward-progress"><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div><small>{points.next ? `${remaining} poäng till ${points.next.name}` : 'Du har nått högsta nivån!'}</small></div><button onClick={onCommunity}>Ge pepp →</button></section></>
+  return <>{!featured && points.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}<section className={`reward-card${featured ? ' hero-level-card' : ''}`}><span aria-hidden="true">{points.current.emoji}</span><div><p className="eyebrow">Din nivå</p><h3>{points.current.name} · {points.total} poäng</h3><div className="reward-progress"><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div><small>{points.next ? `${remaining} poäng till ${points.next.name}` : 'Du har nått högsta nivån!'}</small></div><button type="button" onClick={onCommunity}>Ge pepp →</button></section></>
 }
 
 function RewardCelebration({ rewards }) {
