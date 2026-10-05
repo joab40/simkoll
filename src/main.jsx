@@ -852,7 +852,8 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
-      <SwimmerHeroCarousel enabled={Boolean(levelVisible || (profile && chatVisible))} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={['Idag i gruppen', ...(levelVisible ? ['Din nivå'] : []), ...(profile && chatVisible ? ['Info från tränarna'] : [])]} regionLabel="Gruppens läge, din nivå och tränarinfo">
+      <SwimmerHeroCarousel enabled={Boolean(levelVisible || (profile && chatVisible))} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : [])]} regionLabel="Din nivå, gruppens läge och tränarinfo">
+      {levelVisible && <RewardCard points={points} onCommunity={onCommunity} featured />}
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
@@ -871,7 +872,6 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         {profile && starsEnabled && <StarProgress stars={stars} />}
       </section>
-      {levelVisible && <RewardCard points={points} onCommunity={onCommunity} featured />}
       {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunityChat || onCommunity} />}
       </SwimmerHeroCarousel>
       {profile && points?.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}
@@ -898,7 +898,7 @@ function StrengthProgramCard({ training, onOpen }) {
   return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt styrkeprogram 🏋️</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
 }
 
-function SwimmerHeroCarousel({ children, enabled, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
+function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
   const track = useRef(null)
   const activeRef = useRef(0)
   const [active, setActive] = useState(0)
@@ -912,6 +912,12 @@ function SwimmerHeroCarousel({ children, enabled, infoRequest, infoIndex = 1, la
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     element.scrollTo({ left: slide.offsetLeft - element.children[0].offsetLeft, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
   }
+  useLayoutEffect(() => {
+    const index = enabled ? Math.max(0, Math.min(slides.length - 1, initialIndex)) : 0
+    activeRef.current = index
+    setActive(index)
+    if (enabled) goTo(index, false)
+  }, [enabled, initialIndex])
   useEffect(() => { if (enabled && infoRequest > 0) goTo(infoIndex) }, [infoRequest, enabled, infoIndex])
   useEffect(() => {
     if (!enabled || !track.current) { activeRef.current = 0; setActive(0); return }
