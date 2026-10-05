@@ -869,8 +869,10 @@ function Home({ code, responses, profile, points, notifications, onNotifications
           )) : <p>Inga svar ännu – bli först!</p>}
         </div>
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count"><strong>{activeProfilesToday}</strong> profiler inne idag</span>}</div>
-        {profile && streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
-        {profile && starsEnabled && <StarProgress stars={stars} />}
+        {profile && <div className="mood-footer">
+          {starsEnabled && <StarProgress stars={stars} />}
+          {streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
+        </div>}
       </section>
       {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunityChat || onCommunity} />}
       </SwimmerHeroCarousel>
