@@ -200,9 +200,9 @@ export default async function handler(request, response) {
         role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
           : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
-        openChatEnabled ? supabaseRequest('open_chat_messages?deleted_at=is.null&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.asc&limit=300') : Promise.resolve({ ok: true, json: async () => [] }),
+        openChatEnabled ? supabaseRequest(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profile.id})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`) : Promise.resolve({ ok: true, json: async () => [] }),
       ])
-      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok) throw new Error('Community feed failed')
+      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok || !openChatResult.ok) throw new Error('Community feed failed')
       const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
         const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender && item.content)
       let privateKudos = []
@@ -212,7 +212,7 @@ export default async function handler(request, response) {
         privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: item.content || KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient && item.content)
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
-      const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches' || item.sender_profile_id === profile?.id).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, senderProfileId: item.sender_profile_id || null, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender) : []
+const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches' || item.sender_profile_id === profile?.id).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, senderProfileId: item.sender_profile_id || null, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🏊' } })).filter((item) => item.sender).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : []
       return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: openChatMessages } })
     }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { attendanceFromCheckins } from './attendance.js'
+import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
 
 const APP_VERSION = __APP_VERSION__
@@ -823,7 +824,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
       <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
-        {profile && chatVisible && <CoachLetterBadge code={code} onOpen={onCommunityChat || onCommunity} />}
+        {profile && chatVisible && <CoachLetterBadge code={code} profileId={profile.id} onOpen={onCommunityChat || onCommunity} />}
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
         {profile && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
@@ -871,13 +872,31 @@ function OpenChatCard({ code, onOpen }) {
   return <section className={`open-chat-card${expanded ? ' expanded' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}><div className="open-chat-card-head"><div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2><p>Klubbinfo och kontakt med tränarna på samma ställe.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna →</button></div>{messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={item.id}><span>{item.sender?.emoji || '🏊'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty">Inga nya meddelanden ännu.</p>}<div className="open-chat-card-actions"><button type="button" className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Visa mindre ↑' : 'Visa allt i tränarinfo ↓'}</button><button type="button" className="text-button" onClick={onOpen}>Skriv till tränarna</button></div></section>
 }
 
-function CoachLetterBadge({ code, onOpen }) {
+function CoachLetterBadge({ code, profileId, onOpen }) {
   const [hasMessage, setHasMessage] = useState(false)
   const [messageKey, setMessageKey] = useState('')
-  const [opened, setOpened] = useState(() => { try { return localStorage.getItem(`simkoll-coach-info-opened-${code}`) === '1' } catch { return false } })
-  useEffect(() => { let mounted = true; apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { if (!mounted) return; const coachMessages = (data.openChat?.messages || []).filter((item) => item.senderRole === 'coach'); setHasMessage(coachMessages.length > 0); setMessageKey(coachMessages.at(-1)?.id || '') }).catch(() => {}); return () => { mounted = false } }, [code])
+  const [readKey, setReadKey] = useState('')
+  const opened = Boolean(messageKey && messageKey === readKey)
+  useEffect(() => {
+    let mounted = true
+    const refresh = async () => {
+      if (document.hidden) return
+      try {
+        const data = await apiRequest(`/api/community?feed=${Date.now()}`, code)
+        if (!mounted) return
+        const latest = latestCoachMessageId(data.openChat?.messages)
+        setHasMessage(Boolean(latest)); setMessageKey(latest)
+        try { setReadKey(localStorage.getItem(coachInfoReadKey(profileId)) || '') } catch { setReadKey('') }
+      } catch {}
+    }
+    setHasMessage(false); setReadKey(''); refresh()
+    const interval = window.setInterval(refresh, 15000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, [code, profileId])
   if (!hasMessage) return null
-  const open = () => { if (!opened && messageKey) void apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-info-opened', sourceKey: messageKey }) }).catch(() => {}); setOpened(true); try { localStorage.setItem(`simkoll-coach-info-opened-${code}`, '1') } catch {} onOpen() }
+  const open = () => { if (!opened && messageKey) void apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-info-opened', sourceKey: messageKey }) }).catch(() => {}); onOpen() }
   return <button type="button" className={`coach-letter-badge${opened ? ' opened' : ''}`} onClick={open} aria-label={opened ? 'Info från tränarna, läst' : 'Öppna info från tränarna'} title={opened ? 'Info från tränarna · Läst' : 'Info från tränarna'}><span className="coach-letter-envelope" aria-hidden="true">{opened ? '📨' : '✉️'}</span>{opened && <span className="coach-letter-read-mark" aria-hidden="true">✓</span>}</button>
 }
 
@@ -3314,8 +3333,17 @@ function CoachGoals({ code, profiles }) {
 
 function OpenChatPanel({ code, coach = false, profileId = '' }) {
   const [chat, setChat] = useState({ enabled: false, backgroundImage: '', messages: [] }); const [content, setContent] = useState(''); const [status, setStatus] = useState('')
-  const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => setChat(data.openChat || { enabled: false, messages: [] })).catch((error) => setStatus(error.message))
-  useEffect(() => { load(); if (!coach) return undefined; const refresh = window.setInterval(load, 15000); return () => window.clearInterval(refresh) }, [code, coach])
+  const panelActive = useRef(true)
+  const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => {
+    if (!panelActive.current) return
+    const next = data.openChat || { enabled: false, messages: [] }
+    setChat(next)
+    if (!coach && profileId && next.enabled) {
+      const latest = latestCoachMessageId(next.messages)
+      if (latest) { try { localStorage.setItem(coachInfoReadKey(profileId), latest) } catch {} }
+    }
+  }).catch((error) => { if (panelActive.current) setStatus(error.message) })
+  useEffect(() => { panelActive.current = true; load(); const refresh = window.setInterval(() => { if (!document.hidden) load() }, 15000); return () => { panelActive.current = false; window.clearInterval(refresh) } }, [code, coach, profileId])
   const send = async (event) => { event.preventDefault(); if (!content.trim()) return; setStatus('Skickar…'); try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content }) }); setContent(''); setStatus(''); await load() } catch (error) { setStatus(error.message) } }
   const remove = async (id) => { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id }) }); await load() }
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
