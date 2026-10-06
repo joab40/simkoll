@@ -4049,6 +4049,10 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
   const selectedItems = selectedFeeling ? responses.filter((item) => item.feeling === selectedFeeling) : []
   const identifiedItems = selectedItems.filter((item) => item.profileId && profileById.has(item.profileId))
   const anonymousCount = responses.filter((item) => !item.profileId || !profileById.has(item.profileId)).length
+  const activityCounts = DAY_TYPES.map((type) => {
+    const matching = responses.filter((item) => item.type === type.value)
+    return { ...type, profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
+  })
   const latestByProfile = [...identifiedItems].sort((a, b) => responseDate(b) - responseDate(a)).reduce((result, item) => {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
@@ -4085,7 +4089,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
         <section className="coach-card">
           <p className="eyebrow">Aktivitet</p><h2>Vad har gruppen gjort?</h2>
           <div className="type-list">
-            {DAY_TYPES.map((type) => <div key={type.value}><span>{type.title}</span><strong>{responses.filter((item) => item.type === type.value).length}</strong></div>)}
+            {activityCounts.map((item) => <div key={item.value}><span>{item.title}<small>{item.answers} svar</small></span><strong>{item.profiles}<small>{item.profiles === 1 ? 'profil' : 'profiler'}</small></strong></div>)}
           </div>
         </section>
         <section className="coach-card comments-card">
