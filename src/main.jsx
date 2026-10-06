@@ -718,6 +718,9 @@ const HELP_TEXT = {
   'Förändring i känsla': 'Visar hur gruppens genomsnittliga känsla har förändrats på skalan 1–5. Varje dag väger lika. Exempel: +0,3 betyder att känslan i snitt är 0,3 högre än under föregående lika långa period.',
   'Förändring i kroppen': 'Visar hur gruppens genomsnittliga kroppskänsla har förändrats på skalan 1–5. Ett högre värde betyder att kroppen i genomsnitt upplevts fräschare.',
   'Gruppens kontinuitet': 'Jämför registrerade simpass per simmare och vecka med föregående lika långa period. Samma simmargrupp används i båda perioderna. Skillnader under 0,15 pass per simmare och vecka visas som stabila.',
+  'Simmeter i Grupptrend': 'Visar simmeter enligt de publicerade pass som hör till simmarnas registrerade simpass, per simmare och vecka. Det är passets planerade distans, inte en individuell mätning av faktiskt simmade meter. Förändringar inom ±5 % visas som stabila. Mer meter betyder ökad mängd, inte automatiskt bättre utveckling.',
+  'Total träningstid i Grupptrend': 'Summerar planerad tidsåtgång för simning, styrketräning och landträning som simmarna har registrerat i träningsloggen, per simmare och vecka. Det är tidsåtgången i planeringen, inte uppmätt faktisk tid. Pass utan angiven tidsåtgång räknas inte som minuter. Förändringar inom ±5 % visas som stabila.',
+  'Träningstidens uppdelning': 'Visar den planerade tidsåtgången för registrerade pass, uppdelad på simning, styrketräning och landträning. Det är en uppskattning från planeringen, inte uppmätt faktisk tid. Pass utan angiven tidsåtgång räknas inte som minuter; Simkoll gissar aldrig tiden.',
   'Personlig AI-analys': 'En sparad, tränarskapad sammanfattning av dina egna träningsdata. Den är ett samtalsstöd – inte en diagnos eller ett automatiskt betyg.',
   'Träningsstjärnor': 'Fyra stjärnor visar olika träningsvanor. 1) Veckan planerad: minst tre träningsdagar är planerade i Min träning den här veckan. 2) Styrka och landträning: båda målen är överenskomna och aktiva. 3) Simmål satt: ett aktivt mål för antal simpass per vecka finns. 4) Följer min simplan: under de fyra senaste avslutade veckorna har alla simpass enligt överenskommelsen genomförts, till exempel 18 av 20 = 90 %. En stjärna tänds först vid 100 %. Grå stjärna betyder att villkoret inte är uppfyllt ännu. Varje stjärna ger 1 poäng när den låses upp; poäng tas inte bort om en stjärna senare blir grå.',
   'Aktiva profiler': 'Antal simmarprofiler som använde en profilfunktion under perioden. Testprofiler räknas inte.',
@@ -2723,7 +2726,12 @@ function GroupTrendIndicator({ trend }) {
   const state = states[trend.state] || states.insufficient
   const continuity = trend.continuity
   const continuityState = states[continuity.state] || states.insufficient
+  const volume = trend.volume
+  const metersState = states[volume?.meters?.state] || states.insufficient
+  const minutesState = states[volume?.minutes?.state] || states.insufficient
   const number = (value) => value == null ? '–' : value.toLocaleString('sv-SE', { maximumFractionDigits: 2 })
+  const whole = (value) => value == null ? '–' : Math.round(value).toLocaleString('sv-SE')
+  const percent = (value) => value == null ? 'nytt underlag' : `${value > 0 ? '+' : ''}${value} %`
   const delta = (value) => value == null ? 'För lite underlag' : `${value > 0 ? '+' : ''}${number(value)}`
   const date = (value) => new Date(`${value}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
   const lastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return date(dateKey(day)) }
@@ -2737,16 +2745,22 @@ function GroupTrendIndicator({ trend }) {
       <div><span>Kroppen <HelpTip term="Förändring i kroppen" /></span><strong title={HELP_TEXT['Förändring i kroppen']}>{delta(trend.changes.body)}</strong><small>{number(trend.previous.metrics.body.value)} → {number(trend.current.metrics.body.value)} av 5</small></div>
       <div className={`group-trend-continuity trend-state-${continuity.state}`}><span>Kontinuitet <HelpTip term="Gruppens kontinuitet" /></span><strong tabIndex="0" title={HELP_TEXT['Gruppens kontinuitet']} aria-label={`${continuityState.label}. ${HELP_TEXT['Gruppens kontinuitet']}`}><span aria-hidden="true">{continuityState.arrow} </span>{continuityState.label}</strong><small>{continuity.state === 'insufficient' ? 'Fler registrerade pass behövs' : `${number(continuity.previous)} → ${number(continuity.current)} pass / simmare / vecka`}</small></div>
     </div>
+    {volume && <div className="group-trend-volume">
+      <div className={`group-trend-volume-card trend-state-${volume.meters.state}`}><span>Simmeter <HelpTip term="Simmeter i Grupptrend" /></span><strong tabIndex="0" title={HELP_TEXT['Simmeter i Grupptrend']}><b aria-hidden="true">{metersState.arrow}</b> {whole(volume.current.metersPerSwimmerWeek)} m</strong><small>{volume.meters.state === 'insufficient' ? 'För lite tidsjämförbart underlag' : `${whole(volume.previous.metersPerSwimmerWeek)} → ${whole(volume.current.metersPerSwimmerWeek)} m / simmare / vecka · ${percent(volume.meters.percent)}`}</small></div>
+      <div className={`group-trend-volume-card trend-state-${volume.minutes.state}`}><span>Träningstid enligt plan <HelpTip term="Total träningstid i Grupptrend" /></span><strong tabIndex="0" title={HELP_TEXT['Total träningstid i Grupptrend']}><b aria-hidden="true">{minutesState.arrow}</b> {whole(volume.current.minutesPerSwimmerWeek)} min</strong><small>{volume.minutes.state === 'insufficient' ? 'För lite tidsjämförbart underlag' : `${whole(volume.previous.minutesPerSwimmerWeek)} → ${whole(volume.current.minutesPerSwimmerWeek)} min / simmare / vecka · ${percent(volume.minutes.percent)}`}</small></div>
+      <details className="group-trend-volume-breakdown"><summary>Visa tidsfördelning <HelpTip term="Träningstidens uppdelning" /></summary><p>Vald period · planerade minuter per simmare och vecka</p><div><span>🏊 Simning <strong>{whole(volume.current.minutesByType.swim)} min</strong></span><span>🏋️ Gym <strong>{whole(volume.current.minutesByType.strength)} min</strong></span><span>🤸 Land <strong>{whole(volume.current.minutesByType.dryland)} min</strong></span></div><p>Föregående period · planerade minuter per simmare och vecka</p><div><span>🏊 Simning <strong>{whole(volume.previous.minutesByType.swim)} min</strong></span><span>🏋️ Gym <strong>{whole(volume.previous.minutesByType.strength)} min</strong></span><span>🤸 Land <strong>{whole(volume.previous.minutesByType.dryland)} min</strong></span></div><small>Tidsunderlag för {volume.current.sessionsWithDuration} av {volume.current.sessions} registrerade pass i vald period och {volume.previous.sessionsWithDuration} av {volume.previous.sessions} i föregående. Pass utan planerad tidsåtgång ingår inte i minuterna.</small></details>
+    </div>}
     <details className="group-trend-explanation"><summary>Så läser du riktningen <span aria-hidden="true">⌄</span></summary>
       <div><p>Varje dags genomsnitt väger lika. En förändring på minst 0,2 på skalan 1–5 ger en riktning. Om känsla och kropp förändras åt motsatta håll visas blandad utveckling.</p>
         <p>Varje skattning behöver minst sex giltiga svar i båda perioderna, normalt över minst två dagar. Underlaget ska omfatta minst tre profilkopplade simmare eller sex anonyma svar. En enskild dag kräver också minst sex svar.</p>
         <p>Vald period: {trend.current.responses} svar, varav {trend.current.anonymousResponses} anonyma och {trend.current.linkedSwimmers} profilkopplade simmare. Föregående period: {trend.previous.responses} svar, varav {trend.previous.anonymousResponses} anonyma och {trend.previous.linkedSwimmers} profilkopplade simmare.</p>
         <p>Kontinuitet: {continuity.currentPasses} mot {continuity.previousPasses} registrerade simpass för samma {continuity.swimmers} simmare. Antalet normaliseras per vecka. Skillnader under 0,15 pass per simmare och vecka visas som stabila. Mer träning behöver bedömas mot gruppens planering.</p>
-        <p>Pilen beskriver skattat träningsläge. Meter, minuter och RPE hjälper till att förklara perioden och räknas inte som poäng i riktningen.</p>
+        <p>Volympilarna för simmeter och träningstid jämför samma simmare per vecka. Förändringar inom ±5 % visas som stabila. Träningstiden summerar den planerade tidsåtgången för registrerade sim-, styrke- och landträningspass. Ökad mängd betyder inte automatiskt bättre utveckling; volymen påverkar inte huvudriktningen för känsla och kropp.</p>
+        <p>Meter och minuter hämtas från simpasset eller aktiviteten i planeringen och kopplas till registrerade pass. De visar planerad distans och tid, inte individuell mätning av exakt simmade meter eller faktisk träningstid. Tidsuppdelningen visar hur många pass som hade användbar tidsåtgång, så saknade minuter inte uppskattas i efterhand.</p>
         {trend.warnings.map((warning) => <p className="group-trend-warning" key={warning}>{warning}</p>)}
       </div>
     </details>
-    {trend.warnings.length > 0 && <p className="group-trend-caveat">Underlaget skiljer sig eller innehåller anonyma svar – öppna förklaringen för detaljer.</p>}
+    {trend.warnings.length > 0 && <p className="group-trend-caveat">Det finns information om underlaget – öppna förklaringen för detaljer.</p>}
   </section>
 }
 

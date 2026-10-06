@@ -189,23 +189,24 @@ export default async function handler(request, response) {
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
   try {
     const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
-  const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, notesResult, competitionResultsResult] = await Promise.all([
+  const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, plansResult, notesResult, competitionResultsResult] = await Promise.all([
       supabaseRequest(`responses?select=profile_id,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date,session_slot${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
-      supabaseRequest(`daily_workouts?select=workout_date,title,focus,distance_meters,duration_minutes&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc&limit=1000`),
+      supabaseRequest(`daily_workouts?select=workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc&limit=1000`),
+      supabaseRequest(`training_plans?select=plan_date,activity_type,duration_minutes,time_of_day,target_groups&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc&limit=1000`),
       role === 'coach' ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
       supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&result_date=lt.${endDay}${profileFilter}&limit=10000`),
     ])
-    if (![responsesResult, sessionsResult, activityResult, workoutsResult, competitionResultsResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
-    let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json(), workouts = await workoutsResult.json(), competitionResults = await competitionResultsResult.json()
+    if (![responsesResult, sessionsResult, activityResult, workoutsResult, plansResult, competitionResultsResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
+    let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json(), workouts = await workoutsResult.json(), plans = await plansResult.json(), competitionResults = await competitionResultsResult.json()
     const coachDocumentation = role === 'coach' && notesResult?.ok ? (await notesResult.json()).map((item) => ({ date: item.note_date, activity: item.activity_type === 'workout' ? 'Pass' : item.activity_type === 'competition' ? 'Tävling' : 'Dagens sammanfattning', text: String(item.content || '').slice(0, 2000) })).filter((item) => item.text) : []
     const truncated = responses.length >= 10000 || sessions.length >= 10000
     let reportProfiles = []
     if (!profileId) {
-      const profilesResult = await supabaseRequest('profiles?select=id,is_test_profile,created_at&limit=10000')
+      const profilesResult = await supabaseRequest('profiles?select=id,is_test_profile,created_at,training_group&limit=10000')
       if (!profilesResult.ok) throw new Error('Group profile lookup failed')
       const allProfiles = await profilesResult.json()
       const testIds = new Set(allProfiles.filter((item) => item.is_test_profile).map((item) => item.id))
@@ -318,7 +319,7 @@ export default async function handler(request, response) {
       }
     })
     workoutAnalysis.trend = trendPasses
-    const groupTrend = !profileId ? buildGroupTrend({ currentResponses, previousResponses, currentSessions, previousSessions, profiles: reportProfiles, start, end, previousStart, previousEnd, includeAnonymous, truncated }) : null
+    const groupTrend = !profileId ? buildGroupTrend({ currentResponses, previousResponses, currentSessions, previousSessions, profiles: reportProfiles, workouts, plans, start, end, previousStart, previousEnd, includeAnonymous, truncated }) : null
     return sendJson(response, 200, {
       groupTrend,
       current: { ...metrics(currentResponses, currentSessions, currentActivities, privateView), personalBests: currentPersonalBests.length },

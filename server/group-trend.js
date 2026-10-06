@@ -2,6 +2,12 @@ const dayKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/S
 const mean = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 const rounded = (value) => value == null ? null : Number(value.toFixed(2))
 const direction = (change, threshold) => change >= threshold - 1e-9 ? 'up' : change <= -threshold + 1e-9 ? 'down' : 'steady'
+const percentDirection = (current, previous, threshold = .05) => {
+  if (current == null || previous == null || current + previous === 0) return { state: 'insufficient', percent: null }
+  if (previous === 0) return { state: current > 0 ? 'up' : 'steady', percent: null }
+  const change = (current - previous) / previous
+  return { state: direction(change, threshold), percent: Math.round(change * 100) }
+}
 
 function responseSummary(rows, days) {
   const ratings = rows.filter((row) => ['feeling', 'body'].some((key) => Number.isFinite(row[key])))
@@ -17,7 +23,7 @@ function responseSummary(rows, days) {
   return { responses: ratings.length, linkedSwimmers: people.size, anonymousResponses: ratings.filter((row) => !row.profile_id).length, people, metrics }
 }
 
-export function buildGroupTrend({ currentResponses, previousResponses, currentSessions, previousSessions, profiles, start, end, previousStart, previousEnd, includeAnonymous = true, truncated = false }) {
+export function buildGroupTrend({ currentResponses, previousResponses, currentSessions, previousSessions, profiles, workouts = [], plans = [], start, end, previousStart, previousEnd, includeAnonymous = true, truncated = false }) {
   const days = (from, to) => Math.max(1, Math.round((Date.parse(`${dayKey(to)}T12:00:00Z`) - Date.parse(`${dayKey(from)}T12:00:00Z`)) / 86400000))
   const currentDays = days(start, end), previousDays = days(previousStart, previousEnd)
   const current = responseSummary(currentResponses, currentDays), previous = responseSummary(previousResponses, previousDays)
@@ -35,6 +41,47 @@ export function buildGroupTrend({ currentResponses, previousResponses, currentSe
   const previousRate = cohort.size ? previousPasses / cohort.size / (previousDays / 7) : null
   const continuityChange = currentRate != null ? rounded(currentRate - previousRate) : null
   const continuityState = !truncated && cohort.size >= 3 && currentPasses + previousPasses > 0 ? direction(continuityChange, .15) : 'insufficient'
+  const profileGroups = new Map(profiles.map((profile) => [profile.id, profile.training_group || '']))
+  const expectedTime = (slot) => slot === 'morning_swim' ? 'morning' : slot === 'afternoon_swim' ? 'afternoon' : ''
+  const appliesToProfile = (row, profileId) => !Array.isArray(row.target_groups) || !row.target_groups.length || row.target_groups.includes(profileGroups.get(profileId))
+  const sessionKey = (row) => `${row.profile_id}|${row.session_date}|${row.session_slot || row.activity_type}`
+  const uniqueSessions = (rows) => [...new Map(rows.filter((row) => cohort.has(row.profile_id)).map((row) => [sessionKey(row), row])).values()]
+  const matchingPlan = (session) => {
+    const source = session.activity_type === 'swim' ? workouts : plans
+    const candidates = source.filter((row) => {
+      const rowDate = row.workout_date || row.plan_date
+      const rowType = row.activity_type || 'swim'
+      if (rowDate !== session.session_date || rowType !== session.activity_type || !appliesToProfile(row, session.profile_id)) return false
+    })
+    const time = expectedTime(session.session_slot)
+    const exactTime = time ? candidates.filter((row) => row.time_of_day === time) : []
+    const untimed = time ? candidates.filter((row) => !row.time_of_day) : candidates
+    const matching = exactTime.length ? exactTime : untimed.length === 1 ? untimed : candidates.length === 1 ? candidates : []
+    return matching[matching.length - 1] || null
+  }
+  const volumeSummary = (rows, periodDays) => {
+    const sessions = uniqueSessions(rows)
+    const values = sessions.map((session) => ({ session, plan: matchingPlan(session) }))
+    const weeks = periodDays / 7
+    const normalize = (value) => cohort.size ? rounded(value / cohort.size / weeks) : null
+    const minutesByType = Object.fromEntries(['swim', 'strength', 'dryland'].map((type) => {
+      const minutes = values.filter(({ session }) => session.activity_type === type).reduce((sum, { plan }) => sum + (Number(plan?.duration_minutes) || 0), 0)
+      return [type, normalize(minutes)]
+    }))
+    const knownDuration = values.filter(({ plan }) => Number(plan?.duration_minutes) > 0)
+    const swimMeters = values.filter(({ session }) => session.activity_type === 'swim').reduce((sum, { plan }) => sum + (Number(plan?.distance_meters) || 0), 0)
+    return {
+      metersPerSwimmerWeek: normalize(swimMeters),
+      minutesPerSwimmerWeek: normalize(knownDuration.reduce((sum, { plan }) => sum + Number(plan.duration_minutes), 0)),
+      minutesByType,
+      sessions: sessions.length,
+      sessionsWithDuration: knownDuration.length,
+      swimSessionsWithMeters: values.filter(({ session, plan }) => session.activity_type === 'swim' && Number(plan?.distance_meters) > 0).length,
+    }
+  }
+  const currentVolume = volumeSummary(currentSessions, currentDays), previousVolume = volumeSummary(previousSessions, previousDays)
+  const metersTrend = cohort.size >= 3 && currentVolume.swimSessionsWithMeters && previousVolume.swimSessionsWithMeters ? percentDirection(currentVolume.metersPerSwimmerWeek, previousVolume.metersPerSwimmerWeek) : { state: 'insufficient', percent: null }
+  const minutesTrend = cohort.size >= 3 && currentVolume.sessionsWithDuration && previousVolume.sessionsWithDuration ? percentDirection(currentVolume.minutesPerSwimmerWeek, previousVolume.minutesPerSwimmerWeek) : { state: 'insufficient', percent: null }
   const warnings = []
   if (current.anonymousResponses || previous.anonymousResponses) warnings.push('Anonyma svar ingår. Antalet unika svarande och om samma simmare svarat i båda perioderna kan inte fastställas.')
   if (!includeAnonymous) warnings.push('Endast profilkopplade svar för de valda grupperna ingår. Anonyma svar kan inte kopplas till en grupp.')
@@ -44,12 +91,14 @@ export function buildGroupTrend({ currentResponses, previousResponses, currentSe
     if (overlap / new Set([...current.people, ...previous.people]).size < .7) warnings.push('Vilka simmare som lämnat profilkopplade svar har ändrats mellan perioderna.')
   }
   if (profiles.length > cohort.size) warnings.push(`${profiles.length - cohort.size} nyare profiler ingår inte i kontinuitetsjämförelsen, så samma simmare jämförs i båda perioderna.`)
+  if (currentVolume.sessionsWithDuration < currentVolume.sessions || previousVolume.sessionsWithDuration < previousVolume.sessions) warnings.push('Vissa registrerade pass saknar angiven tidsåtgång i planeringen och ingår därför inte i träningstiden.')
   if (truncated) warnings.push('Underlaget når hämtgränsen. Ingen riktning visas eftersom perioden kan vara ofullständig.')
   const publicSummary = ({ people, ...summary }) => summary
   return {
     state, changes, current: publicSummary(current), previous: publicSummary(previous),
     periods: { start: dayKey(start), end: dayKey(end), previousStart: dayKey(previousStart), previousEnd: dayKey(previousEnd), currentDays, previousDays },
     continuity: { state: continuityState, current: rounded(currentRate), previous: rounded(previousRate), change: continuityChange, swimmers: cohort.size, currentPasses, previousPasses },
+    volume: { current: currentVolume, previous: previousVolume, meters: metersTrend, minutes: minutesTrend, swimmers: cohort.size },
     warnings,
   }
 }
