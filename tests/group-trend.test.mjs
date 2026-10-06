@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict'
+import { buildGroupTrend } from '../server/group-trend.js'
+
+const profiles = ['a', 'b', 'c'].map((id) => ({ id, created_at: '2026-01-01T00:00:00Z' }))
+const answers = (day, feeling, body, anonymous = false) => profiles.flatMap(({ id }) => [0, 1].map((offset) => ({ profile_id: anonymous ? null : id, created_at: `2026-10-${String(day + offset).padStart(2, '0')}T12:00:00Z`, feeling, body })))
+const session = (id, day, slot = 'afternoon_swim') => ({ profile_id: id, session_date: `2026-10-${day}`, session_slot: slot, activity_type: 'swim' })
+const options = { profiles, start: '2026-10-05T22:00:00Z', end: '2026-10-12T22:00:00Z', previousStart: '2026-09-28T22:00:00Z', previousEnd: '2026-10-05T22:00:00Z', currentResponses: answers(6, 4, 4), previousResponses: answers(1, 3, 3), currentSessions: profiles.flatMap(({ id }) => [session(id, '06'), session(id, '07')]), previousSessions: profiles.map(({ id }) => session(id, '01')) }
+const trend = buildGroupTrend(options)
+assert.equal(trend.state, 'up'); assert.equal(trend.continuity.state, 'up'); assert.equal(trend.continuity.current, 2); assert.equal(trend.periods.currentDays, 7)
+assert.equal(buildGroupTrend({ ...options, currentResponses: answers(6, 4, 2) }).state, 'mixed')
+assert.equal(buildGroupTrend({ ...options, currentResponses: answers(6, 2, 2) }).state, 'down')
+assert.equal(buildGroupTrend({ ...options, currentResponses: answers(6, 3.1, 3.1) }).state, 'steady')
+assert.equal(buildGroupTrend({ ...options, currentResponses: answers(6, 3.2, 3.2) }).state, 'up')
+assert.equal(buildGroupTrend({ ...options, currentResponses: options.currentResponses.slice(0, 2) }).state, 'insufficient')
+assert.equal(buildGroupTrend({ ...options, previousResponses: [] }).state, 'insufficient')
+assert.equal(buildGroupTrend({ ...options, currentResponses: answers(6, 4, 4).map((row) => ({ ...row, profile_id: 'a' })) }).state, 'insufficient')
+const anonymous = buildGroupTrend({ ...options, currentResponses: answers(6, 4, 4, true), previousResponses: answers(1, 3, 3, true) })
+assert.equal(anonymous.state, 'up'); assert.equal(anonymous.current.linkedSwimmers, 0); assert(anonymous.warnings.some((text) => text.startsWith('Anonyma')))
+const dedup = buildGroupTrend({ ...options, currentSessions: [...options.currentSessions, ...options.currentSessions] })
+assert.equal(dedup.continuity.currentPasses, 6)
+const newer = buildGroupTrend({ ...options, profiles: [...profiles, { id: 'new', created_at: '2026-10-02T00:00:00Z' }], currentSessions: [...options.currentSessions, session('new', '06')] })
+assert.equal(newer.continuity.swimmers, 3); assert.equal(newer.continuity.current, 2); assert(newer.warnings.some((text) => text.includes('nyare profiler')))
+assert.equal(buildGroupTrend({ ...options, truncated: true }).state, 'insufficient')
+const dst = buildGroupTrend({ ...options, start: '2026-10-18T22:00:00Z', end: '2026-10-25T23:00:00Z', previousStart: '2026-10-11T22:00:00Z', previousEnd: '2026-10-18T22:00:00Z' })
+assert.equal(dst.periods.currentDays, 7); assert.equal(dst.periods.previousDays, 7)
+assert(!JSON.stringify(trend).includes('profile_id')); assert(!('people' in trend.current))
+console.log('PASS group direction, mixed state, thresholds, sparse/anonymous data, deduplication, fixed roster, incomplete data and Stockholm DST')

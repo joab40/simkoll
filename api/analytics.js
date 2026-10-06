@@ -1,6 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile } from '../server/profile-auth.js'
+import { buildGroupTrend } from '../server/group-trend.js'
 
 const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 const addDays = (date, days) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10) }
@@ -176,6 +177,8 @@ export default async function handler(request, response) {
   if (role !== 'coach' && role !== 'swimmer') return sendJson(response, 403, { error: 'Du behöver logga in igen.' })
   const start = String(request.query?.start || ''), end = String(request.query?.end || ''), previousStart = String(request.query?.previousStart || ''), previousEnd = String(request.query?.previousEnd || start)
   const profileId = request.query?.profileId ? String(request.query.profileId) : null
+  const groupScope = !profileId && typeof request.query?.profileIds === 'string' ? new Set(request.query.profileIds.split(',').filter(Boolean)) : null
+  const includeAnonymous = !groupScope || request.query?.includeAnonymous === 'true'
   if (role === 'swimmer' && (!sessionProfile || profileId !== sessionProfile.id)) return sendJson(response, 403, { error: 'Du kan bara se din egen statistik.' })
   if ([start, end, previousStart, previousEnd].some((value) => Number.isNaN(Date.parse(value))) || !(previousStart < previousEnd && previousEnd <= start && start < end)) return sendJson(response, 400, { error: 'Ogiltig period.' })
   const profileFilter = profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''
@@ -187,7 +190,7 @@ export default async function handler(request, response) {
   try {
     const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
   const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, notesResult, competitionResultsResult] = await Promise.all([
-      supabaseRequest(`responses?select=created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
+      supabaseRequest(`responses?select=profile_id,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${timestampRange}&order=created_at.asc&limit=10000`),
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date,session_slot${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
       supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
@@ -199,14 +202,19 @@ export default async function handler(request, response) {
     if (![responsesResult, sessionsResult, activityResult, workoutsResult, competitionResultsResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
     let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json(), workouts = await workoutsResult.json(), competitionResults = await competitionResultsResult.json()
     const coachDocumentation = role === 'coach' && notesResult?.ok ? (await notesResult.json()).map((item) => ({ date: item.note_date, activity: item.activity_type === 'workout' ? 'Pass' : item.activity_type === 'competition' ? 'Tävling' : 'Dagens sammanfattning', text: String(item.content || '').slice(0, 2000) })).filter((item) => item.text) : []
+    const truncated = responses.length >= 10000 || sessions.length >= 10000
+    let reportProfiles = []
     if (!profileId) {
-      const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
-      if (!testProfiles.ok) throw new Error('Test profile lookup failed')
-      const testIds = new Set((await testProfiles.json()).map((item) => item.id))
-      responses = responses.filter((item) => !testIds.has(item.profile_id))
-      sessions = sessions.filter((item) => !testIds.has(item.profile_id))
-      activities = activities.filter((item) => !testIds.has(item.profile_id))
-      competitionResults = competitionResults.filter((item) => !testIds.has(item.profile_id))
+      const profilesResult = await supabaseRequest('profiles?select=id,is_test_profile,created_at&limit=10000')
+      if (!profilesResult.ok) throw new Error('Group profile lookup failed')
+      const allProfiles = await profilesResult.json()
+      const testIds = new Set(allProfiles.filter((item) => item.is_test_profile).map((item) => item.id))
+      const inScope = (id) => !testIds.has(id) && (!groupScope || groupScope.has(id))
+      reportProfiles = allProfiles.filter((item) => inScope(item.id))
+      responses = responses.filter((item) => item.profile_id ? inScope(item.profile_id) : includeAnonymous)
+      sessions = sessions.filter((item) => inScope(item.profile_id))
+      activities = activities.filter((item) => inScope(item.profile_id))
+      competitionResults = competitionResults.filter((item) => inScope(item.profile_id))
     }
     const currentResponses = responses.filter((item) => item.created_at >= start), previousResponses = responses.filter((item) => item.created_at < previousEnd)
     const currentStartDay = stockholmKey(start), previousEndDay = stockholmKey(previousEnd)
@@ -310,7 +318,9 @@ export default async function handler(request, response) {
       }
     })
     workoutAnalysis.trend = trendPasses
+    const groupTrend = !profileId ? buildGroupTrend({ currentResponses, previousResponses, currentSessions, previousSessions, profiles: reportProfiles, start, end, previousStart, previousEnd, includeAnonymous, truncated }) : null
     return sendJson(response, 200, {
+      groupTrend,
       current: { ...metrics(currentResponses, currentSessions, currentActivities, privateView), personalBests: currentPersonalBests.length },
       previous: { ...metrics(previousResponses, previousSessions, previousActivities, privateView), personalBests: previousPersonalBests.length },
       personalBestResults: currentPersonalBests.slice(-30).map((item) => ({ profileId: item.profile_id, event: item.event, pool: item.pool || '', date: item.result_date, time: item.swim_time })),

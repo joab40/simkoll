@@ -1403,6 +1403,29 @@ button { cursor: pointer; }
 .analysis-periods { display: inline-flex; padding: 4px; gap: 3px; background: #dfeae7; border-radius: 13px; margin-bottom: 15px; }
 .analysis-periods button { min-height: 38px; padding: 0 15px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; }
 .analysis-periods button.active { background: white; color: var(--ink); box-shadow: 0 2px 7px rgba(24,62,67,.09); }
+.group-trend-indicator { --trend-color: #217e78; background: linear-gradient(125deg, #e9f6ef, #f7fbf5); border: 1px solid #cde3dc; border-radius: 23px; padding: 24px; margin-bottom: 18px; color: var(--ink); }
+.trend-state-down { --trend-color: #996331; }
+.trend-state-mixed { --trend-color: #7969a3; }
+.trend-state-insufficient { --trend-color: #738789; }
+.group-trend-heading { display: flex; align-items: center; gap: 18px; }
+.group-trend-direction { display: grid; place-items: center; flex: 0 0 76px; width: 76px; height: 76px; border: 1px solid #d2e5dc; border-radius: 24px; background: rgba(255,255,255,.8); color: var(--trend-color); font-size: 54px; line-height: 1; }
+.group-trend-heading .eyebrow { margin-bottom: 6px; }
+.group-trend-heading h3 { margin: 0 0 7px; font-size: clamp(20px, 3vw, 27px); color: var(--trend-color); }
+.group-trend-heading p:last-child { margin: 0; font-size: 12px; line-height: 1.5; color: #586f71; }
+.group-trend-values { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 12px; margin: 22px 0 18px; }
+.group-trend-values > div { display: grid; gap: 6px; padding: 14px; border-radius: 14px; background: rgba(255,255,255,.7); min-width: 0; }
+.group-trend-values span { font-size: 12px; color: #586f71; }
+.group-trend-values strong { font-size: 21px; }
+.group-trend-values small { font-size: 11px; line-height: 1.5; color: #586f71; }
+.group-trend-continuity strong { color: var(--trend-color); font-size: 17px; }
+.group-trend-continuity strong span { color: inherit; font-size: 22px; }
+.group-trend-explanation { border-top: 1px solid #d4e5dd; padding-top: 13px; font-size: 12px; }
+.group-trend-explanation summary { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; color: #216e69; font-weight: 700; list-style: none; min-height: 28px; align-items: center; }
+.group-trend-explanation summary::-webkit-details-marker { display: none; }
+.group-trend-explanation p { line-height: 1.65; margin: 10px 0; }
+.group-trend-explanation .group-trend-warning { padding: 10px 12px; border-radius: 10px; background: #f7f0dc; }
+.group-trend-caveat { font-size: 11px; color: #586f71; margin: 10px 0 0; line-height: 1.5; }
+@media (max-width: 640px) { .group-trend-indicator { padding: 18px; } .group-trend-heading { gap: 12px; align-items: flex-start; } .group-trend-direction { flex-basis: 54px; width: 54px; height: 54px; border-radius: 18px; font-size: 39px; } .group-trend-values { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; } .group-trend-values .group-trend-continuity { grid-column: 1 / -1; } .group-trend-heading h3 { font-size: 20px; } }
 .analysis-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 9px; margin-bottom: 12px; }
 .workout-trend-analysis { grid-column: 1 / -1; background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 21px; }
 .ai-insight-card { grid-column: 1 / -1; background: var(--ink); color: white; border-radius: 18px; padding: 21px; }
