@@ -714,6 +714,10 @@ const HELP_TEXT = {
   'Registrerade pass': 'Pass som simmaren aktivt valt att lägga till i sin veckoräknare.',
   'Poäng och nivå': 'Visar aktivitet och positiva bidrag i Simkoll, inte simförmåga.',
   'Trend': 'Ett mönster över flera svar. En enstaka skattning ska inte övertolkas.',
+  'Gruppens riktning': 'Sammanfattar förändringen i gruppens skattade känsla och kropp jämfört med föregående lika långa period. ↗ betyder förbättring, → stabilt, ↘ minskning och ↕ blandad utveckling. Minst 0,2 på skalan 1–5 krävs för att pilen ska ändra riktning.',
+  'Förändring i känsla': 'Visar hur gruppens genomsnittliga känsla har förändrats på skalan 1–5. Varje dag väger lika. Exempel: +0,3 betyder att känslan i snitt är 0,3 högre än under föregående lika långa period.',
+  'Förändring i kroppen': 'Visar hur gruppens genomsnittliga kroppskänsla har förändrats på skalan 1–5. Ett högre värde betyder att kroppen i genomsnitt upplevts fräschare.',
+  'Gruppens kontinuitet': 'Jämför registrerade simpass per simmare och vecka med föregående lika långa period. Samma simmargrupp används i båda perioderna. Skillnader under 0,15 pass per simmare och vecka visas som stabila.',
   'Personlig AI-analys': 'En sparad, tränarskapad sammanfattning av dina egna träningsdata. Den är ett samtalsstöd – inte en diagnos eller ett automatiskt betyg.',
   'Träningsstjärnor': 'Fyra stjärnor visar olika träningsvanor. 1) Veckan planerad: minst tre träningsdagar är planerade i Min träning den här veckan. 2) Styrka och landträning: båda målen är överenskomna och aktiva. 3) Simmål satt: ett aktivt mål för antal simpass per vecka finns. 4) Följer min simplan: under de fyra senaste avslutade veckorna har alla simpass enligt överenskommelsen genomförts, till exempel 18 av 20 = 90 %. En stjärna tänds först vid 100 %. Grå stjärna betyder att villkoret inte är uppfyllt ännu. Varje stjärna ger 1 poäng när den låses upp; poäng tas inte bort om en stjärna senare blir grå.',
   'Aktiva profiler': 'Antal simmarprofiler som använde en profilfunktion under perioden. Testprofiler räknas inte.',
@@ -757,7 +761,7 @@ function HelpTip({ term }) {
     return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', updatePlacement) }
   }, [open])
   if (!HELP_TEXT[term]) return null
-  return <span className={`help-tip-wrap help-tip-wrap-${placement}`} ref={tipRef}><button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>i</button>{open && <span className="help-tip-popover" role="tooltip"><strong>{term}</strong><span>{HELP_TEXT[term]}</span></span>}</span>
+  return <span className={`help-tip-wrap help-tip-wrap-${placement}`} ref={tipRef} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocusCapture={() => setOpen(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}><button type="button" className="help-tip" title={HELP_TEXT[term]} aria-label={`${term}: ${HELP_TEXT[term]}`} aria-expanded={open} onClick={() => setOpen(true)} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false) }}>i</button>{open && <span className="help-tip-popover" role="tooltip"><strong>{term}</strong><span>{HELP_TEXT[term]}</span></span>}</span>
 }
 
 function Faq({ role, onBack }) {
@@ -2725,13 +2729,13 @@ function GroupTrendIndicator({ trend }) {
   const lastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return date(dateKey(day)) }
   return <section className={`group-trend-indicator trend-state-${trend.state}`} aria-label="Gruppens trend för vald period">
     <div className="group-trend-heading">
-      <span className="group-trend-direction" aria-hidden="true">{state.arrow}</span>
-      <div><p className="eyebrow">Gruppens riktning</p><h3>{state.title}</h3><p>{date(trend.periods.start)}–{lastDay(trend.periods.end)} jämfört med {date(trend.periods.previousStart)}–{lastDay(trend.periods.previousEnd)}</p></div>
+      <span className="group-trend-direction" tabIndex="0" title={HELP_TEXT['Gruppens riktning']} aria-label={`${state.label}. ${HELP_TEXT['Gruppens riktning']}`}>{state.arrow}</span>
+      <div><p className="eyebrow">Gruppens riktning <HelpTip term="Gruppens riktning" /></p><h3>{state.title}</h3><p>{date(trend.periods.start)}–{lastDay(trend.periods.end)} jämfört med {date(trend.periods.previousStart)}–{lastDay(trend.periods.previousEnd)}</p></div>
     </div>
     <div className="group-trend-values">
-      <div><span>Känsla</span><strong>{delta(trend.changes.feeling)}</strong><small>{number(trend.previous.metrics.feeling.value)} → {number(trend.current.metrics.feeling.value)} av 5</small></div>
-      <div><span>Kroppen</span><strong>{delta(trend.changes.body)}</strong><small>{number(trend.previous.metrics.body.value)} → {number(trend.current.metrics.body.value)} av 5</small></div>
-      <div className={`group-trend-continuity trend-state-${continuity.state}`}><span>Kontinuitet</span><strong><span aria-hidden="true">{continuityState.arrow} </span>{continuityState.label}</strong><small>{continuity.state === 'insufficient' ? 'Fler registrerade pass behövs' : `${number(continuity.previous)} → ${number(continuity.current)} pass / simmare / vecka`}</small></div>
+      <div title={HELP_TEXT['Förändring i känsla']}><span>Känsla <HelpTip term="Förändring i känsla" /></span><strong>{delta(trend.changes.feeling)}</strong><small>{number(trend.previous.metrics.feeling.value)} → {number(trend.current.metrics.feeling.value)} av 5</small></div>
+      <div title={HELP_TEXT['Förändring i kroppen']}><span>Kroppen <HelpTip term="Förändring i kroppen" /></span><strong>{delta(trend.changes.body)}</strong><small>{number(trend.previous.metrics.body.value)} → {number(trend.current.metrics.body.value)} av 5</small></div>
+      <div className={`group-trend-continuity trend-state-${continuity.state}`} title={HELP_TEXT['Gruppens kontinuitet']}><span>Kontinuitet <HelpTip term="Gruppens kontinuitet" /></span><strong tabIndex="0" aria-label={`${continuityState.label}. ${HELP_TEXT['Gruppens kontinuitet']}`}><span aria-hidden="true">{continuityState.arrow} </span>{continuityState.label}</strong><small>{continuity.state === 'insufficient' ? 'Fler registrerade pass behövs' : `${number(continuity.previous)} → ${number(continuity.current)} pass / simmare / vecka`}</small></div>
     </div>
     <details className="group-trend-explanation"><summary>Så läser du riktningen <span aria-hidden="true">⌄</span></summary>
       <div><p>Varje dags genomsnitt väger lika. En förändring på minst 0,2 på skalan 1–5 ger en riktning. Om känsla och kropp förändras åt motsatta håll visas blandad utveckling.</p>

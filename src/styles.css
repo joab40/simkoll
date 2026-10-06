@@ -1410,6 +1410,8 @@ button { cursor: pointer; }
 .group-trend-heading { display: flex; align-items: center; gap: 18px; }
 .group-trend-direction { display: grid; place-items: center; flex: 0 0 76px; width: 76px; height: 76px; border: 1px solid #d2e5dc; border-radius: 24px; background: rgba(255,255,255,.8); color: var(--trend-color); font-size: 54px; line-height: 1; }
 .group-trend-heading .eyebrow { margin-bottom: 6px; }
+.group-trend-heading .help-tip, .group-trend-values .help-tip { border-color: currentColor; color: inherit; }
+.group-trend-direction:focus-visible, .group-trend-continuity strong:focus-visible { outline: 3px solid rgba(33,126,120,.25); outline-offset: 3px; }
 .group-trend-heading h3 { margin: 0 0 7px; font-size: clamp(20px, 3vw, 27px); color: var(--trend-color); }
 .group-trend-heading p:last-child { margin: 0; font-size: 12px; line-height: 1.5; color: #586f71; }
 .group-trend-values { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 12px; margin: 22px 0 18px; }

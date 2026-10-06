@@ -144,6 +144,9 @@ Tränarens FAQ – roller och behörigheter:
 - AI-stöd stänger av nya språkmodell-anrop på serversidan. Tokenstaket begränsar AI-användningen; 0 betyder obegränsat.
 - Sessionstid bestämmer hur länge “Håll mig inloggad” gäller. Lösenord och PIN sparas inte i webbläsaren.
 - SportAdmin-text som hör till en tävling visas som “Information från SportAdmin” i tävlingskortet och kan fällas ut. Det är planeringsinformation och ersätter inte tävlingsprogrammet.
+- Grupptrend jämför alltid vald period med föregående lika långa period. “Gruppens riktning” bygger på förändringen i gruppens skattade känsla och kropp, där varje dags genomsnitt väger lika. ↗ betyder förbättring, → stabilt, ↘ minskning och ↕ blandad utveckling. Minst 0,2 på skalan 1–5 krävs för ändrad riktning. Om underlaget är för litet visas ingen riktning.
+- Kontinuitet i Grupptrend är registrerade simpass per simmare och vecka jämfört med föregående period. Samma simmarkohort används i båda perioderna och skillnader under 0,15 pass per simmare och vecka visas som stabila. Mer kontinuitet är en beskrivning av träningsvanan, inte automatiskt ett betyg på bättre utveckling.
+- Grupptrend kräver minst sex giltiga svar per period, normalt fördelade över minst två dagar, och minst tre profilkopplade simmare eller sex anonyma svar. Vid val av enskilda grupper kan anonyma svar inte kopplas till gruppen och ingår därför inte. Meter, minuter och RPE visas som förklarande data men styr inte riktningspilen.
 ` : ''
   const audienceGuidance = role === 'coach'
     ? 'Du pratar med en tränare. Svara ur tränarens perspektiv: använd “gruppen”, “simmarna”, “passet” och “tränaren” där det passar. Ge ett konkret underlag för planering och uppföljning, inte råd formulerade som om frågeställaren själv vore simmare. När data saknas ska du säga att den inte finns i assistentens underlag.'
