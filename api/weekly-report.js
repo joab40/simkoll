@@ -1,4 +1,5 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { estimateAverageSwimMeters } from '../server/weekly-report-metrics.js'
 
 const average = (items, key) => {
   const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
@@ -81,10 +82,14 @@ export default async function handler(request, response) {
     const stockholmDay = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
     const swimSessions = sessions.filter((item) => item.activity_type === 'swim')
     const sessionDays = new Set(swimSessions.map((item) => `${item.profile_id}|${item.session_date}`))
-    const completedSwims = swimSessions.map((item) => ({ profile_id: item.profile_id, session_date: item.session_date }))
+    const completedSwims = swimSessions.map((item) => ({ profile_id: item.profile_id, session_date: item.session_date, session_slot: item.session_slot }))
     checkins.filter((item) => item.day_type === 'after' && item.profile_id && item.created_at).forEach((item) => {
       const sessionDate = stockholmDay(item.created_at)
-      if (!sessionDays.has(`${item.profile_id}|${sessionDate}`)) completedSwims.push({ profile_id: item.profile_id, session_date: sessionDate })
+      const key = `${item.profile_id}|${sessionDate}`
+      if (!sessionDays.has(key)) {
+        completedSwims.push({ profile_id: item.profile_id, session_date: sessionDate, session_slot: 'afternoon_swim' })
+        sessionDays.add(key)
+      }
     })
     const attendanceProfiles = reportProfiles.map((profile) => {
       let expected = 0
@@ -106,9 +111,10 @@ export default async function handler(request, response) {
     const expectedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.expected, 0)
     const completedSwimPasses = goalProfiles.reduce((sum, item) => sum + item.completed, 0)
     const attendancePercentage = expectedSwimPasses ? Math.round((completedSwimPasses / expectedSwimPasses) * 100) : null
-    const estimatedMeters = offeredMeters && attendancePercentage != null
-      ? Math.round((offeredMeters * attendancePercentage / 100) / 100) * 100
-      : null
+    const completedPassKeys = new Set(completedSwims.map((item) => `${item.profile_id}|${item.session_date}|${item.session_slot || 'legacy'}`))
+    const completedPassesPerSwimmer = reportProfiles.length ? completedPassKeys.size / reportProfiles.length : null
+    const offeredSwimPasses = plannedSwimPlans.length + workouts.filter((item) => !plannedDates.has(item.workout_date) && Number(item.distance_meters) > 0).length
+    const estimatedMeters = estimateAverageSwimMeters({ offeredMeters, offeredPasses: offeredSwimPasses, completedPasses: completedPassKeys.size, swimmerCount: reportProfiles.length })
     const after = checkins.filter((item) => item.day_type === 'after')
     const activeProfiles = new Set(activities.map((item) => item.profile_id)).size
     const activeDays = new Set(activities.map((item) => item.activity_date)).size
@@ -122,7 +128,7 @@ export default async function handler(request, response) {
       strength: sessions.filter((item) => item.activity_type === 'strength').length,
       dryland: sessions.filter((item) => item.activity_type === 'dryland').length,
       approvedGoals, personalBests: personalBests.length, feeling: average(checkins, 'feeling'), body: average(checkins, 'body'), rpe: average(after, 'rpe'), passRating: average(after, 'pass_rating'), setupRating: average(after, 'setup_rating'),
-      offeredMeters, estimatedMeters, expectedSwimPasses, completedSwimPasses, attendancePercentage, attendanceProfiles, swimmersWithSwimGoal: new Set(swimGoals.map((item) => item.profile_id)).size,
+      offeredMeters, offeredSwimPasses, estimatedMeters, completedPassesPerSwimmer, expectedSwimPasses, completedSwimPasses, attendancePercentage, attendanceProfiles, swimmersWithSwimGoal: new Set(swimGoals.map((item) => item.profile_id)).size,
       signals: { lowBody, highRpe, lowPass },
     })
   } catch (error) {
