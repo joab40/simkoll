@@ -13,6 +13,9 @@ function publicWorkout(item) {
 function publicPlan(item) {
   return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
 }
+function publicCycle(item) {
+  return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
+}
 function publicCompetition(item) {
   return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, updatedAt: item.updated_at }
 }
@@ -628,14 +631,16 @@ export default async function handler(request, response) {
         const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
         const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [])
         const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
-        const [workoutsResult, sportAdminActivities] = await Promise.all([
+        const [workoutsResult, sportAdminActivities, cyclesResult] = await Promise.all([
           supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000'),
           configuredSportAdminCalendars().then(readSportAdminCalendars),
+          supabaseRequest('training_cycles?select=*&order=start_date.asc&limit=300'),
         ])
         const workouts = workoutsResult.ok ? (await workoutsResult.json()).map(publicWorkout) : []
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const visibleSportAdminActivities = role === 'coach' ? sportAdminActivities : sportAdminActivities.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
-        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities: visibleSportAdminActivities })
+        const cycles = cyclesResult.ok ? await cyclesResult.json() : []
+        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities: visibleSportAdminActivities, cycles: role === 'coach' ? cycles.map(publicCycle) : [], cyclesAvailable: cyclesResult.ok })
       }
       if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
@@ -732,6 +737,34 @@ export default async function handler(request, response) {
         return sendJson(response, 200, await transcribeAudio(request, dataUrl, String(request.body.mimeType || 'audio/webm')))
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra dagens pass.' })
+      if (request.body?.action === 'save-training-cycle') {
+        const body = request.body
+        const type = String(body.type || '')
+        const name = String(body.name || '').trim().slice(0, 100)
+        const startDate = String(body.startDate || '')
+        const endDate = String(body.endDate || '')
+        const groups = Array.isArray(body.targetGroups) ? [...new Set(body.targetGroups.map((value) => String(value).trim()).filter(Boolean))].slice(0, 20) : []
+        const phases = ['adaptation', 'build', 'specific', 'taper', 'recovery']
+        if (!['term', 'block'].includes(type) || !name || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate || (type === 'block' && !body.parentId)) return sendJson(response, 400, { error: 'Kontrollera namn, datum och kopplingen till terminen.' })
+        if (type === 'block') {
+          const parentResult = await supabaseRequest(`training_cycles?id=eq.${encodeURIComponent(String(body.parentId))}&cycle_type=eq.term&select=id,start_date,end_date&limit=1`)
+          if (!parentResult.ok) throw new Error(`Training cycle parent lookup failed: ${parentResult.status}`)
+          const parent = (await parentResult.json())[0]
+          if (!parent || startDate < parent.start_date || endDate > parent.end_date) return sendJson(response, 400, { error: 'Träningsblocket måste ligga inom terminens datum.' })
+        }
+        const payload = { parent_id: type === 'block' ? String(body.parentId) : null, cycle_type: type, name, start_date: startDate, end_date: endDate, target_groups: groups, focus: String(body.focus || '').trim().slice(0, 160) || null, goal: String(body.goal || '').trim().slice(0, 500) || null, phase: phases.includes(body.phase) ? body.phase : 'build', notes: String(body.notes || '').trim().slice(0, 2000) || null, updated_at: new Date().toISOString() }
+        const id = String(body.id || '')
+        const result = await supabaseRequest(id ? `training_cycles?id=eq.${encodeURIComponent(id)}` : 'training_cycles', { method: id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        if (!result.ok) throw new Error(`Training cycle save failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { cycle: publicCycle((await result.json())[0]) })
+      }
+      if (request.body?.action === 'delete-training-cycle') {
+        const id = String(request.body.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Planeringsperiod saknas.' })
+        const result = await supabaseRequest(`training_cycles?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+        if (!result.ok) throw new Error(`Training cycle delete failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { deleted: true, id })
+      }
       if (request.body?.action === 'transcribe-audio') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const dataUrl = String(request.body.dataUrl || '')
