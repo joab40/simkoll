@@ -87,13 +87,50 @@ export function buildGroupTrend({ currentResponses, previousResponses, currentSe
   }
   const currentVolume = volumeSummary(currentSessions, currentDays), previousVolume = volumeSummary(previousSessions, previousDays)
   const relevantGroups = new Set(profiles.map((profile) => profile.training_group).filter(Boolean))
-  const appliesToScope = (row) => !Array.isArray(row.target_groups) || !row.target_groups.length || row.target_groups.some((group) => relevantGroups.has(group))
+  const appliesToScope = (row) => !relevantGroups.size || !Array.isArray(row.target_groups) || !row.target_groups.length || row.target_groups.some((group) => relevantGroups.has(group))
+  const groupsKey = (row) => [...new Set((Array.isArray(row.target_groups) ? row.target_groups : []).map(String).filter(Boolean))].sort().join(',')
+  const rowDate = (row) => row.plan_date || row.workout_date
+  const rowType = (row) => row.activity_type || 'swim'
+  const compatibleWorkout = (plan, workout) => {
+    if (plan.plan_date !== workout.workout_date) return false
+    if (plan.time_of_day && workout.time_of_day && plan.time_of_day !== workout.time_of_day) return false
+    const planGroups = new Set(Array.isArray(plan.target_groups) ? plan.target_groups : [])
+    const workoutGroups = Array.isArray(workout.target_groups) ? workout.target_groups : []
+    return !planGroups.size || !workoutGroups.length || workoutGroups.some((group) => planGroups.has(group))
+  }
+  const workoutForPlan = (plan, availableWorkouts) => {
+    const exact = availableWorkouts.find((workout) => String(workout.id) === String(plan.source_workout_id) && compatibleWorkout(plan, workout))
+    if (exact || plan.activity_type !== 'swim') return exact || null
+    return availableWorkouts.filter((workout) => compatibleWorkout(plan, workout)).map((workout) => {
+      let score = 0
+      if (plan.focus && workout.focus === plan.focus) score += 5
+      if (Number(plan.distance_meters) > 0 && Number(workout.distance_meters) === Number(plan.distance_meters)) score += 4
+      if (Number(plan.duration_minutes) > 0 && Number(workout.duration_minutes) === Number(plan.duration_minutes)) score += 3
+      if (plan.time_of_day && workout.time_of_day === plan.time_of_day) score += 3
+      if (workout.title && plan.title && workout.title !== plan.title) score += 1
+      return { workout, score }
+    }).sort((a, b) => b.score - a.score)[0]?.workout || null
+  }
+  const deduplicatePlannedEvents = (relevantPlans, availableWorkouts) => {
+    const matchedWorkoutIds = new Set(relevantPlans.map((plan) => workoutForPlan(plan, availableWorkouts)?.id).filter(Boolean).map(String))
+    const events = [...relevantPlans, ...availableWorkouts.filter((workout) => !matchedWorkoutIds.has(String(workout.id)))]
+    const deduplicated = []
+    const keys = new Map()
+    events.forEach((row) => {
+      const baseKey = [rowDate(row), rowType(row), row.distance_meters || '', row.duration_minutes || '', groupsKey(row)].join('|')
+      const key = `${baseKey}|${row.time_of_day || ''}`
+      const previousIndex = keys.get(key) ?? keys.get(`${baseKey}|`) ?? [...keys.entries()].find(([candidate]) => candidate.startsWith(`${baseKey}|`) && (!candidate.split('|').pop() || !row.time_of_day))?.[1]
+      if (previousIndex != null) return
+      keys.set(key, deduplicated.length)
+      deduplicated.push(row)
+    })
+    return deduplicated
+  }
   const planVolumeSummary = (from, to, periodDays) => {
     const weekCount = periodDays / 7
     const relevantPlans = plans.filter((row) => row.plan_date >= from && row.plan_date < to && ['swim', 'strength', 'dryland'].includes(row.activity_type) && appliesToScope(row))
-    const linkedWorkoutIds = new Set(relevantPlans.map((row) => row.source_workout_id).filter(Boolean))
-    const standaloneWorkouts = workouts.filter((row) => row.workout_date >= from && row.workout_date < to && !linkedWorkoutIds.has(row.id) && appliesToScope(row))
-    const events = [...relevantPlans, ...standaloneWorkouts]
+    const relevantWorkouts = workouts.filter((row) => row.workout_date >= from && row.workout_date < to && appliesToScope(row))
+    const events = deduplicatePlannedEvents(relevantPlans, relevantWorkouts)
     const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0)
     const swimPlans = events.filter((row) => (row.activity_type || 'swim') === 'swim')
     const swimsWithMeters = swimPlans.filter((row) => Number(row.distance_meters) > 0).length
