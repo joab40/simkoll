@@ -1,5 +1,6 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { estimateAverageSwimMeters } from '../server/weekly-report-metrics.js'
+import { deduplicatePlannedActivities } from '../server/planned-activities.js'
 
 const average = (items, key) => {
   const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
@@ -48,10 +49,10 @@ export default async function handler(request, response) {
       supabaseRequest(`program_goals?select=id,reward_points,program_assignments(profile_id)&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
       supabaseRequest(`goal_updates?select=id,points,feedback_type,development_goals(profile_id)${range}&author_role=eq.coach&limit=1000`),
       supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&result_date=lt.${endDay}&limit=10000`),
-      supabaseRequest(`training_plans?select=plan_date,activity_type,distance_meters&plan_date=gte.${startDay}&plan_date=lt.${endDay}&limit=1000`),
-      supabaseRequest(`daily_workouts?select=workout_date,distance_meters&workout_date=gte.${startDay}&workout_date=lt.${endDay}&limit=1000`),
+      supabaseRequest(`training_plans?select=id,source_workout_id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&plan_date=gte.${startDay}&plan_date=lt.${endDay}&limit=1000`),
+      supabaseRequest(`daily_workouts?select=id,workout_date,title,content,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${startDay}&workout_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`season_swim_goals?select=profile_id,target_sessions_per_week,start_date,end_date,active&start_date=lte.${endDay}&end_date=gte.${startDay}&limit=5000`),
-      supabaseRequest('profiles?select=id,display_name,emoji,is_test_profile&order=display_name.asc&limit=5000'),
+      supabaseRequest('profiles?select=id,display_name,emoji,is_test_profile,training_group&order=display_name.asc&limit=5000'),
     ])
     const results = [responsesResult, activityResult, kudosResult, sessionsResult, programGoalsResult, goalUpdatesResult, personalBestResult, plansResult, workoutsResult, swimGoalsResult, profilesResult]
     if (!results.every((result) => result.ok)) throw new Error('Weekly report lookup failed')
@@ -74,9 +75,10 @@ export default async function handler(request, response) {
     const workouts = await workoutsResult.json()
     const swimGoals = (await swimGoalsResult.json()).filter((item) => !testIds.has(item.profile_id) && inSelectedGroups(item.profile_id))
     const reportProfiles = allProfiles.filter((item) => !item.is_test_profile && !testIds.has(item.id) && inSelectedGroups(item.id))
-    const plannedSwimPlans = plans.filter((item) => item.activity_type === 'swim' && Number(item.distance_meters) > 0)
-    const plannedDates = new Set(plannedSwimPlans.map((item) => item.plan_date))
-    const offeredMeters = plannedSwimPlans.reduce((sum, item) => sum + Number(item.distance_meters || 0), 0) + workouts.filter((item) => !plannedDates.has(item.workout_date) && Number(item.distance_meters) > 0).reduce((sum, item) => sum + Number(item.distance_meters || 0), 0)
+    const selectedGroups = new Set(reportProfiles.map((item) => item.training_group).filter(Boolean))
+    const plannedActivities = deduplicatePlannedActivities({ plans, workouts, from: startDay, to: endDay, selectedGroups })
+    const plannedSwimPlans = plannedActivities.filter((item) => item.activityType === 'swim' && Number(item.distanceMeters) > 0)
+    const offeredMeters = plannedSwimPlans.reduce((sum, item) => sum + Number(item.distanceMeters || 0), 0)
     const periodStart = new Date(`${startDay}T12:00:00Z`)
     const periodEnd = new Date(`${endDay}T12:00:00Z`)
     const stockholmDay = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
@@ -113,7 +115,7 @@ export default async function handler(request, response) {
     const attendancePercentage = expectedSwimPasses ? Math.round((completedSwimPasses / expectedSwimPasses) * 100) : null
     const completedPassKeys = new Set(completedSwims.map((item) => `${item.profile_id}|${item.session_date}|${item.session_slot || 'legacy'}`))
     const completedPassesPerSwimmer = reportProfiles.length ? completedPassKeys.size / reportProfiles.length : null
-    const offeredSwimPasses = plannedSwimPlans.length + workouts.filter((item) => !plannedDates.has(item.workout_date) && Number(item.distance_meters) > 0).length
+    const offeredSwimPasses = plannedSwimPlans.length
     const estimatedMeters = estimateAverageSwimMeters({ offeredMeters, offeredPasses: offeredSwimPasses, completedPasses: completedPassKeys.size, swimmerCount: reportProfiles.length })
     const after = checkins.filter((item) => item.day_type === 'after')
     const activeProfiles = new Set(activities.map((item) => item.profile_id)).size
