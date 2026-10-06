@@ -196,7 +196,7 @@ export default async function handler(request, response) {
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       supabaseRequest(`daily_workouts?select=workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc&limit=1000`),
-      supabaseRequest(`training_plans?select=plan_date,activity_type,duration_minutes,time_of_day,target_groups&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc&limit=1000`),
+      supabaseRequest(`training_plans?select=plan_date,activity_type,distance_meters,duration_minutes,time_of_day,target_groups&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc&limit=1000`),
       role === 'coach' ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
       supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&result_date=lt.${endDay}${profileFilter}&limit=10000`),
     ])

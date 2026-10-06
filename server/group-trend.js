@@ -47,17 +47,19 @@ export function buildGroupTrend({ currentResponses, previousResponses, currentSe
   const sessionKey = (row) => `${row.profile_id}|${row.session_date}|${row.session_slot || row.activity_type}`
   const uniqueSessions = (rows) => [...new Map(rows.filter((row) => cohort.has(row.profile_id)).map((row) => [sessionKey(row), row])).values()]
   const matchingPlan = (session) => {
-    const source = session.activity_type === 'swim' ? workouts : plans
+    const source = session.activity_type === 'swim' ? [...workouts, ...plans.filter((row) => row.activity_type === 'swim')] : plans
     const candidates = source.filter((row) => {
       const rowDate = row.workout_date || row.plan_date
       const rowType = row.activity_type || 'swim'
       if (rowDate !== session.session_date || rowType !== session.activity_type || !appliesToProfile(row, session.profile_id)) return false
+      return true
     })
     const time = expectedTime(session.session_slot)
     const exactTime = time ? candidates.filter((row) => row.time_of_day === time) : []
     const untimed = time ? candidates.filter((row) => !row.time_of_day) : candidates
-    const matching = exactTime.length ? exactTime : untimed.length === 1 ? untimed : candidates.length === 1 ? candidates : []
-    return matching[matching.length - 1] || null
+    const matching = exactTime.length ? exactTime : untimed.length ? untimed : candidates
+    const detailScore = (row) => (Number(row.distance_meters) > 0 ? 2 : 0) + (Number(row.duration_minutes) > 0 ? 1 : 0)
+    return matching.sort((a, b) => detailScore(b) - detailScore(a))[0] || null
   }
   const volumeSummary = (rows, periodDays) => {
     const sessions = uniqueSessions(rows)
@@ -65,18 +67,22 @@ export function buildGroupTrend({ currentResponses, previousResponses, currentSe
     const weeks = periodDays / 7
     const normalize = (value) => cohort.size ? rounded(value / cohort.size / weeks) : null
     const minutesByType = Object.fromEntries(['swim', 'strength', 'dryland'].map((type) => {
-      const minutes = values.filter(({ session }) => session.activity_type === type).reduce((sum, { plan }) => sum + (Number(plan?.duration_minutes) || 0), 0)
-      return [type, normalize(minutes)]
+      const typed = values.filter(({ session }) => session.activity_type === type)
+      const known = typed.filter(({ plan }) => Number(plan?.duration_minutes) > 0)
+      const minutes = known.reduce((sum, { plan }) => sum + Number(plan.duration_minutes), 0)
+      return [type, known.length ? normalize(minutes) : typed.length ? null : 0]
     }))
     const knownDuration = values.filter(({ plan }) => Number(plan?.duration_minutes) > 0)
-    const swimMeters = values.filter(({ session }) => session.activity_type === 'swim').reduce((sum, { plan }) => sum + (Number(plan?.distance_meters) || 0), 0)
+    const swimSessions = values.filter(({ session }) => session.activity_type === 'swim')
+    const knownSwimMeters = swimSessions.filter(({ plan }) => Number(plan?.distance_meters) > 0)
+    const swimMeters = knownSwimMeters.reduce((sum, { plan }) => sum + Number(plan.distance_meters), 0)
     return {
-      metersPerSwimmerWeek: normalize(swimMeters),
-      minutesPerSwimmerWeek: normalize(knownDuration.reduce((sum, { plan }) => sum + Number(plan.duration_minutes), 0)),
+      metersPerSwimmerWeek: knownSwimMeters.length ? normalize(swimMeters) : null,
+      minutesPerSwimmerWeek: knownDuration.length ? normalize(knownDuration.reduce((sum, { plan }) => sum + Number(plan.duration_minutes), 0)) : null,
       minutesByType,
       sessions: sessions.length,
       sessionsWithDuration: knownDuration.length,
-      swimSessionsWithMeters: values.filter(({ session, plan }) => session.activity_type === 'swim' && Number(plan?.distance_meters) > 0).length,
+      swimSessionsWithMeters: knownSwimMeters.length,
     }
   }
   const currentVolume = volumeSummary(currentSessions, currentDays), previousVolume = volumeSummary(previousSessions, previousDays)
