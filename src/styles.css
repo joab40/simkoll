@@ -1648,6 +1648,7 @@ button { cursor: pointer; }
   .app-shell > header .swimmer-profile-label small { display: block; color: var(--muted); font-size: 10px; font-weight: 500; }
   .app-shell > header .swimmer-profile-arrow { display: block; color: var(--teal); margin: 0; }
   .page-content { padding-top: 16px; }
+  .page-content:has(.competition-entries) { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
   .game-card { display: block; padding: 21px 22px; }
   .previous-games-card > summary { align-items: flex-start; padding: 16px; }
   .previous-games-list { padding-left: 16px; padding-right: 16px; }
