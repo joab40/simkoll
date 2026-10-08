@@ -2,7 +2,7 @@ import { getRole, isDatabaseConfigured, sendJson, supabaseRequest } from '../ser
 import { writeAuditLog } from '../server/audit.js'
 import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken, COACH_TERMS_VERSION } from '../server/coach-auth.js'
 import { getSessionDays } from '../server/session-settings.js'
-import { getSessionProfile, normalizeUsername, validPin, verifyPin } from '../server/profile-auth.js'
+import { clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, normalizeUsername, publicProfile, validPin, verifyPin } from '../server/profile-auth.js'
 
 const getCookie = (request, name) => { const match = String(request.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`)); return match ? decodeURIComponent(match.slice(name.length + 1)) : null }
 const setCookie = (response, name, value, maxAge) => response.setHeader('Set-Cookie', `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax${maxAge ? `; Max-Age=${maxAge}` : ''}`)
@@ -18,11 +18,11 @@ export default async function handler(request, response) {
     const groupCode = getCookie(request, 'simkoll_group_code')
     const restoredCode = coachToken || groupCode || ''
     const role = getRole(restoredCode)
-    if (role === 'coach') { const account = readCoachToken(coachToken); return sendJson(response, 200, { role, accountRole: account?.role || 'coach', code: restoredCode, displayName: account?.name || '' }) }
+    if (role === 'coach') { await deleteCurrentSession(request); clearSessionCookie(response); const account = readCoachToken(coachToken); return sendJson(response, 200, { role, accountRole: account?.role || 'coach', code: restoredCode, displayName: account?.name || '' }) }
     if (role === 'swimmer' && await getSessionProfile(request)) return sendJson(response, 200, { role, code: restoredCode })
     return sendJson(response, 200, { role: null })
   }
-  if (action === 'logout') { response.setHeader('Set-Cookie', ['simkoll_coach_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0', 'simkoll_group_code=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0']); return sendJson(response, 200, { ok: true }) }
+  if (action === 'logout') { await deleteCurrentSession(request); response.setHeader('Set-Cookie', ['simkoll_coach_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0', 'simkoll_group_code=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0', 'simkoll_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0']); return sendJson(response, 200, { ok: true }) }
   if (action === 'coach-bootstrap-status') {
     return sendJson(response, 200, { available: (await countCoaches()) === 0 })
   }
@@ -87,9 +87,9 @@ export default async function handler(request, response) {
     }
     return sendJson(response, 200, { account, linkedProfile })
   }
-  if (action === 'coach-link-swimmer-profile' || action === 'coach-unlink-swimmer-profile' || action === 'coach-swimmer-preview') {
-    if (!actor || !['head_coach', 'superadmin'].includes(actor.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan koppla och förhandsvisa sin egen simmarprofil.' })
-    const accountResult = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}&select=id,role,linked_profile_id&limit=1`)
+  if (action === 'coach-link-swimmer-profile' || action === 'coach-unlink-swimmer-profile' || action === 'coach-enter-own-swimmer' || action === 'coach-exit-own-swimmer') {
+    if (!actor || !['head_coach', 'superadmin'].includes(actor.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan koppla och öppna sin egen simmarprofil.' })
+    const accountResult = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}&status=eq.active&select=id,role,linked_profile_id&limit=1`)
     if (!accountResult.ok) throw new Error(`Coach profile lookup failed: ${accountResult.status}`)
     const [account] = await accountResult.json()
     if (!account || account.role !== actor.role) return sendJson(response, 403, { error: 'Tränarkontot kunde inte verifieras.' })
@@ -98,6 +98,12 @@ export default async function handler(request, response) {
       const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ linked_profile_id: null }) })
       if (!result.ok) throw new Error(`Coach profile unlink failed: ${result.status}`)
       return sendJson(response, 200, { linkedProfile: null })
+    }
+
+    if (action === 'coach-exit-own-swimmer') {
+      await deleteCurrentSession(request)
+      clearSessionCookie(response)
+      return sendJson(response, 200, { ok: true })
     }
 
     if (action === 'coach-link-swimmer-profile') {
@@ -125,50 +131,16 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { linkedProfile: { id: profile.id, displayName: profile.display_name, emoji: profile.emoji, trainingGroup: profile.training_group || null } })
     }
 
-    if (!account.linked_profile_id) return sendJson(response, 404, { error: 'Ingen egen simmarprofil är kopplad ännu.' })
-    const profileResult = await supabaseRequest(`profiles?id=eq.${encodeURIComponent(account.linked_profile_id)}&active=eq.true&approval_status=eq.approved&select=id,username,display_name,emoji,training_group,primary_stroke,secondary_stroke,is_test_profile&limit=1`)
+    if (!account.linked_profile_id) return sendJson(response, 404, { error: 'Ingen egen simmarprofil är kopplad ännu. Koppla den under Mitt tränarkonto.' })
+    if (!process.env.SIMKOLL_SWIMMER_CODE) return sendJson(response, 503, { error: 'Simmarinloggningen är inte konfigurerad.' })
+    const profileResult = await supabaseRequest(`profiles?id=eq.${encodeURIComponent(account.linked_profile_id)}&active=eq.true&approval_status=eq.approved&select=*&limit=1`)
     if (!profileResult.ok) throw new Error(`Linked swimmer lookup failed: ${profileResult.status}`)
     const [profile] = await profileResult.json()
     if (!profile) return sendJson(response, 404, { error: 'Den kopplade simmarprofilen är inte längre aktiv.' })
-    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
-    const weekCursor = new Date(`${today}T12:00:00Z`)
-    weekCursor.setUTCDate(weekCursor.getUTCDate() - ((weekCursor.getUTCDay() + 6) % 7))
-    const weekStart = weekCursor.toISOString().slice(0, 10)
-    const weekEndCursor = new Date(weekCursor)
-    weekEndCursor.setUTCDate(weekEndCursor.getUTCDate() + 7)
-    const weekEnd = weekEndCursor.toISOString().slice(0, 10)
-    const [pointRows, levelsResult, workoutRows, unlockResult, sessionRows, plannedRows, competitionsResult, chatSettings] = await Promise.all([
-      supabaseRequest(`point_events?profile_id=eq.${encodeURIComponent(profile.id)}&select=points,event_type,created_at&order=created_at.desc&limit=1000`),
-      supabaseRequest('reward_levels?select=name,emoji,min_points,sort_order&order=min_points.asc'),
-      supabaseRequest(`daily_workouts?workout_date=eq.${today}&select=id,workout_date,title,content,note,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=created_at.asc`),
-      supabaseRequest(`workout_unlocks?profile_id=eq.${encodeURIComponent(profile.id)}&workout_date=eq.${today}&select=profile_id&limit=1`),
-      supabaseRequest(`personal_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&session_date=gte.${weekStart}&session_date=lt.${weekEnd}&select=activity_type,session_date,session_slot&order=session_date.asc`),
-      supabaseRequest(`planned_training_sessions?profile_id=eq.${encodeURIComponent(profile.id)}&planned_date=gte.${weekStart}&planned_date=lt.${weekEnd}&select=planned_date,session_slot&order=planned_date.asc`),
-      supabaseRequest(`competition_calendar?start_date=gte.${today}&select=id,start_date,end_date,title,location,target_groups&order=start_date.asc&limit=10`),
-      supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1'),
-    ])
-    if (![pointRows, levelsResult, workoutRows, unlockResult, sessionRows, plannedRows, competitionsResult].every((item) => item.ok)) throw new Error('Swimmer preview data lookup failed')
-    const points = await pointRows.json()
-    const totalPoints = points.reduce((sum, item) => sum + Number(item.points || 0), 0)
-    const levels = await levelsResult.json()
-    const currentLevel = [...levels].reverse().find((item) => totalPoints >= Number(item.min_points)) || levels[0] || null
-    const nextLevel = levels.find((item) => Number(item.min_points) > totalPoints) || null
-    const groups = [profile.training_group].filter(Boolean)
-    const unlocks = (await unlockResult.json()).length > 0
-    const workouts = (await workoutRows.json()).filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
-    const visibleWorkouts = unlocks ? workouts : workouts.map((item) => ({ id: item.id, workout_date: item.workout_date, time_of_day: item.time_of_day, target_groups: item.target_groups, locked: true }))
-    const completed = await sessionRows.json()
-    const plan = await plannedRows.json()
-    const competitions = (await competitionsResult.json()).filter((item) => !item.target_groups?.length || item.target_groups.some((group) => groups.includes(group))).map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location || '' }))
-    const appSettings = chatSettings.ok ? (await chatSettings.json())[0]?.setting_value || {} : {}
-    return sendJson(response, 200, {
-      profile: { id: profile.id, username: profile.username, displayName: profile.display_name, emoji: profile.emoji, trainingGroup: profile.training_group || null, primaryStroke: profile.primary_stroke || null, secondaryStroke: profile.secondary_stroke || null, isTestProfile: Boolean(profile.is_test_profile) },
-      points: { total: totalPoints, current: currentLevel ? { name: currentLevel.name, emoji: currentLevel.emoji, minPoints: currentLevel.min_points } : null, next: nextLevel ? { name: nextLevel.name, emoji: nextLevel.emoji, minPoints: nextLevel.min_points, remaining: Number(nextLevel.min_points) - totalPoints } : null },
-      workouts: visibleWorkouts.map((item) => ({ date: item.workout_date, title: item.locked ? null : item.title, content: item.locked ? null : item.content, note: item.locked ? '' : item.note || '', focus: item.locked ? '' : item.focus || '', distanceMeters: item.locked ? null : item.distance_meters || null, durationMinutes: item.locked ? null : item.duration_minutes || null, timeOfDay: item.time_of_day || '', locked: Boolean(item.locked) })),
-      week: { weekStart, weekEnd, completedPasses: completed.filter((item) => item.session_slot !== 'legacy').length, plannedPasses: plan.length },
-      competitions,
-      openChatEnabled: appSettings.openChat?.enabled === true,
-    })
+    const days = await getSessionDays('swimmer')
+    await createSession(response, profile.id, days)
+    await writeAuditLog(request, { eventType: 'coach_own_swimmer_mode', role: 'coach', profileId: profile.id, details: { actorName: actor.name, action: 'enter' } })
+    return sendJson(response, 200, { code: process.env.SIMKOLL_SWIMMER_CODE, profile: publicProfile(profile) })
   }
   if (action === 'coach-list' || action === 'coach-approve' || action === 'coach-set-role') {
     if (!actor || actor.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan hantera tränarkonton.' })
