@@ -289,6 +289,10 @@ button { cursor: pointer; }
 .reward-celebration button { border: 0; background: transparent; font-size: 20px; color: var(--muted); }
 .start-card h2 { font-size: 30px; margin-bottom: 6px; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
+.start-card-actions { display: grid; justify-items: end; gap: 8px; flex: 0 0 auto; }
+.start-card-actions .primary-button { margin: 0; }
+.yesterday-checkin-button { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.yesterday-checkin-button span { display: block; color: var(--teal); font-weight: 700; }
 .game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .game-card-stack { display: grid; gap: 12px; }
 .games-carousel { margin-top: 12px; }
@@ -1687,6 +1691,9 @@ button { cursor: pointer; }
   .emoji-cloud { gap: 3px; }
   .start-card { padding: 24px; display: block; }
   .start-card .primary-button { width: 100%; margin-top: 22px; }
+  .start-card-actions { margin-top: 8px; justify-items: stretch; }
+  .start-card-actions .primary-button { margin-top: 14px; }
+  .yesterday-checkin-button { margin-top: 4px; padding: 8px 0; }
   .workout-card { grid-template-columns: 1fr; padding: 23px; gap: 20px; }
   .workout-body { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }
   .locked-workout { border-left: 0; border-top: 1px solid #dce7e4; padding: 20px 0 0; }

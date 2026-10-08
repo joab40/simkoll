@@ -48,14 +48,14 @@ export function stockholmDate() {
   }).format(new Date())
 }
 
-export async function touchProfileActivity(profileId) {
+export async function touchProfileActivity(profileId, activityDate = stockholmDate()) {
   const result = await supabaseRequest('profile_daily_activity?on_conflict=profile_id,activity_date', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({ profile_id: profileId, activity_date: stockholmDate(), last_seen_at: new Date().toISOString() }),
+    body: JSON.stringify({ profile_id: profileId, activity_date: activityDate, last_seen_at: new Date().toISOString() }),
   })
   if (!result.ok) throw new Error(`Activity update failed: ${result.status} ${await result.text()}`)
-  await awardPoints(profileId, 'daily_active', 1, stockholmDate())
+  await awardPoints(profileId, 'daily_active', 1, activityDate)
 }
 
 export async function awardPoints(profileId, eventType, points, sourceKey) {

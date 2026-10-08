@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
@@ -17,8 +18,11 @@ function validate(body) {
   )
 }
 
-function toDatabase(response, profileId) {
+function toDatabase(response, profileId, activityDate, lateEntryKey = null) {
   return {
+    activity_date: activityDate,
+    late_entry: Boolean(lateEntryKey),
+    late_entry_key: lateEntryKey,
     day_type: response.type,
     feeling: response.feeling,
     energy: response.energy ?? null,
@@ -38,7 +42,7 @@ function toDatabase(response, profileId) {
 }
 
 function fromDatabase(response, includeDetails) {
-  const base = { id: response.id, createdAt: response.created_at, feeling: response.feeling }
+  const base = { id: response.id, createdAt: response.created_at, submittedAt: response.created_at, activityDate: response.activity_date, lateEntry: response.late_entry === true, feeling: response.feeling }
   if (!includeDetails) return base
   return {
     ...base,
@@ -65,6 +69,12 @@ function tomorrowDate() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(now)
 }
 
+function yesterdayDate(date = stockholmDate()) {
+  const value = new Date(`${date}T12:00:00Z`)
+  value.setUTCDate(value.getUTCDate() - 1)
+  return value.toISOString().slice(0, 10)
+}
+
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
@@ -76,17 +86,15 @@ export default async function handler(request, response) {
       const sessionProfile = wantsOwn ? await getSessionProfile(request) : null
       if (wantsOwn && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på din profil igen.' })
       const isDetailed = role === 'coach' || Boolean(sessionProfile)
-      const select = isDetailed ? '*' : 'id,created_at,feeling'
+      const select = isDetailed ? '*' : 'id,created_at,activity_date,late_entry,feeling'
       const recent = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
       const requestedDate = role === 'coach' ? String(request.query?.date || '') : ''
       if (requestedDate && !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) return sendJson(response, 400, { error: 'Ogiltigt datum.' })
-      const start = requestedDate ? new Date(`${requestedDate}T00:00:00Z`) : null
-      const dateFilter = start ? `&created_at=gte.${encodeURIComponent(new Date(start.getTime() - 86400000).toISOString())}&created_at=lt.${encodeURIComponent(new Date(start.getTime() + 86400000).toISOString())}` : ''
+      const dateFilter = requestedDate ? `&activity_date=eq.${encodeURIComponent(requestedDate)}` : ''
       const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? dateFilter : `&created_at=gte.${encodeURIComponent(recent)}`
       const result = await supabaseRequest(`responses?select=${select}${filter}&order=created_at.desc&limit=2000`)
       if (!result.ok) throw new Error(`Supabase GET failed: ${result.status} ${await result.text()}`)
       let rows = await result.json()
-      if (requestedDate) rows = rows.filter((item) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at)) === requestedDate)
       if (role === 'coach') {
         const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')
         if (!testProfiles.ok) throw new Error('Test profile lookup failed')
@@ -99,30 +107,40 @@ export default async function handler(request, response) {
     if (request.method === 'POST') {
       if (!validate(request.body || {})) return sendJson(response, 400, { error: 'Svaret innehåller ogiltiga värden.' })
       const sessionProfile = await getSessionProfile(request)
+      const today = stockholmDate()
+      const activityDate = String(request.body?.activityDate || today)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(activityDate) || ![today, yesterdayDate(today)].includes(activityDate)) return sendJson(response, 400, { error: 'Du kan bara checka in idag eller efterregistrera gårdagen.' })
+      const lateEntry = activityDate !== today
+      if (lateEntry && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på din simmarprofil för att efterregistrera gårdagen.' })
       const profile = request.body?.identified ? sessionProfile : null
       if (request.body?.identified && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på profilen igen eller svara anonymt.' })
+      const hmacSecret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+      const lateEntryKey = lateEntry ? createHmac('sha256', hmacSecret).update(`${sessionProfile.id}:${activityDate}`).digest('hex') : null
       const result = await supabaseRequest('responses', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(toDatabase(request.body, profile?.id)),
+        body: JSON.stringify(toDatabase(request.body, profile?.id, activityDate, lateEntryKey)),
       })
+      if (lateEntry && result.status === 409) return sendJson(response, 409, { error: 'Du har redan efterregistrerat gårdagens check-in.' })
       if (!result.ok) throw new Error(`Supabase POST failed: ${result.status} ${await result.text()}`)
       const [created] = await result.json()
       if (sessionProfile) {
-        await touchProfileActivity(sessionProfile.id)
-        await awardPoints(sessionProfile.id, 'checkin', 3, stockholmDate())
+        await touchProfileActivity(sessionProfile.id, activityDate)
+        await awardPoints(sessionProfile.id, 'checkin', 3, activityDate)
         await awardArtifact(sessionProfile.id, 'first_step')
-        const unlockResult = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
-          method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
-          body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: stockholmDate() }),
-        })
-        if (!unlockResult.ok) console.error(`Workout unlock failed: ${unlockResult.status} ${await unlockResult.text()}`)
-        if (request.body.type === 'after') {
-          const tomorrowUnlock = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
+        if (!lateEntry) {
+          const unlockResult = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
             method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
-            body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: tomorrowDate() }),
+            body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: today }),
           })
-          if (!tomorrowUnlock.ok) console.error(`Tomorrow workout unlock failed: ${tomorrowUnlock.status} ${await tomorrowUnlock.text()}`)
+          if (!unlockResult.ok) console.error(`Workout unlock failed: ${unlockResult.status} ${await unlockResult.text()}`)
+          if (request.body.type === 'after') {
+            const tomorrowUnlock = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
+              method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
+              body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: tomorrowDate() }),
+            })
+            if (!tomorrowUnlock.ok) console.error(`Tomorrow workout unlock failed: ${tomorrowUnlock.status} ${await tomorrowUnlock.text()}`)
+          }
         }
         // Ett profilinloggat "efter pass" räknas automatiskt som ett genomfört
         // simpass. Själva feedbacken kan fortfarande vara anonym (profile_id
@@ -130,7 +148,7 @@ export default async function handler(request, response) {
         if (request.body.type === 'after' || request.body.registerTraining === true) {
           const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
           const trainingResult = await supabaseRequest('personal_training_sessions', {
-            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: stockholmDate(), source: 'checkin' }),
+            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: activityDate, source: 'checkin' }),
           })
           if (!trainingResult.ok && trainingResult.status !== 409) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
         }

@@ -66,7 +66,9 @@ const dateKey = (date) => {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 }
 
-const responseDate = (response) => new Date(response.createdAt)
+const responseDate = (response) => response.activityDate
+  ? new Date(`${response.activityDate}T12:00:00`)
+  : new Date(response.createdAt)
 const todayKey = () => dateKey(new Date())
 const competitionIsToday = (item, today = todayKey()) => Boolean(item?.startDate && item.startDate <= today && (item.endDate || item.startDate) >= today)
 const average = (key, items) => {
@@ -104,6 +106,7 @@ function App() {
   const [notifications, setNotifications] = useState([])
   const [training, setTraining] = useState(null)
   const [identified, setIdentified] = useState(false)
+  const [checkinActivityDate, setCheckinActivityDate] = useState(todayKey())
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
   const [talksEnabled, setTalksEnabled] = useState(false)
@@ -292,12 +295,13 @@ function App() {
         <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
-        }} />
+        }} onStartYesterday={() => { setCheckinActivityDate(dateKey(new Date(Date.now() - 86400000))); setScreen('privacy-choice') }} />
       )}
-      {screen === 'privacy-choice' && <PrivacyChoice profile={profile} onBack={() => setScreen('home')} onChoose={(value) => { setIdentified(value); setScreen('checkin') }} />}
+      {screen === 'privacy-choice' && <PrivacyChoice profile={profile} lateEntry={checkinActivityDate !== todayKey()} onBack={() => setScreen('home')} onChoose={(value) => { setIdentified(value); setScreen('checkin') }} />}
       {screen === 'checkin' && (
         <CheckIn
           hasProfile={Boolean(profile)}
+          lateEntry={checkinActivityDate !== todayKey()}
           followUp={(() => { const today = responses.filter((item) => dateKey(responseDate(item)) === todayKey()); const raceBefore = today.some((item) => item.competition === true && item.type === 'before'); const raceAfter = today.some((item) => item.competition === true && item.type === 'after'); const latest = today.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]; return latest?.type === 'before' && latest?.speedFeeling == null && !(raceBefore && !raceAfter) })()}
           raceFollowUp={(() => { const today = responses.filter((item) => dateKey(responseDate(item)) === todayKey()); return today.some((item) => item.competition === true && item.type === 'before') && !today.some((item) => item.competition === true && item.type === 'after') })()}
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
@@ -306,16 +310,19 @@ function App() {
             const result = await apiRequest('/api/responses', auth.code, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...response, identified }),
+              body: JSON.stringify({ ...response, identified, activityDate: checkinActivityDate }),
             })
             // Anonymous responses intentionally come back without details
             // from the API. Keep the selected type in this session so the
             // swimmer still gets useful confirmation in the status card.
-            setResponses((current) => [...current, { ...result.response, ...response }])
+            setResponses((current) => [...current, { ...result.response, ...response, activityDate: checkinActivityDate, lateEntry: checkinActivityDate !== todayKey() }])
+            if (checkinActivityDate !== todayKey() && profile) {
+              try { window.localStorage.setItem(`simkoll-late-checkin:${profile.id}:${checkinActivityDate}`, 'done') } catch { /* Storage is optional; server still enforces one entry. */ }
+            }
             // Show confirmation as soon as the response is persisted. The
             // surrounding dashboard data can refresh without blocking the UI.
             setScreen('thanks')
-            if (profile) {
+            if (profile && checkinActivityDate === todayKey()) {
               void (async () => {
                 const trainingData = await apiRequest('/api/training', auth.code)
                 const tomorrow = dateKey(new Date(Date.now() + 86400000))
@@ -331,7 +338,7 @@ function App() {
           }}
         />
       )}
-      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} workout={workout} tomorrowWorkout={tomorrowWorkout} onDone={() => setScreen('home')} />}
+      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={checkinActivityDate !== todayKey()} workout={workout} tomorrowWorkout={tomorrowWorkout} onDone={() => setScreen('home')} />}
       {screen === 'community' && <Community profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
       {screen === 'coach-info' && <CoachInfoPage code={auth.code} profile={profile} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
@@ -380,7 +387,8 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState(() => typeof window !== 'undefined' ? window.localStorage.getItem('simkoll_coach_email') || '' : '')
   const [password, setPassword] = useState('')
   const [rememberCoachEmail, setRememberCoachEmail] = useState(true)
-  const [rememberSession, setRememberSession] = useState(false)
+  const [rememberCoachSession, setRememberCoachSession] = useState(false)
+  const [rememberGroupCode, setRememberGroupCode] = useState(true)
   const [acceptedCoachTerms, setAcceptedCoachTerms] = useState(false)
   const [bootstrapToken, setBootstrapToken] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -400,7 +408,7 @@ function Login({ onLogin }) {
         if ((coachMode === 'bootstrap' || coachMode === 'register') && !acceptedCoachTerms) { setError('Läs och godkänn tränarvillkoren först.'); setLoading(false); return }
         if (rememberCoachEmail) window.localStorage.setItem('simkoll_coach_email', email.trim().toLowerCase())
         else window.localStorage.removeItem('simkoll_coach_email')
-        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken, acceptedTerms: acceptedCoachTerms } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password, acceptedTerms: acceptedCoachTerms } : { action: 'coach-login', email, password, remember: rememberSession }
+        const body = coachMode === 'bootstrap' ? { action: 'coach-bootstrap', email, displayName, password, bootstrapToken, acceptedTerms: acceptedCoachTerms } : coachMode === 'register' ? { action: 'coach-register', email, displayName, password, acceptedTerms: acceptedCoachTerms } : { action: 'coach-login', email, password, remember: rememberCoachSession }
         const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         const data = await result.json()
         if (!result.ok) throw new Error(data.error)
@@ -411,7 +419,7 @@ function Login({ onLogin }) {
       const result = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, remember: rememberSession }),
+        body: JSON.stringify({ code, remember: rememberGroupCode }),
       })
       const data = await result.json()
       if (!result.ok) throw new Error(data.error)
@@ -438,7 +446,7 @@ function Login({ onLogin }) {
           {mode === 'coach' ? <>
             <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
             <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
-            {coachMode === 'login' && <><label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label><label className="remember-login"><input type="checkbox" checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label></>}
+            {coachMode === 'login' && <><label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label><label className="remember-login"><input type="checkbox" checked={rememberCoachSession} onChange={(event) => setRememberCoachSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label></>}
             {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}<details className="login-terms"><summary>Visa tränarvillkoren</summary><p>Kontot får bara användas i klubbens tränaruppdrag. Hantera simmarinformation konfidentiellt, skriv inte diagnoser eller personnummer i fritext, och dela inte uppgifter eller exporter med obehöriga. AI-svar ska alltid kontrolleras och får inte användas som automatiska beslut.</p></details><label className="remember-login"><input type="checkbox" checked={acceptedCoachTerms} onChange={(event) => setAcceptedCoachTerms(event.target.checked)} /> Jag har läst och godkänner tränarvillkoren.</label></>}
             <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
             <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? (bootstrapAvailable ? 'bootstrap' : 'login') : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' && bootstrapAvailable ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
@@ -461,7 +469,8 @@ function Login({ onLogin }) {
             />
             <button aria-label="Logga in" type="submit" disabled={loading}>{loading ? '…' : '→'}</button>
           </div>
-          <label className="remember-login"><input type="checkbox" checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label>
+          <label className="remember-login"><input type="checkbox" checked={rememberGroupCode} onChange={(event) => setRememberGroupCode(event.target.checked)} /> Kom ihåg gruppkoden på den här enheten</label>
+          <p className="settings-note login-group-code-note">Du loggar fortfarande in separat med din personliga användare och PIN.</p>
           </>}
           {error && <span className="error-text">{error}</span>}
           {info && <span className="settings-saved">{info}</span>}
@@ -866,12 +875,17 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart }) {
+function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+  const yesterdayKey = dateKey(yesterdayDate)
+  const hasYesterdayCheckin = profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === yesterdayKey)
+  let hasLocalYesterdayCheckin = false
+  if (profile) { try { hasLocalYesterdayCheckin = window.localStorage.getItem(`simkoll-late-checkin:${profile.id}:${yesterdayKey}`) === 'done' } catch { /* Storage is optional. */ } }
   const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
   const raceBeforeToday = todayResponses.some((response) => response.competition === true && response.type === 'before')
   const raceAfterToday = todayResponses.some((response) => response.competition === true && response.type === 'after')
@@ -922,7 +936,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
 
       {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} />}
 
-      {profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} raceFollowUp={raceFollowUp} />}
+      {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={!hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
@@ -1108,9 +1122,9 @@ function NotificationCard({ profile, notifications, onChange, onCommunity, onGoa
   return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => dismiss(item)}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => unread.forEach(dismiss)}>Markera alla som lästa</button>}</section>
 }
 
-function StartCard({ profile, onStart, followUp = false, raceFollowUp = false }) {
+function StartCard({ profile, onStart, onStartYesterday, yesterdayLabel, followUp = false, raceFollowUp = false }) {
   const followUpTitle = raceFollowUp ? 'Hur gick simtävlingen?' : 'Hur gick simträningen?'
-  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>{followUp || raceFollowUp ? followUpTitle : 'Hur är läget?'}</h2><p>{raceFollowUp ? 'Berätta kort hur tävlingen gick.' : followUp ? 'Berätta kort hur passet kändes efteråt.' : 'Det tar mindre än 20 sekunder.'}</p></div><button className="primary-button" onClick={onStart}>{followUp || raceFollowUp ? 'Svara efteråt' : 'Checka in'} <span>→</span></button></section>
+  return <section className="start-card"><div><p className="eyebrow">{profile ? `${profile.emoji} ${profile.displayName}` : 'Din tur'}</p><h2>{followUp || raceFollowUp ? followUpTitle : 'Hur är läget?'}</h2><p>{raceFollowUp ? 'Berätta kort hur tävlingen gick.' : followUp ? 'Berätta kort hur passet kändes efteråt.' : 'Det tar mindre än 20 sekunder.'}</p></div><div className="start-card-actions"><button className="primary-button" onClick={onStart}>{followUp || raceFollowUp ? 'Svara efteråt' : 'Checka in'} <span>→</span></button>{onStartYesterday && <button className="text-button yesterday-checkin-button" onClick={onStartYesterday}>Glömde du checka in {yesterdayLabel}? <span>Efterregistrera →</span></button>}</div></section>
 }
 
 function GameCard({ games = GAME_CATALOG, previousGames = [], onOpen, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime }) {
@@ -1661,13 +1675,13 @@ function ProfileAccess({ mode, code, onBack, onMode, onSuccess }) {
   )
 }
 
-function PrivacyChoice({ profile, onBack, onChoose }) {
+function PrivacyChoice({ profile, lateEntry = false, onBack, onChoose }) {
   return (
     <div className="privacy-choice-page">
       <button className="back-button" onClick={onBack}>← Tillbaka</button>
       <section>
         <p className="eyebrow">Din check-in</p><h1>Hur vill du svara?</h1>
-        <p>Du bestämmer för varje gång.</p>
+        <p>{lateEntry ? 'Efterregistrera gårdagens svar. Du bestämmer om det kopplas till profilen.' : 'Du bestämmer för varje gång.'}</p>
         <div className="account-options">
           <button className="account-option" onClick={() => onChoose(true)}><span>{profile.emoji}</span><div><strong>Som {profile.displayName}</strong><small>Syns i din historik och för tränaren</small></div><b>→</b></button>
           <button className="account-option anonymous" onClick={() => onChoose(false)}><span>🥷</span><div><strong>Anonymt</strong><small>Kan inte kopplas till din profil</small></div><b>→</b></button>
@@ -1883,14 +1897,14 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
       <section className="artifact-collection"><div><p className="eyebrow">Min samling</p><h2>Artefakter</h2><small>Små bevis på vanor, utveckling och lagkänsla.</small></div>{artifacts.length ? <div className="artifact-grid">{artifacts.map((artifact) => <article key={artifact.id} title={artifact.description}><span>{artifact.emoji}</span><strong>{artifact.name}</strong><small>{new Date(artifact.awardedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></article>)}</div> : <p className="empty">Din samling är tom än så länge.</p>}</section>
       {competitionResults.length > 0 && <details className="my-competition-results"><summary><span><p className="eyebrow">Tempus Open</p><h2>Mina tävlingsresultat</h2><small>{competitionResults.length} sparade resultat · tryck för att visa</small></span><b>＋</b></summary><div className="competition-event-list">{[...new Set(competitionResults.map((item) => item.event))].sort((a, b) => a.localeCompare(b, 'sv')).map((event) => { const items = competitionResults.filter((item) => item.event === event); const best = items.slice().sort((a, b) => (a.result_time || 999999) - (b.result_time || 999999))[0]; return <details key={event}><summary><span>{event}</span><b>{best.swim_time}</b></summary><div className="competition-history">{items.slice(0, 20).map((item) => <span key={item.id}>{item.pool || 'Bassäng saknas'} · {new Date(item.result_date).toLocaleDateString('sv-SE')} · {item.swim_time}</span>)}</div></details> })}</div></details>}
       <section className="talk-history swimmer-talk-history"><p className="eyebrow">Sparat över tid</p><h2>Mina utvecklingssamtal</h2>{developmentTalks.length ? developmentTalks.map((talk) => <details key={talk.id}><summary>{talk.meetingDate} · {talk.status === 'completed' ? 'Genomfört' : 'Förbereds'} {!talk.enabled && '· Skrivskyddat'}</summary><div className="talk-history-answer">{Object.entries(talk.swimmerAnswers || {}).filter(([, value]) => value).map(([key, value]) => <p key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><span>{value}</span></p>)}{Object.values(talk.agreement || {}).filter(Boolean).map((value) => <p key={value}><strong>Gemensam överenskommelse</strong><span>{value}</span></p>)}</div></details>) : <p className="empty">Inga utvecklingssamtal ännu.</p>}</section>
-      <details className="my-history"><summary><span><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></span><b>＋</b></summary>{loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}</details>
+      <details className="my-history"><summary><span><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></span><b>＋</b></summary>{loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{responseDate(item).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}{item.lateEntry && ` · Efterregistrerad ${new Date(item.submittedAt || item.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}</details>
       {!showAnalytics ? <button className="primary-button profile-stats-button" onClick={() => setShowAnalytics(true)}>📊 Visa min statistik →</button> : <AnalysisDashboard code={code} profile={profile} selfView onBack={() => setShowAnalytics(false)} />}
       <button className="profile-logout" onClick={onProfileLogout}>Logga ut från profilen</button>
     </div>
   )
 }
 
-function CheckIn({ hasProfile, competitionToday, followUp = false, raceFollowUp = false, onBack, onSubmit }) {
+function CheckIn({ hasProfile, competitionToday, lateEntry = false, followUp = false, raceFollowUp = false, onBack, onSubmit }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
@@ -1919,13 +1933,13 @@ function CheckIn({ hasProfile, competitionToday, followUp = false, raceFollowUp 
 
   let content
   if (step === 0) {
-    const showCompetitionChoice = competitionToday && hasProfile && competitionDecision === null
+    const showCompetitionChoice = !lateEntry && competitionToday && hasProfile && competitionDecision === null
     content = (
-      <Question title={showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
+      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Vad gjorde du igår?' : showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={lateEntry ? 'Välj det som bäst beskriver gårdagen.' : showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
         <div className="choice-stack">
-          {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm((current) => ({ ...current, competition: true, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm((current) => ({ ...current, competition: true, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.map((type) => (
-              <button key={type.value} className={`choice-card${followUp && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && (type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before')); setForm((current) => ({ ...current, type: type.value, registerTraining: countsAsAttendance, trainingSlot: type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before') ? 'afternoon_swim' : undefined })); next() }}>
-              <span className="choice-icon">{type.icon}</span>{type.title}<span>›</span>
+          {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm((current) => ({ ...current, competition: true, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm((current) => ({ ...current, competition: true, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.filter((type) => !lateEntry || type.value !== 'before').map((type) => (
+              <button key={type.value} className={`choice-card${(followUp || lateEntry) && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && (type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before')); setForm((current) => ({ ...current, type: type.value, registerTraining: countsAsAttendance, trainingSlot: type.value === 'after' || (competitionToday && competitionDecision === 'before' && type.value === 'before') ? 'afternoon_swim' : undefined })); next() }}>
+              <span className="choice-icon">{type.icon}</span>{lateEntry ? ({ after: 'Jag tränade / tävlade', rest: 'Jag vilade', sick: 'Jag var sjuk' }[type.value]) : type.title}<span>›</span>
             </button>
           ))}
         </div>
@@ -1933,7 +1947,7 @@ function CheckIn({ hasProfile, competitionToday, followUp = false, raceFollowUp 
     )
   } else if (step === 1) {
     content = (
-      <Question title="Hur känns det idag?" hint="Gå på magkänslan.">
+      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Hur mådde du igår?' : 'Hur känns det idag?'} hint="Gå på magkänslan.">
         <div className="feeling-grid">
           {FEELINGS.map((feeling) => (
             <button key={feeling.value} onClick={() => { update('feeling', feeling.value); next() }}>
@@ -1946,7 +1960,7 @@ function CheckIn({ hasProfile, competitionToday, followUp = false, raceFollowUp 
   } else {
     const question = questions[step - 2]
     content = (
-      <Question title={question.title} hint={question.hint}>
+      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.hint}>
         {question.kind === 'scale' && (
           <Scale
             count={question.count}
@@ -1987,8 +2001,8 @@ function CheckIn({ hasProfile, competitionToday, followUp = false, raceFollowUp 
   )
 }
 
-function Question({ title, hint, children }) {
-  return <section className="question"><p className="eyebrow">Snabbkoll</p><h1>{title}</h1><p>{hint}</p>{children}</section>
+function Question({ eyebrow = 'Snabbkoll', title, hint, children }) {
+  return <section className="question"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{hint}</p>{children}</section>
 }
 
 function Scale({ count, left, right, onChange }) {
@@ -2031,18 +2045,18 @@ function getQuestions(type) {
   ]
 }
 
-function Thanks({ responses, profile, identified, workout, tomorrowWorkout, onDone }) {
-  const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+function Thanks({ responses, profile, identified, activityDate = todayKey(), lateEntry = false, workout, tomorrowWorkout, onDone }) {
+  const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === activityDate)
   return (
     <div className="thanks-page">
       <div className="success-mark">✓</div>
       <p className="eyebrow">Klart</p>
-      <h1>Tack för din check-in!</h1>
+      <h1>{lateEntry ? 'Tack för gårdagens check-in!' : 'Tack för din check-in!'}</h1>
       <p>{identified ? 'Svaret har sparats i din profil.' : 'Svaret är anonymt och hjälper tränaren att göra passen bättre.'}</p>
-      {profile && workout && <p className="unlock-message">🔓 Dagens pass är upplåst!</p>}
-      {profile && tomorrowWorkout && <div className="tomorrow-thanks"><strong>🔓 Morgondagens pass är också upplåst!</strong><h3>{tomorrowWorkout.title}</h3><p>{tomorrowWorkout.content}</p></div>}
+      {!lateEntry && profile && workout && <p className="unlock-message">🔓 Dagens pass är upplåst!</p>}
+      {!lateEntry && profile && tomorrowWorkout && <div className="tomorrow-thanks"><strong>🔓 Morgondagens pass är också upplåst!</strong><h3>{tomorrowWorkout.title}</h3><p>{tomorrowWorkout.content}</p></div>}
       <div className="mini-moods">{todayResponses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
-      <button className="primary-button" onClick={onDone}>{profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
+      <button className="primary-button" onClick={onDone}>{!lateEntry && profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
     </div>
   )
 }
@@ -2426,13 +2440,13 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const toggle = async (profile) => { const next = !attendance[profile.id]; setAttendance((current) => ({ ...current, [profile.id]: next })); setLoading(true); try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId: profile.id, date, slot, present: next }) }) } catch (error) { setAttendance((current) => ({ ...current, [profile.id]: !next })); window.alert(error.message) } finally { setLoading(false) } }
   const checkinLabel = (item) => {
     if (!item) return 'Ej checkat in'
-    if (item.competition && item.type === 'before') return '🏁 Ska tävla'
-    if (item.competition && item.type === 'after') return '🏅 Har tävlat'
-    if (item.type === 'after') return '✓ Har tränat'
-    if (item.type === 'before') return '→ Ska träna'
-    if (item.type === 'sick') return '🤒 Incheckad · Känner sig sjuk'
-    if (item.type === 'rest') return '⏸️ Incheckad · Ingen träning idag'
-    return '✓ Incheckad'
+    const status = item.competition && item.type === 'before' ? '🏁 Ska tävla'
+      : item.competition && item.type === 'after' ? '🏅 Har tävlat'
+        : item.type === 'after' ? '✓ Har tränat'
+          : item.type === 'before' ? '→ Ska träna'
+            : item.type === 'sick' ? '🤒 Incheckad · Känner sig sjuk'
+              : item.type === 'rest' ? '⏸️ Incheckad · Ingen träning idag' : '✓ Incheckad'
+    return item.lateEntry ? `${status} · Efterregistrerad` : status
   }
   return <section className="attendance-panel"><div className="attendance-panel-head"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under simpass'}<span>{presentCount}/{visible.length} närvarande</span></button><button type="button" className="lane-planner-button" onClick={() => setLanePlannerOpen(true)} disabled={loading || !presentCount}>🏊 Banor</button></div>{open && <div className="attendance-body"><div className="library-controls"><label>Simpass<select value={slot} onChange={(event) => setSlot(event.target.value)}><option value="morning_swim">Morgonpass</option><option value="afternoon_swim">Eftermiddag / kväll</option></select></label><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label><label className="attendance-sort"><input type="checkbox" checked={sortPresent} onChange={(event) => setSortPresent(event.target.checked)} /> Visa närvarande först</label></div><div className="attendance-list">{visible.map((profile) => { const item = checkinResponses.find((response) => response.profileId === profile.id); return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={loading} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{checkinLabel(item)}</small><b>{attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}{lanePlannerOpen && <LaneAssignmentAssistant code={code} profiles={visible.filter((profile) => attendance[profile.id])} date={date} slot={slot} onClose={() => setLanePlannerOpen(false)} />}</section>
 }
