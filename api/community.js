@@ -105,6 +105,7 @@ const GROUP_TEMPLATES = {
   group_next: 'Ser fram emot nästa pass 🙌',
   group_fun: 'Kul att simma med er! 😊',
 }
+const REACTION_EMOJIS = ['👍', '😊', '🙌', '❤️']
 
 async function loadProfiles() {
   const result = await supabaseRequest('profiles?select=id,display_name,emoji&active=eq.true')
@@ -193,7 +194,8 @@ export default async function handler(request, response) {
         rows.forEach((item) => { if (item.rating) counts.ratings[item.rating] = (counts.ratings[item.rating] || 0) + 1; if (item.best_area) counts.bestAreas[item.best_area] = (counts.bestAreas[item.best_area] || 0) + 1; if (item.improve_area) counts.improveAreas[item.improve_area] = (counts.improveAreas[item.improve_area] || 0) + 1; if (item.feature_request) counts.featureRequests[item.feature_request] = (counts.featureRequests[item.feature_request] || 0) + 1 })
         return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: rows.filter((item) => item.comment?.trim()).map((item) => ({ comment: item.comment.trim(), createdAt: item.created_at })).slice(0, 100) })
       }
-      const [postsResult, groupResult, profiles, messagesResult, openChatResult] = await Promise.all([
+      const actorKey = role === 'coach' ? `coach:${coachFromRequest(request)?.sub || 'legacy'}` : `swimmer:${profile.id}`
+      const [postsResult, groupResult, profiles, messagesResult, openChatResult, reactionsResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=100'),
         loadProfiles(),
@@ -201,10 +203,22 @@ export default async function handler(request, response) {
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
           : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
         openChatEnabled ? supabaseRequest(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profile.id})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`) : Promise.resolve({ ok: true, json: async () => [] }),
+        supabaseRequest('community_reactions?select=message_type,message_id,actor_key,emoji&limit=20000'),
       ])
-      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok || !openChatResult.ok) throw new Error('Community feed failed')
-      const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at }))
-        const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id] })).filter((item) => item.sender && item.content)
+      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok || !openChatResult.ok || !reactionsResult.ok) throw new Error('Community feed failed')
+      const reactionRows = await reactionsResult.json()
+      const reactionsByMessage = new Map()
+      reactionRows.forEach((reaction) => {
+        const key = `${reaction.message_type}|${reaction.message_id}`
+        if (!reactionsByMessage.has(key)) reactionsByMessage.set(key, [])
+        reactionsByMessage.get(key).push(reaction)
+      })
+      const reactionsFor = (messageType, messageId) => REACTION_EMOJIS.map((emoji) => {
+        const matches = (reactionsByMessage.get(`${messageType}|${messageId}`) || []).filter((reaction) => reaction.emoji === emoji)
+        return { emoji, count: matches.length, reacted: matches.some((reaction) => reaction.actor_key === actorKey) }
+      }).filter((reaction) => reaction.count > 0)
+      const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at, reactions: reactionsFor('coach_post', item.id) }))
+        const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], reactions: reactionsFor('group_pep', item.id) })).filter((item) => item.sender && item.content)
       let privateKudos = []
       if (profile) {
         const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,content,created_at&order=created_at.desc&limit=100`)
@@ -214,6 +228,29 @@ export default async function handler(request, response) {
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
 const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches' || item.sender_profile_id === profile?.id).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, senderProfileId: item.sender_profile_id || null, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🧑‍🏫' } })).filter((item) => item.sender).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : []
       return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: openChatMessages } })
+    }
+
+    if (request.method === 'POST' && ['coach', 'swimmer'].includes(role) && request.body?.action === 'toggle-reaction') {
+      const profile = role === 'swimmer' ? await getSessionProfile(request) : null
+      if (role === 'swimmer' && !profile) return sendJson(response, 403, { error: 'Logga in på din profil för att reagera.' })
+      const messageType = String(request.body?.messageType || '')
+      const messageId = String(request.body?.messageId || '')
+      const emoji = String(request.body?.emoji || '')
+      if (!['coach_post', 'group_pep'].includes(messageType) || !/^[0-9a-f-]{36}$/i.test(messageId) || !REACTION_EMOJIS.includes(emoji)) return sendJson(response, 400, { error: 'Välj ett giltigt meddelande och en emoji.' })
+      const table = messageType === 'group_pep' ? 'group_pep' : 'community_posts'
+      const target = await supabaseRequest(`${table}?id=eq.${encodeURIComponent(messageId)}${messageType === 'coach_post' ? '&deleted_at=is.null' : ''}&select=id&limit=1`)
+      if (!target.ok || !(await target.json()).length) return sendJson(response, 404, { error: 'Meddelandet finns inte längre.' })
+      const actorKey = role === 'swimmer' ? `swimmer:${profile.id}` : `coach:${coachFromRequest(request)?.sub || 'legacy'}`
+      const existing = await supabaseRequest(`community_reactions?message_type=eq.${messageType}&message_id=eq.${messageId}&actor_key=eq.${encodeURIComponent(actorKey)}&emoji=eq.${encodeURIComponent(emoji)}&select=id&limit=1`)
+      if (!existing.ok) throw new Error(`Reaction lookup failed: ${existing.status}`)
+      if ((await existing.json()).length) {
+        const removed = await supabaseRequest(`community_reactions?message_type=eq.${messageType}&message_id=eq.${messageId}&actor_key=eq.${encodeURIComponent(actorKey)}&emoji=eq.${encodeURIComponent(emoji)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+        if (!removed.ok) throw new Error(`Reaction removal failed: ${removed.status}`)
+        return sendJson(response, 200, { reacted: false })
+      }
+      const added = await supabaseRequest('community_reactions?on_conflict=message_type,message_id,actor_key,emoji', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ message_type: messageType, message_id: messageId, actor_key: actorKey, emoji }) })
+      if (!added.ok) throw new Error(`Reaction add failed: ${added.status}`)
+      return sendJson(response, 200, { reacted: true })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {

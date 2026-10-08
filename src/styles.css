@@ -2325,6 +2325,18 @@ button { cursor: pointer; }
 .community-layout.pep-channel-layout { grid-template-columns: minmax(0, 1fr); }
 .pep-channel-layout .feed-column { min-width: 0; padding: 0; border: 0; background: transparent; }
 .pep-channel-panel { margin: .75rem 0 0; }
+.pep-channel-panel { position: relative; overflow: hidden; }
+.pep-message-reactions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.pep-message-reactions .pep-reaction { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 34px; min-height: 32px; padding: 3px 7px; border: 1px solid rgba(255,255,255,.28); border-radius: 999px; background: rgba(255,255,255,.12); color: #fff; font: inherit; font-size: 16px; line-height: 1; cursor: pointer; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+.pep-message-reactions .pep-reaction:hover { transform: translateY(-2px); background: rgba(255,255,255,.23); }
+.pep-message-reactions .pep-reaction.is-selected { border-color: #d0f75d; background: rgba(202,244,86,.25); box-shadow: 0 0 0 1px rgba(208,247,93,.18); }
+.pep-message-reactions .pep-reaction:disabled { opacity: .6; cursor: wait; }
+.pep-message-reactions .pep-reaction small { color: inherit; font-size: 11px; font-weight: 750; }
+.pep-high-five-hint { color: rgba(255,255,255,.75); }
+.high-five-burst { position: absolute; z-index: 4; inset: 0; overflow: hidden; pointer-events: none; }
+.high-five-burst span { position: absolute; bottom: -3.2rem; font-size: clamp(1.7rem, 5vw, 2.7rem); filter: drop-shadow(0 4px 8px rgba(0,0,0,.24)); animation: high-five-float 1.85s cubic-bezier(.2,.7,.25,1) both; }
+@keyframes high-five-float { 0% { opacity: 0; transform: translate3d(0,0,0) rotate(-12deg) scale(.65); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate3d(var(--high-five-drift), -78svh,0) rotate(18deg) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .pep-message-reactions .pep-reaction { transition: none; } .high-five-burst span { animation-duration: .01ms; } }
 .pep-channel-panel .open-chat-messages { min-height: 15rem; max-height: min(32rem, 50svh); overscroll-behavior-y: contain; }
 .pep-channel-panel .open-chat-messages article { width: 100%; }
 .pep-channel-panel .open-chat-messages article > div { min-width: 0; max-width: min(calc(100% - 2.8rem), 38rem); }
