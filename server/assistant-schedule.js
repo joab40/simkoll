@@ -11,6 +11,54 @@ export function assistantScheduleLabels(date, time = '') {
   }
 }
 
+export function assistantSwimSlot(value = '') {
+  const normalized = String(value || '').toLowerCase()
+  if (['morning', 'morning_swim'].includes(normalized)) return 'morning_swim'
+  if (['afternoon', 'afternoon_swim'].includes(normalized)) return 'afternoon_swim'
+  if (/^\d{2}:\d{2}$/.test(normalized)) return Number(normalized.slice(0, 2)) < 12 ? 'morning_swim' : 'afternoon_swim'
+  return null
+}
+
+export function buildAssistantSwimCalendar({ workouts = [], plans = [], plannedSessions = [] }) {
+  const plannedKeys = new Set(plannedSessions.map((item) => {
+    const slot = assistantSwimSlot(item.session_slot)
+    return slot ? `${item.planned_date}|${slot}` : null
+  }).filter(Boolean))
+  const entries = workouts.map((item) => ({
+    id: item.id,
+    sourceWorkoutId: item.id,
+    date: item.workout_date,
+    timeOfDay: item.time_of_day,
+    title: item.title || 'Simpass',
+    location: item.location || '',
+    source: 'daily_workout',
+  }))
+  const workoutIds = new Set(workouts.map((item) => item.id).filter(Boolean))
+  const dedupeKeys = new Set(entries.map((item) => {
+    const slot = assistantSwimSlot(item.timeOfDay)
+    return `${item.date}|${slot || ''}|${String(item.title).trim().toLowerCase()}`
+  }))
+  plans.filter((item) => item.activity_type === 'swim').forEach((item) => {
+    if (item.source_workout_id && workoutIds.has(item.source_workout_id)) return
+    const key = `${item.plan_date}|${assistantSwimSlot(item.time_of_day) || ''}|${String(item.title || 'Simpass').trim().toLowerCase()}`
+    if (dedupeKeys.has(key)) return
+    dedupeKeys.add(key)
+    entries.push({ id: item.id, sourceWorkoutId: item.source_workout_id || null, date: item.plan_date, timeOfDay: item.time_of_day, title: item.title || 'Simpass', location: item.location || '', source: 'training_plan' })
+  })
+  return entries.map((item) => {
+    const slot = assistantSwimSlot(item.timeOfDay)
+    return {
+      date: item.date,
+      ...assistantScheduleLabels(item.date, item.timeOfDay),
+      slot,
+      title: item.title,
+      location: item.location || null,
+      source: item.source,
+      plannedBySwimmer: slot ? plannedKeys.has(`${item.date}|${slot}`) : null,
+    }
+  })
+}
+
 export function addScheduleWeekdays(text, dates) {
   const uniqueDates = [...new Set(dates)].filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date || ''))
   const weekdays = /\b(måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag)(en)?[\s,*]*$/i
