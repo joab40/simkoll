@@ -2118,6 +2118,14 @@ button { cursor: pointer; }
  .talk-coach-row > button:first-child { flex: 1; }
  .talk-switch { border: 0; border-radius: 999px; padding: 8px 13px; background: #e8eeec; color: #637275; font-weight: 800; cursor: pointer; }
 .talk-switch.on { background: #dff4d2; color: #33703c; }
+.talk-create-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(150px, 220px) auto; align-items: end; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #f7fbf9; }
+.talk-create-form label { display: grid; gap: 6px; font-weight: 700; }
+.talk-create-form select, .talk-create-form input { width: 100%; min-height: 44px; }
+.talk-create-form .primary-button { min-height: 44px; white-space: nowrap; }
+.talk-coach-row .talk-row-open { display: grid; grid-template-columns: 30px minmax(90px, 1fr) auto 18px; flex: 1; min-width: 0; }
+.talk-coach-row .talk-switch, .talk-coach-row .talk-delete-button { display: inline-flex; align-items: center; justify-content: center; flex: none; min-height: 38px; }
+.talk-delete-button { border: 1px solid #e6c6c0; border-radius: 10px; padding: 7px 10px; background: #fff8f6; color: #9d4037; font-weight: 700; cursor: pointer; }
+@media (max-width: 620px) { .talk-create-form { grid-template-columns: 1fr 1fr; } .talk-create-form label:first-child { grid-column: 1 / -1; } .talk-create-form .primary-button { grid-column: 1 / -1; width: 100%; } .talk-coach-row .talk-row-open { grid-template-columns: 26px minmax(70px, 1fr) 18px; } .talk-coach-row .talk-row-open small { grid-column: 2; } }
 .global-talk-setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -12px 0 18px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f7fbf9; }.global-talk-setting span { display: grid; gap: 3px; }.global-talk-setting small { color: var(--muted); }
 .app-feedback-card { margin-top: 14px; padding: 5px; border: 1px solid #dbe8e5; border-radius: 16px; background: var(--paper); }
 .app-feedback-trigger { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }

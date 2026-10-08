@@ -98,10 +98,19 @@ export default async function handler(request, response) {
       }
       if (action === 'create-talk' || action === 'update-talk') {
         const id = String(request.body.id || ''), profileId = String(request.body.profileId || ''), body = request.body
-        const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status: body.status || 'completed', enabled: body.enabled !== false, swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
+        const status = ['draft', 'prepared', 'completed'].includes(body.status) ? body.status : (action === 'create-talk' ? 'draft' : 'completed')
+        if (!profileId || (body.meetingDate && !/^\d{4}-\d{2}-\d{2}$/.test(body.meetingDate))) return sendJson(response, 400, { error: 'Välj en simmare och ett giltigt datum.' })
+        const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status, enabled: body.enabled !== false, swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
         const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+      }
+      if (action === 'delete-talk') {
+        const id = String(request.body.id || '')
+        if (!id) return sendJson(response, 400, { error: 'Samtal saknas.' })
+        const result = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' })
+        if (!result.ok) throw new Error(`Development talk delete failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true, id })
       }
       if (action === 'toggle-talk') {
         const id = String(request.body.id || ''), enabled = Boolean(request.body.enabled)

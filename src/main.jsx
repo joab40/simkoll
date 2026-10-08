@@ -206,7 +206,7 @@ function App() {
       setTalksEnabled(data.globalEnabled !== false)
       setDevelopmentTalks(data.globalEnabled === false ? [] : (data.talks || []).filter((talk) => talk.enabled !== false))
     }).catch(() => { setTalksEnabled(false); setDevelopmentTalks([]) })
-  }, [auth, profile])
+  }, [auth, profile?.id, screen])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setAiEnabled(savedSettings.aiEnabled !== false); setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setOpenChatEnabled(savedSettings.openChat?.enabled === true); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setAiEnabled(true); setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setOpenChatEnabled(false); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
   if (checkingSession) return null
@@ -3615,13 +3615,40 @@ function CoachRewards({ code }) {
 }
 
 function DevelopmentTalkCoach({ code, profiles }) {
-  const [talks, setTalks] = useState([]); const [selected, setSelected] = useState(null); const [answers, setAnswers] = useState({}); const [notes, setNotes] = useState(''); const [agreement, setAgreement] = useState(''); const [status, setStatus] = useState('')
+  const [talks, setTalks] = useState([])
+  const [selected, setSelected] = useState(null)
+  const [answers, setAnswers] = useState({})
+  const [notes, setNotes] = useState('')
+  const [agreement, setAgreement] = useState('')
+  const [status, setStatus] = useState('')
+  const [newProfileId, setNewProfileId] = useState('')
+  const [meetingDate, setMeetingDate] = useState(todayKey())
   const load = () => apiRequest('/api/goals?talks=true', code).then((data) => setTalks(data.talks || []))
-  useEffect(() => { load().catch((error) => setStatus(error.message)) }, [])
+  useEffect(() => { load().catch((error) => setStatus(error.message)) }, [code])
   const open = (talk) => { setSelected(talk); setAnswers(talk.swimmerAnswers || {}); setNotes(Object.values(talk.coachNotes || {}).join('\n')); setAgreement(Object.values(talk.agreement || {}).join('\n')) }
   const toggle = async (talk) => { try { const data = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-talk', id: talk.id, enabled: !talk.enabled }) }); setTalks((current) => current.map((item) => item.id === talk.id ? data.talk : item)); if (selected?.id === talk.id) setSelected(data.talk) } catch (error) { setStatus(error.message) } }
+  const create = async (event) => {
+    event.preventDefault()
+    if (!newProfileId) return
+    try {
+      const data = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create-talk', profileId: newProfileId, meetingDate, status: 'draft', enabled: true }) })
+      await load()
+      open(data.talk)
+      setStatus('Nytt samtal skapat. Simmaren kan nu förbereda sig.')
+    } catch (error) { setStatus(error.message) }
+  }
+  const remove = async (talk) => {
+    const swimmer = profiles.find((item) => item.id === talk.swimmerId)
+    if (!confirmDestructive(`Radera utvecklingssamtalet för ${swimmer?.displayName || 'simmaren'} den ${talk.meetingDate}? Svaren och anteckningarna tas bort permanent.`)) return
+    try {
+      await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-talk', id: talk.id }) })
+      setTalks((current) => current.filter((item) => item.id !== talk.id))
+      if (selected?.id === talk.id) setSelected(null)
+      setStatus('Samtalet är raderat.')
+    } catch (error) { setStatus(error.message) }
+  }
   const save = async () => { try { const data = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-talk', id: selected.id, profileId: selected.swimmerId, meetingDate: selected.meetingDate, status: 'completed', enabled: selected.enabled, swimmerAnswers: answers, coachNotes: { summary: notes }, agreement: { summary: agreement } }) }); setSelected(data.talk); setStatus('Sparat ✓'); await load() } catch (error) { setStatus(error.message) } }
-  return <section className="coach-card talk-coach"><div className="period-heading"><div><p className="eyebrow">Förberedelser och överenskommelser</p><h2>Utvecklingssamtal</h2></div></div>{!selected ? <div className="talk-coach-list">{talks.length ? talks.map((talk) => { const swimmer = profiles.find((item) => item.id === talk.swimmerId); return <article key={talk.id} className="talk-coach-row"><button onClick={() => open(talk)}><span>{swimmer?.emoji || '🏊'}</span><strong>{swimmer?.displayName || 'Simmare'}</strong><small>{talk.meetingDate} · {talk.status === 'prepared' ? 'Redo för samtal' : talk.status}</small>→</button><button className={`talk-switch ${talk.enabled ? 'on' : ''}`} onClick={() => toggle(talk)} aria-label={`${talk.enabled ? 'Inaktivera' : 'Aktivera'} utvecklingssamtal`}>{talk.enabled ? 'På' : 'Av'}</button></article> }) : <p className="empty">Inga utvecklingssamtal är inskickade ännu.</p>}</div> : <div className="talk-coach-detail"><button className="back-button" onClick={() => setSelected(null)}>← Alla samtal</button><h3>{profiles.find((item) => item.id === selected.swimmerId)?.displayName || 'Simmare'} · {selected.meetingDate}</h3><button className={`talk-switch ${selected.enabled ? 'on' : ''}`} onClick={() => toggle(selected)}>{selected.enabled ? 'Utvecklingssamtal på' : 'Utvecklingssamtal av'}</button><h4>Simmarens svar</h4><div className="talk-answer-list">{Object.entries(answers).filter(([, value]) => value).map(([key, value]) => <label key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><textarea value={value} onChange={(event) => setAnswers((current) => ({ ...current, [key]: event.target.value }))} /></label>)}</div><label>Tränarens interna anteckningar<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label><label>Gemensam överenskommelse<textarea value={agreement} onChange={(event) => setAgreement(event.target.value)} /></label><button className="primary-button" onClick={save}>Spara samtal</button>{status && <small>{status}</small>}</div>}</section>
+  return <section className="coach-card talk-coach"><div className="period-heading"><div><p className="eyebrow">Förberedelser och överenskommelser</p><h2>Utvecklingssamtal</h2></div></div>{!selected ? <><form className="talk-create-form" onSubmit={create}><label>Starta nytt samtal<select required value={newProfileId} onChange={(event) => setNewProfileId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji || '🏊'} {profile.displayName}</option>)}</select></label><label>Datum<input type="date" value={meetingDate} onChange={(event) => setMeetingDate(event.target.value)} required /></label><button className="primary-button" type="submit" disabled={!newProfileId}>Nytt samtal +</button></form><div className="talk-coach-list">{talks.length ? talks.map((talk) => { const swimmer = profiles.find((item) => item.id === talk.swimmerId); return <article key={talk.id} className="talk-coach-row"><button type="button" className="talk-row-open" onClick={() => open(talk)}><span>{swimmer?.emoji || '🏊'}</span><strong>{swimmer?.displayName || 'Simmare'}</strong><small>{talk.meetingDate} · {talk.status === 'prepared' ? 'Redo för samtal' : talk.status === 'completed' ? 'Genomfört' : 'Pågående'}</small>→</button><button type="button" className={`talk-switch ${talk.enabled ? 'on' : ''}`} onClick={() => toggle(talk)} aria-label={`${talk.enabled ? 'Inaktivera' : 'Aktivera'} utvecklingssamtal`}>{talk.enabled ? 'På' : 'Av'}</button><button type="button" className="talk-delete-button" onClick={() => remove(talk)} aria-label={`Radera samtal för ${swimmer?.displayName || 'simmare'}`}>Radera</button></article> }) : <p className="empty">Inga utvecklingssamtal ännu. Skapa ett ovan så kan simmaren börja förbereda sig.</p>}</div></> : <div className="talk-coach-detail"><button className="back-button" onClick={() => setSelected(null)}>← Alla samtal</button><h3>{profiles.find((item) => item.id === selected.swimmerId)?.displayName || 'Simmare'} · {selected.meetingDate}</h3><button className={`talk-switch ${selected.enabled ? 'on' : ''}`} onClick={() => toggle(selected)}>{selected.enabled ? 'Utvecklingssamtal på' : 'Utvecklingssamtal av'}</button><h4>Simmarens svar</h4><div className="talk-answer-list">{Object.entries(answers).filter(([, value]) => value).map(([key, value]) => <label key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><textarea value={value} onChange={(event) => setAnswers((current) => ({ ...current, [key]: event.target.value }))} /></label>)}</div><label>Tränarens interna anteckningar<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label><label>Gemensam överenskommelse<textarea value={agreement} onChange={(event) => setAgreement(event.target.value)} /></label><button className="primary-button" onClick={save}>Spara samtal</button><button type="button" className="talk-delete-button" onClick={() => remove(selected)}>Radera samtal</button>{status && <small>{status}</small>}</div>}</section>
 }
 
 const DEFAULT_STRENGTH_PROGRAMS = [
