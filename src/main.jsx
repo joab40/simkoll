@@ -111,6 +111,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
   const [talksEnabled, setTalksEnabled] = useState(false)
+  const [developmentTalks, setDevelopmentTalks] = useState([])
   const [planningEnabled, setPlanningEnabled] = useState(false)
   const [starsEnabled, setStarsEnabled] = useState(true)
   const [appFeedbackEnabled, setAppFeedbackEnabled] = useState(true)
@@ -200,8 +201,11 @@ function App() {
   }, [auth, profile])
 
   useEffect(() => {
-    if (!auth || !profile) return
-    apiRequest('/api/goals?talks=true', auth.code).then((data) => setTalksEnabled(data.globalEnabled !== false)).catch(() => {})
+    if (!auth || !profile) { setDevelopmentTalks([]); setTalksEnabled(false); return }
+    apiRequest('/api/goals?talks=true', auth.code).then((data) => {
+      setTalksEnabled(data.globalEnabled !== false)
+      setDevelopmentTalks(data.globalEnabled === false ? [] : (data.talks || []).filter((talk) => talk.enabled !== false))
+    }).catch(() => { setTalksEnabled(false); setDevelopmentTalks([]) })
   }, [auth, profile])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setAiEnabled(savedSettings.aiEnabled !== false); setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setOpenChatEnabled(savedSettings.openChat?.enabled === true); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setAiEnabled(true); setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setOpenChatEnabled(false); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
@@ -294,7 +298,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} onStartYesterday={() => { setCheckinActivityDate(dateKey(new Date(Date.now() - 86400000))); setScreen('privacy-choice') }} />
@@ -877,10 +881,11 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, responsesLoaded = false, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
+function Home({ code, responses, responsesLoaded = false, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, developmentTalks = [], availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
+  const activeDevelopmentTalk = developmentTalks.find((talk) => talk.status !== 'completed')
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const todayResponseIds = todayResponses.map((response) => response.id).join('|')
@@ -958,10 +963,11 @@ function Home({ code, responses, responsesLoaded = false, profile, points, notif
 
       {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={!hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
+      {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
+      {profile && activeDevelopmentTalk && <DevelopmentTalkCard talk={activeDevelopmentTalk} onOpen={onTalk} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
-      {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard games={availableGames} previousGames={previousGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBreakout={onBreakout} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
@@ -1108,6 +1114,17 @@ function CompetitionSignupCard({ competitions = [], onOpen }) {
   const open = competitions.filter((item) => item.entriesOpen && (item.endDate || item.startDate) >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))
   if (!open.length) return null
   return <section className="competition-signup-card"><div><p className="eyebrow">Ny tävlingsplanering</p><h2>Välj dina grenar 🏊</h2><p>{open.length === 1 ? open[0].title : `${open.length} tävlingar`} är öppna för anmälan.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna anmälan →</button></section>
+}
+
+function DevelopmentTalkCard({ talk, onOpen }) {
+  const meetingDate = talk.meetingDate
+    ? new Date(`${talk.meetingDate}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
+    : null
+  const prepared = talk.status === 'prepared'
+  return <section className="development-talk-home-card">
+    <div><p className="eyebrow">Från tränarna</p><h2>Utvecklingssamtal 🤝</h2><p>{prepared ? 'Dina svar är redo inför samtalet.' : 'Förbered dig inför ett samtal med tränaren.'}{meetingDate && <> <span className="development-talk-date">{meetingDate}</span></>}</p></div>
+    <button type="button" className="primary-button" onClick={onOpen}>{prepared ? 'Visa mina svar' : 'Förbered samtalet'} →</button>
+  </section>
 }
 
 function DailyProgressCard({ responses }) {
@@ -1366,7 +1383,7 @@ const TALK_FIELD_LABELS = Object.fromEntries(TALK_STEPS.flatMap(([, , fields]) =
 
 function DevelopmentTalkSwimmer({ code, onBack }) {
   const [talks, setTalks] = useState([]); const [talk, setTalk] = useState(null); const [step, setStep] = useState(0); const [saving, setSaving] = useState(false); const [status, setStatus] = useState('')
-  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => { setTalks(data.talks || []); if (data.talks?.[0]) setTalk(data.talks[0]) }).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => { const nextTalks = data.talks || []; setTalks(nextTalks); const activeTalk = nextTalks.find((item) => item.enabled !== false && item.status !== 'completed'); if (activeTalk) setTalk(activeTalk); else if (nextTalks[0]) setTalk(nextTalks[0]) }).catch(() => {}) }, [code])
   const answers = talk?.swimmerAnswers || {}
   const update = (key, value) => setTalk((current) => ({ ...(current || { swimmerAnswers: {} }), swimmerAnswers: { ...(current?.swimmerAnswers || {}), [key]: value } }))
   const save = async (nextStatus = 'draft') => { setSaving(true); try { const data = await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-talk', id: talk?.id, swimmerAnswers: answers, status: nextStatus }) }); setTalk(data.talk); setTalks((current) => [data.talk, ...current.filter((item) => item.id !== data.talk.id)]); setStatus(nextStatus === 'prepared' ? 'Redo för samtalet! 🙌' : 'Sparat – du kan fortsätta senare.') } catch (error) { setStatus(error.message) } finally { setSaving(false) } }
