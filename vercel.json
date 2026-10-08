@@ -2,5 +2,6 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": { "api/workouts.js": { "maxDuration": 300 } },
   "crons": [{ "path": "/api/profiles?cron=tempus", "schedule": "0 1 * * *" }]
 }

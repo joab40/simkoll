@@ -817,6 +817,33 @@ button { cursor: pointer; }
 .workout-generator-request small { color: var(--muted); font-weight: 400; }
 @media (max-width: 720px) { .workout-generator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .competition-program { margin-top: 12px; padding-top: 10px; border-top: 1px solid #dbe9e5; }
+.program-review { margin-top: 18px; padding: clamp(12px, 3vw, 24px); border: 1px solid #b6d6d1; border-radius: 20px; background: #f4faf8; color: #173a43; }
+.program-review h3 { margin: 4px 0 8px; font-size: 22px; }
+.program-review header p { margin: 8px 0; }
+.program-review small { display: block; line-height: 1.5; }
+.program-warning { padding: 14px; margin: 12px 0; border-radius: 12px; background: #fff3d7; color: #634610; overflow-wrap: anywhere; }
+.program-warning ul { padding-left: 20px; max-height: 200px; overflow: auto; }
+.program-source { margin: 16px 0; }
+.program-source img { display: block; max-width: 100%; height: auto; margin-top: 12px; border-radius: 10px; }
+.program-session-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; }
+.program-session-tabs button { flex-shrink: 0; border: 1px solid #c7dcd7; border-radius: 14px; padding: 10px 18px; background: white; color: var(--teal); font: inherit; font-weight: 700; cursor: pointer; }
+.program-session-tabs button[aria-selected=true] { background: var(--teal); color: white; }
+.program-session-tabs span { display: block; font-size: 12px; font-weight: 400; margin-top: 3px; }
+.program-session-meta, .program-row-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.program-review label { font-size: 13px; font-weight: 650; display: grid; gap: 5px; min-width: 0; }
+.program-review input:not([type=checkbox]), .program-review select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #c7dcd7; border-radius: 9px; padding: 10px; background: white; color: #173a43; font: inherit; font-size: 16px; }
+.program-review-rows { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; margin: 16px 0; }
+.program-review-rows details { background: white; border: 1px solid #d5e5df; border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+.program-review-rows details.needs-review { border-color: #d5a741; }
+.program-review-rows summary { display: flex; gap: 12px; align-items: center; font-size: 14px; }
+.program-review-rows summary > span:nth-child(2) { flex: 1; }
+.program-number { min-width: 32px; text-align: center; padding: 6px; border-radius: 9px; background: #e9f3ef; }
+.program-evidence { font-size: 12px; background: #f0f5f3; padding: 10px; border-radius: 8px; overflow-wrap: anywhere; }
+.program-review .program-review-check { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; font-weight: 500; }
+.program-review-check input { margin-top: 3px; }
+.program-analysis-status { color: var(--teal); padding: 12px; border-radius: 12px; background: #edf7f3; }
+.program-saved-sessions { font-size: 13px; }
+@media (max-width: 480px) { .program-review .settings-actions { display: grid; } .program-review .settings-actions button { width: 100%; } }
 .competition-add-card { margin: 16px 0; padding: 14px 16px; border: 1px solid #dbe9e5; border-radius: 16px; background: #f8fcfa; }
 .competition-add-card > summary { cursor: pointer; color: var(--teal); font-weight: 800; }
 .competition-publish-button { margin: 12px 0 0; border: 1px solid #cfe3dc; border-radius: 10px; padding: 8px 11px; background: #eef8f4; color: #146c60; font-size: 12px; font-weight: 800; cursor: pointer; }

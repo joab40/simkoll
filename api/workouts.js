@@ -1,5 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
+import { interpretCompetitionProgram } from '../server/competition-program.js'
+import { normalizeProgram, validateProgram } from '../src/competition-program.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { assistantCoachMessages } from '../server/assistant-messages.js'
@@ -138,6 +140,7 @@ async function answerAssistant(request, role) {
   const faq = `Simkoll har simmaren i fokus. Det är som en modern digital träningsdagbok där simmaren enkelt kan reflektera över hur träningen kändes, hur kroppen känns och hur energi, motivation och återhämtning fungerar. Beroende på vilka funktioner klubben använder kan simmaren följa simpass och styrkepass, reflektera över träningen, följa närvaro och mål, se tävlingsresultat, upptäcka förändringar över tid och få uppmuntran från tränarna. Simmarnas återkoppling kan ge tränarna en bättre helhetsbild och stöd i planering och uppföljning. Simkoll ersätter inte samtal mellan simmare, tränare och vårdnadshavare utan är ett komplement som underlättar reflektion, kommunikation och utveckling. Simkoll används också för check-in, träningsplanering, mål och samtal. RPE betyder upplevd ansträngning på skalan 1–10. AI-svar är stöd, inte medicinska råd eller automatiska beslut. Simmare ska inte skriva diagnoser, personnummer eller andra känsliga uppgifter i fritext.`
   const coachFaq = role === 'coach' ? `
 Tränarens FAQ – roller och behörigheter:
+- Grenprogram läses in i Tävlingskalender → Grenprogram → Läs in bild / PDF (högst 3 MB). Word exporteras till PDF för att tabellayouten ska finnas kvar. PM-modellen har en separat inställning OPENAI_COMPETITION_PROGRAM_MODEL, normalt GPT-6.1 Sol; detta ändrar inte chattassistentens modell. AI inventerar först passen och synliga grennummer, läser därefter grenraderna separat. Mix är eget kön; A–F är klassbeteckningar, inte kön. Tränaren granskar utkastet per pass, jämför med originalet, rättar fel och kontrollerar osäkra rader. Godkänn och spara program ändrar programmet först efter granskningen. Sparade grenanmälningar behålls när grenens identitet är oförändrad; ändrad/borttagen gren med anmälningar blockerar sparandet. Inget importflöde kan garantera perfekt tolkning av varje PM. Grenanmälan öppnas separat via Publicera grenanmälan för simmare.
 - Huvudtränare och superadmin kan under Mitt tränarkonto koppla sitt eget simmarkonto genom att verifiera användarnamn och PIN en gång. PIN-koden sparas inte. Därefter kan de välja Byt till min simmarvy och använda den vanliga simmarvyn med sitt eget konto. En tydlig knapp högst upp byter tillbaka till tränarvyn. Det går inte att söka efter eller öppna andra simmares profiler.
 - Det finns tre tränarroller. **Tränare** arbetar med gruppernas vardag men kan inte ändra klubbens inställningar eller sina egna vyinställningar. **Huvudtränare och superadmin** kan styra globalt vilka delar av tränarmenyn som visas. Superadmin har dessutom tillgång till övriga globala inställningar, säkerhet, integrationer och tränarkonton.
 - Superadmin öppnar Tränarvy → Tränarkonton för att godkänna, aktivera, stänga av och byta roll på andra tränare. Superadmin kan hantera andra superadmins men kan inte stänga av eller nedgradera sitt eget konto.
@@ -524,89 +527,7 @@ const mapCompetitionEvent = (item) => {
   const sessionLabel = String(item.session_label || '').trim()
   const baseLabel = String(item.label || '').trim()
   const label = sessionLabel && !baseLabel.toLowerCase().includes(sessionLabel.toLowerCase()) ? `${sessionLabel} · ${baseLabel}` : baseLabel
-  return { id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: `Kön: ${item.gender === 'Dam' ? 'Damer' : item.gender === 'Herr' ? 'Herrar' : item.gender || 'Alla'}`, ageClass: `Klass: ${item.age_class || 'Alla åldrar'}`, distanceMeters: item.distance_meters || null, stroke: item.stroke, label, sessionLabel, itemType: item.item_type || 'race', entryAllowed: true, selectable: item.entry_allowed !== false }
-}
-
-function responseOutputText(payload) {
-  if (typeof payload?.output_text === 'string') return payload.output_text
-  return (payload?.output || []).flatMap((item) => item.content || []).map((item) => item.text || '').join('')
-}
-
-function cleanCompetitionLabel(label, gender, ageClass) {
-  let text = String(label || '').replace(/\b(\S+)\s+\1\b/gi, '$1').replace(/\s{2,}/g, ' ').trim()
-  for (const token of [gender, ageClass]) {
-    const value = String(token || '').trim()
-    if (value && !['Alla', 'Alla åldrar'].includes(value) && value.length <= 24) text = text.replace(new RegExp(`(^|[ ·,/])${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=($|[ ·,/:]))`, 'gi'), '$1').replace(/\s{2,}/g, ' ').trim()
-  }
-  return text || String(label || '').trim()
-}
-
-async function interpretCompetitionProgram(request, options = {}) {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) return { error: 'OPENAI_API_KEY saknas.' }
-  const dataUrl = String(options.fileData || '')
-  const mimeType = String(options.mimeType || '')
-  const fileName = String(options.fileName || 'grenprogram').slice(0, 120)
-  if (!dataUrl.startsWith('data:') || dataUrl.length > 12_000_000) return { error: 'Filen saknas eller är för stor. Välj en fil under cirka 9 MB.' }
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-  const prompt = `Du är en noggrann tävlingssekreterare för svensk simning. Läs hela det bifogade tävlingsprogrammet, även tabeller och sidbrytningar. Plocka ut varje gren samt viktiga informationsrader i den ordning de förekommer. Arbeta hellre långsamt och komplett än snabbt och ofullständigt.
-
-Varje rad ska ha: eventOrder (heltal), eventNumber (sträng eller null), sessionLabel (sträng eller null), itemType (race, pause, award eller info), entryAllowed (boolean), gender (Dam, Herr, D, H eller Alla), ageClass (exempelvis A, B, C, D, E, 13–14 år, Junior eller Alla åldrar), distanceMeters (heltal eller null), stroke (Frisim, Ryggsim, Bröstsim, Fjärilsim, Medley eller Annat), label (kort tydlig svensk text).
-
-Regler:
-- Behåll ordningen från dokumentet.
-- Ta inte med heat, startlistor, deltagarnamn, tider eller resultat.
-- Tolka H som Herr och D som Dam när dokumentet använder dessa för kön. Behåll H/D i label om sammanhanget är oklart.
-- A, B, C, D och E är klassbeteckningar. Om dokumentet uttryckligen visar klassens åldersintervall ska du översätta till en läsbar text, exempelvis “13–14 år”. När kön och ålder är säkra ska ageClass bli exempelvis “13–14 år”, så att presentationen kan visa “Damer 13–14 år”. Kombinationer och intervall som ABC, ABCD, A–D och A-D ska annars bevaras som en sammanhållen ageClass. Använd inte standardåldrar som fakta när dokumentet anger en annan definition.
-- Om kön eller åldersklass saknas: använd Alla respektive Alla åldrar, men behåll eventuell klassbokstav i label.
-- Gissa aldrig grennummer, ålder, distans eller simsätt. Om något är oklart, använd Annat och behåll den läsbara texten i label.
-- En rad eller tabellrad ska bli ett event. Slå inte ihop olika kön eller åldersklasser.
-- Om samma grennummer återkommer för olika klasser ska de bli separata event.
-- Läs inte in sidhuvuden, heat, startlistor, deltagarnamn, tider eller resultat.
-- Rader som innehåller paus, lunch, samling, invigning, finalpass eller prisutdelning ska tas med som pause/award/info och ha entryAllowed=false. De ska inte kunna väljas av simmare.
-- Ta med informationsrader även om de ligger före den första grenen eller mellan två tabeller. En första paus får aldrig hoppas över bara för att den saknar grennummer.
-- Hämta pauser och prisutdelningar endast från tävlingens officiella gren-/tidsschema och endast när raden uttryckligen anger paus, lunch, samling eller prisutdelning. Leta inte efter liknande ord i sidhuvud, allmän information, fotnoter eller andra delar av dokumentet.
-- Om schemat exempelvis visar “Gren 10”, därefter “Paus” eller “Prisceremoni”, och sedan nästa gren, ska pausen/prisutdelningen sparas som en egen informationsrad mellan grenarna. Den får inte ersätta gren 10 eller nästa gren.
-- En paus, prisutdelning eller annan informationsrad får aldrig få ett grennummer, en tävlingsdistans eller ett simsätt. Om en rad innehåller sådana tävlingsuppgifter ska den behandlas som en gren, såvida inte samma rad uttryckligen innehåller ordet paus, lunch, rast eller prisutdelning.
-- Om dokumentet delar upp tävlingen i pass/sessioner, till exempel “Pass 1”, “Pass 2”, “Pass 3”, “Förmiddag”, “Eftermiddag” eller “Finalpass”, ska sessionLabel sättas och återanvändas på efterföljande rader tills nästa passrubrik. Pauser och prisutdelningar ska också få rätt sessionLabel.
-- Läs hela dokumentet till sista sidan och kontrollera särskilt de sista grenarna innan du svarar. Avsluta inte listan tidigt och slå inte ihop flera rader för att spara plats.
-- Kontrollera innan du svarar att eventOrder är stigande och att varje label är läsbar på svenska.
-
-Dokument: ${fileName}`
-  const content = [{ type: 'input_text', text: prompt }]
-  if (mimeType.startsWith('image/')) content.push({ type: 'input_image', image_url: dataUrl, detail: 'high' })
-  else content.push({ type: 'input_file', filename: fileName, file_data: dataUrl })
-  try {
-    const eventSchema = { type: 'object', additionalProperties: false, properties: { eventOrder: { type: 'integer' }, eventNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] }, sessionLabel: { anyOf: [{ type: 'string' }, { type: 'null' }] }, itemType: { type: 'string', enum: ['race', 'pause', 'award', 'info'] }, entryAllowed: { type: 'boolean' }, gender: { anyOf: [{ type: 'string', enum: ['Dam', 'Herr', 'D', 'H', 'Alla'] }, { type: 'null' }] }, ageClass: { anyOf: [{ type: 'string' }, { type: 'null' }] }, distanceMeters: { anyOf: [{ type: 'integer' }, { type: 'null' }] }, stroke: { type: 'string' }, label: { type: 'string' } }, required: ['eventOrder', 'eventNumber', 'sessionLabel', 'itemType', 'entryAllowed', 'gender', 'ageClass', 'distanceMeters', 'stroke', 'label'] }
-    const result = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: [{ role: 'user', content }], max_output_tokens: 12000, text: { format: { type: 'json_schema', name: 'competition_program', strict: true, schema: { type: 'object', additionalProperties: false, properties: { events: { type: 'array', items: eventSchema } }, required: ['events'] } } } }) })
-    if (!result.ok) { await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return { error: 'Grenprogrammet kunde inte tolkas just nu.' } }
-    const payload = await result.json()
-    await writeAiUsage(request, { feature: 'competition_program_import', model, role: 'coach', response: payload })
-    const parsed = JSON.parse(responseOutputText(payload) || '{}')
-    let currentSessionLabel = ''
-    const events = Array.isArray(parsed.events) ? parsed.events.map((item, index) => {
-      const rawLabel = String(item.label || '').slice(0, 120)
-      const gender = ['Dam', 'Herr', 'D', 'H', 'Alla'].includes(item.gender) && item.gender !== 'Alla' ? item.gender : (/(^|[\s/·])H([\s/·]|$)/i.test(rawLabel) ? 'H' : /(^|[\s/·])D([\s/·]|$)/i.test(rawLabel) ? 'D' : 'Alla')
-      const ageClass = String(item.ageClass || '').trim() || (rawLabel.match(/(^|[\s/·])([A-E](?:[A-E]|\s*[–-]\s*[A-E])*)(?=[\s/·]|$)/i)?.[2] || 'Alla åldrar')
-      const explicitSession = String(item.sessionLabel || '').trim().slice(0, 60)
-      const detectedSession = rawLabel.match(/\b(pass\s*[1-9]\d*|förmiddag|eftermiddag|finalpass)\b/i)?.[1] || ''
-      if (explicitSession || detectedSession) currentSessionLabel = (explicitSession || detectedSession).slice(0, 60)
-      const sessionLabel = currentSessionLabel
-      const normalizedLabel = rawLabel.toLocaleLowerCase('sv-SE')
-      const clearlyInformation = /\b(paus|lunch|rast|samling|invigning|prisutdelning|prisutdelningar|försäljning|insimning)\b/.test(normalizedLabel)
-      const clearlyRace = /\b\d{2,4}\s*m\b/.test(normalizedLabel) || /\b(frisim|ryggsim|bröstsim|fjärilsim|medley)\b/.test(normalizedLabel)
-      const explicitInformation = /\b(paus|lunch|rast|samling|invigning|prisutdelning|prisutdelningar|försäljning|insimning)\b/.test(normalizedLabel)
-      let itemType = ['race', 'pause', 'award', 'info'].includes(item.itemType) ? item.itemType : 'race'
-      // A model sometimes inherits the previous pause label into the next
-      // numbered race. Never allow that unless the current row itself says it
-      // is a pause/information row.
-      if (!explicitInformation && (clearlyRace || item.eventNumber || Number.isInteger(item.distanceMeters) || String(item.stroke || '').toLowerCase() !== 'annat')) itemType = 'race'
-      else if (clearlyInformation) itemType = /\b(prisutdelning|prisutdelningar)\b/.test(normalizedLabel) ? 'award' : 'info'
-      return { eventOrder: Number.isInteger(item.eventOrder) ? item.eventOrder : index + 1, eventNumber: String(item.eventNumber || '').slice(0, 20), sessionLabel, itemType, entryAllowed: itemType === 'race' && item.entryAllowed !== false, gender, ageClass: ageClass.slice(0, 60), distanceMeters: Number.isInteger(item.distanceMeters) ? item.distanceMeters : null, stroke: String(item.stroke || 'Annat').slice(0, 30), label: cleanCompetitionLabel(rawLabel, gender, ageClass) }
-    }).filter((item) => item.label).slice(0, 300) : []
-    if (!events.length) return { error: 'Inga grenar kunde hittas i dokumentet.' }
-    return { events: events.map((item, index) => ({ ...item, eventOrder: index + 1 })) }
-  } catch (error) { console.warn('Competition program import failed:', error.message); return { error: 'Grenprogrammet kunde inte tolkas.' } }
+  return { id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: `Kön: ${item.gender === 'Dam' ? 'Damer' : item.gender === 'Herr' ? 'Herrar' : item.gender || 'Alla'}`, ageClass: `Klass: ${item.age_class || 'Alla åldrar'}`, distanceMeters: item.distance_meters || null, stroke: item.stroke, label, sessionLabel, itemType: item.item_type || 'race', entryAllowed: item.entry_allowed !== false, selectable: item.entry_allowed !== false }
 }
 
 export default async function handler(request, response) {
@@ -672,7 +593,10 @@ export default async function handler(request, response) {
           const profileMap = new Map(profiles.map((item) => [item.id, item]))
           publicEntries = entries.map((entry) => ({ ...entry, profileName: profileMap.get(entry.profile_id)?.display_name || 'Simmare', profileEmoji: profileMap.get(entry.profile_id)?.emoji || '🏊' }))
         }
-        return sendJson(response, 200, { events: (await eventsResult.json()).map(mapCompetitionEvent), entries: publicEntries })
+        const rawEvents = await eventsResult.json()
+        const calendarResult = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}&select=*&limit=1`)
+        const calendar = calendarResult.ok ? (await calendarResult.json())[0] : null
+        return sendJson(response, 200, { events: rawEvents.map(mapCompetitionEvent), entries: publicEntries, sessions: calendar?.program_metadata?.sessions || [], ...(role === 'coach' ? { programSnapshot: rawEvents } : {}) })
       }
       if (role === 'coach' && request.query?.notes === 'true') {
         const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
@@ -884,11 +808,22 @@ export default async function handler(request, response) {
         if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
         const parsed = await interpretCompetitionProgram(request, request.body)
         if (parsed.error) return sendJson(response, 422, parsed)
-        const remove = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}`, { method: 'DELETE' })
-        if (!remove.ok) throw new Error(`Competition events reset failed: ${remove.status}`)
-        const insert = await supabaseRequest('competition_events', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(parsed.events.map((item) => ({ competition_id: competitionId, event_order: item.eventOrder, event_number: item.eventNumber || null, session_label: item.sessionLabel || null, item_type: item.itemType, entry_allowed: item.entryAllowed, gender: item.gender, age_class: item.ageClass, distance_meters: item.distanceMeters, stroke: item.stroke, label: item.label }))) })
-        if (!insert.ok) throw new Error(`Competition events insert failed: ${insert.status} ${await insert.text()}`)
-        return sendJson(response, 200, { events: (await insert.json()).map(mapCompetitionEvent) })
+        return sendJson(response, 200, parsed)
+      }
+      if (request.body?.action === 'publish-competition-program') {
+        const competitionId = String(request.body.competitionId || '')
+        if (!competitionId || !Array.isArray(request.body.programSnapshot) || request.body.reviewed !== true) return sendJson(response, 400, { error: 'Hämta programmet och granska utkastet innan du publicerar.' })
+        const draft = normalizeProgram(request.body.draft)
+        const issues = validateProgram(draft)
+        if (issues.length) return sendJson(response, 422, { error: issues.map((i) => i.message).join(' '), issues })
+        const saved = await supabaseRequest('rpc/publish_competition_program', { method: 'POST', body: JSON.stringify({ p_competition: competitionId, p_previous: request.body.programSnapshot, p_events: draft.events, p_metadata: { sessions: draft.sessions } }) })
+        if (!saved.ok) {
+          const failure = await saved.json().catch(() => ({}))
+          const message = String(failure.message || '')
+          return sendJson(response, 409, { error: message.includes('PROGRAM_CHANGED') ? 'Programmet har ändrats av en annan tränare. Hämta det sparade programmet igen och jämför med ditt utkast.' : message.includes('ENTRIES_PROTECTED') ? 'En gren som ändrats eller tagits bort har redan anmälningar. Inget har ändrats. Hantera anmälningarna först, eller behåll grenens nummer, pass, kön, klass, distans och simsätt.' : 'Programmet kunde inte publiceras. Inget har ändrats. Kontrollera att databasändring 073 är körd.' })
+        }
+        const rawEvents = await saved.json()
+        return sendJson(response, 200, { events: rawEvents.map(mapCompetitionEvent), programSnapshot: rawEvents, sessions: draft.sessions })
       }
       if (request.body?.action === 'save-sportadmin-calendars' || request.body?.action === 'sync-sportadmin-calendars') {
         const coachAccount = role === 'coach' ? coachFromRequest(request) : null

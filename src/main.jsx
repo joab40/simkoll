@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { attendanceFromCheckins } from './attendance.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
+import CompetitionProgramReview from './competition-program-review.jsx'
 
 const APP_VERSION = __APP_VERSION__
 const BUILD_TIME = __BUILD_TIME__
@@ -820,6 +821,7 @@ function Faq({ role, onBack }) {
         <section className="coach-interpretation"><p className="eyebrow">För tränare</p><h2>Så används tränarvyn</h2><ul><li><strong>Gruppens läge</strong> visar vald dags svar, sjuk- och vilostatus, dagens pass och närvaro.</li><li>Använd gruppfiltret högst upp för att se en eller flera grupper.</li><li>Klicka på informationsikonen <strong>i</strong> vid statistik för en kort förklaring av vad värdet mäter.</li><li>Under <strong>Pass</strong> kan du lägga upp flera pass per dag och grupp. Under <strong>Planering</strong> kopplas grundplan, upplagda pass och SportAdmin-kalender ihop.</li><li><strong>Tävlingsresultat</strong> hämtas från Tempus när simmaren har ett Tempus-ID. Nya personbästa kan ge 3 poäng totalt per tävling och skickar en gratifikation till simmaren.</li><li><strong>Veckomöte, Grupptrend och Historik</strong> hjälper dig att se mönster i närvaro, meter, RPE, fartkänsla, temperatur och träningsupplevelse.</li></ul></section>
         <section className="coach-interpretation"><p className="eyebrow">Växla vy</p><h2>Byt till din egen simmarvy</h2><p>Huvudtränare och superadmin kan under <strong>Mitt tränarkonto → Min simmarprofil</strong> koppla sitt eget simmarkonto genom att verifiera användarnamn och PIN en gång. PIN-koden sparas inte. Välj sedan <strong>Byt till min simmarvy</strong> i rollmenyn för att använda den vanliga simmarvyn med ditt eget konto. Den tydliga knappen högst upp tar dig tillbaka till tränarvyn. Det går inte att öppna andra simmares profiler.</p></section>
         <section className="coach-interpretation"><p className="eyebrow">Inställningar i tränarvyn</p><h2>Globala val och egna val</h2><ul><li><strong>Tränarvyns meny:</strong> huvudtränare och superadmin väljer globalt vilka delar som ska visas. Valet styr både flikarna i översikten, menyn och genvägarna under Verktyg. Vanliga tränare följer alltid dessa globala val.</li><li><strong>Översiktens genvägar:</strong> styr vilka direktlänkar som visas som flikar på översiktssidan. Om en genväg döljs här kan funktionen fortfarande finnas i menyn eller Verktyg, så länge den är påslagen i tränarvyns meny.</li><li><strong>Egna inställningar:</strong> huvudtränare och superadmin kan öppna <strong>Mitt tränarkonto</strong> och slå på <strong>Använd egna inställningar</strong>. Då kan de välja en personlig meny och översikt som avviker från klubbens globala val. Det påverkar bara det egna kontot. Stänger man av valet används de globala inställningarna igen.</li><li><strong>Vanlig tränare:</strong> kan inte aktivera egna menyval och får därför alltid den meny och översikt som huvudtränare eller superadmin har bestämt.</li><li>Att dölja en menyväg ändrar inte användarens roll eller bakomliggande behörighet och raderar ingen data.</li><li><strong>AI-stöd:</strong> slår på eller av nya språkmodell-anrop på serversidan. När stödet är avstängt blockeras trendanalyser, textförbättring, transkribering och tolkning av bilder, PDF:er och dokument.</li><li><strong>Tokenstak per månad:</strong> sätter ett tak för AI-användningen. Ange 0 för obegränsat. När taket nås stoppas nya AI-anrop tills nästa månad. Under <strong>Loggar</strong> kan du följa anrop, tokens, modeller och uppskattad kostnad.</li><li><strong>Säsongsteman och visuella effekter:</strong> styr tävlings- och säsongsstämning i simmarvyn, till exempel Halloween, snö eller jul. De ändrar presentationen men inte träningsdata.</li><li><strong>Egna peppmeddelanden:</strong> tillåter eller stoppar simmare från att skriva egna meddelanden till gruppen. Meddelanden kontrolleras mot klubbens språkregler innan de skickas.</li><li><strong>Sessionstid:</strong> bestämmer hur länge “Håll mig inloggad” gäller för tränare respektive simmare. Lösenord och PIN sparas inte i webbläsaren.</li><li><strong>Export och import:</strong> under inställningarna kan du exportera en lokal databaskopia med datum och Simkoll-version i filnamnet, eller importera en tidigare kopia. Kontrollera alltid fil och målmiljö innan import.</li></ul></section>
+        <section className="coach-interpretation"><p className="eyebrow">Tävlingskalender</p><h2>Läs in och granska grenprogram</h2><ul><li>Öppna <strong>Grenprogram → Läs in bild / PDF</strong> på tävlingen. Filen får vara högst 3 MB. Exportera Word till PDF så att tabellernas layout bevaras.</li><li>AI inventerar först pass och synliga grennummer, och läser sedan grenraderna. Mix skiljs från Damer/Herrar och klassbokstäverna A–F.</li><li>Du får ett <strong>utkast per pass</strong> med datum, insim och start. Öppna originalet, rätta fel och kontrollera osäkra rader. Saknade nummer och dubbletter flaggas. AI kan fortfarande göra fel.</li><li>Markera att du jämfört med originalet och välj <strong>Godkänn och spara program</strong>. Det tidigare programmet ligger kvar tills sparandet lyckas. Utkastet sparas inte om du lämnar sidan.</li><li>Befintliga anmälningar behålls för oförändrade grenar. Om en ändrad eller borttagen gren redan har anmälningar stoppas sparandet utan att något raderas.</li><li><strong>Publicera grenanmälan för simmare</strong> öppnar själva anmälan separat.</li></ul></section>
         <section className="coach-interpretation"><p className="eyebrow">Kalender och planering</p><h2>SportAdmin-kalender</h2><ul><li>Öppna <strong>Tränarvy → Inställningar → SportAdmin-kalendrar</strong> och klistra in en eller flera SportAdmin Webcal-länkar.</li><li>Ge kalendern ett valfritt namn och välj vilka träningsgrupper den gäller för. En kalender kan kopplas till flera grupper och flera kalendrar kan användas samtidigt.</li><li>Tryck <strong>Spara och synka kalendrar</strong>. Aktiviteterna läses in i planeringen med datum, tid, plats, samling och gruppfilter.</li><li>Gruppfiltret högst upp i tränarvyn styr vad som visas. En simmare ser bara kalenderhändelser för sin egen grupp.</li><li>SportAdmin-text som hör till en tävling visas som <strong>Information från SportAdmin</strong> i tävlingskortet och kan fällas ut vid behov. Den ersätter inte tävlingsprogrammet eller tränarens egen planering.</li></ul></section>
         <section className="coach-interpretation"><p className="eyebrow">Konton och säkerhet</p><h2>Tre tränarroller – enkelt förklarat</h2><ul><li><strong>Tränare:</strong> arbetar med den dagliga träningen och ser relevanta tränarvyer, men kan inte ändra klubbens inställningar eller välja egna vyinställningar.</li><li><strong>Huvudtränare:</strong> kan styra vilka menyer och genvägar som ska synas för tränarna. Huvudtränaren kan också använda <strong>Egna inställningar</strong> under Mitt tränarkonto.</li><li><strong>Superadmin:</strong> har alla behörigheter, inklusive globala inställningar, säkerhet, SportAdmin, AI-stöd och tränarkonton. Superadmin kan ändra andra superadmins, men inte stänga av eller nedgradera sig själv.</li><li>Den första tränaren skapar klubbens första superadmin med bootstrap-tokenen från Vercels miljövariabler. Därefter godkänner superadmin nya tränarkonton.</li><li><strong>Loggar</strong> visas endast för superadmin. Råa IP-adresser visas inte; loggen använder maskerat IP-fingerprint och läsbar region när det finns.</li></ul></section>
         <section className="coach-interpretation"><p className="eyebrow">AI-stöd och integritet</p><h2>Använd AI som stöd</h2><ul><li>AI kan hjälpa till att analysera trender, förbättra text och tolka tränings- eller tävlingsdokument.</li><li>AI-stöd kan stängas av under Webapp-inställningar. Då stoppas nya AI-anrop på serversidan.</li><li>Analysresultat är förslag och samtalsunderlag. Kontrollera alltid texten och dra inga medicinska slutsatser.</li><li>Gruppvärden visas med integritetshänsyn och ska inte användas för att dra slutsatser om en enskild simmare från ett enda svar.</li></ul></section>
@@ -3321,11 +3323,68 @@ function CompetitionCalendarDraft({ code }) {
 function CompetitionProgramPanel({ code, competition }) {
   const [events, setEvents] = useState(null)
   const [entries, setEntries] = useState([])
+  const [snapshot, setSnapshot] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [draft, setDraft] = useState(null)
+  const [source, setSource] = useState(null)
   const [loading, setLoading] = useState(false)
   const [importing, setImporting] = useState(false)
-  const load = async () => { setLoading(true); try { const data = await apiRequest(`/api/workouts?program=true&id=${competition.id}`, code); setEvents(data.events || []); setEntries(data.entries || []) } catch (error) { window.alert(error.message) } finally { setLoading(false) } }
-  const importFile = (event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; const allowed = file.type.startsWith('image/') || ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type) || /\.(pdf|docx?)$/i.test(file.name); if (!allowed) return window.alert('Välj en bild, PDF eller Word-fil.'); if (file.size > 9 * 1024 * 1024) return window.alert('Filen är för stor. Välj en fil under 9 MB.'); const reader = new FileReader(); reader.onload = async () => { setImporting(true); try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-competition-program', competitionId: competition.id, fileData: reader.result, mimeType: file.type || 'application/octet-stream', fileName: file.name }) }); setEvents(data.events || []) } catch (error) { window.alert(error.message) } finally { setImporting(false) } }; reader.readAsDataURL(file) }
-  return <details className="competition-program" onToggle={(event) => event.currentTarget.open && events === null && load()}><summary>{events?.length ? `Grenprogram · ${events.length} grenar` : 'Grenprogram · lägg till'}</summary><div className="competition-program-actions"><button type="button" className="secondary-button" onClick={load} disabled={loading}>{loading ? 'Laddar…' : 'Visa sparat program'}</button><label className={`secondary-button competition-import-button${importing ? ' is-importing' : ''}`}><span className="competition-import-label"><span className="competition-import-icon" aria-hidden="true">{importing ? '🧠' : '📎'}</span>{importing ? 'Analyserar tävlingsprogram…' : 'Läs in bild / PDF / Word'}</span><input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.doc,.docx" onChange={importFile} disabled={importing} /></label><small>AI plockar ut grenordning, kön, åldersklass, pass och pauser. Granska alltid resultatet.</small></div>{events?.length ? <div className="competition-event-list">{events.map((item) => { const names = entries.filter((entry) => entry.event_id === item.id || entry.eventId === item.id && entry.status === 'submitted'); return <span key={item.id}>{item.eventNumber ? `${item.eventNumber} · ` : ''}{item.label || `${item.distanceMeters || ''} m ${item.stroke || ''}`} · {item.gender || 'Alla'} · {item.ageClass || 'Alla åldrar'}{names.length ? ` · ${names.map((entry) => `${entry.profileEmoji || '🏊'} ${entry.profileName || 'Simmare'}`).join(', ')}` : ''}</span> })}</div> : events ? <p className="empty">Inga grenar hittades ännu.</p> : null}</details>
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const sourceRef = useRef(null)
+  useEffect(() => () => { if (sourceRef.current) URL.revokeObjectURL(sourceRef.current) }, [])
+  const load = async () => {
+    setLoading(true); setError('')
+    try {
+      const data = await apiRequest(`/api/workouts?program=true&id=${competition.id}`, code)
+      setEvents(data.events || []); setEntries(data.entries || []); setSnapshot(data.programSnapshot || []); setSessions(data.sessions || [])
+      return true
+    } catch (e) { setError(e.message); return false } finally { setLoading(false) }
+  }
+  const importFile = async (event) => {
+    const file = event.target.files?.[0]; event.target.value = ''
+    if (!file) return
+    const type = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : '')
+    if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type)) return setError('Välj en bild eller PDF. Exportera Word till PDF för att bevara tabellernas layout.')
+    if (file.size > 3 * 1024 * 1024) return setError('Välj en fil under 3 MB så att den ryms i uppladdningen. Exportera eller komprimera dokumentet och försök igen.')
+    setImporting(true); setError('')
+    if (!await load()) { setImporting(false); return }
+    const reader = new FileReader()
+    reader.onerror = () => { setError('Filen kunde inte läsas.'); setImporting(false) }
+    reader.onload = async () => {
+      try {
+        const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-competition-program', competitionId: competition.id, fileData: reader.result, mimeType: type, fileName: file.name }) })
+        if (!data.draft) throw new Error('Inget granskningsutkast kom tillbaka.')
+        if (sourceRef.current) URL.revokeObjectURL(sourceRef.current)
+        sourceRef.current = URL.createObjectURL(file)
+        setSource({ url: sourceRef.current, type }); setDraft(data.draft)
+      } catch (e) { setError(e.message) } finally { setImporting(false) }
+    }
+    reader.readAsDataURL(file)
+  }
+  const publish = async (reviewedDraft) => {
+    setSaving(true); setError('')
+    try {
+      const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish-competition-program', competitionId: competition.id, draft: reviewedDraft, programSnapshot: snapshot, reviewed: true }) })
+      setEvents(data.events); setSnapshot(data.programSnapshot); setSessions(data.sessions || []); setDraft(null)
+    } catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+  return <details className="competition-program" onToggle={(event) => event.currentTarget.open && events === null && !loading && load()}>
+    <summary>{events?.length ? `Grenprogram · ${events.filter((e) => e.itemType === 'race').length} grenar` : 'Grenprogram · lägg till'}</summary>
+    <div className="competition-program-actions">
+      <button type="button" className="secondary-button" onClick={load} disabled={loading || importing || saving}>{loading ? 'Laddar…' : 'Visa sparat program'}</button>
+      <label className={`secondary-button competition-import-button${importing ? ' is-importing' : ''}`}><span className="competition-import-label"><span className="competition-import-icon" aria-hidden="true">{importing ? '🧠' : '📎'}</span>{importing ? 'Analyserar pass och grenar…' : 'Läs in bild / PDF'}</span><input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={importFile} disabled={importing || saving || !!draft} /></label>
+      <small>AI läser pass och grenrader separat. Du granskar och godkänner innan något sparas. Word? Exportera först till PDF.</small>
+    </div>
+    {importing && <p role="status" className="program-analysis-status">Läser tabellernas struktur och kontrollerar grenordningen. Större dokument kan ta ett par minuter.</p>}
+    {error && <p role="alert" className="program-warning">{error}</p>}
+    {draft && <CompetitionProgramReview draft={draft} setDraft={setDraft} saving={saving} onPublish={publish} onCancel={() => { setDraft(null); setError('') }} sourceUrl={source.url} sourceType={source.type} />}
+    {!draft && sessions.length > 0 && <div className="program-saved-sessions">{sessions.map((s) => <p key={s.label}><strong>{s.label}</strong> · {[s.date, s.warmup && `Insim ${s.warmup}`, s.start && `Start ${s.start}`].filter(Boolean).join(' · ')}</p>)}</div>}
+    {!draft && events?.length ? <div className="competition-event-list">{events.map((item) => {
+      const names = entries.filter((entry) => (entry.event_id === item.id || entry.eventId === item.id) && entry.status === 'submitted')
+      return <span key={item.id}>{item.eventNumber ? `${item.eventNumber} · ` : ''}{item.label} · {item.gender} · {item.ageClass}{names.length ? ` · ${names.map((entry) => `${entry.profileEmoji || '🏊'} ${entry.profileName || 'Simmare'}`).join(', ')}` : ''}</span>
+    })}</div> : !draft && events && !importing ? <p className="empty">Inga grenar sparade ännu.</p> : null}
+  </details>
 }
 
 function CompetitionCalendar({ code, onOpenSubmissions }) {
