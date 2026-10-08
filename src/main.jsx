@@ -670,7 +670,6 @@ function Shell({ children, code, role, profile, coachMode = false, onSwitchToCoa
         </nav>
       </header>
       {coachMode && <aside className="coach-swimmer-mode-banner"><span>Du använder din egen simmarvy{profile?.displayName ? ` · ${profile.displayName}` : ''}</span><button type="button" onClick={onSwitchToCoach}>Tillbaka till tränarvyn</button></aside>}
-      {profile && talksEnabled && <button className="talk-shortcut" onClick={go(onTalk)}>🤝 Utvecklingssamtal</button>}
       {assistantOpen && <Assistant code={code} role={role} profile={profile} onClose={() => setAssistantOpen(false)} />}
       {children}
     </main>
@@ -1121,7 +1120,7 @@ function DevelopmentTalkCard({ talk, onOpen }) {
     ? new Date(`${talk.meetingDate}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
     : null
   const prepared = talk.status === 'prepared'
-  return <section className="development-talk-home-card">
+  return <section className="competition-signup-card development-talk-home-card">
     <div><p className="eyebrow">Från tränarna</p><h2>Utvecklingssamtal 🤝</h2><p>{prepared ? 'Dina svar är redo inför samtalet.' : 'Förbered dig inför ett samtal med tränaren.'}{meetingDate && <> <span className="development-talk-date">{meetingDate}</span></>}</p></div>
     <button type="button" className="primary-button" onClick={onOpen}>{prepared ? 'Visa mina svar' : 'Förbered samtalet'} →</button>
   </section>
