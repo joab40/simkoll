@@ -48,7 +48,7 @@ export default async function handler(request, response) {
       supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,session_date,session_slot&session_date=gte.${startDay}&session_date=lt.${endDay}&limit=5000`),
       supabaseRequest(`program_goals?select=id,reward_points,program_assignments(profile_id)&approved_at=gte.${encodeURIComponent(start)}&approved_at=lt.${encodeURIComponent(end)}&limit=1000`),
       supabaseRequest(`goal_updates?select=id,points,feedback_type,development_goals(profile_id)${range}&author_role=eq.coach&limit=1000`),
-      supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&result_date=lt.${endDay}&limit=10000`),
+      supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&source=eq.tempus&result_date=lt.${endDay}&limit=10000`),
       supabaseRequest(`training_plans?select=id,source_workout_id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&plan_date=gte.${startDay}&plan_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`daily_workouts?select=id,workout_date,title,content,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${startDay}&workout_date=lt.${endDay}&limit=1000`),
       supabaseRequest(`season_swim_goals?select=profile_id,target_sessions_per_week,start_date,end_date,active&start_date=lte.${endDay}&end_date=gte.${startDay}&limit=5000`),

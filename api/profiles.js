@@ -28,7 +28,7 @@ async function runTempusCron() {
   if (!profilesResult.ok) throw new Error('Tempus profiles lookup failed')
   let synced = 0; let personalBests = 0; let gratifications = 0
   for (const profile of await profilesResult.json()) {
-    const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&select=event,pool,result_time&order=result_time.asc&limit=10000`)
+    const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&source=eq.tempus&select=event,pool,result_time&order=result_time.asc&limit=10000`)
     if (!existingResult.ok) continue
     const best = new Map(); (await existingResult.json()).forEach((item) => { if (Number.isFinite(item.result_time)) { const key = `${item.event}|${item.pool || ''}`; best.set(key, Math.min(best.get(key) ?? Infinity, item.result_time)) } })
     const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming?best_time_only=0&from_date=2000-01-01&to_date=${new Date().toISOString().slice(0, 10)}`)
@@ -49,6 +49,19 @@ async function runTempusCron() {
 }
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
+const parseSwimTime = (value) => {
+  const match = String(value || '').trim().replace(',', '.').match(/^(?:(\d+):)?(\d{1,3})(?:\.(\d{1,2}))?$/)
+  if (!match) return null
+  const minutes = Number(match[1] || 0), seconds = Number(match[2]), hundredths = Number((match[3] || '').padEnd(2, '0') || 0)
+  if ((match[1] && seconds >= 60) || minutes > 99 || seconds > 5999) return null
+  return minutes * 6000 + seconds * 100 + hundredths
+}
+const validIsoDate = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false
+  const date = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
+}
+const elevatedCoach = (request) => ['head_coach', 'superadmin'].includes(coachFromRequest(request)?.role)
 const publicCoachNote = (item) => ({ id: item.id, profileId: item.profile_id, noteDate: item.note_date, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at })
 const awardCompetitionBest = async (profileId, rows) => {
   const competitions = new Map()
@@ -200,6 +213,45 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+
+    if (['add-manual-result', 'update-manual-result'].includes(action)) {
+      if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan registrera äldre resultat.' })
+      if (action === 'update-manual-result' && !elevatedCoach(request)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan rätta manuella resultat.' })
+      const profileId = String(request.body.profileId || '').trim()
+      const event = String(request.body.event || '').trim().replace(/\s+/g, ' ')
+      const pool = String(request.body.pool || '')
+      const swimTime = String(request.body.swimTime || '').trim().replace(',', '.')
+      const competitionName = String(request.body.competitionName || '').trim().slice(0, 120) || null
+      const datePrecision = String(request.body.datePrecision || 'unknown')
+      const resultDate = String(request.body.resultDate || '')
+      const resultYear = Number(request.body.resultYear)
+      const resultTime = parseSwimTime(swimTime)
+      if (!profileId || !event || event.length > 100 || !['25m', '50m'].includes(pool) || resultTime == null) return sendJson(response, 400, { error: 'Ange simmare, gren, 25 eller 50 meter och en giltig tid, till exempel 1:08.42.' })
+      if (!['exact', 'year', 'unknown'].includes(datePrecision) || (datePrecision === 'exact' && !validIsoDate(resultDate)) || (datePrecision === 'year' && (!Number.isInteger(resultYear) || resultYear < 1900 || resultYear > new Date().getFullYear()))) return sendJson(response, 400, { error: 'Kontrollera datum eller år.' })
+      const coach = coachFromRequest(request)
+      const values = { profile_id: profileId, event, pool, result_date: datePrecision === 'exact' ? resultDate : null, result_year: datePrecision === 'year' ? resultYear : null, date_precision: datePrecision, swim_time: swimTime, result_time: resultTime, competition_name: competitionName, source: 'manual', entered_by: coach?.sub || null, synced_at: new Date().toISOString() }
+      const resultId = String(request.body.resultId || '').trim()
+      if (action === 'update-manual-result' && !resultId) return sendJson(response, 400, { error: 'Resultatet saknas.' })
+      const endpoint = action === 'update-manual-result' ? `competition_results?id=eq.${encodeURIComponent(resultId)}&profile_id=eq.${encodeURIComponent(profileId)}&source=eq.manual` : 'competition_results'
+      const saved = await supabaseRequest(endpoint, { method: action === 'update-manual-result' ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(values) })
+      if (!saved.ok) throw new Error(`Manual competition result save failed: ${saved.status} ${await saved.text()}`)
+      const row = (await saved.json())[0]
+      if (!row) return sendJson(response, 404, { error: 'Resultatet kunde inte hittas.' })
+      await writeAuditLog(request, { eventType: 'competition_result_manual', role: 'coach', profileId, details: { action, resultId: row.id, event, pool, datePrecision } })
+      return sendJson(response, 200, { result: row })
+    }
+
+    if (action === 'delete-manual-result') {
+      if (groupRole(request) !== 'coach' || !elevatedCoach(request)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan ta bort manuella resultat.' })
+      const profileId = String(request.body.profileId || '').trim(), resultId = String(request.body.resultId || '').trim()
+      if (!profileId || !resultId) return sendJson(response, 400, { error: 'Resultatet saknas.' })
+      const deleted = await supabaseRequest(`competition_results?id=eq.${encodeURIComponent(resultId)}&profile_id=eq.${encodeURIComponent(profileId)}&source=eq.manual`, { method: 'DELETE', headers: { Prefer: 'return=representation' } })
+      if (!deleted.ok) throw new Error(`Manual competition result delete failed: ${deleted.status} ${await deleted.text()}`)
+      const row = (await deleted.json())[0]
+      if (!row) return sendJson(response, 404, { error: 'Det manuella resultatet kunde inte hittas.' })
+      await writeAuditLog(request, { eventType: 'competition_result_manual_delete', role: 'coach', profileId, details: { resultId } })
+      return sendJson(response, 200, { ok: true })
+    }
 
     if (action === 'accept-terms') {
       const profile = await getSessionProfile(request)
@@ -486,7 +538,7 @@ export default async function handler(request, response) {
         const rows = all.filter((item) => item.event_name && item.result_date && item.swim_time).sort((a, b) => String(b.result_date).localeCompare(String(a.result_date))).slice(0, 500).map((item) => ({ profile_id: profile.id, event: item.event_name, competition_name: item.competition_name || null, pool: item.pool_type_name || null, result_date: item.result_date, swim_time: item.swim_time, result_time: Number.isFinite(Number(item.result_time)) ? Number(item.result_time) : null, aqua_points: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, synced_at: new Date().toISOString() }))
         attempted += rows.length
         if (rows.length) {
-          const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&select=event,pool,result_time&limit=10000`)
+          const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&source=eq.tempus&select=event,pool,result_time&limit=10000`)
           const best = new Map()
           if (existingResult.ok) (await existingResult.json()).forEach((item) => { if (Number.isFinite(item.result_time)) { const key = `${item.event}|${item.pool || ''}`; best.set(key, Math.min(best.get(key) ?? Infinity, item.result_time)) } })
           const improved = rows.filter((row) => { const previous = best.get(`${row.event}|${row.pool || ''}`); return Number.isFinite(row.result_time) && previous != null && row.result_time < previous })

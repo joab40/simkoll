@@ -198,7 +198,7 @@ export default async function handler(request, response) {
       supabaseRequest(`daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc&limit=1000`),
       supabaseRequest(`training_plans?select=id,source_workout_id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc&limit=1000`),
       role === 'coach' ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
-      supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&result_date=lt.${endDay}${profileFilter}&limit=10000`),
+      supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&source=eq.tempus&result_date=lt.${endDay}${profileFilter}&limit=10000`),
     ])
     if (![responsesResult, sessionsResult, activityResult, workoutsResult, plansResult, competitionResultsResult].every((result) => result.ok) || (goalsResult && !goalsResult.ok) || (crossGoalsResult && !crossGoalsResult.ok)) throw new Error('Analytics lookup failed')
     let responses = await responsesResult.json(), sessions = await sessionsResult.json(), activities = await activityResult.json(), workouts = await workoutsResult.json(), plans = await plansResult.json(), competitionResults = await competitionResultsResult.json()
