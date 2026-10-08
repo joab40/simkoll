@@ -750,6 +750,15 @@ button { cursor: pointer; }
 .swimmer-preview-week { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .swimmer-preview-week > strong { color: #176c70; }
 .swimmer-preview-week > small { flex: 0 0 100%; }
+.coach-link-profile-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.coach-link-profile-form label { display: grid; flex: 1 1 180px; gap: 6px; color: #52676d; font-weight: 700; }
+.coach-link-profile-form input { min-height: 46px; padding: 10px 12px; border: 1px solid #cbdcd8; border-radius: 12px; background: #fff; color: #17313c; font: inherit; }
+.coach-linked-profile { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #dbe6e3; border-radius: 14px; background: #f7fbf8; }
+.coach-linked-profile > span { font-size: 1.7rem; }
+.coach-linked-profile > div { display: grid; gap: 3px; flex: 1; }
+.coach-linked-profile small { color: #6c7d80; }
+.swimmer-preview-card article + article { margin-top: 14px; padding-top: 14px; border-top: 1px solid #dbe6e3; }
+.swimmer-preview-card article h2 { margin-top: 8px; }
 .coach-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
 .coach-heading h1 { font-size: clamp(38px, 6vw, 55px); margin: 0; }
 .coach-overview-card { padding: 20px 22px; margin-bottom: 24px; background: var(--paper); border: 1px solid #dbe8e5; border-radius: 18px; }
