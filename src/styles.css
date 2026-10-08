@@ -910,6 +910,21 @@ button { cursor: pointer; }
 .coach-community > form small { color: var(--muted); }
 .audit-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .audit-ai, .audit-events { margin-top: 12px; }
+.audit-users { margin-top: 12px; }
+.audit-user-list { display: grid; gap: 8px; }
+.audit-user-list > details { border: 1px solid var(--line); border-radius: 14px; padding: 0 14px; background: rgba(255,255,255,.55); }
+.audit-user-list > details > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; cursor: pointer; list-style: none; }
+.audit-user-list > details > summary::-webkit-details-marker { display: none; }
+.audit-user-list > details > summary > span:first-child { display: grid; gap: 3px; min-width: 0; }
+.audit-user-list > details > summary small { color: var(--muted); }
+.audit-user-totals { display: grid; gap: 3px; text-align: right; white-space: nowrap; }
+.audit-user-totals b { color: var(--ink); font-size: .9rem; }
+.audit-user-calls { border-top: 1px solid var(--line); padding: 0 4px; }
+.audit-user-calls article { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.audit-user-calls article:first-child { border-top: 0; }
+.audit-user-calls article > div { display: grid; gap: 3px; min-width: 0; }
+.audit-user-calls article small { color: var(--muted); font-size: .78rem; }
+.audit-user-calls article > span { white-space: nowrap; font-size: .82rem; font-weight: 800; }
 .audit-period-filter { margin-top: 12px; }
 .audit-period-filter > p { margin: 0 0 9px; }
 .audit-period-buttons { display: flex; flex-wrap: wrap; gap: 8px; }

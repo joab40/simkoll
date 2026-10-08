@@ -121,12 +121,24 @@ export default async function handler(request, response) {
         if (request.query?.audit === 'true') {
           const coachAccount = coachFromRequest(request)
           if (coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan se loggar.' })
-          const [logsResult, usageResult] = await Promise.all([
+          const [logsResult, usageResult, profilesResult, coachesResult] = await Promise.all([
             supabaseRequest('audit_logs?select=id,event_type,role,status,details,ip_hash,created_at&order=created_at.desc&limit=300'),
-            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
+            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,actor_profile_id,coach_account_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
+            supabaseRequest('profiles?select=id,display_name,username,emoji&limit=10000'),
+            supabaseRequest('coach_accounts?select=id,display_name&limit=1000'),
           ])
-          if (!logsResult.ok || !usageResult.ok) throw new Error('Audit lookup failed')
-          const logs = await logsResult.json(), aiUsage = (await usageResult.json()).map((item) => ({ ...item, estimated_cost_usd: estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) }))
+          const legacyUsageResult = usageResult.ok ? usageResult : await supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000')
+          if (!logsResult.ok || !legacyUsageResult.ok || !profilesResult.ok || !coachesResult.ok) throw new Error('Audit lookup failed')
+          const logs = await logsResult.json()
+          const profilesById = new Map((await profilesResult.json()).map((profile) => [profile.id, profile]))
+          const coachesById = new Map((await coachesResult.json()).map((coach) => [coach.id, coach]))
+          const aiUsage = (await legacyUsageResult.json()).map((item) => {
+            const swimmer = item.actor_profile_id ? profilesById.get(item.actor_profile_id) : null
+            const coach = item.coach_account_id ? coachesById.get(item.coach_account_id) : null
+            const actorType = swimmer ? 'swimmer' : coach ? 'coach' : item.role || 'unknown'
+            const actorName = swimmer ? `${swimmer.emoji ? `${swimmer.emoji} ` : ''}${swimmer.display_name || swimmer.username || 'Simmare'}` : coach?.display_name || (actorType === 'swimmer' ? 'Simmare · ej identifierad' : actorType === 'coach' ? 'Tränare · ej identifierad' : 'Användare · ej identifierad')
+            return { ...item, actor_user_key: swimmer ? `swimmer:${swimmer.id}` : coach ? `coach:${coach.id}` : `unknown:${actorType}`, actor_name: actorName, actor_role: actorType, estimated_cost_usd: estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) }
+          })
           const totals = aiUsage.reduce((sum, item) => ({ calls: sum.calls + 1, successful: sum.successful + (item.status === 'success' ? 1 : 0), promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0) }), { calls: 0, successful: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 })
           const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0)
           const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
