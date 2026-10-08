@@ -533,6 +533,8 @@ const mapCompetitionEvent = (item) => {
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
+  const coachAccount = role === 'coach' ? coachFromRequest(request) : null
+  const canManageCompetitionProgram = ['head_coach', 'superadmin'].includes(coachAccount?.role)
 
   try {
     if (request.method === 'GET') {
@@ -803,6 +805,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, await generateWorkoutFromLibrary(request, request.body))
       }
       if (request.body?.action === 'import-competition-program') {
+        if (role !== 'coach' || !canManageCompetitionProgram) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan läsa in eller AI-analysera tävlings-PM.' })
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const competitionId = String(request.body.competitionId || '')
         if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
@@ -811,6 +814,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, parsed)
       }
       if (request.body?.action === 'publish-competition-program') {
+        if (role !== 'coach' || !canManageCompetitionProgram) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan publicera tävlingsprogram.' })
         const competitionId = String(request.body.competitionId || '')
         if (!competitionId || !Array.isArray(request.body.programSnapshot) || request.body.reviewed !== true) return sendJson(response, 400, { error: 'Hämta programmet och granska utkastet innan du publicerar.' })
         const draft = normalizeProgram(request.body.draft)
