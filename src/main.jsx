@@ -95,6 +95,7 @@ function App() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
+  const [responsesLoaded, setResponsesLoaded] = useState(false)
   const [profiles, setProfiles] = useState([])
   const [pendingProfiles, setPendingProfiles] = useState([])
   const [workout, setWorkout] = useState(null)
@@ -139,10 +140,11 @@ function App() {
 
   useEffect(() => {
     if (!auth) return
+    setResponsesLoaded(false)
     setLoading(true)
     // Visa dagens känslor så fort svaren är hämtade. Övrig coachdata får
     // fortsätta laddas parallellt utan att blockera färgen i toppkortet.
-    fetchResponses(auth.code).then((nextResponses) => setResponses(nextResponses)).catch((error) => window.alert(error.message))
+    fetchResponses(auth.code).then((nextResponses) => setResponses(nextResponses)).catch((error) => window.alert(error.message)).finally(() => setResponsesLoaded(true))
     Promise.all([
       auth.role === 'coach' ? apiRequest('/api/profiles', auth.code) : Promise.resolve({ profiles: [], pendingProfiles: [] }),
       auth.role === 'coach' ? apiRequest('/api/activity', auth.code).then((data) => data.activeProfilesToday) : Promise.resolve(0),
@@ -292,7 +294,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} onStartYesterday={() => { setCheckinActivityDate(dateKey(new Date(Date.now() - 86400000))); setScreen('privacy-choice') }} />
@@ -875,12 +877,30 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
+function Home({ code, responses, responsesLoaded = false, profile, points, notifications, onNotificationsChange, training, workout, tomorrowWorkout, competitions, availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onBikeRun, onTwenty48, onAllTime, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
+  const todayResponseIds = todayResponses.map((response) => response.id).join('|')
+  const knownMoodResponseIds = useRef(null)
+  const [animatedMoodIds, setAnimatedMoodIds] = useState([])
+  useEffect(() => {
+    if (!responsesLoaded) return undefined
+    const currentIds = todayResponseIds ? todayResponseIds.split('|') : []
+    if (knownMoodResponseIds.current === null) {
+      knownMoodResponseIds.current = new Set(currentIds)
+      return undefined
+    }
+    const knownIds = knownMoodResponseIds.current
+    const newIds = currentIds.filter((id) => !knownIds.has(id))
+    knownMoodResponseIds.current = new Set(currentIds)
+    if (!newIds.length) return undefined
+    setAnimatedMoodIds(newIds)
+    const timer = window.setTimeout(() => setAnimatedMoodIds([]), 700)
+    return () => window.clearTimeout(timer)
+  }, [responsesLoaded, todayResponseIds])
   const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1)
   const yesterdayKey = dateKey(yesterdayDate)
   const hasYesterdayCheckin = profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === yesterdayKey)
@@ -909,8 +929,8 @@ function Home({ code, responses, profile, points, notifications, onNotifications
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
       <SwimmerHeroCarousel enabled={Boolean(levelVisible || (profile && chatVisible))} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : [])]} regionLabel="Din nivå, gruppens läge och tränarinfo">
-      {levelVisible && <RewardCard points={points} onCommunity={onCommunity} featured />}
-      <section className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
+      {levelVisible && <RewardCard key="level" points={points} onCommunity={onCommunity} featured />}
+      <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
         {profile && chatVisible && <CoachLetterBadge code={code} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
@@ -919,7 +939,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
         {profile && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
         <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`}>
           {todayResponses.length ? todayResponses.map((response, index) => (
-            <span className={response.feeling === 5 ? 'top-mood' : response.feeling === 4 ? 'good-mood' : ''} key={response.id} style={{ '--delay': `${index * 40}ms` }}>
+            <span className={`${response.feeling === 5 ? 'top-mood' : response.feeling === 4 ? 'good-mood' : ''}${animatedMoodIds.includes(response.id) ? ' new-response' : ''}`} key={response.id} style={{ '--delay': `${index * 40}ms` }}>
               {FEELINGS.find((item) => item.value === response.feeling)?.emoji}
             </span>
           )) : <p>Inga svar ännu – bli först!</p>}
@@ -930,7 +950,7 @@ function Home({ code, responses, profile, points, notifications, onNotifications
           {streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         </div>}
       </section>
-      {profile && chatVisible && <OpenChatCard code={code} onOpen={onCommunityChat || onCommunity} />}
+      {profile && chatVisible && <OpenChatCard key="coach-info" code={code} onOpen={onCommunityChat || onCommunity} />}
       </SwimmerHeroCarousel>
       {profile && points?.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}
 
@@ -999,9 +1019,8 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
     observer.observe(slide)
     return () => observer.disconnect()
   }, [enabled, autoHeight, active, slides.length])
-  if (!enabled) return slides[0]
   return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
-    <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { height } : undefined} ref={track} tabIndex={0} onScroll={(event) => {
+    <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { height } : undefined} ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
       const element = event.currentTarget
       const distance = element.children[1]?.offsetLeft - element.children[0].offsetLeft
       if (!distance) return
@@ -1011,14 +1030,14 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
       if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault(); goTo(activeRef.current + (event.key === 'ArrowRight' ? 1 : -1))
     }}>
-      {slides.map((slide, index) => <div key={index} className="swimmer-hero-slide" role="group" aria-roledescription="kort" aria-label={`${index + 1} av ${slides.length}: ${labels[index]}`} inert={active !== index}>{slide}</div>)}
+      {slides.map((slide, index) => <div key={slide.key || index} className="swimmer-hero-slide" role="group" aria-roledescription="kort" aria-label={`${index + 1} av ${slides.length}: ${labels[index]}`} inert={active !== index}>{slide}</div>)}
     </div>
-    <div className="swimmer-hero-navigation">
+    {enabled && slides.length > 1 && <div className="swimmer-hero-navigation">
       <button type="button" className="hero-slide-arrow" disabled={active === 0} aria-label={`Visa ${labels[Math.max(0, active - 1)]}`} onClick={() => goTo(active - 1)}>←</button>
       <div className="hero-slide-indicators">{labels.map((label, index) => <button type="button" key={label} aria-label={`Visa ${label}`} aria-pressed={active === index} onClick={() => goTo(index)}><span /></button>)}</div>
       <span className="hero-slide-label" aria-live="polite">{labels[active]}</span>
       <button type="button" className="hero-slide-arrow" disabled={active === slides.length - 1} aria-label={`Visa ${labels[Math.min(slides.length - 1, active + 1)]}`} onClick={() => goTo(active + 1)}>→</button>
-    </div>
+    </div>}
   </div>
 }
 
