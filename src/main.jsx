@@ -2215,6 +2215,23 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
     return () => (added || []).forEach((button) => button.remove())
   }, [accountRole])
   useEffect(() => {
+    const menu = document.querySelector('.coach-header-menu > div')
+    if (!menu) return undefined
+    const current = menu.querySelector('[data-competition-calendar-link]')
+    if (navigationSettings.coach?.['competition-calendar'] === false) {
+      current?.remove()
+      return undefined
+    }
+    if (current) return undefined
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.dataset.competitionCalendarLink = 'true'
+    button.textContent = 'Tävlingskalender'
+    button.onclick = () => { setView('competition-calendar'); const details = menu.parentElement; if (details) details.open = false }
+    menu.insertBefore(button, menu.lastElementChild)
+    return () => button.remove()
+  }, [navigationSettings.coach])
+  useEffect(() => {
     const closeMenus = (event) => {
       if (event.target.closest('.coach-header-menu, .coach-group-filter')) return
       document.querySelectorAll('.coach-header-menu[open], .coach-group-filter[open]').forEach((menu) => { menu.open = false })
