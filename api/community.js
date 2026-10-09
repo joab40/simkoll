@@ -2,6 +2,7 @@ import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from 
 import { writeAiUsage } from '../server/audit.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
+import { queueMessagePush } from '../server/web-push.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 
@@ -283,6 +284,8 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         if (settings.openChat?.enabled !== true) return sendJson(response, 403, { error: 'Den öppna chatten är avstängd av tränarna.' })
         const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', visibility: 'group', content }) })
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
+        const [message] = await result.json()
+        queueMessagePush({ kind: 'coach-info', id: message.id, senderCoachId: coachFromRequest(request)?.sub })
         return sendJson(response, 201, { ok: true })
       }
       if (request.body?.action === 'delete-open-chat-message') {
@@ -311,6 +314,8 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         if (!recipient.ok || !(await recipient.json()).length) return sendJson(response, 404, { error: 'Simmaren kunde inte hittas.' })
         const result = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', recipient_profile_id: recipientId, recipient_role: 'swimmer', content }) })
         if (!result.ok) throw new Error(`Coach message failed: ${result.status}`)
+        const [message] = await result.json()
+        queueMessagePush({ kind: 'private', id: message.id, profileId: recipientId })
         return sendJson(response, 201, { ok: true })
       }
       const content = String(request.body?.content || '').trim()
@@ -319,6 +324,8 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ content, author_role: 'coach' }),
       })
       if (!result.ok) throw new Error(`Post insert failed: ${result.status} ${await result.text()}`)
+      const [post] = await result.json()
+      queueMessagePush({ kind: 'coach-post', id: post.id, senderCoachId: coachFromRequest(request)?.sub })
       return sendJson(response, 201, { ok: true })
     }
 
@@ -363,6 +370,8 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
         const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'swimmer', sender_profile_id: profile.id, visibility: settings.openChat?.swimmerPrivate !== false ? 'coaches' : 'group', content }) })
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
+        const [message] = await result.json()
+        queueMessagePush({ kind: 'question', id: message.id, toCoaches: true })
         await touchProfileActivity(profile.id)
         return sendJson(response, 201, { ok: true })
       }
@@ -377,6 +386,8 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på högst 1000 tecken.' })
         const result = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, sender_role: 'swimmer', recipient_role: 'coach', content }) })
         if (!result.ok) throw new Error(`Swimmer message failed: ${result.status}`)
+        const [message] = await result.json()
+        queueMessagePush({ kind: 'private', id: message.id, toCoaches: true })
         await touchProfileActivity(profile.id)
         return sendJson(response, 201, { ok: true })
       }
@@ -425,6 +436,7 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       })
       if (!result.ok) throw new Error(`Kudos insert failed: ${result.status} ${await result.text()}`)
       const [kudos] = await result.json()
+      queueMessagePush({ kind: 'private-pep', id: kudos.id, profileId: recipientId })
       const sourceKey = `${stockholmDate()}:${kudos.id}`
       await awardPoints(profile.id, 'kudos_sent', 1, sourceKey)
       if ((await pointsToday(recipientId, 'kudos_received')) < 2) await awardPoints(recipientId, 'kudos_received', 1, sourceKey)

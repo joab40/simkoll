@@ -4,6 +4,7 @@ import { attendanceFromCheckins } from './attendance.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
+import { PushAdminSettings, PushNotificationControl, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
 const APP_VERSION = __APP_VERSION__
 const BUILD_TIME = __BUILD_TIME__
@@ -50,7 +51,7 @@ const COACH_MENU_SECTIONS = [
   ['Arbeta', ['workout', 'swimmers', 'groups', 'community']],
   ['Följa upp', ['meeting', 'trends', 'history', 'week', 'coach-feed', 'competition', 'rewards']],
   ['Planera & stötta', ['planning', 'competition-calendar', 'talks', 'goals', 'programs', 'workout-library', 'games']],
-  ['Övrigt', ['app-feedback', 'faq', 'legal']],
+  ['Övrigt', ['push-settings', 'app-feedback', 'faq', 'legal']],
 ]
 
 const GAME_CATALOG = [
@@ -124,6 +125,10 @@ function App() {
   const [competitions, setCompetitions] = useState([])
   const [availableGames, setAvailableGames] = useState([])
   const [previousGames, setPreviousGames] = useState([])
+  usePushSession(auth, profile, (target) => {
+    if (auth?.role !== 'swimmer') window.dispatchEvent(new Event('simkoll-coach-open-messages'))
+    else setScreen(target === 'coach-info' ? 'coach-info' : target === 'private' ? 'private-messages' : target === 'community' ? 'community' : 'home')
+  })
 
   useEffect(() => {
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'restore' }) })
@@ -224,7 +229,8 @@ function App() {
     }
   }} />
 
-  const logout = () => {
+  const logout = async () => {
+    await stopDevicePush(auth.code).catch(() => {})
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) }).catch(() => {})
     setAuth(null)
     setCoachReturnAuth(null)
@@ -345,11 +351,12 @@ function App() {
         />
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={checkinActivityDate !== todayKey()} workout={workout} tomorrowWorkout={tomorrowWorkout} onDone={() => setScreen('home')} />}
-      {screen === 'community' && <Community profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
+      {['community', 'private-messages'].includes(screen) && <Community profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
       {screen === 'coach-info' && <CoachInfoPage code={auth.code} profile={profile} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onProfileChange={setProfile} onBack={() => setScreen('home')} onProfileLogout={async () => {
+        await stopDevicePush(auth.code).catch(() => {})
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
         setPoints(null)
@@ -822,6 +829,7 @@ function Faq({ role, onBack }) {
       <p className="faq-intro">Här finns en uppdaterad guide till funktionerna. Svaren beskriver simmarens egen upplevelse och är ett stöd för träning, planering och samtal – inte ett prov eller en medicinsk bedömning.</p>
       <section className="faq-install"><p className="eyebrow">Gör Simkoll lätt att hitta</p><h2>Lägg till på hemskärmen</h2><p>En genväg gör det enklare att öppna rätt sida och använda din sparade profil.</p><details><summary>iPhone eller iPad<span>+</span></summary><ol><li>Öppna Simkoll i Safari.</li><li>Tryck på dela-symbolen.</li><li>Välj <strong>Lägg till på hemskärmen</strong>.</li><li>Tryck <strong>Lägg till</strong>.</li></ol></details><details><summary>Android<span>+</span></summary><ol><li>Öppna Simkoll i Chrome.</li><li>Tryck på de tre prickarna.</li><li>Välj <strong>Lägg till på startskärmen</strong> eller <strong>Installera app</strong>.</li><li>Bekräfta.</li></ol></details><small>Webbläsaren måste alltid fråga dig först — Simkoll kan inte skapa genvägen automatiskt.</small></section>
       <div className="faq-list">
+        <details><summary>Pushnotiser på mobilen<span>+</span></summary><p>Superadmin kan aktivera <strong>Pushnotiser</strong> under tränarvyns inställningar. Därefter väljer varje användare själv <strong>Aktivera notiser</strong> på sin enhet: simmare under sin profil och tränare via <strong>Notiser på min enhet</strong> i tränarmenyn. Du kan välja tränarinfo och privata meddelanden var för sig, skicka en testnotis och stänga av notiser igen.</p><p>På iPhone/iPad krävs iOS/iPadOS 16.4 eller senare och att Simkoll har lagts till på hemskärmen. Öppna appen från hemskärmen innan du aktiverar notiser. På Android fungerar det i en webbläsare som stöder Web Push, till exempel Chrome. Godkänn telefonens fråga om notiser. Fokusläge och telefonens egna notisinställningar kan göra att notiser inte visas direkt.</p><p>Notisen visar att det finns ett nytt meddelande, inte själva texten. Öppna Simkoll och logga in för att läsa. Frågor till tränarna ger notiser till tränarnas personliga konton; reaktioner och öppna peppinlägg ger inga pushnotiser. Valet gäller per enhet, och utloggning kopplar bort enheten. Push kräver uppkoppling och är inte en garanti för att viktig information har blivit läst.</p></details>
         <details open><summary>Kom igång och logga in<span>−</span></summary><p>Logga in med klubbkoden och välj sedan din profil. Om profilen väntar på vårdnadshavares medgivande visas ett meddelande och tränaren aktiverar åtkomsten. En sparad profil gör att du snabbare kommer tillbaka till rätt vy.</p></details>
         <details><summary>Checka in och följ upp passet<span>+</span></summary><p>Välj <strong>Checka in</strong> och svara utifrån hur det känns just då. Du kan ange att du ska träna, har tränat, ska tävla, har tävlat, vilar eller känner dig sjuk. Efter ett träningspass kan du svara på fartkänsla, RPE, temperatur och hur passet upplevdes. Simmarens svar och tränarens närvaro kan tillsammans skapa ett registrerat pass.</p></details>
         <details><summary>Min träning och veckoplanering<span>+</span></summary><p>I <strong>Min träning den här veckan</strong> kan du planera vilka dagar du tänker träna och markera genomförda pass. Under <strong>Veckoplanering</strong> ser du planerade simpass, styrka, landträning och kalenderaktiviteter för din grupp. Kalenderhändelser kan innehålla tid, plats och samling.</p></details>
@@ -990,6 +998,7 @@ function Home({ code, responses, responsesLoaded = false, profile, points, notif
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
+      {profile && <PushNotificationControl code={code} compact />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameCard games={availableGames} previousGames={previousGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBreakout={onBreakout} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
@@ -2038,6 +2047,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
       <section className="profile-summary"><span>{profile.emoji}</span><div><p className="eyebrow">Min profil</p><h1>{profile.displayName}</h1><small>@{profile.username}</small></div>{points?.current && <div className="profile-level"><b>{points.current.emoji} {points.current.name}</b><span>{points.total} poäng</span></div>}</section>
       {!editing ? <button className="profile-edit-button" onClick={() => { setEditForm({ displayName: profile.displayName, emoji: profile.emoji }); setEditError(''); setEditing(true) }}>✏️ Ändra namn eller emoji</button> : <form className="profile-edit-form" onSubmit={async (event) => { event.preventDefault(); setEditError(''); try { const data = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-profile', ...editForm }) }); onProfileChange(data.profile); setEditing(false) } catch (error) { setEditError(error.message) } }}><label>Visningsnamn<input maxLength="40" required value={editForm.displayName} onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })} /></label><fieldset><legend>Välj emoji</legend><div className="avatar-picker">{PROFILE_EMOJIS.map((emoji) => <button type="button" className={editForm.emoji === emoji ? 'selected' : ''} key={emoji} onClick={() => setEditForm({ ...editForm, emoji })}>{emoji}</button>)}</div><input className="custom-emoji-input" maxLength="16" aria-label="Egen emoji" placeholder="Eller skriv en egen emoji" value={editForm.emoji} onChange={(event) => setEditForm({ ...editForm, emoji: event.target.value })} /></fieldset>{editError && <p className="form-error">{editError}</p>}<div><button type="button" className="secondary-button" onClick={() => setEditing(false)}>Avbryt</button><button className="primary-button">Spara ändringar</button></div></form>}
       <section className="artifact-collection"><div><p className="eyebrow">Min samling</p><h2>Artefakter</h2><small>Små bevis på vanor, utveckling och lagkänsla.</small></div>{artifacts.length ? <div className="artifact-grid">{artifacts.map((artifact) => <article key={artifact.id} title={artifact.description}><span>{artifact.emoji}</span><strong>{artifact.name}</strong><small>{new Date(artifact.awardedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></article>)}</div> : <p className="empty">Din samling är tom än så länge.</p>}</section>
+      <PushNotificationControl code={code} />
       {competitionResults.length > 0 && <details className="my-competition-results"><summary><span><p className="eyebrow">Tävlingsresultat</p><h2>Mina tävlingsresultat</h2><small>{competitionResults.length} sparade resultat · tryck för att visa</small></span><b>＋</b></summary><div className="competition-event-list">{[...new Set(competitionResults.map((item) => item.event))].sort((a, b) => a.localeCompare(b, 'sv')).map((event) => { const items = competitionResults.filter((item) => item.event === event); const best = items.slice().sort((a, b) => (a.result_time || 999999) - (b.result_time || 999999))[0]; return <details key={event}><summary><span>{event}</span><b>{best.swim_time}</b></summary><div className="competition-history">{items.slice(0, 20).map((item) => <span key={item.id}>{item.pool || 'Bassäng saknas'} · {item.result_date ? new Date(`${item.result_date}T12:00:00`).toLocaleDateString('sv-SE') : item.result_year ? `Cirka ${item.result_year}` : 'Datum okänt'} · {item.swim_time}{item.source === 'manual' ? ' · Manuellt tillagt' : ''}</span>)}</div></details> })}</div></details>}
       <section className="talk-history swimmer-talk-history"><p className="eyebrow">Sparat över tid</p><h2>Mina utvecklingssamtal</h2>{developmentTalks.length ? developmentTalks.map((talk) => <details key={talk.id}><summary>{talk.meetingDate} · {talk.status === 'completed' ? 'Genomfört' : 'Förbereds'} {!talk.enabled && '· Skrivskyddat'}</summary><div className="talk-history-answer">{Object.entries(talk.swimmerAnswers || {}).filter(([key, value]) => key !== '__step' && value).map(([key, value]) => <p key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><span>{value}</span></p>)}{Object.values(talk.agreement || {}).filter(Boolean).map((value) => <p key={value}><strong>Gemensam överenskommelse</strong><span>{value}</span></p>)}</div></details>) : <p className="empty">Inga utvecklingssamtal ännu.</p>}</section>
       <details className="my-history"><summary><span><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></span><b>＋</b></summary>{loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{responseDate(item).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}{item.lateEntry && ` · Efterregistrerad ${new Date(item.submittedAt || item.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}</details>
@@ -2377,6 +2387,7 @@ function HeadCoachSettings({ code }) {
 
 function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onSwitchToSwimmer, onClear }) {
   const [view, setView] = useState('today')
+  useEffect(() => { const open = () => setView('community'); window.addEventListener('simkoll-coach-open-messages', open); return () => window.removeEventListener('simkoll-coach-open-messages', open) }, [])
   const [coachMessageCount, setCoachMessageCount] = useState(0)
   const [assistantOpen, setAssistantOpen] = useState(false)
   useEffect(() => { const open = () => setAssistantOpen(true); window.addEventListener('simkoll-assistant-open', open); return () => window.removeEventListener('simkoll-assistant-open', open) }, [])
@@ -2454,6 +2465,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
 
   const applyCoachProfile = (savedAccount, groups) => { if (savedAccount) setCoachProfile(savedAccount); if (Array.isArray(groups) && groups.length) setSelectedGroups(groups); else if (groups && !groups.length) setSelectedGroups(groupOptions.map(([value]) => value)) }
   const renderCoachMenuLink = (key) => {
+    if (key === 'push-settings') return <button type="button" key={key} onClick={() => openViewFromMenu(key)}>🔔 Notiser på min enhet</button>
     const item = navItem(key)
     if (!item || !coachVisible(key)) return null
     return <button type="button" key={key} onClick={() => openViewFromMenu(key)}>{item.label}</button>
@@ -2511,8 +2523,10 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
           <CompetitionSubmissionBoundary><CompetitionCalendar code={code} canManageCompetitionPrograms={accountRole === 'head_coach' || accountRole === 'superadmin'} onOpenSubmissions={(competitionId) => { setSubmissionCompetitionId(competitionId); setView('competition-entries') }} /></CompetitionSubmissionBoundary>
         ) : view === 'competition-entries' ? (
           <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} initialCompetitionId={submissionCompetitionId} /></CompetitionSubmissionBoundary>
+        ) : view === 'push-settings' ? (
+          <PushNotificationControl code={code} />
         ) : view === 'settings' ? (
-          <div className="coach-settings-stack">{accountRole === 'superadmin' ? <><WebappSettings code={code} /><OpenChatSettings code={code} /><SportAdminCalendarSettings code={code} /><SessionSettings code={code} /></> : accountRole === 'head_coach' ? <HeadCoachSettings code={code} /> : <section className="empty"><h2>Inställningar är låsta</h2><p>Be en huvudtränare eller superadmin om hjälp.</p></section>}</div>
+          <div className="coach-settings-stack">{accountRole === 'superadmin' ? <><WebappSettings code={code} /><OpenChatSettings code={code} /><PushAdminSettings code={code} /><SportAdminCalendarSettings code={code} /><SessionSettings code={code} /></> : accountRole === 'head_coach' ? <HeadCoachSettings code={code} /> : <section className="empty"><h2>Inställningar är låsta</h2><p>Be en huvudtränare eller superadmin om hjälp.</p></section>}</div>
         ) : view === 'groups' ? (
           <CoachGroups code={code} profiles={groupFilteredProfiles} onProfilesChange={onProfilesChange} />
         ) : view === 'app-feedback' ? (

@@ -1,5 +1,6 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { getSessionProfile } from '../server/profile-auth.js'
+import pushHandler from '../server/push-api.js'
 
 const GROUP_TEMPLATES = {
   group_energy: 'Bra energi på träningen idag! ⚡',
@@ -27,6 +28,7 @@ async function profilesById() {
 }
 
 export default async function handler(request, response) {
+  if (request.query?.push === 'true') return pushHandler(request, response)
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   if (request.method !== 'GET' || role !== 'swimmer') return sendJson(response, 403, { error: 'Notiser visas bara för inloggade simmare.' })
 
