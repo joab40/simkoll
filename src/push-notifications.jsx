@@ -164,6 +164,33 @@ export function PushNotificationControl({ code, compact = false }) {
     {config && status && <p className="push-feedback" role="status">{status}</p>}
     {subscribed && config && !config.settings.enabled && <button type="button" className="text-button" onClick={disable} disabled={busy}>Stäng av på enheten</button>}
     {!compact && <small>Valet gäller den här enheten. Meddelandetext visas först när du öppnar Simkoll.</small>}
+    {!compact && config?.canViewUsers && <PushUserList code={code} />}
+  </section>
+}
+
+function PushUserList({ code }) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const load = async () => {
+    setOpen(true)
+    if (data || loading) return
+    setLoading(true); setError('')
+    try { setData(await pushApi(code, { action: 'push-users' })) }
+    catch (reason) { setError(reason.message) }
+    finally { setLoading(false) }
+  }
+  return <section className="push-users">
+    <button type="button" className="push-users-toggle" aria-expanded={open} onClick={() => open ? setOpen(false) : load()}>
+      <span><strong>Användare med aktiva pushnotiser</strong><small>Visa simmare och tränare som har minst en ansluten enhet</small></span><span aria-hidden="true">{open ? '−' : '+'}</span>
+    </button>
+    {open && <div className="push-users-content" aria-live="polite">{loading ? <p>Hämtar listan…</p> : error ? <p role="alert">{error} <button type="button" className="text-button" onClick={() => { setData(null); load() }}>Försök igen</button></p> : <>
+      <p className="push-users-note">En användare kan ha flera enheter. Listan visar bara aktiva konton som just nu har en pushprenumeration.</p>
+      {data?.swimmers?.length > 0 && <><h3>Simmare · {data.swimmers.length}</h3><ul>{data.swimmers.map((user, index) => <li key={`${user.name}-${index}`}><span>{user.emoji} {user.name}{user.group && <small>{user.group}</small>}</span><small>{user.devices} {user.devices === 1 ? 'enhet' : 'enheter'}</small></li>)}</ul></>}
+      {data?.coaches?.length > 0 && <><h3>Tränare · {data.coaches.length}</h3><ul>{data.coaches.map((user, index) => <li key={`${user.name}-${user.role}-${index}`}><span>🧑‍🏫 {user.name}<small>{user.role === 'superadmin' ? 'Superadmin' : user.role === 'head_coach' ? 'Huvudtränare' : 'Tränare'}</small></span><small>{user.devices} {user.devices === 1 ? 'enhet' : 'enheter'}</small></li>)}</ul></>}
+      {!data?.swimmers?.length && !data?.coaches?.length && <p>Ingen har en aktiv enhet registrerad ännu.</p>}
+    </>}</div>}
   </section>
 }
 
@@ -184,6 +211,7 @@ export function PushAdminSettings({ code }) {
       <p className="settings-help">iPhone: Simkoll måste öppnas som webbapp från hemskärmen. Android: fungerar i webbläsare med stöd för Web Push. Användaren aktiverar själv under sin profil eller Notiser på min enhet i tränarmenyn. Reaktioner och öppna peppinlägg ger inga pushnotiser.</p>
       <button type="button" className="primary-button" onClick={save} disabled={busy}>{busy ? 'Sparar…' : 'Spara pushinställningar'}</button></>}
     {status && <p className="push-feedback" role="status">{status}</p>}
-    <small className="settings-note">Synligt och redigerbart för: endast superadmin</small>
+    <small className="settings-note">Klubbens pushinställningar: endast superadmin</small>
+    {config?.canViewUsers && <PushUserList code={code} />}
   </section>
 }

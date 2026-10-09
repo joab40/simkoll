@@ -15,7 +15,7 @@ async function pushOwner(request) {
     const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(token.sub)}&status=eq.active&select=id,role&limit=1`)
     if (!result.ok) throw new Error('Push account lookup failed')
     const [account] = await result.json()
-    if (account) return { role, id: account.id, column: 'coach_id', key: `coach:${account.id}`, admin: account.role === 'superadmin' }
+    if (account) return { role, id: account.id, column: 'coach_id', key: `coach:${account.id}`, admin: account.role === 'superadmin', canViewUsers: ['head_coach', 'superadmin'].includes(account.role) }
   }
   return null
 }
@@ -31,11 +31,30 @@ export default async function pushHandler(request, response) {
       const database = await supabaseRequest('push_subscriptions?select=id&limit=1', { headers: { Prefer: 'count=exact' } })
       return sendJson(response, 200, {
         settings, configured: Boolean(details), databaseReady: database.ok, publicKey: details?.publicKey || '', ownerKey: owner.key,
-        ...(owner.admin ? { deviceCount: database.ok ? Number(database.headers.get('content-range')?.split('/')[1] || 0) : 0 } : {}),
+        ...(owner.canViewUsers ? { canViewUsers: true, ...(owner.admin ? { deviceCount: database.ok ? Number(database.headers.get('content-range')?.split('/')[1] || 0) : 0 } : {}) } : {}),
       })
     }
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
     const action = request.body?.action
+    if (action === 'push-users') {
+      if (!owner.canViewUsers) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan se listan.' })
+      const subscriptions = await supabaseRequest('push_subscriptions?select=profile_id,coach_id&limit=10000')
+      const [profiles, coaches] = await Promise.all([
+        supabaseRequest('profiles?active=eq.true&approval_status=eq.approved&is_test_profile=eq.false&select=id,display_name,emoji,training_group&order=display_name.asc&limit=5000'),
+        supabaseRequest('coach_accounts?status=eq.active&select=id,display_name,role&order=display_name.asc&limit=1000'),
+      ])
+      if (!subscriptions.ok || !profiles.ok || !coaches.ok) return sendJson(response, 503, { error: 'Kunde inte hämta pushlistan just nu.' })
+      const rows = await subscriptions.json()
+      const profileDevices = new Map(), coachDevices = new Map()
+      for (const row of rows) {
+        if (row.profile_id) profileDevices.set(row.profile_id, (profileDevices.get(row.profile_id) || 0) + 1)
+        if (row.coach_id) coachDevices.set(row.coach_id, (coachDevices.get(row.coach_id) || 0) + 1)
+      }
+      return sendJson(response, 200, {
+        swimmers: (await profiles.json()).filter((profile) => profileDevices.has(profile.id)).map((profile) => ({ name: profile.display_name, emoji: profile.emoji || '🏊', group: profile.training_group || '', devices: profileDevices.get(profile.id) })),
+        coaches: (await coaches.json()).filter((coach) => coachDevices.has(coach.id)).map((coach) => ({ name: coach.display_name || 'Tränare', role: coach.role, devices: coachDevices.get(coach.id) })),
+      })
+    }
     if (action === 'push-settings') {
       if (!owner.admin) return sendJson(response, 403, { error: 'Endast superadmin kan ändra klubbens pushinställningar.' })
       const submitted = request.body.settings || {}
