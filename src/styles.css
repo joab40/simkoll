@@ -2338,6 +2338,8 @@ button { cursor: pointer; }
 .push-users-content li > span:first-child { display: grid; grid-template-columns: auto 1fr; column-gap: .5rem; }
 .push-users-content li > span:first-child small { grid-column: 2; color: var(--muted); font-size: .75rem; }
 .push-users-content li > small { flex: none; color: var(--muted); font-size: .75rem; }
+.push-users-content li > .push-user-enabled { color: #216a45; }
+.push-users-content li > .push-user-disabled { color: #747f82; }
 .push-feedback, .push-install-help { padding: .75rem .9rem; border-radius: .8rem; background: #edf6f2; color: #245455; line-height: 1.5; font-size: .85rem; }
 .push-device-card.compact { padding: 1rem 1.2rem; border-radius: 1.2rem; background: linear-gradient(135deg, #fcfff3, #eff8f5); }
 @media (max-width: 640px) { .push-device-card .settings-actions { flex-wrap: wrap; } .push-device-card .primary-button { width: 100%; } .push-status-badge { font-size: .65rem; } }

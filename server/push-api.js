@@ -51,8 +51,8 @@ export default async function pushHandler(request, response) {
         if (row.coach_id) coachDevices.set(row.coach_id, (coachDevices.get(row.coach_id) || 0) + 1)
       }
       return sendJson(response, 200, {
-        swimmers: (await profiles.json()).filter((profile) => profileDevices.has(profile.id)).map((profile) => ({ name: profile.display_name, emoji: profile.emoji || '🏊', group: profile.training_group || '', devices: profileDevices.get(profile.id) })),
-        coaches: (await coaches.json()).filter((coach) => coachDevices.has(coach.id)).map((coach) => ({ name: coach.display_name || 'Tränare', role: coach.role, devices: coachDevices.get(coach.id) })),
+        swimmers: (await profiles.json()).map((profile) => ({ name: profile.display_name, emoji: profile.emoji || '🏊', group: profile.training_group || '', devices: profileDevices.get(profile.id) || 0, active: profileDevices.has(profile.id) })),
+        coaches: (await coaches.json()).map((coach) => ({ name: coach.display_name || 'Tränare', role: coach.role, devices: coachDevices.get(coach.id) || 0, active: coachDevices.has(coach.id) })),
       })
     }
     if (action === 'push-settings') {

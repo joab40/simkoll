@@ -173,6 +173,7 @@ function PushUserList({ code }) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const renderUsers = (title, users, emojiFor) => users.length > 0 && <><h3>{title}</h3><ul>{users.map((user, index) => <li key={`${user.name}-${user.role || user.group}-${index}`}><span>{emojiFor(user)} {user.name}{user.group && <small>{user.group}</small>}</span><small className={user.active ? 'push-user-enabled' : 'push-user-disabled'}>{user.active ? `Push aktiv · ${user.devices} ${user.devices === 1 ? 'enhet' : 'enheter'}` : 'Ingen aktiv enhet registrerad'}</small></li>)}</ul></>
   const load = async () => {
     setOpen(true)
     if (data || loading) return
@@ -186,9 +187,9 @@ function PushUserList({ code }) {
       <span><strong>Användare med aktiva pushnotiser</strong><small>Visa simmare och tränare som har minst en ansluten enhet</small></span><span aria-hidden="true">{open ? '−' : '+'}</span>
     </button>
     {open && <div className="push-users-content" aria-live="polite">{loading ? <p>Hämtar listan…</p> : error ? <p role="alert">{error} <button type="button" className="text-button" onClick={() => { setData(null); load() }}>Försök igen</button></p> : <>
-      <p className="push-users-note">En användare kan ha flera enheter. Listan visar bara aktiva konton som just nu har en pushprenumeration.</p>
-      {data?.swimmers?.length > 0 && <><h3>Simmare · {data.swimmers.length}</h3><ul>{data.swimmers.map((user, index) => <li key={`${user.name}-${index}`}><span>{user.emoji} {user.name}{user.group && <small>{user.group}</small>}</span><small>{user.devices} {user.devices === 1 ? 'enhet' : 'enheter'}</small></li>)}</ul></>}
-      {data?.coaches?.length > 0 && <><h3>Tränare · {data.coaches.length}</h3><ul>{data.coaches.map((user, index) => <li key={`${user.name}-${user.role}-${index}`}><span>🧑‍🏫 {user.name}<small>{user.role === 'superadmin' ? 'Superadmin' : user.role === 'head_coach' ? 'Huvudtränare' : 'Tränare'}</small></span><small>{user.devices} {user.devices === 1 ? 'enhet' : 'enheter'}</small></li>)}</ul></>}
+      <p className="push-users-note">Listan omfattar aktiva konton. En användare kan ha flera enheter. ”Ingen aktiv enhet registrerad” betyder att Simkoll inte har en aktuell prenumeration för kontot; den kan också ha gått ut eller tagits bort.</p>
+      {renderUsers(`Simmare · ${data?.swimmers?.filter((user) => user.active).length || 0} av ${data?.swimmers?.length || 0} med aktiv enhet`, data?.swimmers || [], (user) => user.emoji)}
+      {renderUsers(`Tränare · ${data?.coaches?.filter((user) => user.active).length || 0} av ${data?.coaches?.length || 0} med aktiv enhet`, data?.coaches || [], () => '🧑‍🏫')}
       {!data?.swimmers?.length && !data?.coaches?.length && <p>Ingen har en aktiv enhet registrerad ännu.</p>}
     </>}</div>}
   </section>

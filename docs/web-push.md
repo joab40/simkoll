@@ -4,6 +4,9 @@ Första versionen skickar Web Push vid tränarinfo, tränarens klubbmeddelanden,
 privata meddelanden och frågor till tränarna. Öppna peppinlägg och reaktioner
 skickar inte push. Notisen innehåller en generell text, inte meddelandets innehåll.
 
+För en samlad förklaring av alla Simkoll-miljövariabler, se
+[miljövariabelguiden](environment-variables.md).
+
 ## Aktivera
 
 1. Kör `supabase/migrations/078_web_push.sql` i Supabases SQL-editor.
