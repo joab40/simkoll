@@ -105,7 +105,7 @@ const GROUP_TEMPLATES = {
   group_next: 'Ser fram emot nästa pass 🙌',
   group_fun: 'Kul att simma med er! 😊',
 }
-const REACTION_EMOJIS = ['👍', '😊', '🙌', '❤️']
+const REACTION_EMOJIS = ['👍']
 
 async function loadProfiles() {
   const result = await supabaseRequest('profiles?select=id,display_name,emoji&active=eq.true')
