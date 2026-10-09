@@ -1,5 +1,6 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
+import { SPRINT_BASE, SPRINT_MIN_MS, SPRINT_MAX_MS, sprintTime, validSprintScore } from '../src/sprint-engine.js'
 
 const stockholmDate = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
 const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7)); return value.toISOString().slice(0, 10) }
@@ -11,7 +12,7 @@ const SWIMGAMES_BASE = 100000
 const SWIMGAMES_MIN_TIME_MS = 3000
 const SWIMGAMES_MAX_SCORE = SWIMGAMES_BASE - SWIMGAMES_MIN_TIME_MS
 const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
-const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
+const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : item.game_key === 'sprint100' ? sprintTime(SPRINT_BASE - item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
 const TEAM_GAME_TARGET = 10
 const GAME_CATALOG = [
@@ -20,6 +21,7 @@ const GAME_CATALOG = [
   { key: 'simpaus', title: 'Vågjakten', emoji: '🌊', description: 'Håll dig mellan vågorna så länge du kan.', route: 'game' },
   { key: 'aljakten', title: 'Preppejakten', emoji: '🐍', description: 'Hjälp Preppe att samla energibubblor och växa.', route: 'aljakten' },
   { key: 'breakout', title: 'Preppe Breakout', emoji: '🧱', description: 'Slå sönder brickorna, håll bollen i spel och samla poäng.', route: 'breakout' },
+  { key: 'sprint100', title: '100m Sprint', emoji: '⚡', description: 'Växla stegen, hitta rytmen och jaga din bästa tid.', route: 'sprint100' },
 ]
 const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const defaultGameSchedule = () => {
@@ -27,7 +29,7 @@ const defaultGameSchedule = () => {
   const end = new Date(`${today}T12:00:00`)
   end.setDate(end.getDate() + 6)
   const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
-  return GAME_CATALOG.map((game) => ({ id: scheduleId(), gameKey: game.key, startDate: today, endDate, published: true }))
+  return GAME_CATALOG.filter((game) => game.key !== 'sprint100').map((game) => ({ id: scheduleId(), gameKey: game.key, startDate: today, endDate, published: true }))
 }
 async function loadGameSchedule() {
   const result = await supabaseRequest('app_settings?setting_key=eq.game_schedule&select=setting_value&limit=1')
@@ -58,7 +60,7 @@ async function monthlyGameLeaderboard(profileId, key = gameKey) {
   return { monthStart: start, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest: own?.score || 0 }
 }
 async function lifetimeGameLeaderboard(profileId, key = gameKey) {
-  const scoreFilter = key === 'swimgames' ? `&score=lte.${SWIMGAMES_MAX_SCORE}` : ''
+  const scoreFilter = key === 'swimgames' ? `&score=lte.${SWIMGAMES_MAX_SCORE}` : key === 'sprint100' ? `&score=lte.${SPRINT_BASE - SPRINT_MIN_MS}&score=gte.${SPRINT_BASE - SPRINT_MAX_MS}` : ''
   const result = await supabaseRequest(`game_scores?game_key=eq.${key}${scoreFilter}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10000`)
   if (!result.ok) throw new Error(`Lifetime game leaderboard lookup failed: ${result.status}`)
   const best = new Map(); (await result.json()).forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) })
@@ -81,9 +83,9 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
+  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
-  const rows = (await result.json()).filter((item) => item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE); const games = new Map()
+  const rows = (await result.json()).filter((item) => (item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE) && (item.game_key !== 'sprint100' || validSprintScore(Number(item.score)))); const games = new Map()
   rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
   const totals = new Map()
   games.forEach((items) => { const best = new Map(); items.forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) }); [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10).forEach((item, index) => { const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += 10 - index; totals.set(item.profile_id, current) }) })
@@ -118,8 +120,9 @@ export default async function handler(request, response) {
         const score = Number(request.body?.score)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
         if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
-        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
         if (key === 'swimgames' && score > SWIMGAMES_MAX_SCORE) return sendJson(response, 400, { error: 'Tiden är för snabb för att vara giltig.' })
+        if (key === 'sprint100' && !validSprintScore(score)) return sendJson(response, 400, { error: 'Ogiltig sprinttid.' })
         const week = weekStart()
         const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&select=id,score&limit=1`)
         if (!existingResult.ok) throw new Error('Game score lookup failed')
@@ -133,17 +136,17 @@ export default async function handler(request, response) {
         }
         await awardPoints(profile.id, 'game_played', 1, `${key}:${stockholmDate()}`)
         const teamBonus = await awardTeamGameBonus(key)
-        const board = key === 'swimgames' ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
+        const board = (key === 'swimgames' || key === 'sprint100') ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
         return sendJson(response, 200, { ...board, teamBonus })
       }
       if (role === 'swimmer' && action === 'reset-game-score') {
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att nollställa tiden.' })
-        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48'].includes(request.body?.gameKey) ? request.body.gameKey : null
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100'].includes(request.body?.gameKey) ? request.body.gameKey : null
         if (!key) return sendJson(response, 400, { error: 'Ogiltigt spel.' })
         const deleted = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}`, { method: 'DELETE' })
         if (!deleted.ok) throw new Error(`Game score reset failed: ${deleted.status}`)
-        const board = key === 'swimgames' ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
+        const board = (key === 'swimgames' || key === 'sprint100') ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
         return sendJson(response, 200, board)
       }
       if (action === 'sync-stars') {
@@ -247,7 +250,7 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
-    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'alltime'].includes(request.query?.game) ? request.query.game : null
+    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'alltime'].includes(request.query?.game) ? request.query.game : null
     if (request.query?.games === 'true') {
       const schedule = await loadGameSchedule()
       if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })
