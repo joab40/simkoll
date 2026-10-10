@@ -198,7 +198,7 @@ export default async function handler(request, response) {
       const actorKey = role === 'coach' ? `coach:${coachFromRequest(request)?.sub || 'legacy'}` : `swimmer:${profile.id}`
       const [postsResult, groupResult, profiles, messagesResult, openChatResult, reactionsResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
-        supabaseRequest('group_pep?select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=100'),
+        supabaseRequest('group_pep?select=*&order=created_at.desc&limit=100'),
         loadProfiles(),
         role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
@@ -219,7 +219,26 @@ export default async function handler(request, response) {
         return { emoji, count: matches.length, reacted: matches.some((reaction) => reaction.actor_key === actorKey) }
       }).filter((reaction) => reaction.count > 0)
       const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at, reactions: reactionsFor('coach_post', item.id) }))
-        const groupPep = (await groupResult.json()).map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], reactions: reactionsFor('group_pep', item.id) })).filter((item) => item.sender && item.content)
+      const groupRows = await groupResult.json()
+      const groupPep = groupRows.map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], reactions: reactionsFor('group_pep', item.id) })).filter((item) => item.sender && item.content)
+      const quoteTargets = new Map([...posts, ...groupPep].map((item) => [`${item.type}-${item.id}`, item]))
+      for (const type of ['group', 'coach']) {
+        const ids = [...new Set(groupRows.filter((row) => row.reply_type === type && row.reply_id && !quoteTargets.has(`${type}-${row.reply_id}`)).map((row) => row.reply_id))]
+        if (!ids.length) continue
+        const targets = await supabaseRequest(`${type === 'group' ? 'group_pep' : 'community_posts'}?id=in.(${ids.join(',')})${type === 'coach' ? '&deleted_at=is.null' : ''}&select=*`)
+        if (!targets.ok) throw new Error('Reply history lookup failed')
+        for (const row of await targets.json()) {
+          if (row.deleted_at) continue
+          quoteTargets.set(`${type}-${row.id}`, { content: row.content || GROUP_TEMPLATES[row.template_key], sender: type === 'group' ? profiles[row.sender_profile_id] : null })
+        }
+      }
+      for (const item of groupPep) {
+        const row = groupRows.find((row) => row.id === item.id)
+        if (row.reply_id && ['group', 'coach'].includes(row.reply_type)) {
+          const target = quoteTargets.get(`${row.reply_type}-${row.reply_id}`)
+          item.reply = { id: row.reply_id, type: row.reply_type, senderName: target ? (target.sender?.displayName || 'Tränarna') : null, content: target?.content?.slice(0, 160) || null }
+        }
+      }
       let privateKudos = []
       if (profile) {
         const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,content,created_at&order=created_at.desc&limit=100`)
@@ -394,7 +413,8 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       const mode = request.body?.mode === 'group' ? 'group' : 'private'
       const privateSent = await messagesSentToday('kudos', profile.id)
       const groupSent = await messagesSentToday('group_pep', profile.id)
-      if (privateSent + groupSent >= 4) return sendJson(response, 429, { error: 'Du har skickat fyra peppmeddelanden idag. Du kan skicka mer imorgon!' })
+      const earnsPoint = privateSent + groupSent < 4
+      if (mode === 'private' && !earnsPoint) return sendJson(response, 429, { error: 'Du har skickat fyra peppmeddelanden idag. Fortsätt gärna prata i den öppna kanalen utan fler poäng.' })
       const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
       let webappSettings = {}
       if (settingsResult.ok) {
@@ -411,12 +431,19 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
           const moderation = await moderateCustomPep(request, customContent)
           if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
         } else if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
-        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey, content: templateKey === 'custom' ? customContent : null }) })
+        const reply = request.body?.reply
+        if (reply && (!['group', 'coach'].includes(reply.type) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reply.id))) return sendJson(response, 400, { error: 'Välj ett giltigt meddelande att svara på.' })
+        if (reply) {
+          const target = await supabaseRequest(`${reply.type === 'group' ? 'group_pep' : 'community_posts'}?id=eq.${reply.id}${reply.type === 'coach' ? '&deleted_at=is.null' : ''}&select=id&limit=1`)
+          if (!target.ok) throw new Error('Reply lookup failed')
+          if (!(await target.json()).length) return sendJson(response, 404, { error: 'Meddelandet finns inte längre. Avbryt svaret och skicka utan citat.' })
+        }
+        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey, content: templateKey === 'custom' ? customContent : null, ...(reply ? { reply_type: reply.type, reply_id: reply.id } : {}) }) })
         if (!result.ok) throw new Error(`Group pep insert failed: ${result.status} ${await result.text()}`)
         const [pep] = await result.json()
-        await awardPoints(profile.id, 'kudos_sent', 1, `${stockholmDate()}:${pep.id}`)
+        if (earnsPoint) await awardPoints(profile.id, 'kudos_sent', 1, `${stockholmDate()}:${pep.id}`)
         await touchProfileActivity(profile.id)
-        return sendJson(response, 201, { ok: true })
+        return sendJson(response, 201, { ok: true, awardedPoints: earnsPoint ? 1 : 0 })
       }
       const recipientId = String(request.body?.recipientId || '')
       const templateKey = String(request.body?.templateKey || '')
