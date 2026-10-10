@@ -35,6 +35,7 @@ aktiveras separat i Simkolls inställningar efter deployment.
 | `AUDIT_LOG_SALT` | Valfri, rekommenderas | Slumpvärde som saltar hashade IP-fingeravtryck i loggar. Ett eget stabilt värde ger bättre avskiljning från standardvärdet. Byt inte i onödan om du vill kunna jämföra befintliga fingeravtryck över tid. |
 | `OPENAI_API_KEY` | Valfri, krävs för de flesta AI-funktioner | API-nyckel från OpenAI. Aktivering av AI kan även styras i Simkolls inställningar. Håll nyckeln server-side. |
 | `OPENAI_MODEL` | Valfri | Standardmodell för assistent och flera generativa AI-funktioner när OpenAI används. Kodens reservvärde är `gpt-4o-mini`. Välj en modell som API-kontot har tillgång till. |
+| `OPENAI_INDIVIDUAL_ANALYSIS_MODEL` | Valfri | Separat modell för tränarens personliga simmaranalys. Reservvärde `gpt-6.1-sol`, med medium resonemang via Responses API. Kräver `OPENAI_API_KEY` och åtkomst till modellen. Påverkar inte assistenten eller gruppanalysen. Analysen startas manuellt och loggas med in-/utgående tokens, inklusive modellens resonemangstokens. |
 | `OPENAI_TRANSCRIBE_MODEL` | Valfri | Ljudtranskriberingens modell. Reservvärde `gpt-4o-mini-transcribe`. |
 | `OPENAI_WORKOUT_IMAGE_MODEL` | Valfri | Modell för bildtolkning av träningspass. Om tom används `OPENAI_MODEL` och därefter standardmodellen. |
 | `OPENAI_COMPETITION_MODEL` | Valfri | Modell för tävlingsrelaterad analys i den äldre separata tävlingsfunktionen. Reservvärde `gpt-4o`. |
@@ -73,6 +74,33 @@ skapa en ny deployment och kontrollera funktionen i produktion. Vercel skriver
 inte automatiskt om redan existerande deploymentar när en miljövariabel ändras.
 
 ## Vanliga felsymtom
+
+### Fördjupad personlig analys
+
+Den personliga analysen har en egen modellinställning. Om `OPENAI_INDIVIDUAL_ANALYSIS_MODEL`
+saknas används `gpt-6.1-sol` även om `OPENAI_MODEL` har ett annat värde. En befintlig
+OpenAI-nyckel räcker om API-kontot har modellåtkomst. Ingen modell ändras för gruppanalys
+eller chattassistent. Vid ändring av miljövariabler behövs en ny deployment.
+
+Tränaren aktiverar personlig analys efter inhämtat godkännande, öppnar simmarens
+statistik, väljer period och skapar analysen manuellt. Aktivering och läsning av
+en sparad analys gör inga AI-anrop. Nya analyser har en kort sammanfattning och
+utfällbara fynd med datum, belägg, möjliga förklaringar och uppföljningsfrågor.
+Tidigare sparade analyser får detta innehåll först när tränaren skapar en ny analys.
+
+Meter och minuter är planeringsvärden för entydigt kopplade registrerade simpass,
+inte uppmätt faktisk mängd. Om samma dag har flera möjliga pass eller både simning
+och annan träning hänförs dagsfeedback inte till ett bestämt pass. Kommentarer
+för gårdagen analyseras på aktivitetsdatumet. För återkommande mönster krävs minst
+tre olika datum. En dokumenterad prestation kan ändå lyftas som en enskild observation.
+
+Requests använder `store: false`, strukturerad JSON, medium resonemang och högst
+16 000 genererade tokens inklusive resonemang. Modellens användning finns under
+Loggar; uppskattningen för GPT-6.1 Sol stöds redan av kostnadsberäkningen. Vid
+ofullständigt/modellfel ersätts inte den tidigare sparade analysen med en generell
+reservtext. Tränaranteckningarnas råa belägg visas bara i tränarvyn.
+
+### Andra felsymtom
 
 - **Supabase svarar inte / inloggning fungerar inte:** kontrollera `SUPABASE_URL`
   och att servernyckeln är korrekt och ligger i Vercels servermiljö.
