@@ -2,6 +2,7 @@ import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from 
 import { writeAiUsage } from '../server/audit.js'
 import { getSessionProfile } from '../server/profile-auth.js'
 import { buildGroupTrend } from '../server/group-trend.js'
+import { buildSwimmerTrend } from '../server/swimmer-trend.js'
 import { analysisResponse, responseDay, buildSwimmerPasses, individualSignals, normalizeIndividualInsight, swimmerVisibleInsight } from '../server/individual-analysis.js'
 import { requestSwimmerInsight } from '../server/swimmer-ai.js'
 
@@ -505,6 +506,7 @@ export default async function handler(request, response) {
     const groupTrend = !profileId ? buildGroupTrend({ currentResponses, previousResponses, currentSessions, previousSessions, profiles: reportProfiles, workouts, plans, start, end, previousStart, previousEnd, includeAnonymous, truncated }) : null
     return sendJson(response, 200, {
       groupTrend,
+      swimmerTrend: profileId ? buildSwimmerTrend({ currentResponses, previousResponses, currentSessions, previousSessions, start, end, previousStart, previousEnd, truncated }) : null,
       current: { ...metrics(currentResponses, currentSessions, currentActivities, privateView), personalBests: currentPersonalBests.length },
       previous: { ...metrics(previousResponses, previousSessions, previousActivities, privateView), personalBests: previousPersonalBests.length },
       personalBestResults: currentPersonalBests.slice(-30).map((item) => ({ profileId: item.profile_id, event: item.event, pool: item.pool || '', date: item.result_date, time: item.swim_time })),

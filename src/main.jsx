@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { attendanceFromCheckins } from './attendance.js'
+import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
@@ -72,9 +73,7 @@ const dateKey = (date) => {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 }
 
-const responseDate = (response) => response.activityDate
-  ? new Date(`${response.activityDate}T12:00:00`)
-  : new Date(response.createdAt)
+const responseDate = (response) => new Date(`${checkinDay(response)}T12:00:00`)
 const todayKey = () => dateKey(new Date())
 const competitionIsToday = (item, today = todayKey()) => Boolean(item?.startDate && item.startDate <= today && (item.endDate || item.startDate) >= today)
 const average = (key, items) => {
@@ -321,8 +320,8 @@ function App() {
         <CheckIn
           hasProfile={Boolean(profile)}
           lateEntry={checkinActivityDate !== todayKey()}
-          followUp={(() => { const today = responses.filter((item) => dateKey(responseDate(item)) === todayKey()); const raceBefore = today.some((item) => item.competition === true && item.type === 'before'); const raceAfter = today.some((item) => item.competition === true && item.type === 'after'); const latest = today.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]; return latest?.type === 'before' && latest?.speedFeeling == null && !(raceBefore && !raceAfter) })()}
-          raceFollowUp={(() => { const today = responses.filter((item) => dateKey(responseDate(item)) === todayKey()); return today.some((item) => item.competition === true && item.type === 'before') && !today.some((item) => item.competition === true && item.type === 'after') })()}
+          followUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).followUp}
+          raceFollowUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).raceFollowUp}
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
@@ -762,6 +761,8 @@ function Logo({ compact = false }) {
 }
 
 const HELP_TEXT = {
+  'Simmarens riktning': 'Jämför simmarens känsla och kropp med föregående lika långa period. Minst tre dagar med giltiga värden behövs i båda perioderna. Varje dag väger lika. ↗ förbättring, → stabilt, ↘ minskning, ↕ blandat. Gränsen är 0,2 på skalan 1–5. Detta är inte ett mått på tävlingsprestation.',
+  'Simmarens kontinuitet': 'Registrerade simpass per vecka för den valda simmaren jämförs med föregående period. Skillnader under 0,15 pass per vecka visas som stabila. Samma datum och passdel räknas en gång. Mer träning är inte automatiskt bättre.',
   'Känsla': 'Hur dagen känns överlag just nu. Det finns inget rätt eller fel svar.',
   'Energi': 'Hur pigg eller trött simmaren känner sig.',
   'Kroppen': 'Hur fräsch, tung eller öm kroppen upplevs.',
@@ -838,6 +839,7 @@ function Faq({ role, onBack }) {
       <div className="faq-list">
         <details><summary>Pushnotiser på mobilen<span>+</span></summary><p>Superadmin kan aktivera <strong>Pushnotiser</strong> under tränarvyns inställningar. Därefter väljer varje användare själv <strong>Aktivera notiser</strong> på sin enhet: simmare under sin profil och tränare via <strong>Notiser på min enhet</strong> i tränarmenyn. Du kan välja tränarinfo och privata meddelanden var för sig, skicka en testnotis och stänga av notiser igen.</p><p>På iPhone/iPad krävs iOS/iPadOS 16.4 eller senare och att Simkoll har lagts till på hemskärmen. Öppna appen från hemskärmen innan du aktiverar notiser. På Android fungerar det i en webbläsare som stöder Web Push, till exempel Chrome. Godkänn telefonens fråga om notiser. Fokusläge och telefonens egna notisinställningar kan göra att notiser inte visas direkt.</p><p>Notisen visar att det finns ett nytt meddelande, inte själva texten. Öppna Simkoll och logga in för att läsa. Frågor till tränarna ger notiser till tränarnas personliga konton; reaktioner och öppna peppinlägg ger inga pushnotiser. Valet gäller per enhet, och utloggning kopplar bort enheten. Push kräver uppkoppling och är inte en garanti för att viktig information har blivit läst.</p></details>
         <details open><summary>Kom igång och logga in<span>−</span></summary><p>Logga in med klubbkoden och välj sedan din profil. Om profilen väntar på vårdnadshavares medgivande visas ett meddelande och tränaren aktiverar åtkomsten. En sparad profil gör att du snabbare kommer tillbaka till rätt vy.</p></details>
+        <details><summary>Simmarens riktning i statistiken<span>+</span></summary><p>Tränaren hittar kortet överst under <strong>Simmare → Visa statistik</strong>. Vald period jämförs med föregående lika långa period. Känsla och kropp bygger på dagsgenomsnitt, så många svar samma dag inte väger tyngre. Minst tre dagar med giltiga värden behövs för varje skattning i båda perioderna. Pilarna visar förbättring, stabilt, minskning eller blandad utveckling; gränsen är 0,2 på skalan 1–5. Kontinuitet jämför registrerade simpass per vecka. Mer träning är inte automatiskt bättre. Kortet beräknas utan AI och visar inte bevisad prestationsutveckling.</p></details>
         <details><summary>Checka in och följ upp passet<span>+</span></summary><p>Välj <strong>Checka in</strong> och svara utifrån hur det känns just då. Du kan ange att du ska träna, har tränat, ska tävla, har tävlat, vilar eller känner dig sjuk. Efter ett träningspass kan du svara på fartkänsla, RPE, temperatur och hur passet upplevdes. Simmarens svar och tränarens närvaro kan tillsammans skapa ett registrerat pass.</p></details>
         <details><summary>Min träning och veckoplanering<span>+</span></summary><p>I <strong>Min träning den här veckan</strong> kan du planera vilka dagar du tänker träna och markera genomförda pass. Under <strong>Veckoplanering</strong> ser du planerade simpass, styrka, landträning och kalenderaktiviteter för din grupp. Kalenderhändelser kan innehålla tid, plats och samling.</p></details>
         <details><summary>Poäng, stjärnor och artefakter<span>+</span></summary><p>Poäng ges för positiva appvanor, till exempel planering, pepp, spel, mål och genomförd träning. Träningsstjärnorna visar fyra vanor: planerad vecka, aktiva styrke- och landmål, simmål och att följa simplanen över de senaste fyra avslutade veckorna. En stjärna ger 1 poäng när den låses upp. Artefakter tilldelas av tränaren och ger normalt 5 poäng.</p></details>
@@ -948,11 +950,7 @@ function Home({ code, responses, responsesLoaded = false, profile, points, notif
   const hasYesterdayCheckin = profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === yesterdayKey)
   let hasLocalYesterdayCheckin = false
   if (profile) { try { hasLocalYesterdayCheckin = window.localStorage.getItem(`simkoll-late-checkin:${profile.id}:${yesterdayKey}`) === 'done' } catch { /* Storage is optional. */ } }
-  const latestTodayResponse = todayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a))[0]
-  const raceBeforeToday = todayResponses.some((response) => response.competition === true && response.type === 'before')
-  const raceAfterToday = todayResponses.some((response) => response.competition === true && response.type === 'after')
-  const raceFollowUp = raceBeforeToday && !raceAfterToday
-  const followUp = latestTodayResponse?.type === 'before' && latestTodayResponse?.speedFeeling == null && !raceFollowUp
+  const { followUp, raceFollowUp } = checkinFollowUp(profile ? todayResponses.filter((item) => item.profileId === profile.id) : [], todayKey())
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
   // already present in the UI so a just-submitted check-in is shown instantly.
@@ -997,7 +995,7 @@ function Home({ code, responses, responsesLoaded = false, profile, points, notif
       </SwimmerHeroCarousel>
       {profile && points?.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}
 
-      {profile && responses.some((item) => dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses} />}
+      {profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses.filter((item) => item.profileId === profile.id)} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={!hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
@@ -1168,16 +1166,9 @@ function DevelopmentTalkCard({ talk, onOpen }) {
 }
 
 function DailyProgressCard({ responses }) {
-  const todayResponse = responses.filter((item) => dateKey(responseDate(item)) === todayKey()).sort((a, b) => responseDate(b) - responseDate(a))[0]
+  const todayResponse = latestCheckinForDay(responses, todayKey())
   const todayDone = Boolean(todayResponse)
-  const status = todayResponse?.type === 'before' && todayResponse.speedFeeling != null
-    ? 'ska tävla'
-    : todayResponse?.type === 'after' && todayResponse.speedFeeling != null
-      ? 'har tävlat'
-    : todayResponse?.type === 'before' ? 'ska träna'
-      : todayResponse?.type === 'after' ? 'har simmat'
-        : todayResponse?.type === 'sick' ? 'känner sig sjuk'
-          : todayResponse?.type === 'rest' ? 'vilar idag' : null
+  const status = checkinStatus(todayResponse)
   return <section className="daily-progress-card"><div><p className="eyebrow">Din status idag</p><h2>{todayDone ? 'Du är incheckad ✓' : 'Hur är läget?'}</h2><small>{todayDone ? `Senaste status: ${status || 'svar registrerat'}` : 'En snabb check-in hjälper dig och tränaren.'}</small></div></section>
 }
 
@@ -2520,7 +2511,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
     ]).then(([data, currentResponses]) => {
       if (!active) return
       const dayResponses = currentResponses.filter((item) => dateKey(responseDate(item)) === date)
-      setCheckinResponses(dayResponses.slice().sort((a, b) => responseDate(b) - responseDate(a)))
+      setCheckinResponses(dayResponses.slice().sort(compareCheckinsNewest))
       setAttendance(attendanceFromCheckins(data.attendance || [], dayResponses))
     }).catch((error) => { if (active && open) window.alert(error.message || 'Kunde inte hämta närvaron.') })
       .finally(() => { if (active) setLoading(false) })
@@ -2867,8 +2858,10 @@ function TrendLineChart({ items }) {
   return <div className="trend-line-section"><div className="trend-line-filter"><strong>Visa i diagrammet</strong>{metrics.map((metric) => <button type="button" className={visible[metric.key] ? 'active' : ''} key={metric.key} onClick={() => setVisible((current) => ({ ...current, [metric.key]: !current[metric.key] }))}><i style={{ background: metric.color }} />{metric.label}</button>)}</div><div className="trend-line-wrap"><svg className="trend-line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Träningsupplevelse per genomfört pass">{[0, 1, 2, 3, 4, 5].map((tick) => <g key={tick}><line x1={left} x2={width - right} y1={y(tick, 5)} y2={y(tick, 5)} /><text x={left - 8} y={y(tick, 5) + 3}>{tick}</text></g>)}{metrics.map((metric) => lineSegments(metric).map((segment, segmentIndex) => <polyline key={`${metric.key}-${segmentIndex}`} className={`trend-line-${metric.key}`} points={segment.map((point) => `${x(point.index)},${y(point.value, metric.max)}`).join(' ')} fill="none" stroke={metric.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />))}{metrics.map((metric) => visible[metric.key] && items.map((item, index) => { const value = Number(item[metric.key]); return Number.isFinite(value) ? <circle key={`${metric.key}-${index}`} className={`trend-dot-${metric.key}`} cx={x(index)} cy={y(value, metric.max)} r="4" fill={metric.color} onMouseEnter={() => setHoverIndex(index)} onMouseLeave={() => setHoverIndex(null)} /> : null }))}{items.map((item, index) => <text className="trend-x-label" key={`${item.date}-${index}`} x={x(index)} y={height - 10}>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</text>)}</svg></div>{hoverIndex != null && <div className="trend-hover-card"><strong>{new Date(`${items[hoverIndex].date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong>{metrics.filter((metric) => visible[metric.key]).map((metric) => Number.isFinite(Number(items[hoverIndex][metric.key])) && <span key={metric.key}><i style={{ background: metric.color }} />{metric.label}: {metric.key === 'distanceMeters' ? `${Number(items[hoverIndex][metric.key]).toLocaleString('sv-SE')} m` : items[hoverIndex][metric.key]}</span>)}</div>}<div className="trend-line-legend">{metrics.map((metric) => <span key={metric.key}><i style={{ background: metric.color }} />{metric.label}</span>)}</div><div className="trend-pass-list">{items.map((item, index) => <article key={`${item.date}-${index}`}><strong>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><span>{item.title}{item.focus ? ` · ${item.focus}` : ''}{item.sessionSlots?.length ? ` · ${item.sessionSlots.map((slot) => slotLabels[slot] || slot).join(' + ')}` : ''}</span><small>{[item.distanceMeters && `${Number(item.distanceMeters).toLocaleString('sv-SE')} m`, item.durationMinutes && `${item.durationMinutes} min`, `${item.count} svar`].filter(Boolean).join(' · ')}</small></article>)}</div></div>
 }
 
-function GroupTrendIndicator({ trend }) {
+function GroupTrendIndicator({ trend, personal = false }) {
   if (!trend) return null
+  const heading = personal ? 'Simmarens riktning' : 'Gruppens riktning'
+  const directionHelp = personal ? 'Jämför simmarens skattade känsla och kropp med föregående lika långa period. Minst tre dagar med giltiga värden krävs i båda perioderna. Varje dag väger lika. Gränsen för förändring är 0,2 på skalan 1–5.' : HELP_TEXT['Gruppens riktning']
   const states = {
     up: { arrow: '↗', title: 'Träningsläget förbättras', label: 'Ökar' },
     down: { arrow: '↘', title: 'Träningsläget har sjunkit', label: 'Minskar' },
@@ -2888,15 +2881,15 @@ function GroupTrendIndicator({ trend }) {
   const delta = (value) => value == null ? 'För lite underlag' : `${value > 0 ? '+' : ''}${number(value)}`
   const date = (value) => new Date(`${value}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
   const lastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return date(dateKey(day)) }
-  return <section className={`group-trend-indicator trend-state-${trend.state}`} aria-label="Gruppens trend för vald period">
+  return <section className={`group-trend-indicator trend-state-${trend.state}`} aria-label={`${heading} för vald period`}>
     <div className="group-trend-heading">
-      <span className="group-trend-direction" tabIndex="0" title={HELP_TEXT['Gruppens riktning']} aria-label={`${state.label}. ${HELP_TEXT['Gruppens riktning']}`}>{state.arrow}</span>
-      <div><p className="eyebrow">Gruppens riktning <HelpTip term="Gruppens riktning" /></p><h3>{state.title}</h3><p>{date(trend.periods.start)}–{lastDay(trend.periods.end)} jämfört med {date(trend.periods.previousStart)}–{lastDay(trend.periods.previousEnd)}</p></div>
+      <span className="group-trend-direction" tabIndex="0" title={directionHelp} aria-label={`${state.label}. ${directionHelp}`}>{state.arrow}</span>
+      <div><p className="eyebrow">{heading} <HelpTip term={heading} /></p><h3>{state.title}</h3><p>{date(trend.periods.start)}–{lastDay(trend.periods.end)} jämfört med {date(trend.periods.previousStart)}–{lastDay(trend.periods.previousEnd)}</p></div>
     </div>
     <div className="group-trend-values">
       <div><span>Känsla <HelpTip term="Förändring i känsla" /></span><strong title={HELP_TEXT['Förändring i känsla']}>{delta(trend.changes.feeling)}</strong><small>{number(trend.previous.metrics.feeling.value)} → {number(trend.current.metrics.feeling.value)} av 5</small></div>
       <div><span>Kroppen <HelpTip term="Förändring i kroppen" /></span><strong title={HELP_TEXT['Förändring i kroppen']}>{delta(trend.changes.body)}</strong><small>{number(trend.previous.metrics.body.value)} → {number(trend.current.metrics.body.value)} av 5</small></div>
-      <div className={`group-trend-continuity trend-state-${continuity.state}`}><span>Kontinuitet <HelpTip term="Gruppens kontinuitet" /></span><strong tabIndex="0" title={HELP_TEXT['Gruppens kontinuitet']} aria-label={`${continuityState.label}. ${HELP_TEXT['Gruppens kontinuitet']}`}><span aria-hidden="true">{continuityState.arrow} </span>{continuityState.label}</strong><small>{continuity.state === 'insufficient' ? 'Fler registrerade pass behövs' : `${number(continuity.previous)} → ${number(continuity.current)} pass / simmare / vecka`}</small></div>
+      <div className={`group-trend-continuity trend-state-${continuity.state}`}><span>Kontinuitet <HelpTip term={personal ? 'Simmarens kontinuitet' : 'Gruppens kontinuitet'} /></span><strong tabIndex="0" title={HELP_TEXT[personal ? 'Simmarens kontinuitet' : 'Gruppens kontinuitet']} aria-label={`${continuityState.label}. ${HELP_TEXT[personal ? 'Simmarens kontinuitet' : 'Gruppens kontinuitet']}`}><span aria-hidden="true">{continuityState.arrow} </span>{continuityState.label}</strong><small>{continuity.state === 'insufficient' ? 'Fler registrerade pass behövs' : `${number(continuity.previous)} → ${number(continuity.current)} pass / simmare / vecka`}</small></div>
     </div>
     {volume && <div className="group-trend-volume">
       <div className={`group-trend-volume-card trend-state-${volume.meters.state}`}><span>Planerade simmeter i gruppen <HelpTip term="Simmeter i Grupptrend" /></span><strong tabIndex="0" title={HELP_TEXT['Simmeter i Grupptrend']}><b aria-hidden="true">{metersState.arrow}</b> {whole(volume.current.metersPerWeek)} m</strong><small>{volume.meters.state === 'insufficient' ? 'Ingen planeringsdata för jämförelseperioderna' : `${whole(volume.previous.metersPerWeek)} → ${whole(volume.current.metersPerWeek)} m / vecka · ${percent(volume.meters.percent)}`}</small></div>
@@ -2904,14 +2897,14 @@ function GroupTrendIndicator({ trend }) {
       <details className="group-trend-volume-breakdown"><summary>Visa tidsfördelning <HelpTip term="Träningstidens uppdelning" /></summary><p>Vald period · gruppens planerade minuter per vecka</p><div><span>🏊 Simning <strong>{whole(volume.current.minutesByType.swim)} min</strong></span><span>🏋️ Gym <strong>{whole(volume.current.minutesByType.strength)} min</strong></span><span>🤸 Land <strong>{whole(volume.current.minutesByType.dryland)} min</strong></span></div><p>Föregående period · gruppens planerade minuter per vecka</p><div><span>🏊 Simning <strong>{whole(volume.previous.minutesByType.swim)} min</strong></span><span>🏋️ Gym <strong>{whole(volume.previous.minutesByType.strength)} min</strong></span><span>🤸 Land <strong>{whole(volume.previous.minutesByType.dryland)} min</strong></span></div><small>Summan hämtas direkt från planeringen och räknar varje aktivitet en gång. Träningsloggen visar individuell registrering separat.</small><small>Loggens genomsnitt för simmeter per simmare: {whole(volume.registered.current.metersPerSwimmerWeek)} m denna period, {whole(volume.registered.previous.metersPerSwimmerWeek)} m föregående period.</small></details>
     </div>}
     <details className="group-trend-explanation"><summary>Så läser du riktningen <span aria-hidden="true">⌄</span></summary>
-      <div><p>Varje dags genomsnitt väger lika. En förändring på minst 0,2 på skalan 1–5 ger en riktning. Om känsla och kropp förändras åt motsatta håll visas blandad utveckling.</p>
+      {personal ? <div><p>{directionHelp}</p><p>↗ förbättring, → stabilt, ↘ minskning och ↕ blandad utveckling. Om känsla och kropp går åt motsatta håll visas blandad utveckling.</p><p>Underlag: känsla {trend.current.metrics.feeling.days} / {trend.previous.metrics.feeling.days} dagar, kropp {trend.current.metrics.body.days} / {trend.previous.metrics.body.days} dagar (vald / föregående period).</p><p>Kontinuitet: {continuity.currentPasses} mot {continuity.previousPasses} registrerade simpass. Antalet räknas om till pass per vecka; mer träning är inte automatiskt bättre.</p>{trend.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : <div><p>Varje dags genomsnitt väger lika. En förändring på minst 0,2 på skalan 1–5 ger en riktning. Om känsla och kropp förändras åt motsatta håll visas blandad utveckling.</p>
         <p>Varje skattning behöver minst sex giltiga svar i båda perioderna, normalt över minst två dagar. Underlaget ska omfatta minst tre profilkopplade simmare eller sex anonyma svar. En enskild dag kräver också minst sex svar.</p>
         <p>Vald period: {trend.current.responses} svar, varav {trend.current.anonymousResponses} anonyma och {trend.current.linkedSwimmers} profilkopplade simmare. Föregående period: {trend.previous.responses} svar, varav {trend.previous.anonymousResponses} anonyma och {trend.previous.linkedSwimmers} profilkopplade simmare.</p>
         <p>Kontinuitet: {continuity.currentPasses} mot {continuity.previousPasses} registrerade simpass för samma {continuity.swimmers} simmare. Antalet normaliseras per vecka. Skillnader under 0,15 pass per simmare och vecka visas som stabila. Mer träning behöver bedömas mot gruppens planering.</p>
         <p>Volympilarna jämför gruppens planerade simmeter och träningstid per vecka. Förändringar inom ±5 % visas som stabila. Ökad planerad mängd betyder inte automatiskt bättre utveckling; volymen påverkar inte huvudriktningen för känsla och kropp.</p>
         <p>Meter och minuter summeras direkt från planeringen, inklusive simning, styrketräning och landträning. Länkade aktiviteter räknas bara en gång. Värdena beskriver planerad mängd för gruppen, inte faktisk individuell träning. I tidsfördelningen visas även träningsloggens genomsnitt per simmare som ett separat mått.</p>
         {trend.warnings.map((warning) => <p className="group-trend-warning" key={warning}>{warning}</p>)}
-      </div>
+      </div>}
     </details>
     {trend.warnings.length > 0 && <p className="group-trend-caveat">Det finns information om underlaget – öppna förklaringen för detaljer.</p>}
   </section>
@@ -2969,7 +2962,7 @@ function AnalysisDashboard({ code, profile, pointInfo, onBack, selfView = false,
   const strengthGoal = data?.crossProgress?.strength || data?.currentCrossGoals?.strength
   const drylandGoal = data?.crossProgress?.dryland || data?.currentCrossGoals?.dryland
   const goalNote = (goal) => goal ? `Mål ${goal.expected ?? goal.target} · ${goal.percentage}%` : 'Inget mål för perioden'
-  return <section className="analysis-dashboard">{onBack && <button className="back-button inline" onClick={onBack}>← Alla simmare</button>}<div className="period-heading"><div><p className="eyebrow">{profile ? 'Endast svar kopplade till profilen' : 'Anonym sammanställning på gruppnivå'}</p><h2>{profile ? `${profile.emoji} ${profile.displayName}` : 'Gruppens utveckling'}</h2></div>{profile && pointInfo && <PointProgress info={pointInfo} compact />}</div><nav className="analysis-periods">{ANALYSIS_PERIODS.map((item) => <button className={period === item.key ? 'active' : ''} key={item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}</nav>{error ? <p className="form-error">{error}</p> : !data ? <section className="empty-period"><span>≈</span><h2>Hämtar statistik…</h2></section> : <>{!profile && <GroupTrendIndicator trend={data.groupTrend} />}<div className="analysis-metrics"><Metric title="Incheckningar" metric="checkins" /><Metric title="Aktiva dagar" metric="activeDays" /><Metric title="Sjukdagar" metric="sickDays" /><Metric title="Vilodagar" metric="restDays" /><Metric title="Känsla" metric="feeling" suffix="/5" /><Metric title="Kroppen" metric="body" suffix="/5" /><Metric title="RPE" metric="rpe" suffix="/10" /><Metric title="Fartkänsla" metric="speedFeeling" suffix="/5" /><Metric title="Passet" metric="passRating" suffix="/5" /> <Metric title="Personbästa" metric="personalBests" note="Nya Tempus-resultat" /></div>{data.privacyLimited && <p className="privacy-limit">🔒 Minst tre gruppsvar behövs för att visa genomsnitt.</p>}<div className="analysis-columns"><section className="coach-card trend-card"><p className="eyebrow">Över tid</p><h2>Träningsupplevelsen över tid</h2>{data.trend.length ? <div className="trend-bars">{data.trend.map((item) => <div key={item.date}><div><i className="feeling-bar" style={{ height: `${(item.feeling || 0) * 18}%` }} title={`Känsla ${item.feeling ?? 'dold'}`} /><i className="body-bar" style={{ height: `${(item.body || 0) * 18}%` }} title={`Kropp ${item.body ?? 'dold'}`} /><i className="rpe-bar" style={{ height: `${(item.rpe || 0) * 9}%` }} title={`RPE ${item.rpe ?? 'dold'}`} /><i className="speed-bar" style={{ height: `${(item.speedFeeling || 0) * 18}%` }} title={`Fartkänsla ${item.speedFeeling ?? 'dold'}`} /><i className="pass-bar" style={{ height: `${(item.passRating || 0) * 18}%` }} title={`Passet ${item.passRating ?? 'dold'}`} /></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small><b>{item.count}</b></div>)}</div> : <p className="empty">Ingen data under perioden.</p>}<div className="chart-legend"><span><i className="legend-feeling" /> Känsla</span><span><i className="legend-body" /> Kropp</span><span><i className="legend-rpe" /> RPE</span><span><i className="legend-speed" /> Fartkänsla</span><span><i className="legend-pass" /> Passet</span></div></section><section className="coach-card training-summary"><p className="eyebrow">Registrerad träning</p><h2>Genomförda pass</h2><div><p><span>🏊</span><strong>{data.current.swimSessions}</strong><small>Simpass</small><em>{goalNote(swimGoal)}</em></p><p><span>🏋️</span><strong>{data.current.strengthSessions}</strong><small>Styrkepass</small><em>{goalNote(strengthGoal)}</em></p><p><span>🤸</span><strong>{data.current.drylandSessions}</strong><small>Landpass</small><em>{goalNote(drylandGoal)}</em></p></div></section></div>{profile && <section className="coach-card analysis-comments"><p className="eyebrow">Profilsvar</p><h2>Kommentarer under perioden</h2>{data.recent.length ? data.recent.map((item) => <blockquote key={`${item.date}-${item.comment}`}>{FEELINGS[item.feeling - 1]?.emoji} “{item.comment}” <small>{new Date(item.date).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></blockquote>) : <p className="empty">Inga profilkopplade kommentarer under perioden.</p>}</section>}</>}</section>
+  return <section className="analysis-dashboard">{onBack && <button className="back-button inline" onClick={onBack}>← Alla simmare</button>}<div className="period-heading"><div><p className="eyebrow">{profile ? 'Endast svar kopplade till profilen' : 'Anonym sammanställning på gruppnivå'}</p><h2>{profile ? `${profile.emoji} ${profile.displayName}` : 'Gruppens utveckling'}</h2></div>{profile && pointInfo && <PointProgress info={pointInfo} compact />}</div><nav className="analysis-periods">{ANALYSIS_PERIODS.map((item) => <button className={period === item.key ? 'active' : ''} key={item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}</nav>{error ? <p className="form-error">{error}</p> : !data ? <section className="empty-period"><span>≈</span><h2>Hämtar statistik…</h2></section> : <>{!selfView && <GroupTrendIndicator trend={profile ? data.swimmerTrend : data.groupTrend} personal={Boolean(profile)} />}<div className="analysis-metrics"><Metric title="Incheckningar" metric="checkins" /><Metric title="Aktiva dagar" metric="activeDays" /><Metric title="Sjukdagar" metric="sickDays" /><Metric title="Vilodagar" metric="restDays" /><Metric title="Känsla" metric="feeling" suffix="/5" /><Metric title="Kroppen" metric="body" suffix="/5" /><Metric title="RPE" metric="rpe" suffix="/10" /><Metric title="Fartkänsla" metric="speedFeeling" suffix="/5" /><Metric title="Passet" metric="passRating" suffix="/5" /> <Metric title="Personbästa" metric="personalBests" note="Nya Tempus-resultat" /></div>{data.privacyLimited && <p className="privacy-limit">🔒 Minst tre gruppsvar behövs för att visa genomsnitt.</p>}<div className="analysis-columns"><section className="coach-card trend-card"><p className="eyebrow">Över tid</p><h2>Träningsupplevelsen över tid</h2>{data.trend.length ? <div className="trend-bars">{data.trend.map((item) => <div key={item.date}><div><i className="feeling-bar" style={{ height: `${(item.feeling || 0) * 18}%` }} title={`Känsla ${item.feeling ?? 'dold'}`} /><i className="body-bar" style={{ height: `${(item.body || 0) * 18}%` }} title={`Kropp ${item.body ?? 'dold'}`} /><i className="rpe-bar" style={{ height: `${(item.rpe || 0) * 9}%` }} title={`RPE ${item.rpe ?? 'dold'}`} /><i className="speed-bar" style={{ height: `${(item.speedFeeling || 0) * 18}%` }} title={`Fartkänsla ${item.speedFeeling ?? 'dold'}`} /><i className="pass-bar" style={{ height: `${(item.passRating || 0) * 18}%` }} title={`Passet ${item.passRating ?? 'dold'}`} /></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small><b>{item.count}</b></div>)}</div> : <p className="empty">Ingen data under perioden.</p>}<div className="chart-legend"><span><i className="legend-feeling" /> Känsla</span><span><i className="legend-body" /> Kropp</span><span><i className="legend-rpe" /> RPE</span><span><i className="legend-speed" /> Fartkänsla</span><span><i className="legend-pass" /> Passet</span></div></section><section className="coach-card training-summary"><p className="eyebrow">Registrerad träning</p><h2>Genomförda pass</h2><div><p><span>🏊</span><strong>{data.current.swimSessions}</strong><small>Simpass</small><em>{goalNote(swimGoal)}</em></p><p><span>🏋️</span><strong>{data.current.strengthSessions}</strong><small>Styrkepass</small><em>{goalNote(strengthGoal)}</em></p><p><span>🤸</span><strong>{data.current.drylandSessions}</strong><small>Landpass</small><em>{goalNote(drylandGoal)}</em></p></div></section></div>{profile && <section className="coach-card analysis-comments"><p className="eyebrow">Profilsvar</p><h2>Kommentarer under perioden</h2>{data.recent.length ? data.recent.map((item) => <blockquote key={`${item.date}-${item.comment}`}>{FEELINGS[item.feeling - 1]?.emoji} “{item.comment}” <small>{new Date(item.date).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></blockquote>) : <p className="empty">Inga profilkopplade kommentarer under perioden.</p>}</section>}</>}</section>
 }
 
 function AiAnalysisPeriod({ insight }) {
@@ -4194,8 +4187,8 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     .sort((a, b) => {
       const latestToday = (profile) => responses
         .filter((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey())
-        .sort((first, second) => responseDate(second) - responseDate(first))[0]
-      const activityRank = (item) => item?.type === 'after' ? 3 : item?.type === 'before' && item.speedFeeling != null ? 2 : item ? 1 : 0
+        .sort(compareCheckinsNewest)[0]
+      const activityRank = (item) => item?.type === 'after' ? 3 : item?.type === 'before' && item.competition === true ? 2 : item ? 1 : 0
       return activityRank(latestToday(b)) - activityRank(latestToday(a)) || a.displayName.localeCompare(b.displayName, 'sv')
     })
   const grantArtifact = async (profile, artifact) => {
@@ -4248,7 +4241,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       {reset && <div className="reset-banner"><span>{reset.profile.emoji}</span><div><small>Engångskod för {reset.profile.displayName} · giltig 30 minuter</small><strong>{reset.code}</strong></div><button onClick={() => setReset(null)}>×</button></div>}
       {visibleProfiles.length ? <div className="swimmer-grid">{visibleProfiles.map((profile) => {
         const items = responses.filter((item) => item.profileId === profile.id)
-        const todayItem = items.filter((item) => dateKey(responseDate(item)) === todayKey()).sort((a, b) => responseDate(b) - responseDate(a))[0]
+        const todayItem = latestCheckinForDay(items, todayKey())
         const after = items.filter((item) => item.type === 'after')
         const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
         const profileStars = currentStarState(training, profile.id)
@@ -4257,10 +4250,10 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const weekStartDate = dateKey(weekStart(new Date()))
         const profileSessions = training?.sessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
         const hasSwimToday = profileSessions.some((item) => item.type === 'swim' && item.date === todayKey())
-        const raceBefore = todayItem?.type === 'before' && todayItem.speedFeeling != null
-        const raceAfter = todayItem?.type === 'after' && todayItem.speedFeeling != null
-        const status = hasSwimToday ? ['after', '✓ Har tränat idag'] : todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: [raceBefore ? 'race' : 'before', raceBefore ? '🏁 Ska tävla idag' : '→ Ska träna idag'], after: [raceAfter ? 'race' : 'after', raceAfter ? '🏅 Har tävlat idag' : '✓ Har tränat idag'] }[todayItem.type])
-        const attention = hasSwimToday ? '🏊 Tränat idag' : raceBefore ? '🏁 Ska tävla idag' : raceAfter ? '🏅 Har tävlat idag' : todayItem?.type === 'after' ? '🏊 Tränat idag' : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
+        const raceBefore = todayItem?.type === 'before' && todayItem.competition === true
+        const raceAfter = todayItem?.type === 'after' && todayItem.competition === true
+        const status = hasSwimToday && !todayItem ? ['after', '✓ Har tränat idag'] : todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: [raceBefore ? 'race' : 'before', raceBefore ? '🏁 Ska tävla idag' : '→ Ska träna idag'], after: [raceAfter ? 'race' : 'after', raceAfter ? '🏅 Har tävlat idag' : '✓ Har tränat idag'] }[todayItem.type])
+        const attention = hasSwimToday && !todayItem ? '🏊 Tränat idag' : raceBefore ? '🏁 Ska tävla idag' : raceAfter ? '🏅 Har tävlat idag' : todayItem?.type === 'after' ? '🏊 Tränat idag' : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
         const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
         const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
         const recentItems = items.filter((item) => { const date = responseDate(item); const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 6); return date >= cutoff })
@@ -4333,7 +4326,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
     const matching = responses.filter((item) => item.type === type.value)
     return { ...type, profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
   })
-  const latestByProfile = [...identifiedItems].sort((a, b) => responseDate(b) - responseDate(a)).reduce((result, item) => {
+  const latestByProfile = [...identifiedItems].sort(compareCheckinsNewest).reduce((result, item) => {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
   }, [])
