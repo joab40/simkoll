@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { checkinTraining, validCheckinActivity } from '../shared/checkin-activity.js'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
@@ -8,6 +9,7 @@ const numberFields = {
 }
 
 function validate(body) {
+  if (!validCheckinActivity(body)) return false
   if (!['before', 'after', 'rest', 'sick'].includes(body.type)) return false
   if (!Number.isInteger(body.feeling) || body.feeling < 1 || body.feeling > 5) return false
   if (body.pass != null && ![1, 3, 5].includes(body.pass)) return false
@@ -38,6 +40,9 @@ function toDatabase(response, profileId, activityDate, lateEntryKey = null) {
     profile_id: profileId || null,
     race_concern: response.raceConcern || null,
     competition: response.competition === true,
+    activity_type: response.activityType || null,
+    activity_minutes: response.activityMinutes ?? null,
+    activity_distance_meters: response.activityDistanceMeters ?? null,
   }
 }
 
@@ -60,6 +65,9 @@ function fromDatabase(response, includeDetails) {
     profileId: response.profile_id || null,
     raceConcern: response.race_concern || null,
     competition: response.competition === true,
+    activityType: response.activity_type || null,
+    activityMinutes: response.activity_minutes ?? null,
+    activityDistanceMeters: response.activity_distance_meters ?? null,
   }
 }
 
@@ -142,13 +150,13 @@ export default async function handler(request, response) {
             if (!tomorrowUnlock.ok) console.error(`Tomorrow workout unlock failed: ${tomorrowUnlock.status} ${await tomorrowUnlock.text()}`)
           }
         }
-        // Ett profilinloggat "efter pass" räknas automatiskt som ett genomfört
-        // simpass. Själva feedbacken kan fortfarande vara anonym (profile_id
-        // på svaret är då null), men träningsräkningen kopplas till sessionen.
-        if (request.body.type === 'after' || request.body.registerTraining === true) {
-          const slot = ['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot) ? request.body.trainingSlot : 'afternoon_swim'
+        // Explicit activity choice drives the training log. An unchecked
+        // registration toggle must not create a session. Legacy clients
+        // without activity type retain their previous behavior.
+        const trainingActivity = checkinTraining(request.body)
+        if (trainingActivity) {
           const trainingResult = await supabaseRequest('personal_training_sessions', {
-            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, activity_type: 'swim', session_slot: slot, session_date: activityDate, source: 'checkin' }),
+            method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, ...trainingActivity, session_date: activityDate, source: 'checkin' }),
           })
           if (!trainingResult.ok && trainingResult.status !== 409) console.error(`Training registration failed: ${trainingResult.status} ${await trainingResult.text()}`)
         }

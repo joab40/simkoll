@@ -5,7 +5,7 @@ const average = (rows, key) => {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
 }
 export const responseDay = (row) => row.activity_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(row.created_at))
-export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
+export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, activityType: row.activity_type || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
 
 // A check-in has no session ID. Never attach the same day's feedback to both
 // AM and PM, or count a planned workout's full distance as actually swum.
@@ -26,7 +26,7 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     let matchStatus = candidate ? 'slot' : 'unmatched'
     if (!candidate && timed.length === 0 && sessionCount === 1 && sameDay.length === 1 && (!timeOfDay || !sameDay[0].time_of_day)) { candidate = sameDay[0]; matchStatus = 'day_only' }
     if (!candidate && sameDay.length) matchStatus = 'ambiguous'
-    const dayFeedback = responses.filter((row) => responseDay(row) === day && row.day_type === 'after')
+    const dayFeedback = responses.filter((row) => responseDay(row) === day && row.day_type === 'after' && (!row.activity_type || row.activity_type === 'swim'))
     const allSessionsCount = sessions.filter((row) => row.session_date === day).length
     const feedbackLink = dayFeedback.length === 1 && allSessionsCount === 1 ? 'day_only' : dayFeedback.length ? 'ambiguous' : 'missing'
     const feedback = feedbackLink === 'day_only' ? analysisResponse(dayFeedback[0]) : null
@@ -41,9 +41,12 @@ export function individualSignals(details) {
   const trend = dates.map((date) => {
     const rows = responses.filter((row) => row.date === date)
     const after = rows.filter((row) => row.status === 'after')
+    const activityTypes = new Set(after.map((row) => row.activityType || 'unknown'))
+    const comparableAfter = activityTypes.size <= 1 ? after : []
+    const activities = after.map((row) => ({ type: row.activityType || null, minutes: row.activityMinutes ?? null, distanceMeters: row.activityDistanceMeters ?? null, comment: row.comment || '', rpe: row.rpe, passRating: row.passRating, speedFeeling: row.speedFeeling }))
     const dayPasses = passes.filter((row) => row.date === date)
     const matched = dayPasses.filter((row) => ['slot', 'day_only'].includes(row.matchStatus))
-    return { date, responses: rows.length, title: 'Dagens svar (inte ett enskilt pass)', ...Object.fromEntries(keys.map((key) => [key, average(['rpe', 'speedFeeling', 'passRating'].includes(key) ? after : rows, key)])), distanceMeters: matched.some((row) => row.distanceMeters != null) ? matched.reduce((sum, row) => sum + (row.distanceMeters || 0), 0) : null, durationMinutes: matched.some((row) => row.durationMinutes != null) ? matched.reduce((sum, row) => sum + (row.durationMinutes || 0), 0) : null }
+    return { date, responses: rows.length, title: 'Dagens upplevelse', activities, mixedActivities: activityTypes.size > 1, ...Object.fromEntries(keys.map((key) => [key, average(['rpe', 'speedFeeling', 'passRating'].includes(key) ? comparableAfter : rows, key)])), distanceMeters: matched.some((row) => row.distanceMeters != null) ? matched.reduce((sum, row) => sum + (row.distanceMeters || 0), 0) : null, durationMinutes: matched.some((row) => row.durationMinutes != null) ? matched.reduce((sum, row) => sum + (row.durationMinutes || 0), 0) : null }
   })
   const focusMap = new Map()
   passes.forEach((row) => {
@@ -59,7 +62,7 @@ export function individualSignals(details) {
   const volume = { workouts: passes.length, matchedWorkouts: matched.length, unmatchedWorkouts: passes.length - matched.length, distanceMeters: matched.some((row) => row.distanceMeters != null) ? matched.reduce((sum, row) => sum + (row.distanceMeters || 0), 0) : null, durationMinutes: matched.some((row) => row.durationMinutes != null) ? matched.reduce((sum, row) => sum + (row.durationMinutes || 0), 0) : null, basis: 'Planerade meter/minuter för entydigt kopplade registrerade simpass. Inte uppmätt faktisk mängd och inte total tid inklusive gym/land. Saknade värden betyder inte noll.' }
   const evidence = []
   const add = (source, date, text) => { if (date && text) evidence.push({ id: `e${evidence.length + 1}`, source, date, text: String(text).slice(0, 1500) }) }
-  responses.forEach((row) => add('checkin', row.date, `${row.status}: ${keys.filter((key) => row[key] != null).map((key) => `${key}=${row[key]}`).join(', ')}${row.comment ? `; Kommentar: ${row.comment}` : ''}`))
+  responses.forEach((row) => add('checkin', row.date, `${row.status} (${row.activityType || 'träningstyp ej angiven'}; rapporterad tid ${row.activityMinutes ?? 'saknas'} min, distans ${row.activityDistanceMeters ?? 'saknas'} m): ${keys.filter((key) => row[key] != null).map((key) => `${key}=${row[key]}`).join(', ')}${row.comment ? `; Kommentar: ${row.comment}` : ''}`))
   passes.forEach((row) => add('workout', row.date, `${row.title}; fokus ${row.focus || 'saknas'}; ${row.sessionSlot}; passkoppling ${row.matchStatus}; feedbackkoppling ${row.feedbackLink}. Planerade meter ${row.distanceMeters ?? 'saknas'}, minuter ${row.durationMinutes ?? 'saknas'}. ${row.content || ''} ${row.note || ''}`))
   ;(details.coachNotes || []).forEach((row) => add('coach_note', row.date, row.text))
   ;(details.strengthLogs || []).forEach((row) => add('strength', row.date, `${row.program || 'Styrka'} pass ${row.pass}; ${JSON.stringify(row.weights)}; ${row.notes || ''}`))

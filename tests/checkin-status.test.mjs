@@ -3,7 +3,7 @@ import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, 
 
 const day = '2026-10-10'
 const before = { activityDate: day, createdAt: `${day}T08:00:00Z`, type: 'before', competition: false }
-const after = { ...before, createdAt: `${day}T19:00:00Z`, type: 'after', speedFeeling: 5 }
+const after = { ...before, createdAt: `${day}T19:00:00Z`, type: 'after', speedFeeling: 5, activityType: 'swim' }
 const oldRace = { ...after, activityDate: '2026-10-04', createdAt: '2026-10-04T18:00:00Z', competition: true }
 const late = { ...oldRace, activityDate: '2026-10-09', createdAt: `${day}T22:00:00Z` }
 for (const rows of [[before, after, oldRace, late], [late, oldRace, after, before]]) {

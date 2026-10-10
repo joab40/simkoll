@@ -17,7 +17,7 @@ export function latestCheckinForDay(items, day) {
 export function checkinStatus(item) {
   if (!item) return null
   if (item.type === 'before') return item.competition === true ? 'ska tävla' : 'ska träna'
-  if (item.type === 'after') return item.competition === true ? 'har tävlat' : 'har simmat'
+  if (item.type === 'after') return item.competition === true ? 'har tävlat' : ({ swim: 'har simmat', cycling: 'har cyklat', strength: 'har styrketränat', dryland: 'har landtränat', other: 'har tränat annat' }[item.activityType] || 'har tränat')
   return { sick: 'känner sig sjuk', rest: 'vilar idag' }[item.type] || null
 }
 

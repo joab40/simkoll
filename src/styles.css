@@ -1606,6 +1606,22 @@ button { cursor: pointer; }
 .trend-bars i.pass-bar { background: #f0b45b; }
 .trend-line-section { margin: 16px 0 22px; }
 .trend-curve-note { margin: 10px 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.checkin-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.checkin-activity-grid button { padding: 18px; border: 1px solid #d8e7e4; border-radius: 16px; background: white; color: var(--ink); font: inherit; cursor: pointer; }
+.checkin-activity-grid button.active { background: #f0fad1; border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.checkin-activity-grid span { display: block; font-size: 28px; margin-bottom: 6px; }
+.checkin-activity-details { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.checkin-activity-details label { flex: 1; min-width: 130px; }
+.checkin-activity-details input { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #d8e7e4; border-radius: 12px; }
+.training-amount-section { margin-top: 22px; }
+.training-amount-section > p { color: var(--muted); font-size: 12px; }
+.training-amount-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.training-amount-grid article { border: 1px solid #d8e7e4; border-radius: 16px; padding: 14px; background: #fbfefd; }
+.training-amount-grid b, .training-amount-grid small { display: block; margin-top: 8px; }
+.training-amount-grid small, .trend-activity-note { font-size: 12px; color: var(--muted); }
+.planned-volume-label { border-top: 1px dashed #d8e7e4; padding-top: 8px; }
+.trend-activity-note { margin-top: 8px; padding-top: 8px; border-top: 1px solid #d8e7e4; }
+.trend-activity-note p { margin: 5px 0; overflow-wrap: anywhere; }
 .trend-line-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; }
 .trend-line-filter strong { width: 100%; color: var(--muted); font-size: 11px; }
 .trend-line-filter button { border: 1px solid #d8e7e4; border-radius: 999px; padding: 5px 8px; background: #fff; color: var(--muted); font-size: 10px; cursor: pointer; }

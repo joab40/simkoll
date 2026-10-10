@@ -7,7 +7,7 @@ export function attendanceFromCheckins(rows, responses) {
     if (!latest.has(item.profileId) || new Date(item.createdAt) > new Date(latest.get(item.profileId).createdAt)) latest.set(item.profileId, item)
   }
   const result = {}
-  for (const [id, item] of latest) result[id] = ['before', 'after'].includes(item.type) && item.competition !== true
+  for (const [id, item] of latest) result[id] = ['before', 'after'].includes(item.type) && item.competition !== true && (!item.activityType || item.activityType === 'swim')
   for (const row of rows) {
     const checkin = latest.get(row.profile_id)
     if (!checkin || new Date(row.marked_at) >= new Date(checkin.createdAt)) result[row.profile_id] = row.present === true
