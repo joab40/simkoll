@@ -77,6 +77,13 @@ const fallbackInsight = (data) => {
 }
 
 async function createAiInsight(request, response) {
+  const profileId = String(request.body?.profileId || '').trim()
+  if (profileId) {
+    const profileResult = await supabaseRequest(`profiles?id=eq.${encodeURIComponent(profileId)}&select=ai_analysis_status&limit=1`)
+    if (!profileResult.ok) return sendJson(response, 502, { error: 'Kunde inte kontrollera simmarens godkännandestatus.' })
+    const [profile] = await profileResult.json()
+    if (!profile || profile.ai_analysis_status !== 'approved') return sendJson(response, 403, { error: 'Personlig AI-analys kräver registrerat godkännande innan analysen kan skapas.' })
+  }
   const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
   const openAiKey = process.env.OPENAI_API_KEY
   const gatewayKey = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY
