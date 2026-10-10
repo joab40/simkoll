@@ -1605,6 +1605,7 @@ button { cursor: pointer; }
 .trend-bars i.speed-bar { background: #9b8cff; }
 .trend-bars i.pass-bar { background: #f0b45b; }
 .trend-line-section { margin: 16px 0 22px; }
+.trend-curve-note { margin: 10px 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .trend-line-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; }
 .trend-line-filter strong { width: 100%; color: var(--muted); font-size: 11px; }
 .trend-line-filter button { border: 1px solid #d8e7e4; border-radius: 999px; padding: 5px 8px; background: #fff; color: var(--muted); font-size: 10px; cursor: pointer; }
