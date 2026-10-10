@@ -1636,13 +1636,46 @@ button { cursor: pointer; }
 .trend-line-chart { display: block; min-width: 560px; width: 100%; height: 230px; overflow: visible; }
 .trend-line-chart line { stroke: #e3ecea; stroke-width: 1; }
 .trend-line-chart text { fill: var(--muted); font-size: 10px; }
+.trend-line-chart .trend-rpe-axis { text-anchor: start; fill: #b65e66; }
 .trend-line-chart .trend-x-label { text-anchor: middle; font-size: 9px; }
+.training-meter-section { margin: 18px 0; padding: 14px; border: 1px solid #dce9e5; border-radius: 16px; background: #f8fcfa; }
+.training-meter-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; }
+.training-meter-heading h3 { margin: 0; }
+.training-meter-heading p, .training-meter-footnote { display: block; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.training-meter-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 10px; }
+.training-meter-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.training-meter-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+.training-meter-legend i.reported, .training-meter-track i.reported { background: #a9d33e; }
+.training-meter-list { display: grid; gap: 8px; margin-top: 12px; }
+.training-meter-list article { display: grid; grid-template-columns: 90px minmax(0, 1fr); align-items: center; gap: 10px; }
+.training-meter-list article > strong { color: var(--ink); font-size: 11px; }
+.training-meter-values { display: grid; gap: 5px; }
+.training-meter-values > div { display: grid; grid-template-columns: 76px minmax(40px, 1fr) auto; align-items: center; gap: 7px; font-size: 10px; }
+.training-meter-values span { color: var(--muted); }
+.training-meter-values b { color: var(--ink); font-size: 10px; white-space: nowrap; }
+.training-meter-track { height: 7px; overflow: hidden; border-radius: 99px; background: #e6efec; }
+.training-meter-track i { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: var(--teal); }
+.training-meter-footnote { margin-top: 10px; }
+.training-volume-section { margin: 18px 0; padding: 14px; border: 1px solid #dce9e5; border-radius: 16px; background: #fff; }
+.training-volume-list { display: grid; gap: 10px; margin-top: 14px; }
+.training-volume-list article { display: grid; grid-template-columns: minmax(120px, 180px) minmax(80px, 1fr); align-items: center; gap: 12px; }
+.training-volume-date { display: flex; justify-content: space-between; gap: 8px; color: var(--ink); font-size: 11px; }
+.training-volume-date b { white-space: nowrap; }
+.training-volume-track { display: flex; height: 10px; overflow: hidden; border-radius: 99px; background: #e6efec; }
+.training-volume-track i { display: block; height: 100%; min-width: 2px; }
 .trend-pass-list { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; }
 .trend-pass-list article { min-width: 145px; padding: 10px; border: 1px solid #e1ece9; border-radius: 12px; background: #fbfefd; }
 .trend-pass-list strong, .trend-pass-list span, .trend-pass-list small { display: block; }
 .trend-pass-list strong { color: var(--ink); font-size: 12px; }
 .trend-pass-list span { margin-top: 3px; font-size: 11px; }
 .trend-pass-list small { margin-top: 4px; color: var(--muted); font-size: 10px; }
+@media (max-width: 600px) {
+  .training-meter-section { padding: 11px; }
+  .training-meter-list article { grid-template-columns: 1fr; gap: 5px; }
+  .training-meter-values > div { grid-template-columns: 68px minmax(30px, 1fr) auto; gap: 5px; }
+  .training-volume-section { padding: 11px; }
+  .training-volume-list article { grid-template-columns: 1fr; gap: 5px; }
+}
 .chart-legend i.legend-feeling { background: var(--aqua); }
 .chart-legend i.legend-body { background: var(--lime); }
 .chart-legend i.legend-rpe { background: #f59e9e; }
