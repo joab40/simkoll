@@ -1316,6 +1316,8 @@ button { cursor: pointer; }
 .week-cell .plan-toggle.planned { background: #dcebb0; color: #627e1d; }
 .week-cell .plan-toggle:disabled { opacity: .35; cursor: not-allowed; }
 .week-cell .plan-toggle.planned:disabled { opacity: 1; }
+.week-cell .plan-toggle.saving, .week-cell label.saving { background: #fff2cc !important; color: #765a00; cursor: wait; }
+.week-save-status { margin: 8px 0; padding: 9px 12px; border-radius: 9px; background: #eef7f5; color: var(--teal); font-size: 13px; }
 .week-cell label { min-height: 32px !important; background: transparent !important; }
 .cross-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .cross-progress > div { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: center; background: #edf5f2; border-radius: 11px; padding: 11px; }
