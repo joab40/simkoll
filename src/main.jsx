@@ -4211,6 +4211,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [expandedProfile, setExpandedProfile] = useState(null)
   const [setupHelpProfile, setSetupHelpProfile] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
+  const [swimmerTrendSummaries, setSwimmerTrendSummaries] = useState({})
   const [profilePoints, setProfilePoints] = useState({})
   const [artifactCatalog, setArtifactCatalog] = useState([])
   const [artifactAssignments, setArtifactAssignments] = useState([])
@@ -4226,6 +4227,17 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
   const loadTraining = () => apiRequest('/api/training', code).then(setTraining)
   useEffect(() => { loadTraining().catch(() => {}) }, [code])
+  useEffect(() => {
+    if (!expandedProfile) return undefined
+    let active = true
+    const range = analysisRange('7')
+    const query = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString(), previousStart: range.previousStart.toISOString(), previousEnd: (range.previousEnd || range.start).toISOString(), period: '7', profileId: expandedProfile })
+    setSwimmerTrendSummaries((current) => ({ ...current, [expandedProfile]: { loading: true, trend: current[expandedProfile]?.trend || null } }))
+    apiRequest(`/api/analytics?${query}`, code)
+      .then((data) => { if (active) setSwimmerTrendSummaries((current) => ({ ...current, [expandedProfile]: { loading: false, trend: data.swimmerTrend || null } })) })
+      .catch(() => { if (active) setSwimmerTrendSummaries((current) => ({ ...current, [expandedProfile]: { loading: false, trend: null, error: true } })) })
+    return () => { active = false }
+  }, [expandedProfile, code])
   const assignStrengthProgram = async (profileId, programId) => {
     if (!programId) return
     try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assign', programId, profileId }) }); await loadTraining() } catch (error) { window.alert(error.message) }
@@ -4342,26 +4354,13 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
         const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
         const recentItems = items.filter((item) => { const date = responseDate(item); const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 6); return date >= cutoff })
-        const trendCutoff = new Date(); trendCutoff.setHours(0, 0, 0, 0); trendCutoff.setDate(trendCutoff.getDate() - 29)
-        const trendItems = items.filter((item) => item.feeling != null && responseDate(item) >= trendCutoff && Number.isFinite(Number(item.feeling)))
-        const trendMidpoint = new Date(trendCutoff); trendMidpoint.setDate(trendMidpoint.getDate() + 15)
-        const priorTrendItems = trendItems.filter((item) => responseDate(item) < trendMidpoint)
-        const recentTrendItems = trendItems.filter((item) => responseDate(item) >= trendMidpoint)
-        const trendAverage = (rows) => rows.length ? rows.reduce((sum, item) => sum + Number(item.feeling), 0) / rows.length : null
-        const priorTrendAverage = trendAverage(priorTrendItems), recentTrendAverage = trendAverage(recentTrendItems)
-        const trendDifference = priorTrendAverage == null || recentTrendAverage == null ? null : recentTrendAverage - priorTrendAverage
-        const trendDirection = trendDifference == null || priorTrendItems.length < 2 || recentTrendItems.length < 2
-          ? { icon: '↔', label: 'Samlar underlag', tone: 'neutral' }
-          : trendDifference >= 0.35 ? { icon: '↗', label: 'Känslan stiger', tone: 'up' }
-            : trendDifference <= -0.35 ? { icon: '↘', label: 'Känslan sjunker', tone: 'down' }
-              : { icon: '→', label: 'Känslan är jämn', tone: 'neutral' }
-        const trendBuckets = [0, 1, 2, 3].map((index) => {
-          const rows = trendItems.filter((item) => {
-            const daysAgo = Math.floor((new Date(`${todayKey()}T12:00:00`).getTime() - responseDate(item).getTime()) / 86400000)
-            return Math.min(3, Math.floor(Math.max(0, daysAgo) / 7)) === 3 - index
-          })
-          return { average: trendAverage(rows), count: rows.length }
-        })
+        const trendSummary = swimmerTrendSummaries[profile.id]?.trend
+        const trendStates = { up: { arrow: '↗', title: 'Träningsläget förbättras', tone: 'up' }, down: { arrow: '↘', title: 'Träningsläget har sjunkit', tone: 'down' }, steady: { arrow: '→', title: 'Träningsläget är stabilt', tone: 'neutral' }, mixed: { arrow: '↕', title: 'Blandad utveckling', tone: 'mixed' }, insufficient: { arrow: '—', title: 'För lite underlag', tone: 'neutral' } }
+        const trendState = trendStates[trendSummary?.state] || trendStates.insufficient
+        const trendLoading = !swimmerTrendSummaries[profile.id] || swimmerTrendSummaries[profile.id].loading
+        const trendError = swimmerTrendSummaries[profile.id]?.error
+        const trendDate = (value) => new Date(`${value}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
+        const trendLastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return trendDate(dateKey(day)) }
         const lowBody = recentItems.filter((item) => Number(item.body) <= 2).length, lowFeeling = recentItems.filter((item) => Number(item.feeling) <= 2).length, sickDays = new Set(recentItems.filter((item) => item.type === 'sick').map((item) => dateKey(responseDate(item)))).size
         const plannedRecent = training?.plannedSessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
         const missedPlanned = plannedRecent.filter((item) => !profileSessions.some((session) => session.date === item.date && session.slot === item.slot)).length
@@ -4397,9 +4396,9 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} Att följa upp</strong><span>{signalReasons.join(' · ')}</span></div>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             <button type="button" className="swimmer-trend-card" onClick={() => setSelectedProfile(profile)} aria-label={`Öppna statistik för ${profile.displayName}`}>
-              <span className="swimmer-trend-heading"><span><small>Senaste 30 dagarna</small><strong>Trend</strong></span><b className={`swimmer-trend-direction ${trendDirection.tone}`}>{trendDirection.icon} {trendDirection.label}</b></span>
-              <span className="swimmer-trend-chart" aria-label="Genomsnittlig känsla vecka för vecka, skala ett till fem">{trendBuckets.map((bucket, index) => <span key={index} className={bucket.average == null ? 'empty' : ''} title={bucket.average == null ? 'Inga svar' : `Känsla ${bucket.average.toFixed(1).replace('.', ',')} av 5 · ${bucket.count} svar`}><i style={{ height: bucket.average == null ? '5px' : `${Math.max(8, bucket.average / 5 * 32)}px` }} /></span>)}</span>
-              <span className="swimmer-trend-footer"><small>{trendItems.length ? `${trendItems.length} svar · känsla ${trendAverage(trendItems).toFixed(1).replace('.', ',')}/5 i snitt` : 'Inga svar ännu'}</small><b>Visa statistik →</b></span>
+              <span className={`swimmer-trend-arrow ${trendState.tone}`} aria-hidden="true">{trendLoading && !trendSummary ? '…' : trendState.arrow}</span>
+              <span className="swimmer-trend-copy"><small>Simmarens riktning</small><strong>{trendLoading && !trendSummary ? 'Hämtar riktning…' : trendError ? 'Riktningen kunde inte hämtas' : trendState.title}</strong><span>{trendSummary?.periods ? `${trendDate(trendSummary.periods.start)}–${trendLastDay(trendSummary.periods.end)} jämfört med ${trendDate(trendSummary.periods.previousStart)}–${trendLastDay(trendSummary.periods.previousEnd)}` : 'Senaste 7 dagarna jämfört med föregående 7 dagar'}</span></span>
+              <b className="swimmer-trend-open">Öppna statistik →</b>
             </button>
             <SwimmerNotes profile={profile} code={code} />
             <div className="tempus-edit"><div><strong>Tempus-ID</strong><small>{profile.tempusId ? 'Används i Tävlingsresultat' : 'Lägg till för att koppla resultat'}</small></div><form onSubmit={(event) => { event.preventDefault(); const value = event.currentTarget.elements.tempusId.value.trim(); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-tempus-id', profileId: profile.id, tempusId: value }) }).then(() => onProfilesChange()).catch((error) => window.alert(error.message)) }}><label><input name="tempusId" inputMode="numeric" pattern="[0-9]{1,12}" maxLength="12" defaultValue={profile.tempusId || ''} placeholder="t.ex. 273688" /></label><button type="submit">Spara</button></form></div>

@@ -1136,22 +1136,18 @@ button { cursor: pointer; }
 .swimmer-setup-help p { margin: 4px 0 0; line-height: 1.4; }
 .swimmer-expand-hint { color: var(--teal); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .swimmer-card-details { padding: 0 22px 22px; }
-.swimmer-trend-card { display: grid; grid-template-columns: 1fr auto; gap: 10px 14px; width: 100%; margin: 12px 0 16px; padding: 13px 15px; border: 1px solid #dbe7e3; border-radius: 14px; background: linear-gradient(115deg, #f4faf6, #fff); color: var(--ink); text-align: left; cursor: pointer; }
+.swimmer-trend-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px 12px; width: 100%; margin: 12px 0 16px; padding: 13px 15px; border: 1px solid #dbe7e3; border-radius: 14px; background: linear-gradient(115deg, #f4faf6, #fff); color: var(--ink); text-align: left; cursor: pointer; }
 .swimmer-trend-card:hover { border-color: #a9ccc1; background: #f0f8f4; }
 .swimmer-trend-card:focus-visible { outline: 3px solid rgba(45, 126, 115, .25); outline-offset: 2px; }
-.swimmer-trend-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; grid-column: 1 / -1; }
-.swimmer-trend-heading > span { display: grid; gap: 2px; }
-.swimmer-trend-heading small, .swimmer-trend-footer small { color: var(--muted); font-size: 10px; }
-.swimmer-trend-heading strong { font: 800 16px 'Manrope', sans-serif; }
-.swimmer-trend-direction { padding: 6px 9px; border-radius: 999px; background: #edf2ef; color: #64716d; font-size: 10px; white-space: nowrap; }
-.swimmer-trend-direction.up { background: #e7f5ed; color: #287452; }
-.swimmer-trend-direction.down { background: #fff1ed; color: #a95454; }
-.swimmer-trend-chart { display: flex; align-items: end; gap: 6px; height: 38px; }
-.swimmer-trend-chart > span { display: flex; align-items: end; flex: 1; height: 100%; border-bottom: 1px solid #d9e5e1; }
-.swimmer-trend-chart i { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--teal); opacity: .78; }
-.swimmer-trend-chart > span.empty i { height: 4px !important; background: #dce5e1; }
-.swimmer-trend-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; grid-column: 1 / -1; }
-.swimmer-trend-footer b { color: var(--teal); font-size: 10px; white-space: nowrap; }
+.swimmer-trend-arrow { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #edf2ef; color: #64716d; font: 800 22px/1 'Manrope', sans-serif; }
+.swimmer-trend-copy { display: grid; gap: 3px; min-width: 0; }
+.swimmer-trend-copy small { color: var(--teal); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.swimmer-trend-copy strong { font: 800 15px 'Manrope', sans-serif; }
+.swimmer-trend-copy > span { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.swimmer-trend-arrow.up { background: #e7f5ed; color: #287452; }
+.swimmer-trend-arrow.down { background: #fff1ed; color: #a95454; }
+.swimmer-trend-arrow.mixed { background: #fff5dd; color: #8a6916; }
+.swimmer-trend-open { grid-column: 2; justify-self: end; color: var(--teal); font-size: 10px; white-space: nowrap; }
 .swimmer-card.compact .swimmer-name > span { width: 42px; height: 42px; font-size: 25px; }
 .swimmer-card.compact .swimmer-level { padding: 5px 8px; }
 .swimmer-search { display: flex; align-items: center; gap: 9px; max-width: 420px; margin: 0 0 14px; border: 1px solid #d6e2df; border-radius: 11px; background: white; padding: 0 12px; }
