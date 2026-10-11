@@ -24,6 +24,7 @@ const GAME_CATALOG = [
   { key: 'breakout', title: 'Preppe Breakout', emoji: '🧱', description: 'Slå sönder brickorna, håll bollen i spel och samla poäng.', route: 'breakout' },
   { key: 'sprint100', title: '100m Sprint', emoji: '⚡', description: 'Växla stegen, hitta rytmen och jaga din bästa tid.', route: 'sprint100' },
   { key: 'longjump', title: 'Längdhopp', emoji: '🏅', description: 'Bygg fart, sikta på 45° och landa ditt längsta hopp.', route: 'longjump' },
+  { key: 'dino', title: 'Dino Runner', emoji: '🦖', description: 'Hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
 ]
 const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const defaultGameSchedule = () => {
@@ -85,7 +86,7 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
+  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,dino)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
   const rows = (await result.json()).filter((item) => (item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE) && (item.game_key !== 'sprint100' || validSprintScore(Number(item.score))) && (item.game_key !== 'longjump' || validJumpScore(Number(item.score)))); const games = new Map()
   rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
@@ -122,7 +123,7 @@ export default async function handler(request, response) {
         const score = Number(request.body?.score)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
         if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
-        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'dino'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
         if (key === 'swimgames' && score > SWIMGAMES_MAX_SCORE) return sendJson(response, 400, { error: 'Tiden är för snabb för att vara giltig.' })
         if (key === 'sprint100' && !validSprintScore(score)) return sendJson(response, 400, { error: 'Ogiltig sprinttid.' })
         if (key === 'longjump' && !validJumpScore(score)) return sendJson(response, 400, { error: 'Ogiltig hopplängd.' })
@@ -145,7 +146,7 @@ export default async function handler(request, response) {
       if (role === 'swimmer' && action === 'reset-game-score') {
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att nollställa tiden.' })
-        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump'].includes(request.body?.gameKey) ? request.body.gameKey : null
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'dino'].includes(request.body?.gameKey) ? request.body.gameKey : null
         if (!key) return sendJson(response, 400, { error: 'Ogiltigt spel.' })
         const deleted = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}`, { method: 'DELETE' })
         if (!deleted.ok) throw new Error(`Game score reset failed: ${deleted.status}`)
@@ -253,7 +254,7 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
-    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'alltime'].includes(request.query?.game) ? request.query.game : null
+    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'dino', 'alltime'].includes(request.query?.game) ? request.query.game : null
     if (request.query?.games === 'true') {
       const schedule = await loadGameSchedule()
       if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })

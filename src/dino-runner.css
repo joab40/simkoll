@@ -1,0 +1,42 @@
+.dino-page { max-width: 1180px; margin: 0 auto; padding: 24px 0 52px; }
+.dino-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.dino-heading h1 { margin: 5px 0; font-size: clamp(30px, 4vw, 48px); letter-spacing: -1.5px; }
+.dino-heading h1 span { font-size: .75em; }
+.dino-tag { border: 1px solid #bdd2cd; border-radius: 30px; padding: 12px 16px; color: #276c69; font: 700 11px ui-monospace, monospace; letter-spacing: 1px; white-space: nowrap; }
+.dino-intro { color: #60767b; margin: 10px 0 24px; }
+.dino-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; align-items: start; }
+.dino-main, .dino-board { overflow: hidden; border: 1px solid #d4e2de; border-radius: 24px; background: #fff; box-shadow: 0 18px 44px #19364212; }
+.dino-hud { display: flex; justify-content: space-between; padding: 17px 22px; background: #102d37; color: #b9d0cf; }
+.dino-hud span { display: grid; gap: 3px; font: 700 10px ui-monospace, monospace; letter-spacing: 1.5px; }
+.dino-hud strong { color: #d3f56a; font-size: 24px; letter-spacing: 0; }
+.dino-stage { position: relative; overflow: hidden; aspect-ratio: 960 / 420; background: #b9e8e4; touch-action: manipulation; }
+.dino-stage canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+.dino-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 22px; background: #102d3788; color: white; text-align: center; backdrop-filter: blur(2px); }
+.dino-overlay > span { font-size: 36px; }
+.dino-overlay > small { margin-top: 8px; color: #d3f56a; font: 700 10px ui-monospace, monospace; letter-spacing: 2px; }
+.dino-overlay h2 { margin: 7px 0; font-size: clamp(22px, 3vw, 34px); }
+.dino-overlay p { margin: 0 0 16px; color: #e4eeee; }
+.dino-overlay .primary-button { min-height: 48px; padding-inline: 22px; }
+.dino-jump { display: none; width: 100%; border: 0; border-radius: 0; min-height: 54px; font-weight: 800; }
+.dino-save { margin: 0; padding: 12px 18px; color: #276c69; text-align: center; }
+.dino-board { padding: 24px; }
+.dino-board h2 { margin: 5px 0 18px; }
+.dino-board ol { list-style: none; padding: 0; margin: 0; }
+.dino-board li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid #e5eeeb; padding: 11px 0; }
+.dino-board li strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dino-board li b { color: #176e70; font-variant-numeric: tabular-nums; }
+.dino-board > small { display: block; margin-top: 18px; color: #6b7d80; line-height: 1.5; }
+@media (max-width: 760px) {
+  .dino-page { padding: 20px 0 36px; }
+  .dino-heading { align-items: flex-start; }
+  .dino-tag { display: none; }
+  .dino-intro { line-height: 1.5; }
+  .dino-layout { grid-template-columns: 1fr; gap: 14px; }
+  .dino-stage { aspect-ratio: 1.55; }
+  .dino-jump { display: block; }
+  .dino-overlay { padding: 12px; }
+  .dino-overlay > span { font-size: 28px; }
+  .dino-overlay p { font-size: 13px; margin-bottom: 9px; }
+  .dino-overlay .primary-button { min-height: 42px; }
+  .dino-board { padding: 18px; }
+}
