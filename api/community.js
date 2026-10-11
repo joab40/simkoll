@@ -287,7 +287,7 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       return sendJson(response, 200, { reacted: true })
     }
 
-    if (request.method === 'POST' && role === 'coach' && ['update-app-feedback', 'archive-app-feedback', 'reply-app-feedback'].includes(request.body?.action)) {
+    if (request.method === 'POST' && role === 'coach' && ['update-app-feedback', 'close-app-feedback', 'archive-app-feedback', 'reply-app-feedback'].includes(request.body?.action)) {
       if (!isSuperadminRequest(request)) return sendJson(response, 403, { error: 'Endast superadmin kan hantera appfeedback.' })
       const id = String(request.body?.id || '')
       if (!/^\d+$/.test(id)) return sendJson(response, 400, { error: 'Feedback saknar giltigt id.' })
@@ -295,18 +295,28 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       if (action === 'update-app-feedback') {
         const status = String(request.body?.status || '')
         const adminNote = String(request.body?.adminNote || '').trim()
-        if (!['new', 'in_progress', 'completed'].includes(status) || adminNote.length > 2000) return sendJson(response, 400, { error: 'Kontrollera status och intern kommentar (max 2000 tecken).' })
+        if (!['new', 'in_progress', 'completed', 'not_implementing'].includes(status) || adminNote.length > 2000) return sendJson(response, 400, { error: 'Kontrollera status och intern kommentar (max 2000 tecken).' })
         const result = await supabaseRequest(`app_feedback?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ workflow_status: status, admin_note: adminNote || null, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`App feedback update failed: ${result.status}`)
         if (!(await result.json()).length) return sendJson(response, 404, { error: 'Feedbacken kunde inte hittas.' })
         return sendJson(response, 200, { ok: true })
       }
+      if (action === 'close-app-feedback') {
+        const status = String(request.body?.status || '')
+        const adminNote = String(request.body?.adminNote || '').trim()
+        if (!['completed', 'not_implementing'].includes(status) || adminNote.length > 2000) return sendJson(response, 400, { error: 'Välj ett avslutsbeslut och en intern kommentar på högst 2000 tecken.' })
+        const now = new Date().toISOString()
+        const result = await supabaseRequest(`app_feedback?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ workflow_status: status, admin_note: adminNote || null, archived_at: now, updated_at: now }) })
+        if (!result.ok) throw new Error(`App feedback close failed: ${result.status}`)
+        if (!(await result.json()).length) return sendJson(response, 404, { error: 'Feedbacken kunde inte hittas.' })
+        return sendJson(response, 200, { ok: true })
+      }
       if (action === 'archive-app-feedback') {
         const archived = request.body?.archived === true
-        const filter = archived ? '&workflow_status=eq.completed' : ''
+        const filter = archived ? '&workflow_status=in.(completed,not_implementing)' : ''
         const result = await supabaseRequest(`app_feedback?id=eq.${id}${filter}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ archived_at: archived ? new Date().toISOString() : null, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`App feedback archive failed: ${result.status}`)
-        if (!(await result.json()).length) return sendJson(response, archived ? 409 : 404, { error: archived ? 'Feedback måste vara klarmarkerad innan den arkiveras.' : 'Feedbacken kunde inte hittas.' })
+        if (!(await result.json()).length) return sendJson(response, archived ? 409 : 404, { error: archived ? 'Feedbacken måste vara klarmarkerad eller markerad att den inte ska implementeras innan den arkiveras.' : 'Feedbacken kunde inte hittas.' })
         return sendJson(response, 200, { ok: true })
       }
       const content = String(request.body?.content || '').trim()

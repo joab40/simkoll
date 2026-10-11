@@ -2532,7 +2532,9 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const [open, setOpen] = useState(false)
   const [attendance, setAttendance] = useState({})
   const [checkinResponses, setCheckinResponses] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [attendanceLoading, setAttendanceLoading] = useState(true)
+  const [savingProfiles, setSavingProfiles] = useState(() => new Set())
+  const savingProfilesRef = useRef(new Set())
   const [sortPresent, setSortPresent] = useState(false)
   const [group, setGroup] = useState('all')
   const [lanePlannerOpen, setLanePlannerOpen] = useState(false)
@@ -2541,8 +2543,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
   const responseSignature = responses.map((item) => `${item.profileId || ''}:${item.type || ''}:${item.createdAt || ''}`).join('|')
   useEffect(() => {
     let active = true
-    setLoading(true)
-    setAttendance({})
+    setAttendanceLoading(true)
     setCheckinResponses([])
     Promise.all([
       apiRequest(`/api/profiles?attendance=true&date=${date}&slot=${slot}`, code),
@@ -2551,9 +2552,13 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
       if (!active) return
       const dayResponses = currentResponses.filter((item) => dateKey(responseDate(item)) === date)
       setCheckinResponses(dayResponses.slice().sort(compareCheckinsNewest))
-      setAttendance(attendanceFromCheckins(data.attendance || [], dayResponses))
+      const nextAttendance = attendanceFromCheckins(data.attendance || [], dayResponses)
+      setAttendance((current) => {
+        savingProfilesRef.current.forEach((profileId) => { nextAttendance[profileId] = current[profileId] })
+        return nextAttendance
+      })
     }).catch((error) => { if (active && open) window.alert(error.message || 'Kunde inte hämta närvaron.') })
-      .finally(() => { if (active) setLoading(false) })
+      .finally(() => { if (active) setAttendanceLoading(false) })
     return () => { active = false }
   }, [code, date, slot, responseSignature, open])
   const groupOrder = { ungdom_orange: 1, ungdom_svart: 2, junior: 3 }
@@ -2562,7 +2567,26 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
     return (group === 'all' ? (groupOrder[a.trainingGroup] || 9) - (groupOrder[b.trainingGroup] || 9) : 0) || a.displayName.localeCompare(b.displayName, 'sv')
   })
   const presentCount = visible.filter((profile) => attendance[profile.id]).length
-  const toggle = async (profile) => { const next = !attendance[profile.id]; setAttendance((current) => ({ ...current, [profile.id]: next })); setLoading(true); try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId: profile.id, date, slot, present: next }) }) } catch (error) { setAttendance((current) => ({ ...current, [profile.id]: !next })); window.alert(error.message) } finally { setLoading(false) } }
+  const toggle = async (profile) => {
+    const profileId = profile.id
+    if (attendanceLoading || savingProfilesRef.current.has(profileId)) return
+    const previous = Boolean(attendance[profileId])
+    const next = !previous
+    savingProfilesRef.current.add(profileId)
+    setSavingProfiles((current) => new Set(current).add(profileId))
+    setAttendance((current) => ({ ...current, [profileId]: next }))
+    try {
+      const result = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-attendance', profileId, date, slot, present: next }) })
+      if (result.attendance?.present !== next) throw new Error('Närvaron kunde inte bekräftas. Försök igen.')
+      setAttendance((current) => ({ ...current, [profileId]: result.attendance.present }))
+    } catch (error) {
+      setAttendance((current) => ({ ...current, [profileId]: previous }))
+      window.alert(error.message)
+    } finally {
+      savingProfilesRef.current.delete(profileId)
+      setSavingProfiles((current) => { const nextSaving = new Set(current); nextSaving.delete(profileId); return nextSaving })
+    }
+  }
   const checkinLabel = (item) => {
     if (!item) return 'Ej checkat in'
     const status = item.competition && item.type === 'before' ? '🏁 Ska tävla'
@@ -2573,7 +2597,7 @@ function AttendancePanel({ code, profiles, responses, date: selectedDate }) {
               : item.type === 'rest' ? '⏸️ Incheckad · Ingen träning idag' : '✓ Incheckad'
     return item.lateEntry ? `${status} · Efterregistrerad` : status
   }
-  return <section className="attendance-panel"><div className="attendance-panel-head"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under simpass'}<span>{presentCount}/{visible.length} närvarande</span></button><button type="button" className="lane-planner-button" onClick={() => setLanePlannerOpen(true)} disabled={loading || !presentCount}>🏊 Banor</button></div>{open && <div className="attendance-body"><div className="library-controls"><label>Simpass<select value={slot} onChange={(event) => setSlot(event.target.value)}><option value="morning_swim">Morgonpass</option><option value="afternoon_swim">Eftermiddag / kväll</option></select></label><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label><label className="attendance-sort"><input type="checkbox" checked={sortPresent} onChange={(event) => setSortPresent(event.target.checked)} /> Visa närvarande först</label></div><div className="attendance-list">{visible.map((profile) => { const item = checkinResponses.find((response) => response.profileId === profile.id); return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={loading} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{checkinLabel(item)}</small><b>{attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}{lanePlannerOpen && <LaneAssignmentAssistant code={code} profiles={visible.filter((profile) => attendance[profile.id])} date={date} slot={slot} onClose={() => setLanePlannerOpen(false)} />}</section>
+  return <section className="attendance-panel"><div className="attendance-panel-head"><button className="attendance-toggle" onClick={() => setOpen((value) => !value)}>{open ? '▲ Dölj närvaro' : '📋 Närvaro under simpass'}<span>{attendanceLoading ? 'Hämtar närvaro…' : `${presentCount}/${visible.length} närvarande`}</span></button><button type="button" className="lane-planner-button" onClick={() => setLanePlannerOpen(true)} disabled={attendanceLoading || savingProfiles.size > 0 || !presentCount}>🏊 Banor</button></div>{open && <div className="attendance-body"><div className="library-controls"><label>Simpass<select value={slot} onChange={(event) => setSlot(event.target.value)}><option value="morning_swim">Morgonpass</option><option value="afternoon_swim">Eftermiddag / kväll</option></select></label><label>Grupper<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="all">Alla grupper</option><option value="ungdom_orange">Ungdom Orange</option><option value="ungdom_svart">Ungdom Svart</option><option value="junior">Junior</option></select></label><label className="attendance-sort"><input type="checkbox" checked={sortPresent} onChange={(event) => setSortPresent(event.target.checked)} /> Visa närvarande först</label></div>{attendanceLoading && <p className="attendance-loading" role="status">⏳ Hämtar närvaron och check-in-svar…</p>}<div className="attendance-list">{visible.map((profile) => { const item = checkinResponses.find((response) => response.profileId === profile.id); const saving = savingProfiles.has(profile.id); return <button key={profile.id} className={attendance[profile.id] ? 'present' : ''} disabled={attendanceLoading || saving} aria-busy={saving} onClick={() => toggle(profile)}><span>{profile.emoji}</span><strong>{profile.displayName}</strong><small>{saving ? 'Sparar närvaro…' : checkinLabel(item)}</small><b>{saving ? '…' : attendance[profile.id] ? '✓' : '○'}</b></button> })}</div></div>}{lanePlannerOpen && <LaneAssignmentAssistant code={code} profiles={visible.filter((profile) => attendance[profile.id])} date={date} slot={slot} onClose={() => setLanePlannerOpen(false)} />}</section>
 }
 
 function LaneAssignmentAssistant({ code, profiles, date, slot, onClose }) {
@@ -3162,8 +3186,8 @@ function AppFeedbackManageItem({ item, archived, onSave }) {
   const [reply, setReply] = useState('')
   const [saving, setSaving] = useState(false)
   const act = async (body) => { setSaving(true); try { await onSave({ id: item.id, ...body }) } finally { setSaving(false) } }
-  const statusLabels = { new: 'Ny', in_progress: 'Pågår', completed: 'Klarmarkerad' }
-  return <article className="feedback-manage-item"><div className="feedback-manage-head"><div><strong>{item.profileEmoji ? `${item.profileEmoji} ` : ''}{item.profileName || (item.submittedByRole === 'coach' ? 'Tränare' : 'Simmare')}</strong><small>{new Date(item.createdAt).toLocaleString('sv-SE')} · {item.submittedByRole === 'coach' ? 'Tränare' : 'Simmare'}</small></div><span className={`feedback-status status-${item.status}`}>{statusLabels[item.status] || statusLabels.new}</span></div><blockquote>“{item.comment}”</blockquote>{item.rating && <small>Betyg: {item.rating}/5</small>}{item.featureRequest && <p><strong>Önskad funktion:</strong> {item.featureRequest}</p>}{item.adminNote && <p className="feedback-admin-note"><strong>Intern kommentar:</strong> {item.adminNote}</p>}{item.adminReply && <p className="feedback-admin-note"><strong>Skickat svar:</strong> {item.adminReply}</p>}{!archived && <><label className="feedback-admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="new">Ny</option><option value="in_progress">Pågår</option><option value="completed">Klarmarkerad</option></select></label><label className="feedback-admin-field"><span>Intern kommentar</span><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="Syns bara för superadmin" /></label><button type="button" className="secondary-button" disabled={saving} onClick={() => act({ action: 'update-app-feedback', status, adminNote: note })}>{saving ? 'Sparar…' : 'Spara status och kommentar'}</button>{item.profileId && item.submittedByRole === 'swimmer' && <div className="feedback-reply"><label className="feedback-admin-field"><span>Meddelande till simmaren</span><textarea value={reply} onChange={(event) => setReply(event.target.value)} maxLength={1000} disabled={Boolean(item.adminReplySentAt)} placeholder="Skriv ett privat svar…" /></label>{item.adminReplySentAt ? <small>Svar skickat {new Date(item.adminReplySentAt).toLocaleString('sv-SE')}</small> : <button type="button" className="primary-button small" disabled={saving || !reply.trim()} onClick={() => act({ action: 'reply-app-feedback', content: reply })}>{saving ? 'Skickar…' : 'Skicka svar privat'}</button>}</div>}{status === 'completed' && item.status === 'completed' && <button type="button" className="text-button" disabled={saving} onClick={() => act({ action: 'archive-app-feedback', archived: true })}>Flytta till arkiv</button>}</>}{archived && <button type="button" className="secondary-button" disabled={saving} onClick={() => act({ action: 'archive-app-feedback', archived: false })}>Återställ till aktiva</button>}</article>
+  const statusLabels = { new: 'Ny', in_progress: 'Pågår', completed: 'Klarmarkerad', not_implementing: 'Kommer inte implementeras' }
+  return <article className="feedback-manage-item"><div className="feedback-manage-head"><div><strong>{item.profileEmoji ? `${item.profileEmoji} ` : ''}{item.profileName || (item.submittedByRole === 'coach' ? 'Tränare' : 'Simmare')}</strong><small>{new Date(item.createdAt).toLocaleString('sv-SE')} · {item.submittedByRole === 'coach' ? 'Tränare' : 'Simmare'}</small></div><span className={`feedback-status status-${item.status}`}>{statusLabels[item.status] || statusLabels.new}</span></div><blockquote>“{item.comment}”</blockquote>{item.rating && <small>Betyg: {item.rating}/5</small>}{item.featureRequest && <p><strong>Önskad funktion:</strong> {item.featureRequest}</p>}{item.adminNote && <p className="feedback-admin-note"><strong>Intern kommentar:</strong> {item.adminNote}</p>}{item.adminReply && <p className="feedback-admin-note"><strong>Skickat svar:</strong> {item.adminReply}</p>}{!archived && <><label className="feedback-admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="new">Ny</option><option value="in_progress">Pågår</option><option value="completed">Klarmarkerad</option><option value="not_implementing">Kommer inte implementeras</option></select></label><label className="feedback-admin-field"><span>Intern kommentar</span><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="Syns bara för superadmin" /></label><button type="button" className="secondary-button" disabled={saving} onClick={() => act({ action: 'update-app-feedback', status, adminNote: note })}>{saving ? 'Sparar…' : 'Spara status och kommentar'}</button>{item.profileId && item.submittedByRole === 'swimmer' && <div className="feedback-reply"><label className="feedback-admin-field"><span>Meddelande till simmaren</span><textarea value={reply} onChange={(event) => setReply(event.target.value)} maxLength={1000} disabled={Boolean(item.adminReplySentAt)} placeholder="Skriv ett privat svar…" /></label>{item.adminReplySentAt ? <small>Svar skickat {new Date(item.adminReplySentAt).toLocaleString('sv-SE')}</small> : <button type="button" className="primary-button small" disabled={saving || !reply.trim()} onClick={() => act({ action: 'reply-app-feedback', content: reply })}>{saving ? 'Skickar…' : 'Skicka svar privat'}</button>}</div>}{['completed', 'not_implementing'].includes(status) && <button type="button" className="primary-button small" disabled={saving} onClick={() => act({ action: 'close-app-feedback', status, adminNote: note })}>{saving ? 'Arkiverar…' : status === 'completed' ? 'Klarmarkera och arkivera' : 'Avsluta utan implementering och arkivera'}</button>}</>}{archived && <button type="button" className="secondary-button" disabled={saving} onClick={() => act({ action: 'archive-app-feedback', archived: false })}>Återställ till aktiva</button>}</article>
 }
 
 function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'], availableGroups = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']] }) {
