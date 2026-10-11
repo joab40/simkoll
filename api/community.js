@@ -5,6 +5,7 @@ import { coachFromRequest } from '../server/coach-auth.js'
 import { queueMessagePush } from '../server/web-push.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
+const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
 
 // Modereringsmodellen är ett viktigt extra skydd, men ska inte vara enda
 // spärren för tydliga svordomar och personangrepp på svenska. Kontrollera
@@ -188,12 +189,25 @@ export default async function handler(request, response) {
       const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
       const openChatSwimmerPrivate = webappSettings.openChat?.swimmerPrivate !== false
       if (role === 'coach' && request.query?.appFeedback === 'true') {
-        const result = await supabaseRequest('app_feedback?select=rating,best_area,improve_area,feature_request,comment,created_at&order=created_at.desc&limit=1000')
+        const superadmin = isSuperadminRequest(request)
+        const columns = superadmin ? 'id,profile_id,submitted_by_role,rating,best_area,improve_area,feature_request,comment,created_at,workflow_status,admin_note,admin_reply,admin_reply_sent_at,archived_at,updated_at' : 'rating,best_area,improve_area,feature_request,comment,created_at'
+        const result = await supabaseRequest(`app_feedback?select=${columns}&order=created_at.desc&limit=1000`)
         if (!result.ok) throw new Error(`App feedback GET failed: ${result.status} ${await result.text()}`)
         const rows = await result.json()
         const counts = { ratings: {}, bestAreas: {}, improveAreas: {}, featureRequests: {} }
         rows.forEach((item) => { if (item.rating) counts.ratings[item.rating] = (counts.ratings[item.rating] || 0) + 1; if (item.best_area) counts.bestAreas[item.best_area] = (counts.bestAreas[item.best_area] || 0) + 1; if (item.improve_area) counts.improveAreas[item.improve_area] = (counts.improveAreas[item.improve_area] || 0) + 1; if (item.feature_request) counts.featureRequests[item.feature_request] = (counts.featureRequests[item.feature_request] || 0) + 1 })
-        return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: rows.filter((item) => item.comment?.trim()).map((item) => ({ comment: item.comment.trim(), createdAt: item.created_at })).slice(0, 100) })
+        const comments = rows.filter((item) => item.comment?.trim()).map((item) => ({ comment: item.comment.trim(), createdAt: item.created_at }))
+        let feedback
+        if (superadmin) {
+          const profilesResult = await supabaseRequest('profiles?select=id,display_name,username,emoji&limit=10000')
+          if (!profilesResult.ok) throw new Error(`App feedback profile lookup failed: ${profilesResult.status}`)
+          const profilesById = Object.fromEntries((await profilesResult.json()).map((item) => [item.id, item]))
+          feedback = rows.filter((item) => item.comment?.trim()).map((item) => {
+            const profile = profilesById[item.profile_id]
+            return { id: item.id, profileId: item.profile_id, profileName: profile?.display_name || profile?.username || null, profileEmoji: profile?.emoji || '', submittedByRole: item.submitted_by_role, rating: item.rating, bestArea: item.best_area, improveArea: item.improve_area, featureRequest: item.feature_request, comment: item.comment.trim(), createdAt: item.created_at, status: item.workflow_status || 'new', adminNote: item.admin_note || '', adminReply: item.admin_reply || '', adminReplySentAt: item.admin_reply_sent_at, archivedAt: item.archived_at, updatedAt: item.updated_at }
+          })
+        }
+        return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: comments.slice(0, 100), ...(superadmin ? { feedback } : {}) })
       }
       const actorKey = role === 'coach' ? `coach:${coachFromRequest(request)?.sub || 'legacy'}` : `swimmer:${profile.id}`
       const [postsResult, groupResult, profiles, messagesResult, openChatResult, reactionsResult] = await Promise.all([
@@ -271,6 +285,48 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       const added = await supabaseRequest('community_reactions?on_conflict=message_type,message_id,actor_key,emoji', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ message_type: messageType, message_id: messageId, actor_key: actorKey, emoji }) })
       if (!added.ok) throw new Error(`Reaction add failed: ${added.status}`)
       return sendJson(response, 200, { reacted: true })
+    }
+
+    if (request.method === 'POST' && role === 'coach' && ['update-app-feedback', 'archive-app-feedback', 'reply-app-feedback'].includes(request.body?.action)) {
+      if (!isSuperadminRequest(request)) return sendJson(response, 403, { error: 'Endast superadmin kan hantera appfeedback.' })
+      const id = String(request.body?.id || '')
+      if (!/^\d+$/.test(id)) return sendJson(response, 400, { error: 'Feedback saknar giltigt id.' })
+      const action = request.body.action
+      if (action === 'update-app-feedback') {
+        const status = String(request.body?.status || '')
+        const adminNote = String(request.body?.adminNote || '').trim()
+        if (!['new', 'in_progress', 'completed'].includes(status) || adminNote.length > 2000) return sendJson(response, 400, { error: 'Kontrollera status och intern kommentar (max 2000 tecken).' })
+        const result = await supabaseRequest(`app_feedback?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ workflow_status: status, admin_note: adminNote || null, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`App feedback update failed: ${result.status}`)
+        if (!(await result.json()).length) return sendJson(response, 404, { error: 'Feedbacken kunde inte hittas.' })
+        return sendJson(response, 200, { ok: true })
+      }
+      if (action === 'archive-app-feedback') {
+        const archived = request.body?.archived === true
+        const filter = archived ? '&workflow_status=eq.completed' : ''
+        const result = await supabaseRequest(`app_feedback?id=eq.${id}${filter}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ archived_at: archived ? new Date().toISOString() : null, updated_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`App feedback archive failed: ${result.status}`)
+        if (!(await result.json()).length) return sendJson(response, archived ? 409 : 404, { error: archived ? 'Feedback måste vara klarmarkerad innan den arkiveras.' : 'Feedbacken kunde inte hittas.' })
+        return sendJson(response, 200, { ok: true })
+      }
+      const content = String(request.body?.content || '').trim()
+      if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på 1–1000 tecken.' })
+      const feedbackResult = await supabaseRequest(`app_feedback?id=eq.${id}&select=id,profile_id,submitted_by_role,admin_reply,admin_reply_sent_at&limit=1`)
+      if (!feedbackResult.ok) throw new Error(`App feedback reply lookup failed: ${feedbackResult.status}`)
+      const feedback = (await feedbackResult.json())[0]
+      if (!feedback) return sendJson(response, 404, { error: 'Feedbacken kunde inte hittas.' })
+      if (!feedback.profile_id || feedback.submitted_by_role !== 'swimmer') return sendJson(response, 400, { error: 'Det går bara att svara direkt till feedback från en simmare.' })
+      if (feedback.admin_reply_sent_at) return sendJson(response, 409, { error: 'Ett svar har redan skickats för detta förslag.' })
+      const recipient = await supabaseRequest(`profiles?id=eq.${feedback.profile_id}&active=eq.true&approval_status=eq.approved&select=id&limit=1`)
+      if (!recipient.ok || !(await recipient.json()).length) return sendJson(response, 404, { error: 'Simmaren kunde inte hittas eller är inte aktiv.' })
+      const messageResult = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', recipient_profile_id: feedback.profile_id, recipient_role: 'swimmer', content: `Svar på ditt förslag: ${content}` }) })
+      if (!messageResult.ok) throw new Error(`App feedback reply message failed: ${messageResult.status}`)
+      const [message] = await messageResult.json()
+      queueMessagePush({ kind: 'private', id: message.id, profileId: feedback.profile_id })
+      const sentAt = new Date().toISOString()
+      const savedReply = await supabaseRequest(`app_feedback?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ admin_reply: content, admin_reply_sent_at: sentAt, updated_at: sentAt }) })
+      if (!savedReply.ok) throw new Error(`App feedback reply save failed: ${savedReply.status}`)
+      return sendJson(response, 200, { ok: true, sentAt })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
