@@ -5,7 +5,7 @@ const average = (rows, key) => {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
 }
 export const responseDay = (row) => row.activity_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(row.created_at))
-export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, activityType: row.activity_type || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
+export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, activityType: row.activity_type || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, plannedCompletion: row.planned_completion || null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
 
 // A check-in has no session ID. Never attach the same day's feedback to both
 // AM and PM, or count a planned workout's full distance as actually swum.

@@ -12,6 +12,7 @@ assert.equal(checkinTraining({ type: 'after', registerTraining: false }), null)
 assert.equal(checkinTraining({ type: 'after', comment: 'Cykling' }).activity_type, 'swim') // never guess historical free text
 assert.equal(checkinTraining({ type: 'after', activityType: 'strength' }).activity_type, 'strength')
 assert.equal(validCheckinActivity(cycling), true)
+assert.equal(validCheckinActivity({ activityType: 'swim', plannedCompletion: 'partial' }), true)
 for (const fields of [{ activityType: 'invalid' }, { activityMinutes: -1 }, { activityDistanceMeters: '8' }, { activityMinutes: Infinity }]) assert.equal(validCheckinActivity(fields), false)
 assert.equal(checkinStatus(cycling), 'har cyklat')
 assert.equal(attendanceFromCheckins([], [{ ...cycling, profileId: 'one', createdAt: '2026-10-10T16:00:00Z' }]).one, false)

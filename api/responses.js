@@ -10,6 +10,7 @@ const numberFields = {
 
 function validate(body) {
   if (!validCheckinActivity(body)) return false
+  if (body.plannedCompletion != null && !['full', 'partial', 'no'].includes(body.plannedCompletion)) return false
   if (!['before', 'after', 'rest', 'sick'].includes(body.type)) return false
   if (!Number.isInteger(body.feeling) || body.feeling < 1 || body.feeling > 5) return false
   if (body.pass != null && ![1, 3, 5].includes(body.pass)) return false
@@ -43,6 +44,7 @@ function toDatabase(response, profileId, activityDate, lateEntryKey = null) {
     activity_type: response.activityType || null,
     activity_minutes: response.activityMinutes ?? null,
     activity_distance_meters: response.activityDistanceMeters ?? null,
+    planned_completion: response.plannedCompletion || null,
   }
 }
 
@@ -68,6 +70,7 @@ function fromDatabase(response, includeDetails) {
     activityType: response.activity_type || null,
     activityMinutes: response.activity_minutes ?? null,
     activityDistanceMeters: response.activity_distance_meters ?? null,
+    plannedCompletion: response.planned_completion || null,
   }
 }
 
