@@ -83,7 +83,7 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     game.score += dt * 12
     // A long, readable ramp: the first seconds stay welcoming, then the
     // runner gradually reaches a pace that requires deliberate timing.
-    game.speed = Math.min(820, 330 + game.score * .55)
+    game.speed = Math.min(900, 480 + game.score * .5)
     game.distance += game.speed * dt
     game.spawnIn -= delta
     if (game.spawnIn <= 0) {
