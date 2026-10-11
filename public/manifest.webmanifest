@@ -10,7 +10,9 @@
   "background_color": "#eff6f4",
   "theme_color": "#102d37",
   "icons": [
-    { "src": "/assets/simkoll-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/assets/simkoll-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/assets/simkoll-mark-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/simkoll-mark-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/simkoll-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/simkoll-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

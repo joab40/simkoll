@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 250" role="img" aria-labelledby="title">
+  <title id="title">Simkoll – Sundsvalls Simsällskap</title>
+  <defs>
+    <clipPath id="mark-circle"><circle cx="256" cy="256" r="221.7"/></clipPath>
+  </defs>
+  <g transform="translate(22 22) scale(.4)">
+    <circle cx="256" cy="256" r="221.7" fill="#c9f05a"/>
+    <g clip-path="url(#mark-circle)" fill="none" stroke="#102d37" stroke-width="27.65" stroke-linecap="butt">
+      <path d="M105 212 C155 245 205 245 256 212 C307 179 357 179 407 212"/>
+      <path d="M105 300 C155 333 205 333 256 300 C307 267 357 267 407 300"/>
+    </g>
+  </g>
+  <text x="270" y="151" fill="#102d37" font-family="Manrope, Avenir Next, Arial, sans-serif" font-size="88" font-weight="800" letter-spacing="5">SIMKOLL</text>
+  <path d="M770 67v116" stroke="#cbd9d5" stroke-width="3"/>
+  <text x="814" y="145" fill="#52676b" font-family="Manrope, Avenir Next, Arial, sans-serif" font-size="34" font-weight="600">Sundsvalls Simsällskap</text>
+</svg>
