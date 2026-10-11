@@ -54,7 +54,7 @@ function drawScene(canvas, game) {
 }
 
 function makeGame() {
-  return { running: false, over: false, score: 0, speed: 620, distance: 0, last: 0, spawnIn: 900, dino: { height: 60, velocity: 0, grounded: true }, obstacles: [], clouds: [{ x: 180, y: 0 }, { x: 520, y: 35 }, { x: 825, y: -5 }] }
+  return { running: false, over: false, score: 0, speed: 960, distance: 0, last: 0, spawnIn: 1250, dino: { height: 60, velocity: 0, grounded: true }, obstacles: [], clouds: [{ x: 180, y: 0 }, { x: 520, y: 35 }, { x: 825, y: -5 }] }
 }
 
 export default function DinoRunner({ code, onBack, preview = false, request }) {
@@ -90,7 +90,7 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     game.score += dt * 12
     // A long, readable ramp: the first seconds stay welcoming, then the
     // runner gradually reaches a pace that requires deliberate timing.
-    game.speed = Math.min(960, 620 + game.score * .5)
+    game.speed = Math.min(1100, 960 + game.score * .2)
     game.distance += game.speed * dt
     game.spawnIn -= delta
     if (game.spawnIn <= 0) {
