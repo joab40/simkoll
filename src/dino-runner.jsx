@@ -80,13 +80,17 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     if (!game.running) return
     const delta = Math.min(40, now - (game.last || now)); game.last = now
     const dt = delta / 1000
-    game.score += dt * 12; game.speed = Math.min(680, 330 + game.score * 1.25); game.distance += game.speed * dt
+    game.score += dt * 12
+    // A long, readable ramp: the first seconds stay welcoming, then the
+    // runner gradually reaches a pace that requires deliberate timing.
+    game.speed = Math.min(820, 330 + game.score * .55)
+    game.distance += game.speed * dt
     game.spawnIn -= delta
     if (game.spawnIn <= 0) {
-      const bird = game.score > 160 && Math.random() < .22
-      const height = bird ? 86 : 48 + Math.random() * 34
+      const bird = game.score > 120 && Math.random() < Math.min(.38, .12 + game.score / 2600)
+      const height = bird ? 60 : 48 + Math.random() * (48 + Math.min(18, game.score / 40))
       game.obstacles.push({ x: WIDTH + 15, type: bird ? 'bird' : 'cactus', height, width: bird ? 52 : 42 })
-      game.spawnIn = 720 + Math.random() * 620 + Math.max(0, 250 - game.speed / 3)
+      game.spawnIn = Math.max(620, 1120 + Math.random() * 440 - Math.min(500, game.score * .42))
     }
     game.obstacles.forEach((obstacle) => { obstacle.x -= game.speed * dt })
     game.obstacles = game.obstacles.filter((obstacle) => obstacle.x > -80)
