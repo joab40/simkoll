@@ -93,7 +93,8 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     game.clouds.forEach((cloud) => { cloud.x -= game.speed * dt * .12; if (cloud.x < -70) cloud.x = WIDTH + 50 })
     const dino = game.dino
     if (!dino.grounded) { dino.velocity += 1750 * dt; dino.height -= dino.velocity * dt; if (dino.height <= 60) { dino.height = 60; dino.velocity = 0; dino.grounded = true } }
-    const left = 126 + 14, right = 126 + 66, top = GROUND - dino.height + 7, bottom = GROUND - 2
+    const left = 126 + 14, right = 126 + 66
+    const top = GROUND - dino.height + 7, bottom = GROUND - dino.height + 59
     const collision = game.obstacles.some((obstacle) => {
       const obstacleTop = GROUND - obstacle.height
       const obstacleBottom = obstacle.type === 'bird' ? obstacleTop + 28 : GROUND
