@@ -1316,7 +1316,8 @@ button { cursor: pointer; }
 .week-cell .plan-toggle.planned { background: #dcebb0; color: #627e1d; }
 .week-cell .plan-toggle:disabled { opacity: .35; cursor: not-allowed; }
 .week-cell .plan-toggle.planned:disabled { opacity: 1; }
-.week-cell .plan-toggle.saving, .week-cell label.saving { background: #fff2cc !important; color: #765a00; cursor: wait; }
+.week-cell .plan-toggle.saving, .week-cell label.saving { background: #fff2cc !important; color: #765a00; }
+.week-cell .plan-toggle.saving { cursor: pointer; }
 .week-status-slot { min-height: 48px; margin-top: 8px; }
 .week-save-status { box-sizing: border-box; min-height: 48px; display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 12px; border-radius: 9px; background: #eef7f5; color: var(--teal); font-size: 13px; }
 .week-save-status:empty { visibility: hidden; }

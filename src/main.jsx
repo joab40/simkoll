@@ -1584,6 +1584,8 @@ const WEEK_SLOTS = [
 function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState(() => new Set())
   const savingRef = useRef(new Set())
+  const planDesiredRef = useRef(new Map())
+  const planWorkersRef = useRef(new Set())
   const [cheer, setCheer] = useState('')
   const [localSessions, setLocalSessions] = useState(null)
   const [localPlans, setLocalPlans] = useState(null)
@@ -1635,20 +1637,43 @@ function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPl
       window.alert(error.message)
     } finally { setSavingKey(key, false) }
   }
-  const togglePlan = async (date, slot, checked) => {
+  const togglePlan = async (date, slot) => {
     const key = `plan-${date}-${slot}`
-    if (savingRef.current.has(key)) return
-    const previous = localPlans || training?.plannedSessions || []
-    const previousItem = previous.find((item) => item.date === date && item.slot === slot)
-    setLocalPlans((current) => { const base = current || training?.plannedSessions || []; return checked ? [...base.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, weekStart: dateKey(start) }] : base.filter((item) => !(item.date === date && item.slot === slot)) })
+    const currentPlans = localPlans || training?.plannedSessions || []
+    const previousItem = currentPlans.find((item) => item.date === date && item.slot === slot)
+    const planned = planDesiredRef.current.has(key) ? planDesiredRef.current.get(key) : Boolean(previousItem)
+    const nextValue = !planned
+    planDesiredRef.current.set(key, nextValue)
+    setLocalPlans((current) => { const base = current || training?.plannedSessions || []; return nextValue ? [...base.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, weekStart: dateKey(start) }] : base.filter((item) => !(item.date === date && item.slot === slot)) })
+    if (planWorkersRef.current.has(key)) return
+    planWorkersRef.current.add(key)
     setSavingKey(key, true)
+    let lastResult = null
+    let lastError = null
+    let finalValue = nextValue
     try {
-      const result = await onPlan(date, slot, checked)
-      setCheer(result?.message || (checked ? 'Passet är planerat! 🗓️' : 'Planeringen är uppdaterad.'))
-    } catch (error) {
-      setLocalPlans((current) => { const base = (current || training?.plannedSessions || []).filter((item) => !(item.date === date && item.slot === slot)); return previousItem ? [...base, previousItem] : base })
-      window.alert(error.message)
-    } finally { setSavingKey(key, false) }
+      while (planDesiredRef.current.has(key)) {
+        const desired = planDesiredRef.current.get(key)
+        planDesiredRef.current.delete(key)
+        finalValue = desired
+        try {
+          lastResult = await onPlan(date, slot, desired)
+          lastError = null
+        } catch (error) {
+          lastError = error
+          if (!planDesiredRef.current.has(key)) break
+        }
+      }
+      if (lastError) {
+        setLocalPlans((current) => { const base = (current || training?.plannedSessions || []).filter((item) => !(item.date === date && item.slot === slot)); return previousItem ? [...base, previousItem] : base })
+        window.alert(lastError.message)
+      } else {
+        setCheer(lastResult?.message || (finalValue ? 'Passet är planerat! 🗓️' : 'Planeringen är uppdaterad.'))
+      }
+    } finally {
+      planWorkersRef.current.delete(key)
+      setSavingKey(key, false)
+    }
   }
   const savingPlan = [...saving].some((key) => key.startsWith('plan-'))
   const savingTraining = [...saving].some((key) => !key.startsWith('plan-'))
@@ -1657,7 +1682,7 @@ function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPl
     <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button>{halloween && <span className="weekly-halloween-spider" aria-hidden="true">🕷️</span>}</div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför simmålet under de fyra senaste avslutade veckorna.</small></details>}
-    <p className="plan-hint">◆ Planerat · ✓ Genomfört</p><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const planned = plannedSessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; const planKey = `plan-${key}`; return <div className="week-cell" key={day.date}><button type="button" className={`plan-toggle ${planned ? 'planned' : ''} ${saving.has(planKey) ? 'saving' : ''}`} disabled={day.date < today || saving.has(planKey)} onClick={() => togglePlan(day.date, slot.key, !planned)} aria-busy={saving.has(planKey)} aria-label={`${saving.has(planKey) ? 'Sparar planering för' : planned ? 'Ta bort planering för' : 'Planera'} ${slot.short} ${day.date}`}>{saving.has(planKey) ? '…' : '◆'}</button><label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''} ${saving.has(key) ? 'saving' : ''}`}><input type="checkbox" disabled={day.future || saving.has(key)} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} aria-busy={saving.has(key)} /><i>{saving.has(key) ? '…' : marked ? '✓' : ''}</i></label></div> })}</div>)}</div><div className="week-status-slot"><div className="week-save-status" role="status" aria-live="polite">{savingPlan || savingTraining ? <><span aria-hidden="true">⏳</span>{savingPlan && savingTraining ? 'Sparar planering och genomförd träning…' : savingPlan ? 'Sparar din planering…' : 'Sparar genomförd träning…'}</> : cheer ? <><span aria-hidden="true">✨</span><strong>{cheer}</strong><button type="button" aria-label="Dölj bekräftelsen" onClick={() => setCheer('')}>×</button></> : null}</div></div>
+    <p className="plan-hint">◆ Planerat · ✓ Genomfört</p><div className="week-log"><div className="week-log-head"><span>Pass</span>{days.map((day) => <b key={day.date}>{day.label}<small>{Number(day.date.slice(-2))}</small></b>)}</div>{WEEK_SLOTS.map((slot) => <div className="week-log-row" key={slot.key}><span title={slot.short}>{slot.icon}<small>{slot.short}</small></span>{days.map((day) => { const marked = weeklySessions.some((item) => item.date === day.date && item.slot === slot.key); const planned = plannedSessions.some((item) => item.date === day.date && item.slot === slot.key); const key = `${day.date}-${slot.key}`; const planKey = `plan-${key}`; return <div className="week-cell" key={day.date}><button type="button" className={`plan-toggle ${planned ? 'planned' : ''} ${saving.has(planKey) ? 'saving' : ''}`} disabled={day.date < today} onClick={() => togglePlan(day.date, slot.key)} aria-busy={saving.has(planKey)} aria-label={`${saving.has(planKey) ? 'Sparar planering för' : planned ? 'Ta bort planering för' : 'Planera'} ${slot.short} ${day.date}`}>{saving.has(planKey) ? '…' : '◆'}</button><label className={`${marked ? 'marked' : ''} ${day.future ? 'future' : ''} ${saving.has(key) ? 'saving' : ''}`}><input type="checkbox" disabled={day.future || saving.has(key)} checked={marked} onChange={(event) => toggle(day.date, slot.key, event.target.checked)} aria-busy={saving.has(key)} /><i>{saving.has(key) ? '…' : marked ? '✓' : ''}</i></label></div> })}</div>)}</div><div className="week-status-slot"><div className="week-save-status" role="status" aria-live="polite">{savingPlan || savingTraining ? <><span aria-hidden="true">⏳</span>{savingPlan && savingTraining ? 'Sparar planering och genomförd träning…' : savingPlan ? 'Sparar din planering…' : 'Sparar genomförd träning…'}</> : cheer ? <><span aria-hidden="true">✨</span><strong>{cheer}</strong><button type="button" aria-label="Dölj bekräftelsen" onClick={() => setCheer('')}>×</button></> : null}</div></div>
   </section>
 }
 
