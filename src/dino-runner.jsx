@@ -34,20 +34,27 @@ function drawScene(canvas, game) {
       ctx.fillStyle = '#c9f05a'; ctx.beginPath(); ctx.arc(obstacle.x + 42, GROUND - obstacle.height + 12, 2.5, 0, Math.PI * 2); ctx.fill()
     }
   }
-  const dino = game.dino
-  const x = 126, y = GROUND - dino.height
-  ctx.fillStyle = '#14796c'
-  ctx.beginPath(); ctx.moveTo(x + 12, y + 33); ctx.lineTo(x - 14, y + 23); ctx.lineTo(x + 10, y + 46); ctx.lineTo(x + 21, y + 42); ctx.fill()
-  ctx.fillRect(x + 12, y + 20, 42, 28); ctx.fillRect(x + 36, y + 2, 28, 31); ctx.fillRect(x + 54, y + 13, 20, 12)
-  ctx.fillStyle = '#c9f05a'; ctx.fillRect(x + 51, y + 9, 5, 5); ctx.fillRect(x + 41, y + 31, 11, 9)
-  ctx.fillStyle = '#102d37'; ctx.fillRect(x + 59, y + 10, 4, 4)
-  const stride = game.running && dino.grounded ? Math.sin(game.distance * .12) * 5 : 0
-  ctx.fillStyle = '#105f58'; ctx.fillRect(x + 18, y + 44, 10, 15 + stride); ctx.fillRect(x + 40, y + 44, 10, 15 - stride)
+  const snake = game.dino
+  const x = 112, y = GROUND - snake.height
+  const slither = game.running && snake.grounded ? Math.sin(game.distance * .075) * 8 : 0
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  ctx.strokeStyle = '#4c922f'; ctx.lineWidth = 25
+  ctx.beginPath(); ctx.moveTo(x + 5, y + 46); ctx.bezierCurveTo(x + 25, y + 13 + slither, x + 48, y + 52 - slither, x + 72, y + 34); ctx.stroke()
+  ctx.strokeStyle = '#a8d858'; ctx.lineWidth = 5
+  ctx.beginPath(); ctx.moveTo(x + 8, y + 42); ctx.bezierCurveTo(x + 26, y + 21 + slither, x + 47, y + 45 - slither, x + 68, y + 32); ctx.stroke()
+  ctx.fillStyle = '#4c922f'
+  ctx.beginPath(); ctx.moveTo(x + 66, y + 22); ctx.quadraticCurveTo(x + 82, y + 10, x + 101, y + 22); ctx.lineTo(x + 107, y + 29); ctx.lineTo(x + 84, y + 39); ctx.quadraticCurveTo(x + 72, y + 37, x + 66, y + 22); ctx.fill()
+  ctx.fillStyle = '#c9f05a'; ctx.beginPath(); ctx.arc(x + 91, y + 21, 6, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#102d37'; ctx.beginPath(); ctx.arc(x + 93, y + 21, 2.5, 0, Math.PI * 2); ctx.fill()
+  ctx.strokeStyle = '#e46d75'; ctx.lineWidth = 3
+  ctx.beginPath(); ctx.moveTo(x + 104, y + 29); ctx.lineTo(x + 118, y + 31); ctx.lineTo(x + 123, y + 27); ctx.moveTo(x + 118, y + 31); ctx.lineTo(x + 122, y + 35); ctx.stroke()
+  ctx.fillStyle = '#245b39'
+  for (const spot of [22, 42, 59]) { ctx.beginPath(); ctx.ellipse(x + spot, y + 31 + (spot === 42 ? slither * .35 : 0), 4, 7, -.35, 0, Math.PI * 2); ctx.fill() }
   ctx.fillStyle = '#102d37'; ctx.font = '700 22px ui-monospace, monospace'; ctx.textAlign = 'right'; ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), WIDTH - 32, 43)
 }
 
 function makeGame() {
-  return { running: false, over: false, score: 0, speed: 330, distance: 0, last: 0, spawnIn: 900, dino: { height: 60, velocity: 0, grounded: true }, obstacles: [], clouds: [{ x: 180, y: 0 }, { x: 520, y: 35 }, { x: 825, y: -5 }] }
+  return { running: false, over: false, score: 0, speed: 620, distance: 0, last: 0, spawnIn: 900, dino: { height: 60, velocity: 0, grounded: true }, obstacles: [], clouds: [{ x: 180, y: 0 }, { x: 520, y: 35 }, { x: 825, y: -5 }] }
 }
 
 export default function DinoRunner({ code, onBack, preview = false, request }) {
@@ -83,7 +90,7 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     game.score += dt * 12
     // A long, readable ramp: the first seconds stay welcoming, then the
     // runner gradually reaches a pace that requires deliberate timing.
-    game.speed = Math.min(900, 480 + game.score * .5)
+    game.speed = Math.min(960, 620 + game.score * .5)
     game.distance += game.speed * dt
     game.spawnIn -= delta
     if (game.spawnIn <= 0) {
@@ -97,8 +104,8 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     game.clouds.forEach((cloud) => { cloud.x -= game.speed * dt * .12; if (cloud.x < -70) cloud.x = WIDTH + 50 })
     const dino = game.dino
     if (!dino.grounded) { dino.velocity += 1750 * dt; dino.height -= dino.velocity * dt; if (dino.height <= 60) { dino.height = 60; dino.velocity = 0; dino.grounded = true } }
-    const left = 126 + 14, right = 126 + 66
-    const top = GROUND - dino.height + 7, bottom = GROUND - dino.height + 59
+    const left = 112 + 9, right = 112 + 108
+    const top = GROUND - dino.height + 11, bottom = GROUND - dino.height + 55
     const collision = game.obstacles.some((obstacle) => {
       const obstacleTop = GROUND - obstacle.height
       const obstacleBottom = obstacle.type === 'bird' ? obstacleTop + 28 : GROUND
@@ -128,7 +135,7 @@ export default function DinoRunner({ code, onBack, preview = false, request }) {
     return () => window.removeEventListener('keydown', keydown)
   })
 
-  return <section className="dino-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="dino-heading"><div><p className="eyebrow">Veckans spel · Retro Runner</p><h1>Dino Runner <span>🦖</span></h1></div><span className="dino-tag">HOPPA. DUCKA. HÅLL UT.</span></div><p className="dino-intro">Tryck på mellanslag, pil upp eller skärmen för att hoppa över hindren. Tempot ökar ju längre du klarar dig.</p>
-    <div className="dino-layout"><div className="dino-main"><div className="dino-hud"><span>POÄNG<strong>{score}</strong></span><span>DITT BÄSTA<strong>{best?.ownBest ?? '—'}</strong></span></div><div className="dino-stage"><canvas ref={canvasRef} width="960" height="420" aria-label="Dino Runner spelplan" onPointerDown={jump} />{status !== 'running' && <div className="dino-overlay"><span>{status === 'over' ? '💥' : '🦖'}</span><small>{status === 'over' ? 'RUN OVER' : 'RETRO RUNNER'}</small><h2>{status === 'over' ? `Du fick ${score} poäng` : 'Redo att springa?'}</h2><p>{status === 'over' ? 'Hindren blir snabbare ju längre du springer.' : 'Hoppa över kaktusarna och se hur långt du kommer.'}</p><button className="primary-button" onClick={start}>{status === 'over' ? 'Spring igen →' : 'Starta spelet →'}</button></div>}</div><button className="primary-button dino-jump" onPointerDown={(event) => event.preventDefault()} onClick={jump}>{status === 'running' ? '⬆ Hoppa' : '▶ Starta / spela igen'}</button>{message && <p className="dino-save" role="status">{message}</p>}</div><aside className="dino-board"><p className="eyebrow">Dino Runner · den här månaden</p><h2>Topplistan</h2>{best?.leaderboard?.length ? <ol>{best.leaderboard.map((item) => <li key={item.profileId}><span>{item.emoji}</span><strong>{item.displayName}</strong><b>{item.score}</b></li>)}</ol> : <p className="empty">Ingen har spelat ännu.</p>}<small>{preview ? 'Testläge: resultat och poäng sparas inte.' : 'Ditt bästa resultat sparas automatiskt när rundan tar slut.'}</small></aside></div>
+  return <section className="dino-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="dino-heading"><div><p className="eyebrow">Veckans spel · Retro Runner</p><h1>Huggorm Runner <span>🐍</span></h1></div><span className="dino-tag">HOPPA. DUCKA. HÅLL UT.</span></div><p className="dino-intro">Tryck på mellanslag, pil upp eller skärmen för att hoppa över hindren. Tempot ökar ju längre du klarar dig.</p>
+    <div className="dino-layout"><div className="dino-main"><div className="dino-hud"><span>POÄNG<strong>{score}</strong></span><span>DITT BÄSTA<strong>{best?.ownBest ?? '—'}</strong></span></div><div className="dino-stage"><canvas ref={canvasRef} width="960" height="420" aria-label="Huggorm Runner spelplan" onPointerDown={jump} />{status !== 'running' && <div className="dino-overlay"><span>{status === 'over' ? '💥' : '🐍'}</span><small>{status === 'over' ? 'RUN OVER' : 'HUGGORM RUNNER'}</small><h2>{status === 'over' ? `Du fick ${score} poäng` : 'Redo att springa?'}</h2><p>{status === 'over' ? 'Hindren blir snabbare ju längre du springer.' : 'Hjälp huggormen hoppa över kaktusar och fåglar.'}</p><button className="primary-button" onClick={start}>{status === 'over' ? 'Spring igen →' : 'Starta spelet →'}</button></div>}</div><button className="primary-button dino-jump" onPointerDown={(event) => event.preventDefault()} onClick={jump}>{status === 'running' ? '⬆ Hoppa' : '▶ Starta / spela igen'}</button>{message && <p className="dino-save" role="status">{message}</p>}</div><aside className="dino-board"><p className="eyebrow">Huggorm Runner · den här månaden</p><h2>Topplistan</h2>{best?.leaderboard?.length ? <ol>{best.leaderboard.map((item) => <li key={item.profileId}><span>{item.emoji}</span><strong>{item.displayName}</strong><b>{item.score}</b></li>)}</ol> : <p className="empty">Ingen har spelat ännu.</p>}<small>{preview ? 'Testläge: resultat och poäng sparas inte.' : 'Ditt bästa resultat sparas automatiskt när rundan tar slut.'}</small></aside></div>
   </section>
 }

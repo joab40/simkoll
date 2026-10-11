@@ -24,7 +24,7 @@ const GAME_CATALOG = [
   { key: 'breakout', title: 'Preppe Breakout', emoji: '🧱', description: 'Slå sönder brickorna, håll bollen i spel och samla poäng.', route: 'breakout' },
   { key: 'sprint100', title: '100m Sprint', emoji: '⚡', description: 'Växla stegen, hitta rytmen och jaga din bästa tid.', route: 'sprint100' },
   { key: 'longjump', title: 'Längdhopp', emoji: '🏅', description: 'Bygg fart, sikta på 45° och landa ditt längsta hopp.', route: 'longjump' },
-  { key: 'dino', title: 'Dino Runner', emoji: '🦖', description: 'Hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
+  { key: 'dino', title: 'Huggorm Runner', emoji: '🐍', description: 'Hjälp huggormen hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
 ]
 const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const defaultGameSchedule = () => {
