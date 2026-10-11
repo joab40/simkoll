@@ -1317,7 +1317,11 @@ button { cursor: pointer; }
 .week-cell .plan-toggle:disabled { opacity: .35; cursor: not-allowed; }
 .week-cell .plan-toggle.planned:disabled { opacity: 1; }
 .week-cell .plan-toggle.saving, .week-cell label.saving { background: #fff2cc !important; color: #765a00; cursor: wait; }
-.week-save-status { margin: 8px 0; padding: 9px 12px; border-radius: 9px; background: #eef7f5; color: var(--teal); font-size: 13px; }
+.week-status-slot { min-height: 48px; margin-top: 8px; }
+.week-save-status { box-sizing: border-box; min-height: 48px; display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 12px; border-radius: 9px; background: #eef7f5; color: var(--teal); font-size: 13px; }
+.week-save-status:empty { visibility: hidden; }
+.week-save-status strong { font-weight: 700; }
+.week-save-status button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; }
 .week-cell label { min-height: 32px !important; background: transparent !important; }
 .cross-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .cross-progress > div { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: center; background: #edf5f2; border-radius: 11px; padding: 11px; }
