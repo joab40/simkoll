@@ -5,6 +5,7 @@ import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, 
 import { hasTrendValue, trendSegments, smoothTrendPath } from './trend-curve.js'
 import { CHECKIN_ACTIVITIES, activityLabel } from '../shared/checkin-activity.js'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
+import { strengthPasses } from '../shared/strength-program.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
@@ -1920,21 +1921,6 @@ function formatFeedDate(value) {
 }
 
 const GOAL_STATUS = { planned: 'Planerat', active: 'Pågår', paused: 'Pausat', complete: 'Klart' }
-
-const strengthPassNames = (program, number) => {
-  const title = program.title || ''
-  const names = title.includes('Frisim') ? ['Maxstyrka & asymmetrisk dragkraft', 'Unilateral balans & axelhälsa', 'Bålrotation & uthållig effekt']
-    : title.includes('Bröstsim') ? ['Höftextension & presskraft', 'Ljumskskydd & prehab', 'Bålkedja & explosiv glid']
-      : title.includes('Ryggsim') ? ['Posterior kedja & ryggstyrka', 'Axelhälsa & hållning', 'Armåterföring & bålkontroll']
-        : ['Symmetrisk maxkraft & delfinkick', 'Axelhälsa & ländryggsprehab', 'Explosiv effekt & bålkedja']
-  return names[number - 1] || `Styrkepass ${number}`
-}
-
-function strengthPasses(program) {
-  const sections = String(program.content || '').split(/\n={10,}\n/)
-  const isWeekly = /Veckoprogram/i.test(program.title || '')
-  return (isWeekly ? sections.slice(0, 3) : [program.content]).map((content, index) => ({ passNumber: index + 1, title: strengthPassNames(program, index + 1), content }))
-}
 
 function strengthExercises(content) {
   return String(content || '').split('\n').map((line) => line.trim()).filter((line) => /^\d+\.\s+/.test(line)).map((line) => {
