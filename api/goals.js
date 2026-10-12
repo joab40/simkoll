@@ -1,6 +1,7 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
+import { queueCategoryPush } from '../server/web-push.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const FEEDBACK = {
@@ -103,7 +104,9 @@ export default async function handler(request, response) {
         const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status, enabled: body.enabled !== false, swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
         const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+        const talk = mapTalk((await result.json())[0])
+        if (action === 'create-talk' && talk.enabled && talk.status === 'draft') queueCategoryPush({ category: 'developmentTalks', id: talk.id, profileId: talk.swimmerId })
+        return sendJson(response, 200, { talk })
       }
       if (action === 'delete-talk') {
         const id = String(request.body.id || '')
@@ -116,14 +119,19 @@ export default async function handler(request, response) {
         const id = String(request.body.id || ''), enabled = Boolean(request.body.enabled)
         if (!id) return sendJson(response, 400, { error: 'Samtalet saknar id.' })
         let status
+        let wasEnabled = null
         if (enabled) {
-          const current = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&select=status&limit=1`)
+          const current = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&select=status,enabled,profile_id&limit=1`)
           if (!current.ok) throw new Error(`Development talk lookup failed: ${current.status}`)
-          if ((await current.json())[0]?.status === 'completed') status = 'draft'
+          const currentTalk = (await current.json())[0]
+          wasEnabled = currentTalk?.enabled === true
+          if (currentTalk?.status === 'completed') status = 'draft'
         }
         const result = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ enabled, ...(status ? { status } : {}), updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Development talk setting failed: ${result.status}`)
-        return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+        const talk = mapTalk((await result.json())[0])
+        if (enabled && wasEnabled === false && talk.status !== 'completed') queueCategoryPush({ category: 'developmentTalks', id: talk.id, profileId: talk.swimmerId })
+        return sendJson(response, 200, { talk })
       }
       if (action === 'toggle-talk-global') {
         const enabled = Boolean(request.body.enabled)

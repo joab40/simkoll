@@ -3,7 +3,7 @@ import webpush from 'web-push'
 import { waitUntil } from '@vercel/functions'
 import { supabaseRequest } from './supabase.js'
 
-export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true }
+export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true }
 export const endpointHash = (endpoint) => createHash('sha256').update(endpoint).digest('hex')
 
 // Subscription endpoints cause outbound server requests. Accept only known push
@@ -105,4 +105,57 @@ export async function deliverMessagePush(event, send) {
 
 export function queueMessagePush(event) {
   waitUntil(deliverMessagePush(event).catch((error) => console.error('Push dispatch failed', { reason: error.message })))
+}
+
+const categoryNotifications = {
+  developmentTalks: {
+    column: 'development_talks', screen: 'talks', title: 'Simkoll · Utvecklingssamtal',
+    body: 'Tränaren har öppnat ett utvecklingssamtal för dig. Öppna Simkoll för att förbereda dig.',
+  },
+  competitionEntries: {
+    column: 'competition_entries', screen: 'competition-entries', title: 'Simkoll · Tävlingsanmälan',
+    body: 'En tävling är öppen för anmälan. Öppna Simkoll för att välja grenar.',
+  },
+}
+
+export async function deliverCategoryPush(event, send) {
+  const notification = categoryNotifications[event.category]
+  if (!notification || !vapidDetails()) return
+  if (event.category === 'developmentTalks' && !event.profileId) return
+  const settings = await readPushSettings()
+  if (!settings.enabled || settings[event.category] === false) return
+  const profileFilter = event.profileId
+    ? `&profile_id=eq.${encodeURIComponent(event.profileId)}`
+    : '&profile_id=not.is.null'
+  const devices = await supabaseRequest(`push_subscriptions?${notification.column}=eq.true${profileFilter}&select=id,profile_id,subscription&limit=5000`)
+  if (!devices.ok) throw new Error('Push recipients unavailable')
+  const rows = await devices.json()
+  if (!rows.length) return
+  const profiles = await supabaseRequest('profiles?active=eq.true&approval_status=eq.approved&select=id,training_group&limit=10000')
+  if (!profiles.ok) throw new Error('Push profile verification failed')
+  const activeProfiles = new Map((await profiles.json()).map((profile) => [profile.id, profile]))
+  const targetGroups = Array.isArray(event.targetGroups) ? event.targetGroups.filter((group) => typeof group === 'string' && group) : []
+  const recipients = rows.filter((row) => {
+    const profile = activeProfiles.get(row.profile_id)
+    if (!profile) return false
+    if (event.profileId && row.profile_id !== event.profileId) return false
+    return !targetGroups.length || targetGroups.includes(profile.training_group)
+  })
+  const payload = {
+    title: notification.title,
+    body: notification.body,
+    screen: notification.screen,
+    talkId: event.category === 'developmentTalks' ? event.id : undefined,
+    tag: `simkoll-${event.category}-${event.id}`,
+  }
+  let next = 0
+  const deadline = Date.now() + 45000
+  await Promise.all(Array.from({ length: Math.min(12, recipients.length) }, async () => {
+    while (next < recipients.length && Date.now() < deadline) await sendDevicePush(recipients[next++], payload, send)
+  }))
+  if (next < recipients.length) console.error('Push dispatch time budget exceeded', { remaining: recipients.length - next })
+}
+
+export function queueCategoryPush(event) {
+  waitUntil(deliverCategoryPush(event).catch((error) => console.error('Category push dispatch failed', { reason: error.message })))
 }

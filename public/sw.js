@@ -8,19 +8,20 @@ self.addEventListener('push', (event) => {
     body: payload.body || 'Du har fått ett nytt meddelande. Öppna Simkoll för att läsa.',
     icon: '/assets/simkoll-192.png', badge: '/assets/simkoll-192.png',
     tag: payload.tag || 'simkoll-message',
-    data: { screen: payload.screen || 'home', ownerKey: payload.ownerKey || '' },
+    data: { screen: payload.screen || 'home', ownerKey: payload.ownerKey || '', talkId: payload.talkId || null },
   }))
 })
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const { screen, ownerKey } = event.notification.data || {}
+  const { screen, ownerKey, talkId } = event.notification.data || {}
   const query = new URLSearchParams({ push: screen || 'home', pushOwner: ownerKey || '' })
+  if (talkId) query.set('pushTalkId', talkId)
   const url = `${self.location.origin}/?${query}`
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     const client = windows.find((item) => new URL(item.url).origin === self.location.origin)
     if (client) {
-      client.postMessage({ type: 'simkoll-push-open', screen, ownerKey })
+      client.postMessage({ type: 'simkoll-push-open', screen, ownerKey, talkId })
       return client.focus()
     }
     return self.clients.openWindow(url)

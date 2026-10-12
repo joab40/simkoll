@@ -11,7 +11,7 @@ process.env.SIMKOLL_SWIMMER_CODE = 'shared-swimmer'
 process.env.COACH_SESSION_SECRET = 'fixture-secret'
 const keys = webpush.generateVAPIDKeys()
 Object.assign(process.env, { WEB_PUSH_PUBLIC_KEY: keys.publicKey, WEB_PUSH_PRIVATE_KEY: keys.privateKey, WEB_PUSH_SUBJECT: 'mailto:fixture@example.org' })
-const { cleanPushSubscription, validPushEndpoint, deliverMessagePush, sendDevicePush } = await import('../server/web-push.js')
+const { cleanPushSubscription, validPushEndpoint, deliverMessagePush, deliverCategoryPush, sendDevicePush } = await import('../server/web-push.js')
 const { createCoachToken } = await import('../server/coach-auth.js')
 const { default: pushHandler } = await import('../server/push-api.js')
 const subscription = { endpoint: 'https://web.push.apple.com/fixture', keys: { p256dh: keys.publicKey, auth: Buffer.alloc(16, 1).toString('base64url') } }
@@ -80,6 +80,42 @@ test('global and category switches prevent subscription lookup and delivery', as
   }
 })
 
+test('competition push is limited to active swimmers in the selected groups', async () => {
+  const delivered = []
+  globalThis.fetch = async (url) => {
+    const path = String(url).split('/rest/v1/')[1]
+    if (path.startsWith('app_settings')) return reply([{ setting_value: { enabled: true, competitionEntries: true } }])
+    if (path.startsWith('push_subscriptions')) {
+      assert(path.includes('competition_entries=eq.true'))
+      assert(path.includes('profile_id=not.is.null'))
+      return reply([row('orange-device', 'orange'), row('black-device', 'black'), row('inactive-device', 'inactive')])
+    }
+    if (path.startsWith('profiles')) return reply([{ id: 'orange', training_group: 'ungdom_orange' }, { id: 'black', training_group: 'ungdom_svart' }])
+    throw new Error(`Unexpected path: ${path}`)
+  }
+  await deliverCategoryPush({ category: 'competitionEntries', id: 'competition-1', targetGroups: ['ungdom_orange'] }, async (_sub, payload) => delivered.push(JSON.parse(payload)))
+  assert.equal(delivered.length, 1)
+  assert.equal(delivered[0].ownerKey, 'swimmer:orange')
+  assert.equal(delivered[0].screen, 'competition-entries')
+  assert(!`${delivered[0].title} ${delivered[0].body}`.includes('competition-1'))
+})
+
+test('development talk push targets only the intended swimmer and stays generic', async () => {
+  const delivered = []
+  globalThis.fetch = async (url) => {
+    const path = String(url).split('/rest/v1/')[1]
+    if (path.startsWith('app_settings')) return reply([{ setting_value: { enabled: true, developmentTalks: true } }])
+    if (path.startsWith('push_subscriptions')) { assert(path.includes('development_talks=eq.true&profile_id=eq.swimmer-a')); return reply([row('device-a', 'swimmer-a')]) }
+    if (path.startsWith('profiles')) return reply([{ id: 'swimmer-a', training_group: 'junior' }])
+    throw new Error(`Unexpected path: ${path}`)
+  }
+  await deliverCategoryPush({ category: 'developmentTalks', id: 'talk-a', profileId: 'swimmer-a' }, async (_sub, payload) => delivered.push(JSON.parse(payload)))
+  assert.equal(delivered.length, 1)
+  assert.equal(delivered[0].screen, 'talks')
+  assert.equal(delivered[0].talkId, 'talk-a')
+  assert(!`${delivered[0].title} ${delivered[0].body}`.includes('swimmer-a'))
+})
+
 test('expired subscriptions are removed with an owner guard, transient errors retain the device', async (t) => {
   const deletes = []
   globalThis.fetch = async (url, options) => { assert.equal(options.method, 'DELETE'); deletes.push(String(url)); return reply([]) }
@@ -128,6 +164,7 @@ test('swimmer subscription ownership comes from session, not submitted profile i
   const stored = JSON.parse(result.writes[0].options.body)
   assert.equal(stored.profile_id, 'own-profile'); assert.equal(stored.coach_id, null)
   assert.equal(stored.private_messages, false)
+  assert.equal(stored.development_talks, true); assert.equal(stored.competition_entries, true)
   for (const action of ['push-status', 'push-unsubscribe']) {
     const scoped = await request({ action, endpoint: subscription.endpoint }, { swimmer: true })
     assert.equal(scoped.code, 200)
@@ -148,15 +185,15 @@ test('service worker displays push and opens or focuses only same-origin Simkoll
   const self = { addEventListener(name, callback) { handlers[name] = callback }, location: { origin: 'https://simkoll.example' }, registration: { showNotification: async (...args) => notifications.push(args) }, clients: { matchAll: async () => windows, openWindow: async (url) => opened.push(url) } }
   vm.runInNewContext(await readFile(new URL('../public/sw.js', import.meta.url), 'utf8'), { self, URL, URLSearchParams })
   let work
-  handlers.push({ data: { json: () => ({ title: 'New', ownerKey: 'swimmer:a', screen: 'private' }) }, waitUntil: (promise) => { work = promise } })
+  handlers.push({ data: { json: () => ({ title: 'New', ownerKey: 'swimmer:a', screen: 'talks', talkId: 'talk-a' }) }, waitUntil: (promise) => { work = promise } })
   await work
-  assert.equal(notifications[0][1].data.ownerKey, 'swimmer:a')
-  const event = { notification: { close() {}, data: { screen: 'private', ownerKey: 'swimmer:a' } }, waitUntil: (promise) => { work = promise } }
+  assert.equal(notifications[0][1].data.ownerKey, 'swimmer:a'); assert.equal(notifications[0][1].data.talkId, 'talk-a')
+  const event = { notification: { close() {}, data: { screen: 'talks', ownerKey: 'swimmer:a', talkId: 'talk-a' } }, waitUntil: (promise) => { work = promise } }
   windows = [{ url: 'https://unrelated.example/', postMessage: () => assert.fail('Wrong origin') }]
   handlers.notificationclick(event); await work
-  assert.equal(opened[0], 'https://simkoll.example/?push=private&pushOwner=swimmer%3Aa')
+  assert.equal(opened[0], 'https://simkoll.example/?push=talks&pushOwner=swimmer%3Aa&pushTalkId=talk-a')
   windows = [{ url: 'https://simkoll.example/', postMessage: (message) => messages.push(message), focus: async () => {} }]
   handlers.notificationclick(event); await work
-  assert.equal(messages[0].screen, 'private'); assert.equal(opened.length, 1)
+  assert.equal(messages[0].screen, 'talks'); assert.equal(messages[0].talkId, 'talk-a'); assert.equal(opened.length, 1)
   assert.equal(handlers.fetch, undefined, 'Never cache signed-in responses')
 })

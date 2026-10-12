@@ -13,7 +13,9 @@ async function pushApi(code, body) {
 
 const optInKey = (owner) => `simkoll-push-opt-in:${owner}`
 const prefsKey = (owner) => `simkoll-push-preferences:${owner}`
+const defaultPreferences = { coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true }
 const readLocal = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback } }
+const readPreferences = (owner) => ({ ...defaultPreferences, ...readLocal(prefsKey(owner), {}) })
 const writeLocal = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)) } catch {} }
 const supported = () => window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 const needsHomeScreen = () => (/iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) && !window.matchMedia('(display-mode: standalone)').matches && !navigator.standalone
@@ -50,7 +52,7 @@ export function usePushSession(auth, profile, onOpen) {
   latestOpen.current = onOpen
   const [entry, setEntry] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    return params.has('push') ? { screen: params.get('push'), ownerKey: params.get('pushOwner') } : null
+    return params.has('push') ? { screen: params.get('push'), ownerKey: params.get('pushOwner'), talkId: params.get('pushTalkId') || null } : null
   })
   useEffect(() => {
     const handler = (event) => { if (event.data?.type === 'simkoll-push-open') setEntry(event.data) }
@@ -65,10 +67,10 @@ export function usePushSession(auth, profile, onOpen) {
       const config = await pushApi(auth.code)
       if (cancelled) return
       if (entry && config.ownerKey === entry.ownerKey) {
-        latestOpen.current(entry.screen)
+        latestOpen.current({ screen: entry.screen, talkId: entry.talkId || null })
         setEntry(null)
         const url = new URL(window.location.href)
-        url.searchParams.delete('push'); url.searchParams.delete('pushOwner')
+        url.searchParams.delete('push'); url.searchParams.delete('pushOwner'); url.searchParams.delete('pushTalkId')
         history.replaceState(null, '', url)
       }
       await withDeviceLock(async () => {
@@ -85,7 +87,7 @@ export function usePushSession(auth, profile, onOpen) {
         if (!config.settings.enabled || !config.configured || !config.databaseReady || Notification.permission !== 'granted' || cancelled) return
         subscription ||= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationKey(config.publicKey) })
         if (cancelled) return
-        await pushApi(auth.code, { action: 'push-subscribe', subscription: subscription.toJSON(), preferences: readLocal(prefsKey(config.ownerKey), { coachMessages: true, privateMessages: true }) })
+        await pushApi(auth.code, { action: 'push-subscribe', subscription: subscription.toJSON(), preferences: readPreferences(config.ownerKey) })
       })
     }
     sync().catch(() => {})
@@ -93,10 +95,10 @@ export function usePushSession(auth, profile, onOpen) {
   }, [auth?.code, profile?.id, profile?.termsAccepted, entry])
 }
 
-export function PushNotificationControl({ code, compact = false }) {
+export function PushNotificationControl({ code, compact = false, audience = 'swimmer' }) {
   const [config, setConfig] = useState(null)
   const [subscribed, setSubscribed] = useState(false)
-  const [preferences, setPreferences] = useState({ coachMessages: true, privateMessages: true })
+  const [preferences, setPreferences] = useState(defaultPreferences)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const canPush = supported()
@@ -106,7 +108,7 @@ export function PushNotificationControl({ code, compact = false }) {
     async function load() {
       const next = await pushApi(code)
       if (!active) return
-      setPreferences(readLocal(prefsKey(next.ownerKey), { coachMessages: true, privateMessages: true }))
+      setPreferences(readPreferences(next.ownerKey))
       if (!canPush || !next.databaseReady) { setConfig(next); return }
       const registration = await worker()
       const subscription = await registration.pushManager.getSubscription()
@@ -155,9 +157,9 @@ export function PushNotificationControl({ code, compact = false }) {
   }
   if (compact && (!config?.settings.enabled || !config?.configured || !config.databaseReady || subscribed || (canPush && Notification.permission === 'denied'))) return null
   return <section className={`settings-card push-device-card${compact ? ' compact' : ''}`}>
-    <div className="push-card-title"><span aria-hidden="true">🔔</span><div><h2>Notiser på din enhet</h2><p>Få besked när tränarna skriver eller när du får privata meddelanden.</p></div>{subscribed && <small className="push-status-badge">Aktiva</small>}</div>
+    <div className="push-card-title"><span aria-hidden="true">🔔</span><div><h2>Notiser på din enhet</h2><p>Välj vilka händelser du vill få besked om.</p></div>{subscribed && <small className="push-status-badge">Aktiva</small>}</div>
     {homeScreen ? <p className="push-install-help">På iPhone och iPad: öppna Simkoll i Safari, tryck Dela → Lägg till på hemskärmen. Öppna sedan appen från den nya ikonen och aktivera notiser här. Kräver iOS/iPadOS 16.4 eller senare.</p> : !canPush ? <p>Den här webbläsaren stöder inte pushnotiser. Prova Simkoll i Chrome på Android eller via hemskärmen på iPhone.</p> : !config ? <p role="status">{status || 'Hämtar notisinställningar…'}</p> : !config.settings.enabled ? <p>Klubben har inte aktiverat pushnotiser ännu.</p> : !config.configured || !config.databaseReady ? <p>Pushnotiser förbereds av klubbens administratör.</p> : <>
-      {subscribed && !compact && <div className="push-preferences">{[['coachMessages', 'Info från tränarna'], ['privateMessages', 'Privata meddelanden']].map(([key, label]) => <label className="settings-toggle-row" key={key}><span>{label}</span><input type="checkbox" checked={preferences[key]} disabled={busy} onChange={(event) => updatePreference(key, event.target.checked)} /></label>)}</div>}
+      {subscribed && !compact && <div className="push-preferences">{[['coachMessages', 'Info från tränarna'], ['privateMessages', 'Privata meddelanden'], ...(audience === 'swimmer' ? [['developmentTalks', 'Nytt utvecklingssamtal'], ['competitionEntries', 'Tävlingsanmälan öppnar']] : [])].map(([key, label]) => <label className="settings-toggle-row" key={key}><span>{label}</span><input type="checkbox" checked={preferences[key]} disabled={busy} onChange={(event) => updatePreference(key, event.target.checked)} /></label>)}</div>}
       <div className="settings-actions">{subscribed ? <><button type="button" className="secondary-button" onClick={test} disabled={busy}>Skicka testnotis</button><button type="button" className="text-button" onClick={disable} disabled={busy}>Stäng av på enheten</button></> : <button type="button" className="primary-button" onClick={enable} disabled={busy || Notification.permission === 'denied'}>{busy ? 'Aktiverar…' : 'Aktivera notiser'}</button>}</div>
       {Notification.permission === 'denied' && <p>Tillåt notiser för Simkoll i enhetens eller webbläsarens inställningar för att aktivera dem igen.</p>}
     </>}
@@ -197,7 +199,7 @@ function PushUserList({ code }) {
 
 export function PushAdminSettings({ code }) {
   const [config, setConfig] = useState(null)
-  const [settings, setSettings] = useState({ enabled: false, coachMessages: true, privateMessages: true })
+  const [settings, setSettings] = useState({ enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true })
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   useEffect(() => { pushApi(code).then((data) => { setConfig(data); setSettings(data.settings) }).catch((error) => setStatus(error.message)) }, [code])
@@ -207,8 +209,8 @@ export function PushAdminSettings({ code }) {
     catch (error) { setStatus(error.message) } finally { setBusy(false) }
   }
   return <section className="settings-card push-admin-card"><div className="push-card-title"><span aria-hidden="true">🔔</span><div><h2>Pushnotiser</h2><p>Skicka notiser till användare som själva har godkänt dem på sin telefon.</p></div></div>
-    {config && <><p className="settings-note">{config.configured ? 'Pushnycklar: klara' : 'Pushnycklar: behöver konfigureras'} · {config.databaseReady ? `Databas: klar · ${config.deviceCount || 0} anslutna enheter` : 'Databas: uppdatering 078 behövs'}</p>
-      {[['enabled', 'Aktivera push för klubben'], ['coachMessages', 'Meddelanden från tränarna'], ['privateMessages', 'Privata meddelanden och frågor till tränarna']].map(([key, label]) => <label className="settings-toggle-row" key={key}><span><strong>{label}</strong></span><input type="checkbox" checked={settings[key]} disabled={busy || (key === 'enabled' && (!config.configured || !config.databaseReady))} onChange={(event) => setSettings((current) => ({ ...current, [key]: event.target.checked }))} /></label>)}
+    {config && <><p className="settings-note">{config.configured ? 'Pushnycklar: klara' : 'Pushnycklar: behöver konfigureras'} · {config.databaseReady ? `Databas: klar · ${config.deviceCount || 0} anslutna enheter` : 'Databas: uppdatering 078 och 084 behövs'}</p>
+      {[['enabled', 'Aktivera push för klubben'], ['coachMessages', 'Meddelanden från tränarna'], ['privateMessages', 'Privata meddelanden och frågor till tränarna'], ['developmentTalks', 'Utvecklingssamtal'], ['competitionEntries', 'När tävlingsanmälan öppnar']].map(([key, label]) => <label className="settings-toggle-row" key={key}><span><strong>{label}</strong></span><input type="checkbox" checked={settings[key]} disabled={busy || (key === 'enabled' && (!config.configured || !config.databaseReady))} onChange={(event) => setSettings((current) => ({ ...current, [key]: event.target.checked }))} /></label>)}
       <p className="settings-help">iPhone: Simkoll måste öppnas som webbapp från hemskärmen. Android: fungerar i webbläsare med stöd för Web Push. Användaren aktiverar själv under sin profil eller Notiser på min enhet i tränarmenyn. Reaktioner och öppna peppinlägg ger inga pushnotiser.</p>
       <button type="button" className="primary-button" onClick={save} disabled={busy}>{busy ? 'Sparar…' : 'Spara pushinställningar'}</button></>}
     {status && <p className="push-feedback" role="status">{status}</p>}
