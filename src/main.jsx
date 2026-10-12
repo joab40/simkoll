@@ -84,7 +84,7 @@ const latestActiveDevelopmentTalk = (talks = []) => talks
   .filter((talk) => talk.enabled !== false && talk.status !== 'completed')
   .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(b.meetingDate || '').localeCompare(String(a.meetingDate || '')))[0] || null
 const latestPendingDevelopmentTalk = (talks = []) => talks
-  .filter((talk) => talk.enabled !== false && talk.status === 'draft')
+  .filter((talk) => talk.enabled !== false && talk.status !== 'completed')
   .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(b.meetingDate || '').localeCompare(String(a.meetingDate || '')))[0] || null
 const average = (key, items) => {
   const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
