@@ -121,7 +121,7 @@ export default async function handler(request, response) {
         let status
         let wasEnabled = null
         if (enabled) {
-          const current = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&select=status,enabled,profile_id&limit=1`)
+          const current = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&select=status,enabled,swimmer_id&limit=1`)
           if (!current.ok) throw new Error(`Development talk lookup failed: ${current.status}`)
           const currentTalk = (await current.json())[0]
           wasEnabled = currentTalk?.enabled === true
