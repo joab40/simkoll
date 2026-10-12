@@ -4,6 +4,7 @@ import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
 import { hasTrendValue, trendSegments, smoothTrendPath } from './trend-curve.js'
 import { CHECKIN_ACTIVITIES, activityLabel } from '../shared/checkin-activity.js'
+import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
@@ -38,28 +39,6 @@ const WORKOUT_FOCUSES = [
   ['kondition_frisim', 'Kondition frisim'], ['kondition_special', 'Kondition special'], ['fart', 'Fart'], ['troskel', 'Tröskel'], ['syra', 'Syra'], ['f2_frisim', 'F2 Frisim'], ['f2_spec', 'F2 Spec'], ['distans', 'Distans'], ['teknik', 'Teknik'], ['aterhamtning', 'Återhämtning'],
 ]
 const STROKE_OPTIONS = [['freestyle', 'Frisim'], ['backstroke', 'Ryggsim'], ['breaststroke', 'Bröstsim'], ['butterfly', 'Fjärilsim'], ['individual_medley', 'Medley']]
-
-const COACH_NAV_ITEMS = [
-  { key: 'today', label: 'Idag', mobile: 'Idag' }, { key: 'swimmers', label: 'Simmare', mobile: 'Simmare' },
-  { key: 'groups', label: 'Grupper', mobile: 'Grupper' }, { key: 'workout', label: 'Pass', mobile: 'Pass' },
-  { key: 'planning', label: 'Planering', mobile: 'Plan' }, { key: 'competition-calendar', label: 'Tävlingskalender', mobile: 'Tävling' },
-  { key: 'community', label: 'Meddelanden', mobile: 'Meddelanden' }, { key: 'meeting', label: 'Veckomöte', mobile: 'Möte' },
-  { key: 'trends', label: 'Grupptrend', mobile: 'Trend' }, { key: 'history', label: 'Historik', mobile: 'Historik' },
-  { key: 'week', label: 'Förra veckan', mobile: 'Förra veckan' }, { key: 'coach-feed', label: 'Tränarflöde', mobile: 'Flöde' },
-  { key: 'talks', label: 'Utvecklingssamtal', mobile: 'Samtal' }, { key: 'competition', label: 'Tävlingsresultat', mobile: 'Resultat' },
-  { key: 'workout-library', label: 'Passbibliotek', mobile: 'Bibliotek' }, { key: 'goals', label: 'Utvecklingsmål', mobile: 'Mål' },
-  { key: 'programs', label: 'Träningsprogram', mobile: 'Program' }, { key: 'games', label: 'Veckans spel', mobile: 'Spel' },
-  { key: 'rewards', label: 'Poäng & nivåer', mobile: 'Poäng' }, { key: 'app-feedback', label: 'Appfeedback', mobile: 'Feedback' },
-  { key: 'faq', label: 'FAQ', mobile: 'FAQ' }, { key: 'legal', label: 'Info & villkor', mobile: 'Info' },
-]
-const COACH_MENU_FEATURES = COACH_NAV_ITEMS.filter(({ key }) => key !== 'today').map(({ key, label }) => [key, label])
-const COACH_OVERVIEW_FEATURES = COACH_NAV_ITEMS.filter(({ key }) => key !== 'today').map(({ key, label }) => [key, label])
-const COACH_MENU_SECTIONS = [
-  ['Arbeta', ['workout', 'swimmers', 'groups', 'community']],
-  ['Följa upp', ['meeting', 'trends', 'history', 'week', 'coach-feed', 'competition', 'rewards']],
-  ['Planera & stötta', ['planning', 'competition-calendar', 'talks', 'goals', 'programs', 'workout-library', 'games']],
-  ['Övrigt', ['push-settings', 'app-feedback', 'faq', 'legal']],
-]
 
 const GAME_CATALOG = [
   { key: 'swimgames', title: 'Swimgames 25', emoji: '🏊', description: '25 meter frisim mot klockan.', route: 'swimgames' },
@@ -3978,7 +3957,7 @@ function StrengthProgramLibrary({ code, onChanged }) {
   const save = async () => { if (!editing) return; setStatus('Sparar…'); try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-program', programId: editing.id, title: editing.title, description: editing.description, content: editing.content }) }); setEditing(null); setStatus('Programmet är uppdaterat ✓'); await load(); onChanged?.() } catch (error) { setStatus(error.message) } }
   const archive = async (program) => { if (!window.confirm(`Arkivera “${program.title}”? Det döljer programmet från nya tilldelningar men sparar historiken.`)) return; try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'archive-program', programId: program.id }) }); setStatus('Programmet är arkiverat ✓'); await load(); onChanged?.() } catch (error) { setStatus(error.message) } }
   const remove = async (program) => { if (program.assignedCount) return setStatus(`Programmet används av ${program.assignedCount} simmare. Ta bort tilldelningarna först.`); if (!window.confirm(`Radera “${program.title}” permanent?`)) return; try { await apiRequest('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-program', programId: program.id }) }); setStatus('Programmet är raderat.'); await load(); onChanged?.() } catch (error) { setStatus(error.message) } }
-  return <section className="coach-card strength-program-library"><div className="period-heading"><div><p className="eyebrow">Redigerbara mallar</p><h3>Styrkeprogrambibliotek</h3></div><small>{programs.filter((program) => program.active !== false).length} aktiva program</small></div>{editing ? <div className="program-edit-form"><label>Namn<input value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label><label>Beskrivning<textarea value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} /></label><label>Övningar, set och repetitioner<textarea className="program-content-input" value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} /></label><div><button type="button" className="primary-button" onClick={save}>Spara ändring</button><button type="button" className="secondary-button" onClick={() => setEditing(null)}>Avbryt</button></div></div> : <div className="strength-program-library-list">{programs.map((program) => <article key={program.id} className={program.active === false ? 'archived' : ''}><div><strong>{program.title}{program.active === false && <em> · Arkiverat</em>}</strong><small>{program.description}</small><small>{program.assignedCount ? `Används av ${program.assignedCount} simmare` : 'Inte tilldelat'}</small></div><div className="program-library-actions"><button type="button" className="secondary-button" onClick={() => setEditing({ ...program })}>Redigera</button>{program.active !== false && <button type="button" className="secondary-button" onClick={() => archive(program)}>Arkivera</button>}<button type="button" className="danger-button" onClick={() => remove(program)}>Radera</button></div></article>)}{!programs.length && <p className="empty">Kör migration 063 för att lägga in standardmallarna.</p>}</div>}{status && <small className="coach-note-status">{status}</small>}</section>
+  return <section className="coach-card strength-program-library"><div className="period-heading"><div><p className="eyebrow">Redigerbara mallar</p><h3>Styrkeprogrambibliotek</h3></div><small>{programs.filter((program) => program.active !== false).length} aktiva program</small></div>{editing ? <div className="program-edit-form"><label>Namn<input value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label><label>Beskrivning<textarea value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} /></label><label>Övningar, set och repetitioner<textarea className="program-content-input" value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} /></label><div><button type="button" className="primary-button" onClick={save}>Spara ändring</button><button type="button" className="secondary-button" onClick={() => setEditing(null)}>Avbryt</button></div></div> : <div className="strength-program-library-list">{programs.map((program) => <article key={program.id} className={program.active === false ? 'archived' : ''}><div><strong>{program.title}{program.active === false && <em> · Arkiverat</em>}</strong><small>{program.description}</small><small>{program.assignedCount ? `Används av ${program.assignedCount} simmare` : 'Inte tilldelat'}</small></div><div className="program-library-actions"><button type="button" className="secondary-button" onClick={() => setEditing({ ...program })}>Redigera</button>{program.active !== false && <button type="button" className="secondary-button" onClick={() => archive(program)}>Arkivera</button>}<button type="button" className="danger-button" onClick={() => remove(program)}>Radera</button></div></article>)}{!programs.length && <p className="empty">Inga programmallar ännu. Kör de senaste databasmigreringarna för att lägga in dem.</p>}</div>}{status && <small className="coach-note-status">{status}</small>}</section>
 }
 
 function CoachPrograms({ code, profiles }) {
