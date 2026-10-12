@@ -123,6 +123,7 @@ function App() {
   const [checkinActivityDate, setCheckinActivityDate] = useState(todayKey())
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
+  const [selectedDevelopmentTalkId, setSelectedDevelopmentTalkId] = useState(null)
   const [talksEnabled, setTalksEnabled] = useState(false)
   const [developmentTalks, setDevelopmentTalks] = useState([])
   const [planningEnabled, setPlanningEnabled] = useState(false)
@@ -306,7 +307,7 @@ function App() {
       {screen === 'bikerun' && <BikeRun code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'twenty48' && <Twenty48 code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'alltime-games' && <AllTimeGames code={auth.code} onBack={() => setScreen('home')} />}
-      {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} talkId={selectedDevelopmentTalkId} onBack={() => { setSelectedDevelopmentTalkId(null); setScreen('home') }} />}
       {screen === 'planning' && <SwimmerPlanning code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'competition-entries' && <SwimmerCompetitionEntries code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'restoring-profile' && <section className="profile-restore-placeholder" aria-hidden="true" />}
@@ -381,7 +382,7 @@ function App() {
       {screen === 'coach-info' && <CoachInfoPage code={auth.code} profile={profile} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
-      {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onProfileChange={setProfile} onBack={() => setScreen('home')} onProfileLogout={async () => {
+      {screen === 'profile' && <MyProfile profile={profile} points={points} code={auth.code} onProfileChange={setProfile} onBack={() => setScreen('home')} onOpenTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId); setScreen('talks') }} onProfileLogout={async () => {
         await stopDevicePush(auth.code).catch(() => {})
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
@@ -1434,9 +1435,9 @@ const TALK_STEPS = [
 ]
 const TALK_FIELD_LABELS = Object.fromEntries(TALK_STEPS.flatMap(([, , fields]) => fields))
 
-function DevelopmentTalkSwimmer({ code, onBack }) {
+function DevelopmentTalkSwimmer({ code, talkId = null, onBack }) {
   const [talks, setTalks] = useState([]); const [talk, setTalk] = useState(null); const [step, setStep] = useState(0); const [saving, setSaving] = useState(false); const [status, setStatus] = useState(''); const [answersDirty, setAnswersDirty] = useState(false)
-  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => { const nextTalks = data.talks || []; setTalks(nextTalks); const activeTalk = latestActiveDevelopmentTalk(nextTalks); const nextTalk = activeTalk || [...nextTalks].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]; if (nextTalk) { setTalk(nextTalk); const savedStep = Number(nextTalk.swimmerAnswers?.__step || 0); setStep(Math.max(0, Math.min(TALK_STEPS.length - 1, savedStep))) } }).catch(() => {}) }, [code])
+  useEffect(() => { let active = true; apiRequest('/api/goals?talks=true', code).then((data) => { if (!active) return; const nextTalks = data.talks || []; setTalks(nextTalks); const activeTalk = latestActiveDevelopmentTalk(nextTalks); const nextTalk = nextTalks.find((item) => item.id === talkId) || activeTalk || [...nextTalks].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]; if (nextTalk) { setTalk(nextTalk); const savedStep = Number(nextTalk.swimmerAnswers?.__step || 0); setStep(Math.max(0, Math.min(TALK_STEPS.length - 1, savedStep))) } }).catch((error) => { if (active) setStatus(`Kunde inte hämta utvecklingssamtalet: ${error.message}`) }); return () => { active = false } }, [code, talkId])
   const answers = Object.fromEntries(Object.entries(talk?.swimmerAnswers || {}).filter(([key]) => key !== '__step'))
   const preparedSent = talk?.status === 'prepared' && !answersDirty
   const update = (key, value) => { setAnswersDirty(true); setStatus(''); setTalk((current) => ({ ...(current || { swimmerAnswers: {} }), swimmerAnswers: { ...(current?.swimmerAnswers || {}), [key]: value } })) }
@@ -2037,7 +2038,7 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   </>}</div></div>
 }
 
-function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLogout }) {
+function MyProfile({ profile, points, code, onProfileChange, onBack, onOpenTalk, onProfileLogout }) {
   const [responses, setResponses] = useState([])
   const [artifacts, setArtifacts] = useState([])
   const [competitionResults, setCompetitionResults] = useState([])
@@ -2061,7 +2062,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onProfileLo
       <section className="artifact-collection"><div><p className="eyebrow">Min samling</p><h2>Artefakter</h2><small>Små bevis på vanor, utveckling och lagkänsla.</small></div>{artifacts.length ? <div className="artifact-grid">{artifacts.map((artifact) => <article key={artifact.id} title={artifact.description}><span>{artifact.emoji}</span><strong>{artifact.name}</strong><small>{new Date(artifact.awardedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></article>)}</div> : <p className="empty">Din samling är tom än så länge.</p>}</section>
       <PushNotificationControl code={code} />
       {competitionResults.length > 0 && <details className="my-competition-results"><summary><span><p className="eyebrow">Tävlingsresultat</p><h2>Mina tävlingsresultat</h2><small>{competitionResults.length} sparade resultat · tryck för att visa</small></span><b>＋</b></summary><div className="competition-event-list">{[...new Set(competitionResults.map((item) => item.event))].sort((a, b) => a.localeCompare(b, 'sv')).map((event) => { const items = competitionResults.filter((item) => item.event === event); const best = items.slice().sort((a, b) => (a.result_time || 999999) - (b.result_time || 999999))[0]; return <details key={event}><summary><span>{event}</span><b>{best.swim_time}</b></summary><div className="competition-history">{items.slice(0, 20).map((item) => <span key={item.id}>{item.pool || 'Bassäng saknas'} · {item.result_date ? new Date(`${item.result_date}T12:00:00`).toLocaleDateString('sv-SE') : item.result_year ? `Cirka ${item.result_year}` : 'Datum okänt'} · {item.swim_time}{item.source === 'manual' ? ' · Manuellt tillagt' : ''}</span>)}</div></details> })}</div></details>}
-      <section className="talk-history swimmer-talk-history"><p className="eyebrow">Sparat över tid</p><h2>Mina utvecklingssamtal</h2>{developmentTalks.length ? developmentTalks.map((talk) => <details key={talk.id}><summary>{talk.meetingDate} · {talk.status === 'completed' ? 'Genomfört' : 'Förbereds'} {!talk.enabled && '· Skrivskyddat'}</summary><div className="talk-history-answer">{Object.entries(talk.swimmerAnswers || {}).filter(([key, value]) => key !== '__step' && value).map(([key, value]) => <p key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><span>{value}</span></p>)}{Object.values(talk.agreement || {}).filter(Boolean).map((value) => <p key={value}><strong>Gemensam överenskommelse</strong><span>{value}</span></p>)}</div></details>) : <p className="empty">Inga utvecklingssamtal ännu.</p>}</section>
+      <section className="talk-history swimmer-talk-history"><p className="eyebrow">Sparat över tid</p><h2>Mina utvecklingssamtal</h2>{developmentTalks.length ? developmentTalks.map((talk) => { const answers = Object.entries(talk.swimmerAnswers || {}).filter(([key, value]) => key !== '__step' && value); const agreements = Object.values(talk.agreement || {}).filter(Boolean); const canOpen = talk.enabled !== false && talk.status !== 'completed'; return <details key={talk.id}><summary>{talk.meetingDate} · {talk.status === 'completed' ? 'Genomfört' : talk.status === 'prepared' ? 'Redo för samtal' : 'Förbereds'} {!talk.enabled && '· Skrivskyddat'}</summary><div className="talk-history-answer">{answers.map(([key, value]) => <p key={key}><strong>{TALK_FIELD_LABELS[key] || key}</strong><span>{value}</span></p>)}{agreements.map((value) => <p key={value}><strong>Gemensam överenskommelse</strong><span>{value}</span></p>)}{!answers.length && !agreements.length && <p className="empty">Inga svar är sparade i det här samtalet ännu.</p>}{canOpen && <button type="button" className="primary-button" onClick={() => onOpenTalk?.(talk.id)}>{answers.length ? 'Fortsätt samtalet →' : 'Öppna samtalet →'}</button>}</div></details> }) : <p className="empty">Inga utvecklingssamtal ännu.</p>}</section>
       <details className="my-history"><summary><span><h2>Min historik</h2><small>Endast svar du valde att koppla till profilen</small></span><b>＋</b></summary>{loading ? <p className="empty">Hämtar…</p> : responses.length ? responses.map((item) => <article key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><div><strong>{responseDate(item).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' })}</strong><small>{DAY_TYPES.find((type) => type.value === item.type)?.title}{item.lateEntry && ` · Efterregistrerad ${new Date(item.submittedAt || item.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`}</small></div>{item.rpe && <b>RPE {item.rpe}</b>}</article>) : <p className="empty">Inga profilsvar ännu.</p>}</details>
       {!showAnalytics ? <button className="primary-button profile-stats-button" onClick={() => setShowAnalytics(true)}>📊 Visa min statistik →</button> : <AnalysisDashboard code={code} profile={profile} selfView onBack={() => setShowAnalytics(false)} />}
       <button className="profile-logout" onClick={onProfileLogout}>Logga ut från profilen</button>
