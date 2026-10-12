@@ -83,6 +83,9 @@ const competitionIsToday = (item, today = todayKey()) => Boolean(item?.startDate
 const latestActiveDevelopmentTalk = (talks = []) => talks
   .filter((talk) => talk.enabled !== false && talk.status !== 'completed')
   .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(b.meetingDate || '').localeCompare(String(a.meetingDate || '')))[0] || null
+const latestPendingDevelopmentTalk = (talks = []) => talks
+  .filter((talk) => talk.enabled !== false && talk.status === 'draft')
+  .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(b.meetingDate || '').localeCompare(String(a.meetingDate || '')))[0] || null
 const average = (key, items) => {
   const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
   return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
@@ -329,7 +332,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={() => setScreen('talks')} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} tomorrowWorkout={tomorrowWorkout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} onStartYesterday={() => { setCheckinActivityDate(dateKey(new Date(Date.now() - 86400000))); setScreen('privacy-choice') }} />
@@ -947,7 +950,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
-  const activeDevelopmentTalk = latestActiveDevelopmentTalk(developmentTalks)
+  const pendingDevelopmentTalk = latestPendingDevelopmentTalk(developmentTalks)
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const todayResponseIds = todayResponses.map((response) => response.id).join('|')
@@ -1021,9 +1024,9 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
       {profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses.filter((item) => item.profileId === profile.id)} />}
 
       {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={ownResponsesLoaded && !hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
+      {profile && pendingDevelopmentTalk && <DevelopmentTalkCard talk={pendingDevelopmentTalk} onOpen={onTalk} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
-      {profile && activeDevelopmentTalk && <DevelopmentTalkCard talk={activeDevelopmentTalk} onOpen={onTalk} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && tomorrowWorkout && <TomorrowWorkoutCard workout={tomorrowWorkout} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
@@ -1184,7 +1187,7 @@ function DevelopmentTalkCard({ talk, onOpen }) {
   const prepared = talk.status === 'prepared'
   return <section className="competition-signup-card development-talk-home-card">
     <div><p className="eyebrow">Från tränarna</p><h2>Utvecklingssamtal 🤝</h2><p>{prepared ? 'Dina svar är redo inför samtalet.' : 'Förbered dig inför ett samtal med tränaren.'}{meetingDate && <> <span className="development-talk-date">{meetingDate}</span></>}</p></div>
-    <button type="button" className="primary-button" onClick={onOpen}>{prepared ? 'Visa mina svar' : 'Förbered samtalet'} →</button>
+    <button type="button" className="primary-button" onClick={() => onOpen(talk.id)}>{prepared ? 'Visa mina svar' : 'Förbered samtalet'} →</button>
   </section>
 }
 
