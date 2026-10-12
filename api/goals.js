@@ -114,7 +114,14 @@ export default async function handler(request, response) {
       }
       if (action === 'toggle-talk') {
         const id = String(request.body.id || ''), enabled = Boolean(request.body.enabled)
-        const result = await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ enabled, updated_at: new Date().toISOString() }) })
+        if (!id) return sendJson(response, 400, { error: 'Samtalet saknar id.' })
+        let status
+        if (enabled) {
+          const current = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&select=status&limit=1`)
+          if (!current.ok) throw new Error(`Development talk lookup failed: ${current.status}`)
+          if ((await current.json())[0]?.status === 'completed') status = 'draft'
+        }
+        const result = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ enabled, ...(status ? { status } : {}), updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Development talk setting failed: ${result.status}`)
         return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
       }

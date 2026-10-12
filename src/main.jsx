@@ -220,10 +220,15 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setDevelopmentTalks([]); setTalksEnabled(false); return }
-    apiRequest('/api/goals?talks=true', auth.code).then((data) => {
+    let active = true
+    const refreshTalks = () => apiRequest('/api/goals?talks=true', auth.code).then((data) => {
+      if (!active) return
       setTalksEnabled(data.globalEnabled !== false)
       setDevelopmentTalks(data.globalEnabled === false ? [] : (data.talks || []).filter((talk) => talk.enabled !== false))
-    }).catch(() => { setTalksEnabled(false); setDevelopmentTalks([]) })
+    }).catch(() => { if (active) { setTalksEnabled(false); setDevelopmentTalks([]) } })
+    refreshTalks()
+    const timer = window.setInterval(refreshTalks, 30000)
+    return () => { active = false; window.clearInterval(timer) }
   }, [auth, profile?.id, screen])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setAiEnabled(savedSettings.aiEnabled !== false); setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setOpenChatEnabled(savedSettings.openChat?.enabled === true); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setAiEnabled(true); setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setOpenChatEnabled(false); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
