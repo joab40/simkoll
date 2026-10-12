@@ -1,6 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { interpretCompetitionProgram } from '../server/competition-program.js'
+import { interpretStrengthProgram } from '../server/strength-import.js'
 import { normalizeProgram, validateProgram } from '../src/competition-program.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
@@ -890,6 +891,13 @@ export default async function handler(request, response) {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         if (!Array.isArray(request.body.library) || !request.body.library.length) return sendJson(response, 400, { error: 'Välj eller hämta minst ett tidigare pass först.' })
         return sendJson(response, 200, await generateWorkoutFromLibrary(request, request.body))
+      }
+      if (request.body?.action === 'import-strength-program') {
+        if (role !== 'coach' || !canManageCompetitionProgram) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan AI-importera styrkeprogram.' })
+        const availability = await aiAvailability()
+        if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'Klubbens månadstak för AI är nått.' : 'AI-stöd är avstängt i webapp-inställningarna.' })
+        const parsed = await interpretStrengthProgram(request, request.body)
+        return sendJson(response, parsed.error ? 422 : 200, parsed)
       }
       if (request.body?.action === 'import-competition-program') {
         if (role !== 'coach' || !canManageCompetitionProgram) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan läsa in eller AI-analysera tävlings-PM.' })

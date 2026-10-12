@@ -2,13 +2,22 @@ const strokePassNames = (title, number) => {
   const names = title.includes('Frisim') ? ['Maxstyrka & asymmetrisk dragkraft', 'Unilateral balans & axelhälsa', 'Bålrotation & uthållig effekt']
     : title.includes('Bröstsim') ? ['Höftextension & presskraft', 'Ljumskskydd & prehab', 'Bålkedja & explosiv glid']
       : title.includes('Ryggsim') ? ['Posterior kedja & ryggstyrka', 'Axelhälsa & hållning', 'Armåterföring & bålkontroll']
-        : ['Symmetrisk maxkraft & delfinkick', 'Axelhälsa & ländryggsprehab', 'Explosiv effekt & bålkedja']
+        : title.includes('Fjärilsim') ? ['Symmetrisk maxkraft & delfinkick', 'Axelhälsa & ländryggsprehab', 'Explosiv effekt & bålkedja'] : []
   return names[number - 1] || `Styrkepass ${number}`
 }
 
 export function strengthPasses(program) {
   const content = String(program.content || '')
   const title = String(program.title || '')
+  const headings = [...content.matchAll(/(?:^|\n)Pass\s+([123])\s*[·–-]\s*([^\r\n]+)\r?\n/g)]
+  if (headings.length && headings.every((match, index) => Number(match[1]) === index + 1)) {
+    const commonInstructions = content.slice(0, headings[0].index).trim()
+    return headings.map((match, index) => {
+      const start = match.index + match[0].length
+      const end = headings[index + 1]?.index ?? content.length
+      return { passNumber: index + 1, title: match[2].trim(), content: [commonInstructions, content.slice(start, end).trim()].filter(Boolean).join('\n\n') }
+    })
+  }
   const isWeekly = /Veckoprogram|3\s*pass/i.test(title)
   if (!isWeekly) return [{ passNumber: 1, title: 'Styrkepass', content }]
 
@@ -22,16 +31,24 @@ export function strengthPasses(program) {
     }))
   }
 
-  // Some programs store all sessions in one field, with headings like
-  // “Pass 1 · ...”. Split those into independently selectable/loggable passes.
-  const headings = [...content.matchAll(/(?:^|\n)Pass\s+([123])\s*[·–-]\s*([^\n]+)\n/g)]
-  if (headings.length >= 3 && headings.slice(0, 3).every((match, index) => Number(match[1]) === index + 1)) {
-    return headings.slice(0, 3).map((match, index) => {
-      const start = match.index + match[0].length
-      const end = headings[index + 1]?.index ?? content.length
-      return { passNumber: index + 1, title: match[2].trim(), content: content.slice(start, end).trim() }
-    })
-  }
-
   return [{ passNumber: 1, title: strokePassNames(title, 1), content }]
+}
+
+export function strengthExercises(content) {
+  const exercises = []
+  for (const raw of String(content || '').split('\n')) {
+    const line = raw.trim()
+    if (/^\d+\.\s+/.test(line)) {
+      const match = line.match(/^\d+\.\s+(.+?)(?:\s+—\s+|\s+-\s+|:\s+)(.*)$/)
+      exercises.push({ name: (match ? match[1] : line.replace(/^\d+\.\s+/, '')).trim(), dosage: match ? match[2].trim() : '', instructions: '' })
+    } else if (line.startsWith('Instruktion:') && exercises.length) {
+      exercises[exercises.length - 1].instructions = line.slice('Instruktion:'.length).trim()
+    }
+  }
+  const occurrences = new Map()
+  return exercises.map((exercise) => {
+    const count = (occurrences.get(exercise.name) || 0) + 1
+    occurrences.set(exercise.name, count)
+    return { ...exercise, resultKey: count === 1 ? exercise.name : `${exercise.name} (${count})` }
+  })
 }

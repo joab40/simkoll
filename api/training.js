@@ -1,5 +1,7 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate } from '../server/profile-auth.js'
+import { coachFromRequest } from '../server/coach-auth.js'
+import { normalizeStrengthDraft, validateStrengthDraft, strengthDraftContent } from '../shared/strength-import.js'
 
 const mapProgram = (program) => ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active })
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -255,6 +257,16 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
 
+    if (action === 'save-strength-import') {
+      if (!['head_coach', 'superadmin'].includes(coachFromRequest(request)?.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan spara importerade styrkeprogram.' })
+      if (request.body.reviewed !== true) return sendJson(response, 400, { error: 'Granska programmet innan du sparar det.' })
+      const draft = normalizeStrengthDraft(request.body.draft)
+      const issues = validateStrengthDraft(draft)
+      if (issues.length) return sendJson(response, 422, { error: issues.join(' '), issues })
+      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title: draft.title, description: draft.description, content: strengthDraftContent(draft), start_date: stockholmDate() }) })
+      if (!result.ok) throw new Error('Strength import save failed')
+      return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })
+    }
     if (action === 'create-program') {
       const type = String(request.body.type || '')
       const title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim(), content = String(request.body.content || '').trim()

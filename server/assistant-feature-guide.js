@@ -42,6 +42,7 @@ export function buildCoachAssistantFeatureSnapshot({ accountRole = 'coach', weba
 }
 
 export const COACH_ASSISTANT_FEATURE_GUIDE = `Tränarfunktioner och inställningar:
+- I Träningsprogram kan huvudtränare och superadmin AI-importera styrkeprogram från XLS, XLSX, PDF, PNG, JPG eller WebP under 3 MB. Tolka först, granska pass/övningar/dosering och valfria AI-genererade teknik-instruktioner, och spara sedan i styrkeprogrambiblioteket. Tilldela på simmarens kort under Styrkeprogram. Ett program innehåller 1–3 separat loggbara pass. Bara tolkningen gör ett AI-anrop; sparande och läsning gör inga anrop. Importen använder en separat styrkemodell och följer klubbens globala AI-inställning och tokenbudget.
 - Denna guide beskriver Simkolls användarfunktioner; ingen källkod, hemlighet, token, lösenord, PIN eller privat tränar-/simmarprofil lämnas till modellen.
 - Aktuell meny och status finns i coachFeatureSettings. navigation.inMenu visar om funktionen finns i tränarmenyn/Verktyg; navigation.overviewShortcut visar om den är en genväg på översikten. “Dold” är inte samma sak som saknad behörighet: menyinställningar ändrar inte roller, serverbehörigheter eller data.
 - Vanlig tränare följer klubbens globala menyval. Huvudtränare och superadmin kan använda egna meny- och översiktsval om personalSettingsEnabled är sant; de påverkar bara det egna kontot. Endast superadmin har de övriga globala inställningarna.
