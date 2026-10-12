@@ -319,7 +319,7 @@ export default async function handler(request, response) {
     if (action === 'delete-program') {
       const programId = String(request.body.programId || '')
       if (!programId) return sendJson(response, 400, { error: 'Programmet saknas.' })
-      const assignmentsResult = await supabaseRequest(`program_assignments?program_id=eq.${encodeURIComponent(programId)}&select=id&limit=1`)
+      const assignmentsResult = await supabaseRequest(`program_assignments?program_id=eq.${encodeURIComponent(programId)}&removed_at=is.null&select=id&limit=1`)
       if (!assignmentsResult.ok) throw new Error('Assignment lookup failed')
       if ((await assignmentsResult.json()).length) return sendJson(response, 409, { error: 'Programmet används fortfarande av en eller flera simmare. Ta bort tilldelningarna först.' })
       const logsResult = await supabaseRequest(`strength_program_logs?assignment_id=is.not.null&select=id,program_assignments!inner(program_id)&program_assignments.program_id=eq.${encodeURIComponent(programId)}&limit=1`)
