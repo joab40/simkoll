@@ -1248,6 +1248,26 @@ button { cursor: pointer; }
 .profile-tools > div { display: grid; gap: 7px; }
 .profile-tools > div > button { width: 100%; min-height: 36px; border: 1px solid #cddcd8; border-radius: 9px; background: white; font-size: 11px; }
 .profile-tools .test-profile-toggle, .profile-tools .delete-profile-button { margin-top: 0; }
+.strength-program-card { display: grid; gap: 13px; margin: 16px 0; padding: 16px; border: 1px solid #cfe1dc; border-radius: 16px; background: linear-gradient(135deg, #f2faf6 0%, #fff 72%); box-shadow: 0 7px 18px rgba(29, 81, 73, .06); }
+.strength-program-card > header { display: flex; align-items: center; gap: 11px; }
+.strength-program-card > header > span { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 13px; background: #dff1eb; font-size: 23px; }
+.strength-program-card > header > div { display: grid; gap: 2px; }
+.strength-program-card .eyebrow { margin: 0; font-size: 8px; }
+.strength-program-card h3 { margin: 0; font-size: 16px; }
+.strength-program-card header small { color: var(--muted); font-size: 10px; }
+.strength-program-card > label { display: grid; gap: 6px; color: var(--teal); font-size: 10px; font-weight: 800; }
+.strength-program-card select { width: 100%; min-height: 43px; padding: 9px 36px 9px 12px; border: 1px solid #bdd7d0; border-radius: 11px; background: #fff; color: var(--ink); font: 700 11px 'Manrope', sans-serif; }
+.strength-program-card .assigned-strength-list { display: grid; gap: 8px; }
+.strength-program-card .assigned-strength-list > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 11px; border: 1px solid #dce9e5; border-radius: 11px; background: #fff; }
+.strength-program-card .assigned-strength-list span { display: grid; gap: 2px; min-width: 0; }
+.strength-program-card .assigned-strength-list b { color: #39806f; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.strength-program-card .assigned-strength-list strong { font-size: 10px; line-height: 1.35; }
+.strength-program-card .danger-button { flex: none; min-height: 32px; padding: 6px 9px; font-size: 9px; }
+.strength-program-empty { display: flex; align-items: center; gap: 9px; padding: 10px 11px; border: 1px dashed #c9ddd7; border-radius: 11px; color: var(--muted); }
+.strength-program-empty > span { color: #66a293; font-size: 20px; }
+.strength-program-empty small { font-size: 10px; line-height: 1.4; }
+.profile-created-date { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px !important; border-radius: 9px; background: #f1f6f4; color: var(--muted); font-size: 10px; }
+.profile-created-date strong { color: var(--ink); }
 .ai-profile-tools { margin-top: 18px; padding-top: 14px; }
 .ai-profile-tools[open] summary { margin-bottom: 13px; }
 .ai-profile-tools > div { gap: 11px; }
