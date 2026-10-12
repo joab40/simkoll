@@ -125,7 +125,10 @@ export default async function handler(request, response) {
           if (!current.ok) throw new Error(`Development talk lookup failed: ${current.status}`)
           const currentTalk = (await current.json())[0]
           wasEnabled = currentTalk?.enabled === true
-          if (currentTalk?.status === 'completed') status = 'draft'
+          // Reopening an older conversation should make it available in the
+          // swimmer view again, even if its previous preparation was marked
+          // ready. The home card intentionally only appears for draft talks.
+          if (currentTalk?.enabled === false && ['prepared', 'completed'].includes(currentTalk.status)) status = 'draft'
         }
         const result = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ enabled, ...(status ? { status } : {}), updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Development talk setting failed: ${result.status}`)
