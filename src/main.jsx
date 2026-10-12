@@ -80,6 +80,9 @@ const dateKey = (date) => {
 const responseDate = (response) => new Date(`${checkinDay(response)}T12:00:00`)
 const todayKey = () => dateKey(new Date())
 const competitionIsToday = (item, today = todayKey()) => Boolean(item?.startDate && item.startDate <= today && (item.endDate || item.startDate) >= today)
+const latestActiveDevelopmentTalk = (talks = []) => talks
+  .filter((talk) => talk.enabled !== false && talk.status !== 'completed')
+  .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(b.meetingDate || '').localeCompare(String(a.meetingDate || '')))[0] || null
 const average = (key, items) => {
   const values = items.map((item) => item[key]).filter((value) => typeof value === 'number')
   return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '–'
@@ -943,7 +946,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
-  const activeDevelopmentTalk = developmentTalks.find((talk) => talk.status !== 'completed')
+  const activeDevelopmentTalk = latestActiveDevelopmentTalk(developmentTalks)
   useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const todayResponseIds = todayResponses.map((response) => response.id).join('|')
@@ -1433,7 +1436,7 @@ const TALK_FIELD_LABELS = Object.fromEntries(TALK_STEPS.flatMap(([, , fields]) =
 
 function DevelopmentTalkSwimmer({ code, onBack }) {
   const [talks, setTalks] = useState([]); const [talk, setTalk] = useState(null); const [step, setStep] = useState(0); const [saving, setSaving] = useState(false); const [status, setStatus] = useState(''); const [answersDirty, setAnswersDirty] = useState(false)
-  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => { const nextTalks = data.talks || []; setTalks(nextTalks); const activeTalk = nextTalks.find((item) => item.enabled !== false && item.status !== 'completed'); const nextTalk = activeTalk || nextTalks[0]; if (nextTalk) { setTalk(nextTalk); const savedStep = Number(nextTalk.swimmerAnswers?.__step || 0); setStep(Math.max(0, Math.min(TALK_STEPS.length - 1, savedStep))) } }).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => { const nextTalks = data.talks || []; setTalks(nextTalks); const activeTalk = latestActiveDevelopmentTalk(nextTalks); const nextTalk = activeTalk || [...nextTalks].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]; if (nextTalk) { setTalk(nextTalk); const savedStep = Number(nextTalk.swimmerAnswers?.__step || 0); setStep(Math.max(0, Math.min(TALK_STEPS.length - 1, savedStep))) } }).catch(() => {}) }, [code])
   const answers = Object.fromEntries(Object.entries(talk?.swimmerAnswers || {}).filter(([key]) => key !== '__step'))
   const preparedSent = talk?.status === 'prepared' && !answersDirty
   const update = (key, value) => { setAnswersDirty(true); setStatus(''); setTalk((current) => ({ ...(current || { swimmerAnswers: {} }), swimmerAnswers: { ...(current?.swimmerAnswers || {}), [key]: value } })) }
