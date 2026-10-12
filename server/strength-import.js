@@ -1,6 +1,7 @@
 import { writeAiUsage } from './audit.js'
 import { readProgramResponse } from './competition-program.js'
 import { normalizeStrengthDraft, validateStrengthDraft, STRENGTH_FILE_TYPES, STRENGTH_FILE_MAX_BYTES } from '../shared/strength-import.js'
+import { readStrengthSpreadsheet } from './strength-spreadsheet.js'
 
 const obj = (properties) => ({ type: 'object', additionalProperties: false, properties, required: Object.keys(properties) })
 const str = { type: 'string' }
@@ -20,7 +21,14 @@ export async function interpretStrengthProgram(request, options = {}, dependenci
   const log = dependencies.log || writeAiUsage
   const fetcher = dependencies.fetch || fetch
   let logged = false
-  const source = mime.startsWith('image/') ? { type: 'input_image', image_url: options.fileData, detail: 'high' } : { type: 'input_file', filename: fileName, file_data: options.fileData }
+  let source
+  try {
+    source = /\.(xlsx|xls)$/i.test(fileName)
+      ? { type: 'input_text', text: readStrengthSpreadsheet(Buffer.from(match[2], 'base64')) }
+      : mime.startsWith('image/') ? { type: 'input_image', image_url: options.fileData, detail: 'high' } : { type: 'input_file', filename: fileName, file_data: options.fileData }
+  } catch (error) {
+    return { error: error.message }
+  }
   try {
     const response = await fetcher('https://api.openai.com/v1/responses', {
       method: 'POST', signal: AbortSignal.timeout(110000),
@@ -32,8 +40,15 @@ export async function interpretStrengthProgram(request, options = {}, dependenci
       }),
     })
     if (!response.ok) {
-      await log(request, { feature: 'strength_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${response.status}` })
-      return { error: [403, 404].includes(response.status) ? 'Styrkeprogrammets AI-modell är inte tillgänglig. Kontrollera OPENAI_STRENGTH_PROGRAM_MODEL.' : 'Filen kunde inte tolkas just nu. Inget har sparats.' }
+      const detail = await response.json().catch(() => ({}))
+      const code = String(detail.error?.code || '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80)
+      await log(request, { feature: 'strength_program_import', model, role: 'coach', status: 'failure', error: `HTTP ${response.status}${code ? ` ${code}` : ''}` })
+      const error = response.status === 401 ? 'OpenAI-nyckeln kunde inte verifieras. Kontrollera OPENAI_API_KEY.'
+        : [403, 404].includes(response.status) ? 'Styrkeprogrammets AI-modell är inte tillgänglig. Kontrollera OPENAI_STRENGTH_PROGRAM_MODEL.'
+          : response.status === 429 ? 'OpenAI:s anropsgräns eller kontots budget är nådd. Försök senare eller kontrollera API-kontot.'
+            : response.status === 400 ? 'AI-tjänsten avvisade underlaget. Prova en annan fil eller PDF och kontrollera modellinställningen.'
+              : 'AI-tjänsten kunde inte tolka programmet just nu. Försök igen senare.'
+      return { error: `${error} (HTTP ${response.status}${code ? `, ${code}` : ''}). Inget har sparats.` }
     }
     const payload = await response.json()
     await log(request, { feature: 'strength_program_import', model, role: 'coach', response: payload, status: payload.status === 'completed' ? 'success' : 'failure' })
