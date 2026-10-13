@@ -2,6 +2,7 @@ import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from 
 import { writeAiUsage } from '../server/audit.js'
 import { interpretCompetitionProgram } from '../server/competition-program.js'
 import { interpretStrengthProgram } from '../server/strength-import.js'
+import { ensureStrengthImageStorage, decodeExerciseImage, generateExerciseImage, storeExerciseImage } from '../server/strength-images.js'
 import { normalizeProgram, validateProgram } from '../src/competition-program.js'
 import { getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
@@ -898,6 +899,21 @@ export default async function handler(request, response) {
         if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'Klubbens månadstak för AI är nått.' : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const parsed = await interpretStrengthProgram(request, request.body)
         return sendJson(response, parsed.error ? 422 : 200, parsed)
+      }
+      if (['generate-strength-image', 'upload-strength-image'].includes(request.body?.action)) {
+        if (role !== 'coach' || !canManageCompetitionProgram) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan lägga till övningsbilder.' })
+        try {
+          const generate = request.body.action === 'generate-strength-image'
+          if (generate) {
+            const availability = await aiAvailability()
+            if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'Klubbens månadstak för AI är nått.' : 'AI-stöd är avstängt i webapp-inställningarna.' })
+          }
+          const upload = generate ? null : decodeExerciseImage(request.body.imageData)
+          await ensureStrengthImageStorage()
+          const decoded = generate ? await generateExerciseImage(request, request.body) : upload
+          const image = await storeExerciseImage(coachAccount.sub, decoded, generate ? 'ai' : 'upload')
+          return sendJson(response, 201, { image })
+        } catch (error) { return sendJson(response, 422, { error: error.message }) }
       }
       if (request.body?.action === 'import-competition-program') {
         if (role !== 'coach' || !canManageCompetitionProgram) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan läsa in eller AI-analysera tävlings-PM.' })

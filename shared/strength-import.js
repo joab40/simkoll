@@ -20,9 +20,14 @@ export function normalizeStrengthDraft(value = {}) {
       exercises: Array.isArray(pass?.exercises) ? pass.exercises.map((exercise) => ({
         name: text(exercise?.name), prescription: text(exercise?.prescription),
         instructions: text(exercise?.instructions), source: text(exercise?.source), uncertain: exercise?.uncertain === true,
+        imageId: text(exercise?.imageId), imageUrl: text(exercise?.imageUrl), imageSource: text(exercise?.imageSource),
       })) : [],
     })) : [],
   }
+}
+
+export function draftExerciseImages(draft) {
+  return draft.passes.flatMap((pass, passIndex) => pass.exercises.flatMap((exercise, exerciseIndex) => exercise.imageId ? [{ imageId: exercise.imageId, passNumber: passIndex + 1, exerciseIndex, exerciseName: exercise.name }] : []))
 }
 
 export function strengthDraftContent(draft) {

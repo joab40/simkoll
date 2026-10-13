@@ -3,6 +3,9 @@
 // Logs currently retain total input/output only, not cache breakdown or service
 // tier. Estimates therefore use Standard rates and count all input as uncached.
 const PRICES = [
+  // Direct exercise-image generation uses text inputs only, no reference images.
+  // https://developers.openai.com/api/docs/guides/image-generation (2026-10-13)
+  { match: /^gpt-image-2\.5-flare(?:-|$)/i, input: 5.00, output: 30.00 },
   // https://developers.openai.com/api/docs/models/gpt-6.1-sol (2026-10-08)
   { match: /^gpt-6\.1-sol(?:-|$)/i, input: 2.00, output: 10.00, longContext: { above: 272000, input: 4.00, output: 15.00 } },
   { match: /^gpt-4o-mini(?:-|$)/i, input: 0.15, output: 0.60 },

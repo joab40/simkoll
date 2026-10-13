@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { STRENGTH_FILE_TYPES, STRENGTH_FILE_MAX_BYTES, normalizeStrengthDraft, validateStrengthDraft } from '../shared/strength-import.js'
+import { ExerciseImageControl } from './strength-exercise-images.jsx'
 
 export default function StrengthProgramImport({ code, request, onSaved, aiEnabled }) {
   const [file, setFile] = useState(null)
@@ -48,6 +49,7 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
       <label>Gemensamma instruktioner<textarea value={draft.instructions} disabled={!!busy} onChange={(event) => update((current) => ({ ...current, instructions: event.target.value }))} /></label>
       {draft.warnings.length > 0 && <div className="strength-import-warnings"><strong>Kontrollera mot originalet</strong><ul>{draft.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
       {generatedInstructions && <p className="strength-import-generated">Övningsinstruktionerna innehåller AI-genererade förslag. Kontrollera teknik och anpassning innan simmaren får programmet.</p>}
+      <p className="strength-import-generated">Du kan lägga till en övningsbild i taget. AI-bilder kostar ett separat anrop. Egna bilder laddas upp till Simkoll utan AI-tolkning.</p>
       {draft.passes.map((pass, passIndex) => <fieldset key={passIndex} className="strength-import-pass" disabled={!!busy}>
         <legend>Pass {passIndex + 1} · {pass.exercises.length} övningar</legend>
         <label>Passrubrik<input value={pass.title} onChange={(event) => editPass(passIndex, (current) => ({ ...current, title: event.target.value }))} /></label>
@@ -55,6 +57,8 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
         {pass.exercises.map((exercise, index) => <div key={index} className={`strength-import-exercise${exercise.uncertain ? ' uncertain' : ''}`}>
           <div className="strength-import-exercise-row"><label>Övning {index + 1}<input value={exercise.name} onChange={(event) => editExercise(passIndex, index, 'name', event.target.value)} /></label><label>Set / reps / vikt / vila<input value={exercise.prescription} onChange={(event) => editExercise(passIndex, index, 'prescription', event.target.value)} /></label></div>
           <label>Instruktion till simmaren<textarea rows={2} value={exercise.instructions} onChange={(event) => editExercise(passIndex, index, 'instructions', event.target.value)} /></label>
+          <ExerciseImageControl code={code} request={request} name={exercise.name} instructions={exercise.instructions} image={exercise} aiEnabled={aiEnabled} uncertain={exercise.uncertain} disabled={!!busy} onBusyChange={(active) => setBusy(active ? 'image' : '')} onChange={(image) => editPass(passIndex, (current) => ({ ...current, exercises: current.exercises.map((item, i) => i === index ? { ...item, ...image } : item) }))} />
+          {exercise.uncertain && <label className="strength-import-check"><input type="checkbox" onChange={(event) => event.target.checked && editExercise(passIndex, index, 'uncertain', false)} />Övningsnamnet är kontrollerat mot originalet.</label>}
           {exercise.source && <small>Källrad: {exercise.source}</small>}
           {exercise.uncertain && <small>Otydlig tolkning – kontrollera källraden.</small>}
           <button type="button" className="text-button danger-text" onClick={() => editPass(passIndex, (current) => ({ ...current, exercises: current.exercises.filter((_, i) => i !== index) }))}>Ta bort övning</button>

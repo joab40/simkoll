@@ -7,6 +7,15 @@ export function isDatabaseConfigured() {
   return Boolean(supabaseUrl && supabaseKey)
 }
 
+export async function supabaseStorageRequest(path, options = {}) {
+  if (!isDatabaseConfigured()) throw new Error('Supabase is not configured')
+  return fetch(`${supabaseUrl}/storage/v1/${path}`, { ...options, headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, ...options.headers } })
+}
+
+export function supabaseStorageUrl(path) {
+  return `${supabaseUrl}${path.startsWith('/storage/v1/') ? '' : '/storage/v1'}${path}`
+}
+
 export async function supabaseRequest(path, options = {}) {
   if (!isDatabaseConfigured()) throw new Error('Supabase is not configured')
 

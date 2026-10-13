@@ -1,9 +1,11 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
-import { normalizeStrengthDraft, validateStrengthDraft, strengthDraftContent } from '../shared/strength-import.js'
+import { normalizeStrengthDraft, validateStrengthDraft, strengthDraftContent, draftExerciseImages } from '../shared/strength-import.js'
+import { resolveExerciseImages, signedExerciseImages } from '../server/strength-images.js'
+import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 
-const mapProgram = (program) => ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active })
+const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
 const comparableStrengthValue = (value) => {
   const text = String(value || '').toLocaleLowerCase('sv-SE').replace(',', '.')
@@ -44,6 +46,10 @@ async function loadTraining(profileId = null) {
   }
   const allowedAssignments = new Set(assignments.map((item) => item.id))
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
+  const assignedPrograms = new Set(assignments.map((item) => item.program_id))
+  await Promise.all(Object.values(programs).map(async (program) => {
+    program.exercise_images = !profileId || assignedPrograms.has(program.id) ? await signedExerciseImages(program.exercise_images || []).catch(() => []) : []
+  }))
   const autoSessions = afterResponses.map((item) => ({
     profile_id: item.profile_id || profileId,
     activity_type: 'swim',
@@ -263,9 +269,35 @@ export default async function handler(request, response) {
       const draft = normalizeStrengthDraft(request.body.draft)
       const issues = validateStrengthDraft(draft)
       if (issues.length) return sendJson(response, 422, { error: issues.join(' '), issues })
-      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title: draft.title, description: draft.description, content: strengthDraftContent(draft), start_date: stockholmDate() }) })
+      const references = draftExerciseImages(draft)
+      let images
+      try { images = await resolveExerciseImages(coachFromRequest(request).sub, references) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title: draft.title, description: draft.description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
       if (!result.ok) throw new Error('Strength import save failed')
       return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })
+    }
+    if (action === 'save-strength-images') {
+      const account = coachFromRequest(request)
+      if (!['head_coach', 'superadmin'].includes(account?.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan ändra övningsbilder.' })
+      if (request.body.reviewed !== true || !Array.isArray(request.body.images)) return sendJson(response, 400, { error: 'Granska övningsbilderna innan du sparar.' })
+      const programId = encodeURIComponent(String(request.body.programId || ''))
+      const lookup = await supabaseRequest(`training_programs?id=eq.${programId}&program_type=eq.strength&select=*&limit=1`)
+      const program = lookup.ok ? (await lookup.json())[0] : null
+      if (!program) return sendJson(response, 404, { error: 'Programmet kunde inte hittas.' })
+      const passes = strengthPasses(program)
+      const seen = new Set()
+      for (const image of request.body.images) {
+        const pass = passes.find((pass) => pass.passNumber === image.passNumber)
+        const exercise = pass && Number.isInteger(image.exerciseIndex) ? strengthExercises(pass.content)[image.exerciseIndex] : null
+        const position = `${image.passNumber}:${image.exerciseIndex}`
+        if (!exercise || exercise.name !== image.exerciseName || seen.has(position)) return sendJson(response, 422, { error: 'Programmet har ändrats eller en bild ligger på fel övning. Öppna programmet igen.' })
+        seen.add(position)
+      }
+      let images
+      try { images = await resolveExerciseImages(account.sub, request.body.images, program.exercise_images || []) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+      const result = await supabaseRequest(`training_programs?id=eq.${programId}&program_type=eq.strength`, { method: 'PATCH', body: JSON.stringify({ exercise_images: images, updated_at: new Date().toISOString() }) })
+      if (!result.ok) return sendJson(response, 422, { error: 'Bilderna kunde inte sparas. Kontrollera att migration 086 är körd.' })
+      return sendJson(response, 200, { ok: true })
     }
     if (action === 'create-program') {
       const type = String(request.body.type || '')

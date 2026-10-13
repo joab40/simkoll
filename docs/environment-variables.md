@@ -41,6 +41,7 @@ aktiveras separat i Simkolls inställningar efter deployment.
 | `OPENAI_COMPETITION_MODEL` | Valfri | Modell för tävlingsrelaterad analys i den äldre separata tävlingsfunktionen. Reservvärde `gpt-4o`. |
 | `OPENAI_COMPETITION_PROGRAM_MODEL` | Valfri | Den separata tvåstegsmodellen för att läsa in grenprogram från tävlings-PM som bild eller PDF. Reservvärde `gpt-6.1-sol`. Den ändrar inte assistentens modell. |
 | `OPENAI_STRENGTH_PROGRAM_MODEL` | Valfri | Modell för import av styrkeprogram från XLS/XLSX, bild eller PDF samt valfria teknik-instruktioner. Reservvärde `gpt-6.1-sol`. Bara huvudtränare och superadmin kan starta importen, som följer klubbens AI-inställning och tokenbudget. |
+| `OPENAI_STRENGTH_IMAGE_MODEL` | Valfri | Separat modell för övningsbilder, reservvärde `gpt-image-2.5-flare`. Använder samma `OPENAI_API_KEY`. Varje bild startas manuellt av huvudtränare/superadmin och loggas med modell, tokens och uppskattad kostnad. Kräver migration 086 för privat bildlagring i Supabase. Egna bilder kräver ingen OpenAI-nyckel och skickas inte till AI. |
 | `AI_GATEWAY_API_KEY` | Valfri | Alternativ nyckel till Vercel AI Gateway för trendanalys när en OpenAI-nyckel inte används där. |
 | `AI_MODEL` | Valfri | Modellnamn för trendanalys via AI Gateway. Reservvärde `inclusionai/ling-3.0-flash-fin-free`. |
 | `GOOGLE_DRIVE_API_KEY` | Valfri | Google API-nyckel för att läsa passmaterial från Drive. Drive-integrationen fungerar inte utan den. Begränsa nyckeln till rätt Google API och användningsmiljö. |

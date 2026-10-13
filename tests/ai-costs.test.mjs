@@ -18,3 +18,7 @@ test('existing models and unknown-model handling are unchanged', () => {
   assert.equal(estimatedCostUsd({ model: 'unknown', promptTokens: 1000 }), null)
   assert.equal(pricingFor('gpt-6-sol'), null)
 })
+test('exercise-image generation estimates text input and image output token prices', () => {
+  assert.deepEqual(pricingFor('gpt-image-2.5-flare'), { input: 5, output: 30 })
+  assert.equal(estimatedCostUsd({ model: 'gpt-image-2.5-flare', promptTokens: 200, completionTokens: 1800 }), 0.055)
+})

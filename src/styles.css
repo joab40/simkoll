@@ -2577,3 +2577,25 @@ button { cursor: pointer; }
   .strength-import-actions .primary-button { width: 100%; }
   .strength-import-pass { padding: .75rem; }
 }
+/* Exercise illustrations in coach review and swimmer result logging. */
+.exercise-image-control { display: grid; gap: .7rem; }
+.exercise-image-control figure { margin: 0; }
+.exercise-image-control img { width: min(100%, 420px); max-height: 300px; object-fit: contain; border-radius: 12px; background: #fff; }
+.exercise-image-control figcaption { margin-top: .35rem; color: #547378; font-size: .85rem; }
+.exercise-image-actions { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.exercise-image-upload { border: 1px solid #cbdddd; border-radius: 12px; padding: .65rem .9rem; background: white; cursor: pointer; font-weight: 600; color: #226b70; }
+.exercise-image-upload input { display: block; max-width: 240px; margin-top: .4rem; font-size: .85rem; }
+.strength-program-images-editor, .strength-images-pass { display: grid; gap: 1rem; }
+.strength-images-exercise { padding: 1rem; background: #f1f8f6; border: 1px solid #d5e7e2; border-radius: 14px; display: grid; gap: .5rem; }
+.strength-images-exercise p { margin: 0; }
+.strength-image-review { display: flex; gap: .7rem; align-items: center; }
+.strength-image-review input { flex: 0 0 auto; width: 1.15rem; height: 1.15rem; }
+.strength-exercise-list label > span { flex: 1; min-width: 0; }
+.strength-exercise-list label > input { flex: 0 0 auto; }
+.swimmer-exercise-image img { width: min(100%, 320px); max-height: 220px; object-fit: contain; border-radius: 10px; background: #f7faf9; margin-top: .4rem; }
+.swimmer-exercise-image small { font-size: .78rem; }
+@media (max-width: 640px) {
+  .exercise-image-actions { align-items: stretch; }
+  .exercise-image-actions > button, .exercise-image-upload { width: 100%; box-sizing: border-box; }
+  .strength-images-exercise { padding: .75rem; }
+}
