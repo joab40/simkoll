@@ -2599,3 +2599,45 @@ button { cursor: pointer; }
   .exercise-image-actions > button, .exercise-image-upload { width: 100%; box-sizing: border-box; }
   .strength-images-exercise { padding: .75rem; }
 }
+/* Coach overview: open exactly the responses contributing to a metric. */
+.stat-drilldown { position: relative; transition: border-color .15s, box-shadow .15s; }
+.stat-drilldown:hover { border-color: var(--teal); box-shadow: 0 5px 16px rgba(36, 108, 104, .1); }
+.stat-drilldown-trigger { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.stat-drilldown-trigger:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+.stat-drilldown .help-tip-wrap { z-index: 2; }
+.stat > .stat-drilldown-hint { color: var(--teal); margin-top: 12px; font-size: 12px; font-weight: 700; }
+.coach-metric-dialog { width: min(760px, calc(100vw - 32px)); max-height: min(88dvh, 900px); padding: 0; overflow: auto; border: 1px solid #d5e7e1; border-radius: 22px; background: var(--paper); color: var(--ink); box-shadow: 0 24px 70px rgba(15, 38, 39, .28); }
+.coach-metric-dialog::backdrop { background: rgba(15, 38, 39, .48); }
+.coach-metric-dialog-content { padding: 24px; }
+.coach-metric-dialog-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; position: sticky; top: 0; z-index: 1; background: var(--paper); padding-bottom: 12px; }
+.coach-metric-dialog-heading h2 { margin: 0 0 8px; font-size: clamp(22px, 4vw, 30px); }
+.coach-metric-dialog-heading p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 14px; }
+.coach-metric-dialog-heading > button { flex: 0 0 auto; }
+.coach-metric-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 14px; background: #e7f3ef; }
+.coach-metric-summary > strong { color: var(--teal); font: 800 30px 'Manrope'; }
+.coach-metric-summary > strong small { color: var(--muted); font-size: 16px; }
+.coach-metric-summary > span { font-size: 14px; }
+.coach-metric-explanation { margin: 14px 0; color: var(--muted); line-height: 1.5; font-size: 14px; }
+.coach-metric-filters { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-bottom: 16px; }
+.coach-metric-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.coach-metric-filters input, .coach-metric-filters select { width: 100%; min-width: 0; box-sizing: border-box; padding: 11px 12px; border: 1px solid #cbded9; border-radius: 11px; background: white; color: var(--ink); font: inherit; font-size: 16px; }
+.coach-metric-response-list { display: grid; gap: 10px; }
+.coach-metric-response { background: white; padding: 14px 16px; border: 1px solid #dbe8e3; border-radius: 14px; }
+.coach-metric-response-heading { display: flex; gap: 10px; align-items: center; }
+.coach-metric-avatar { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; background: #edf6f2; border-radius: 50%; font-size: 24px; }
+.coach-metric-response-heading > div { min-width: 0; display: grid; gap: 5px; }
+.coach-metric-response-heading > div strong { overflow-wrap: anywhere; }
+.coach-metric-response small { color: var(--muted); font-size: 12px; }
+.coach-metric-value { margin-left: auto; display: grid; gap: 4px; text-align: right; flex: 0 0 auto; }
+.coach-metric-value > strong { color: var(--teal); font-size: 24px; }
+.coach-metric-value > strong small { margin-left: 3px; font-weight: 400; }
+.coach-metric-response blockquote { margin: 12px 0 8px; padding-left: 12px; border-left: 3px solid #c6e5dc; color: var(--ink); line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.coach-metric-submitted { display: block; margin-top: 10px; }
+@media (max-width: 640px) {
+  .coach-metric-dialog { width: calc(100vw - 16px); max-height: 90dvh; margin: auto auto 8px; border-radius: 20px; }
+  .coach-metric-dialog-content { padding: 16px; }
+  .coach-metric-filters { grid-template-columns: 1fr; }
+  .coach-metric-response { padding: 12px; }
+  .coach-metric-response-heading { flex-wrap: wrap; }
+  .coach-metric-value { max-width: 130px; }
+}

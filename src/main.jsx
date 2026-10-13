@@ -8,6 +8,8 @@ import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_ME
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import StrengthProgramImport from './strength-program-import.jsx'
 import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-exercise-images.jsx'
+import CoachMetricDetails from './coach-metric-details.jsx'
+import { coachMetricDetails } from './coach-metric-details.js'
 import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
 import './styles.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
@@ -846,6 +848,7 @@ function Faq({ role, onBack }) {
       <p className="faq-intro">Här finns en uppdaterad guide till funktionerna. Svaren beskriver simmarens egen upplevelse och är ett stöd för träning, planering och samtal – inte ett prov eller en medicinsk bedömning.</p>
       <section className="faq-install"><p className="eyebrow">Gör Simkoll lätt att hitta</p><h2>Lägg till på hemskärmen</h2><p>En genväg gör det enklare att öppna rätt sida och använda din sparade profil.</p><details><summary>iPhone eller iPad<span>+</span></summary><ol><li>Öppna Simkoll i Safari.</li><li>Tryck på dela-symbolen.</li><li>Välj <strong>Lägg till på hemskärmen</strong>.</li><li>Tryck <strong>Lägg till</strong>.</li></ol></details><details><summary>Android<span>+</span></summary><ol><li>Öppna Simkoll i Chrome.</li><li>Tryck på de tre prickarna.</li><li>Välj <strong>Lägg till på startskärmen</strong> eller <strong>Installera app</strong>.</li><li>Bekräfta.</li></ol></details><small>Webbläsaren måste alltid fråga dig först — Simkoll kan inte skapa genvägen automatiskt.</small></section>
       <div className="faq-list">
+        {role === 'coach' && <details><summary>Vilka svar ligger bakom korten under Idag?<span>+</span></summary><p>Klicka på Gruppens känsla, Upplevd ansträngning, Passet eller Upplägget för att se svaren bakom medelvärdet. Listan följer valt datum och gruppfilter och visar simmarens namn, värde, kommentar och när svaret skickades. Anonyma svar visas utan profilkoppling. Flera svar från samma simmare visas separat eftersom varje svar räknas i medelvärdet. Sök på namn eller kommentar och sortera efter värde om du vill följa upp en viss skattning.</p><p>Gruppens känsla omfattar alla incheckningar med ett värde. De andra korten omfattar svar efter träning eller tävling, och bara de som har angett respektive värde. Hjälpsymbolen förklarar fortfarande skalan. Samma svarsvy finns under Förra veckan.</p></details>}
         <details><summary>Bilder till styrkeövningar<span>+</span></summary><p>Tränaren kan lägga till en bild till varje övning. I simmarens styrkeprogram visas bilden vid rätt övning; klicka på den för en större bild. Bilderna kompletterar textinstruktionerna.</p>{role === 'coach' && <p>Huvudtränare och superadmin kan lägga till bilder under importen eller via Träningsprogram → Styrkeprogrambibliotek → Övningsbilder. Generera ett förslag med start- och slutläge, eller ladda upp en egen JPG/PNG/WebP under 3 MB. Kontrollera teknik och övningskoppling före sparandet. Varje AI-bild kostar ett separat anrop och följer klubbens tokenbudget. Egna bilder skickas till Simkolls privata bildlagring utan AI-tolkning. Att läsa en bild gör inget AI-anrop.</p>}</details>
         {role === 'coach' && <details><summary>Importera egna styrkeprogram<span>+</span></summary><p>Under Träningsprogram kan huvudtränare och superadmin ladda upp XLS, XLSX, PDF eller en PNG/JPG/WebP-bild under 3 MB. AI-tolkningen bevarar passindelning, övningar och angiven dosering. Du kan också välja att skapa korta teknik-instruktioner till simmaren. Granska alla uppgifter och instruktioner mot originalet innan du sparar.</p><p>Ett program kan innehålla 1–3 pass. Större program behöver delas upp. Programmet sparas i styrkeprogrambiblioteket; tilldela det därefter på simmarens kort under Styrkeprogram. Simmaren väljer pass och registrerar resultat för varje pass separat. Importen kostar ett AI-anrop och följer klubbens AI-inställning och tokenbudget. Sparandet och simmarens läsning gör inga nya AI-anrop.</p></details>}
         <details><summary>Pushnotiser på mobilen<span>+</span></summary><p>Superadmin kan aktivera <strong>Pushnotiser</strong> under tränarvyns inställningar. Därefter godkänner varje användare <strong>Aktivera notiser</strong> en gång per enhet: simmare under sin profil och tränare via <strong>Notiser på min enhet</strong> i tränarmenyn. Efter det kan du välja Info från tränarna, privata meddelanden, utvecklingssamtal och när tävlingsanmälan öppnar utan en ny systemfråga. Du kan också skicka en testnotis och stänga av notiser igen.</p><p>På iPhone/iPad krävs iOS/iPadOS 16.4 eller senare och att Simkoll har lagts till på hemskärmen. Öppna appen från hemskärmen innan du aktiverar notiser. På Android fungerar det i en webbläsare som stöder Web Push, till exempel Chrome. Godkänn telefonens fråga om notiser. Fokusläge och telefonens egna notisinställningar kan göra att notiser inte visas direkt.</p><p>Utvecklingssamtal-notisen skickas när tränaren aktiverar ett nytt samtal. Tävlingsnotisen skickas när anmälan öppnas för din grupp. Notiserna visar inte privata svar eller meddelandetext. Frågor till tränarna ger notiser till tränarnas personliga konton; reaktioner och öppna peppinlägg ger inga pushnotiser. Valet gäller per enhet, och utloggning kopplar bort enheten. Push kräver uppkoppling och är inte en garanti för att viktig information har blivit läst.</p></details>
@@ -4511,7 +4514,9 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
 
 function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
-  const after = responses.filter((item) => item.type === 'after')
+  const [selectedMetric, setSelectedMetric] = useState(null)
+  useEffect(() => { setSelectedMetric(null) }, [periodLabel])
+  const metricSummaries = useMemo(() => Object.fromEntries(['feeling', 'rpe', 'pass', 'setup'].map((key) => [key, coachMetricDetails(key, responses, profiles)])), [responses, profiles])
   const profileById = useMemo(() => new Map((profiles || []).map((profile) => [profile.id, profile])), [profiles])
   const distribution = useMemo(() => FEELINGS.map((feeling) => ({
     ...feeling,
@@ -4538,11 +4543,12 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
     <>
       <div className="period-heading"><div><p className="eyebrow">{periodLabel}</p><h2>{title}</h2></div><div className="big-count"><strong>{anonymousCount}</strong><span>anonyma svar</span></div></div>
       <section className="stats-grid">
-        <Stat title="Gruppens känsla" helpTerm="Känsla" value={`${average('feeling', responses)} / 5`} note="Alla svar" />
-        <Stat title="Upplevd ansträngning" helpTerm="RPE" value={`${average('rpe', after)} / 10`} note={`${after.length} efter passet`} />
-        <Stat title="Passet" value={`${average('pass', after)} / 5`} note="Simmarnas betyg" />
-        <Stat title="Upplägget" value={`${average('setup', after)} / 5`} note="Hur det fungerade" />
+        <Stat title="Gruppens känsla" helpTerm="Känsla" value={`${metricSummaries.feeling.average} / 5`} note={`${metricSummaries.feeling.entries.length} svar · alla incheckningar`} onOpen={() => setSelectedMetric('feeling')} />
+        <Stat title="Upplevd ansträngning" helpTerm="RPE" value={`${metricSummaries.rpe.average} / 10`} note={`${metricSummaries.rpe.entries.length} svar efter träning`} onOpen={() => setSelectedMetric('rpe')} />
+        <Stat title="Passet" value={`${metricSummaries.pass.average} / 5`} note={`${metricSummaries.pass.entries.length} svar · simmarnas betyg`} onOpen={() => setSelectedMetric('pass')} />
+        <Stat title="Upplägget" value={`${metricSummaries.setup.average} / 5`} note={`${metricSummaries.setup.entries.length} svar · hur det fungerade`} onOpen={() => setSelectedMetric('setup')} />
       </section>
+      {selectedMetric && <CoachMetricDetails key={selectedMetric} metricKey={selectedMetric} responses={responses} profiles={profiles} periodLabel={periodLabel} onClose={() => setSelectedMetric(null)} />}
 
       {showDays && <WeekDays responses={responses} />}
 
@@ -4637,8 +4643,8 @@ function EmptyPeriod({ title, periodLabel }) {
   return <section className="empty-period"><span>≈</span><p className="eyebrow">{periodLabel}</p><h2>{title}</h2><p>När simmarna har svarat visas sammanställningen här.</p></section>
 }
 
-function Stat({ title, value, note, helpTerm }) {
-  return <article className="stat"><span>{title} <HelpTip term={helpTerm || title} /></span><strong>{value}</strong><small>{note}</small></article>
+function Stat({ title, value, note, helpTerm, onOpen }) {
+  return <article className={`stat${onOpen ? ' stat-drilldown' : ''}`}>{onOpen && <button type="button" className="stat-drilldown-trigger" onClick={onOpen} aria-label={`Se alla svar för ${title}`} aria-haspopup="dialog" />}<span className="stat-title">{title} <HelpTip term={helpTerm || title} /></span><strong>{value}</strong><small>{note}</small>{onOpen && <span className="stat-drilldown-hint" aria-hidden="true">Visa svar →</span>}</article>
 }
 
 createRoot(document.getElementById('root')).render(<App />)
