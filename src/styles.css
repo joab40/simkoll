@@ -2579,6 +2579,9 @@ button { cursor: pointer; }
 }
 /* Exercise illustrations in coach review and swimmer result logging. */
 .exercise-image-control { display: grid; gap: .7rem; }
+.exercise-image-instructions { display: grid; gap: .4rem; font-weight: 600; }
+.exercise-image-instructions textarea { width: 100%; box-sizing: border-box; min-height: 110px; padding: .8rem; border: 1px solid #bdd6d4; border-radius: 12px; font: inherit; font-weight: 400; resize: vertical; background: #fff; color: var(--ink); }
+.exercise-image-candidate { display: grid; gap: .7rem; padding: 1rem; border: 2px dashed #67aaa6; border-radius: 14px; background: #f1faf7; }
 .exercise-image-control figure { margin: 0; }
 .exercise-image-control img { width: min(100%, 420px); max-height: 300px; object-fit: contain; border-radius: 12px; background: #fff; }
 .exercise-image-control figcaption { margin-top: .35rem; color: #547378; font-size: .85rem; }

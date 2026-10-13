@@ -68,7 +68,7 @@ test('AI generation makes one text-only image call and logs returned usage', asy
   process.env.OPENAI_API_KEY = 'fixture'
   delete process.env.OPENAI_STRENGTH_IMAGE_MODEL
   let logged
-  const decoded = await generateExerciseImage({ headers: {} }, { name: 'Benpress', instructions: 'Håll ryggen mot stödet.' }, {
+  const decoded = await generateExerciseImage({ headers: {} }, { name: 'Benpress', instructions: 'Håll ryggen mot stödet.', imageInstructions: 'Visa maskinen från sidan och fötterna på plattan.' }, {
     fetch: async (url, options) => {
       assert.equal(url, 'https://api.openai.com/v1/images/generations')
       const body = JSON.parse(options.body)
@@ -76,10 +76,29 @@ test('AI generation makes one text-only image call and logs returned usage', asy
       assert.equal(body.n, 1)
       assert.equal(body.output_format, 'jpeg')
       assert.match(body.prompt, /Benpress/)
+      assert.match(body.prompt, /Visa maskinen från sidan/)
+      assert.match(body.prompt, /Håll ryggen mot stödet/)
       return { ok: true, json: async () => ({ data: [{ b64_json: Buffer.from('ffd8ffe0', 'hex').toString('base64') }], usage: { input_tokens: 200, output_tokens: 1800, total_tokens: 2000 } }) }
     }, log: async (request, entry) => { logged = entry },
   })
   assert.equal(decoded.mime, 'image/jpeg')
   assert.equal(logged.feature, 'strength_exercise_image')
   assert.equal(logged.response.usage.total_tokens, 2000)
+})
+
+test('custom image instructions survive import and persistence without changing exercise text', async () => {
+  const draft = normalizeStrengthDraft({ title: 'Test', passes: [{ title: 'Pass', exercises: [{ name: 'Planka', instructions: 'Håll bålen stabil.', imageId: assetId, imageInstructions: 'Visa kroppen från sidan.' }] }] })
+  const references = draftExerciseImages(draft)
+  assert.equal(references[0].imageInstructions, 'Visa kroppen från sidan.')
+  assert.doesNotMatch(strengthDraftContent(draft), /från sidan/)
+  assert.match(strengthDraftContent(draft), /Håll bålen stabil/)
+  const deps = { db: async () => ({ ok: true, json: async () => [{ id: assetId, coach_id: coach, storage_path: `${coach}/${assetId}.png`, source: 'ai' }] }) }
+  assert.equal((await resolveExerciseImages(coach, references, [], deps))[0].imageInstructions, 'Visa kroppen från sidan.')
+  await assert.rejects(resolveExerciseImages(coach, [{ ...references[0], imageInstructions: 'a'.repeat(2001) }], [], deps), /2 000/)
+})
+
+test('overlong visual instructions fail before a paid generation call', async () => {
+  let calls = 0
+  await assert.rejects(generateExerciseImage({}, { name: 'Planka', imageInstructions: 'a'.repeat(2001) }, { fetch: async () => { calls++ } }), /2 000/)
+  assert.equal(calls, 0)
 })

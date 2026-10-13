@@ -4,11 +4,14 @@ import { strengthPasses, strengthExercises } from '../shared/strength-program.js
 export function ExerciseImageControl({ code, request, name, instructions, image, onChange, aiEnabled, disabled, uncertain, onBusyChange }) {
   const [busy, setBusy] = useState('')
   const [status, setStatus] = useState('')
+  const [imageInstructions, setImageInstructions] = useState(image?.imageInstructions ?? instructions ?? '')
+  const [candidate, setCandidate] = useState(null)
   const run = async (action, imageData) => {
+    const generationInstructions = imageInstructions.trim()
     setBusy(action); setStatus(action === 'generate-strength-image' ? 'Skapar start- och slutläge…' : 'Laddar upp bilden…'); onBusyChange?.(true)
     try {
-      const result = await request('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, name, instructions, imageData }) })
-      onChange(result.image)
+      const result = await request('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, name, instructions, imageInstructions: generationInstructions, imageData }) })
+      setCandidate({ ...result.image, imageInstructions: generationInstructions })
       setStatus('Bilden är klar för granskning. Kontrollera att den visar rätt övning och teknik.')
     } catch (error) { setStatus(error.message) } finally { setBusy(''); onBusyChange?.(false) }
   }
@@ -24,8 +27,12 @@ export function ExerciseImageControl({ code, request, name, instructions, image,
     } catch (error) { setStatus(error.message) }
   }
   return <div className="exercise-image-control">
+    <label className="exercise-image-instructions">Bildinstruktion<textarea rows={4} maxLength={2000} value={imageInstructions} disabled={disabled || !!busy} onChange={(event) => setImageInstructions(event.target.value)} placeholder="Beskriv startläge, slutläge, utrustning och kameravinkel…" /></label>
+    <small>Ändrar inte simmarens övningsbeskrivning. Bildinstruktionen sparas med den bild du godkänner. Varje generering gör ett nytt AI-anrop med kostnad.</small>
+    <button type="button" className="text-button" disabled={disabled || !!busy} onClick={() => setImageInstructions(instructions || '')}>Återställ från övningsbeskrivningen</button>
     {image?.imageUrl && <figure><a href={image.imageUrl} target="_blank" rel="noreferrer"><img src={image.imageUrl} alt={`Övningsbild för ${name}`} /></a><figcaption>{image.imageSource === 'ai' ? 'AI-genererat förslag · granska tekniken' : 'Egen övningsbild'} · klicka för större bild</figcaption></figure>}
     {image?.imageId && !image.imageUrl && <small>Bilden kunde inte hämtas. Öppna programmet igen för att hämta en ny bildlänk.</small>}
+    {candidate && <div className="exercise-image-candidate"><strong>Nytt bildförslag · inte sparat</strong>{candidate.imageUrl ? <figure><a href={candidate.imageUrl} target="_blank" rel="noreferrer"><img src={candidate.imageUrl} alt={`Nytt bildförslag för ${name}`} /></a></figure> : <p>Förhandsvisningen kunde inte hämtas. Generera igen eller ladda upp en egen bild.</p>}<small>Nuvarande bild behålls tills du godkänner förslaget och sparar programmet.</small><div className="exercise-image-actions"><button type="button" className="primary-button" disabled={disabled || !!busy || !candidate.imageUrl} onClick={() => { onChange(candidate); setCandidate(null); setStatus('Bildförslaget är valt. Spara programmet för att använda det.') }}>Använd den här bilden</button><button type="button" className="secondary-button" disabled={disabled || !!busy} onClick={() => { setCandidate(null); setStatus('Förslaget har avvisats. Nuvarande bild behålls.') }}>Behåll tidigare bild</button></div></div>}
     <div className="exercise-image-actions">
       <button type="button" className="secondary-button" disabled={disabled || !!busy || !aiEnabled || !name?.trim() || uncertain} onClick={() => run('generate-strength-image')}>{busy === 'generate-strength-image' ? 'Genererar…' : image?.imageId ? 'Generera ny bild' : 'Generera bild'}</button>
       <label className="exercise-image-upload"><span>Ladda upp egen bild</span><input type="file" accept=".jpg,.jpeg,.png,.webp" disabled={disabled || !!busy} onChange={upload} /></label>
