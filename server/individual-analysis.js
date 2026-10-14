@@ -5,9 +5,9 @@ const average = (rows, key) => {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
 }
 export const responseDay = (row) => row.activity_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(row.created_at))
-export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, activityType: row.activity_type || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, plannedCompletion: row.planned_completion || null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
+export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, activityType: row.activity_type || null, trainingSlot: row.session_slot || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, plannedCompletion: row.planned_completion || null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
 
-// A check-in has no session ID. Never attach the same day's feedback to both
+// Use explicit AM/PM links when present. Never attach the same day's feedback to both
 // AM and PM, or count a planned workout's full distance as actually swum.
 export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], trainingGroup }) {
   const inGroup = (row) => !row.target_groups?.length || Boolean(trainingGroup && row.target_groups.includes(trainingGroup))
@@ -28,8 +28,10 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     if (!candidate && sameDay.length) matchStatus = 'ambiguous'
     const dayFeedback = responses.filter((row) => responseDay(row) === day && row.day_type === 'after' && (!row.activity_type || row.activity_type === 'swim'))
     const allSessionsCount = sessions.filter((row) => row.session_date === day).length
-    const feedbackLink = dayFeedback.length === 1 && allSessionsCount === 1 ? 'day_only' : dayFeedback.length ? 'ambiguous' : 'missing'
-    const feedback = feedbackLink === 'day_only' ? analysisResponse(dayFeedback[0]) : null
+    const slotFeedback = dayFeedback.filter((row) => row.session_slot && row.session_slot === session.session_slot).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    const legacyFeedback = dayFeedback.filter((row) => !row.session_slot)
+    const feedbackLink = slotFeedback.length ? 'slot' : legacyFeedback.length === 1 && allSessionsCount === 1 ? 'day_only' : legacyFeedback.length ? 'ambiguous' : 'missing'
+    const feedback = feedbackLink === 'slot' ? analysisResponse(slotFeedback[0]) : feedbackLink === 'day_only' ? analysisResponse(legacyFeedback[0]) : null
     return { date: day, sessionSlot: session.session_slot, title: candidate?.title || 'Registrerat simpass', focus: candidate?.focus || null, timeOfDay: candidate?.time_of_day || null, distanceMeters: candidate ? number(candidate.distance_meters) : null, durationMinutes: candidate ? number(candidate.duration_minutes) : null, content: String(candidate?.content || '').slice(0, 5000), note: String(candidate?.note || '').slice(0, 2500), source: candidate?.source || null, matchStatus, feedbackLink, feedback, candidateTitles: candidate ? [] : sameDay.map((row) => row.title).slice(0, 8) }
   }).sort((a, b) => a.date.localeCompare(b.date) || String(a.sessionSlot).localeCompare(String(b.sessionSlot)))
 }
@@ -55,7 +57,7 @@ export function individualSignals(details) {
     group.rows.push(row); focusMap.set(key, group)
   })
   const focuses = [...focusMap.values()].map(({ label, rows }) => {
-    const comparable = rows.filter((row) => ['slot', 'day_only'].includes(row.matchStatus) && row.feedbackLink === 'day_only' && row.feedback)
+    const comparable = rows.filter((row) => ['slot', 'day_only'].includes(row.matchStatus) && ['slot', 'day_only'].includes(row.feedbackLink) && row.feedback)
     return { label, workouts: rows.length, distance: rows.reduce((sum, row) => sum + (row.distanceMeters || 0), 0), duration: rows.reduce((sum, row) => sum + (row.durationMinutes || 0), 0), responseCount: comparable.length, dates: comparable.map((row) => row.date), ...Object.fromEntries(keys.map((key) => [key, average(comparable.map((row) => row.feedback), key)])) }
   })
   const matched = passes.filter((row) => ['slot', 'day_only'].includes(row.matchStatus))
@@ -67,7 +69,7 @@ export function individualSignals(details) {
   ;(details.coachNotes || []).forEach((row) => add('coach_note', row.date, row.text))
   ;(details.strengthLogs || []).forEach((row) => add('strength', row.date, `${row.program || 'Styrka'} pass ${row.pass}; ${JSON.stringify(row.weights)}; ${row.notes || ''}`))
   ;(details.competition?.resultsInPeriod || []).forEach((row) => add('competition', row.date, `${row.event}; ${row.pool}; ${row.time}; ${row.competition}; källa ${row.source}`))
-  return { trend, focuses, volume, evidence, linkage: { registeredSwimSessions: passes.length, matchedPasses: matched.length, passesWithComparableFeedback: passes.filter((row) => ['slot', 'day_only'].includes(row.matchStatus) && row.feedbackLink === 'day_only').length, ambiguousFeedback: passes.filter((row) => row.feedbackLink === 'ambiguous').length } }
+return { trend, focuses, volume, evidence, linkage: { registeredSwimSessions: passes.length, matchedPasses: matched.length, passesWithComparableFeedback: passes.filter((row) => ['slot', 'day_only'].includes(row.matchStatus) && ['slot', 'day_only'].includes(row.feedbackLink)).length, ambiguousFeedback: passes.filter((row) => row.feedbackLink === 'ambiguous').length } }
 }
 
 const object = (properties) => ({ type: 'object', additionalProperties: false, properties, required: Object.keys(properties) })

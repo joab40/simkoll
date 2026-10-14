@@ -21,7 +21,7 @@ function validate(body) {
   )
 }
 
-function toDatabase(response, profileId, activityDate, lateEntryKey = null) {
+export function toDatabase(response, profileId, activityDate, lateEntryKey = null) {
   return {
     activity_date: activityDate,
     late_entry: Boolean(lateEntryKey),
@@ -45,10 +45,12 @@ function toDatabase(response, profileId, activityDate, lateEntryKey = null) {
     activity_minutes: response.activityMinutes ?? null,
     activity_distance_meters: response.activityDistanceMeters ?? null,
     planned_completion: response.plannedCompletion || null,
+    session_slot: response.competition !== true && ['before', 'after'].includes(response.type) && (!response.activityType || response.activityType === 'swim') ? response.trainingSlot || null : null,
+    training_registered: response.registerTraining ?? null,
   }
 }
 
-function fromDatabase(response, includeDetails) {
+export function fromDatabase(response, includeDetails) {
   const base = { id: response.id, createdAt: response.created_at, submittedAt: response.created_at, activityDate: response.activity_date, lateEntry: response.late_entry === true, feeling: response.feeling }
   if (!includeDetails) return base
   return {
@@ -71,6 +73,8 @@ function fromDatabase(response, includeDetails) {
     activityMinutes: response.activity_minutes ?? null,
     activityDistanceMeters: response.activity_distance_meters ?? null,
     plannedCompletion: response.planned_completion || null,
+    trainingSlot: response.session_slot || null,
+    registerTraining: response.training_registered ?? null,
   }
 }
 
@@ -117,6 +121,7 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST') {
       if (!validate(request.body || {})) return sendJson(response, 400, { error: 'Svaret innehåller ogiltiga värden.' })
+      if (request.body.competition !== true && ['before', 'after'].includes(request.body.type) && (!request.body.activityType || request.body.activityType === 'swim') && !['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot)) return sendJson(response, 400, { error: 'Välj morgonpass eller eftermiddag / kväll innan du skickar. Ladda om sidan om passvalet saknas.' })
       const sessionProfile = await getSessionProfile(request)
       const today = stockholmDate()
       const activityDate = String(request.body?.activityDate || today)
@@ -133,7 +138,11 @@ export default async function handler(request, response) {
         body: JSON.stringify(toDatabase(request.body, profile?.id, activityDate, lateEntryKey)),
       })
       if (lateEntry && result.status === 409) return sendJson(response, 409, { error: 'Du har redan efterregistrerat gårdagens check-in.' })
-      if (!result.ok) throw new Error(`Supabase POST failed: ${result.status} ${await result.text()}`)
+      if (!result.ok) {
+        const detail = await result.json().catch(() => ({}))
+        if (['PGRST204', '42703'].includes(detail.code)) return sendJson(response, 503, { error: 'Incheckningen behöver en databasuppdatering. Be administratören köra migration 087. Inget svar har sparats.' })
+        throw new Error(`Supabase POST failed: ${result.status}`)
+      }
       const [created] = await result.json()
       if (sessionProfile) {
         await touchProfileActivity(sessionProfile.id, activityDate)

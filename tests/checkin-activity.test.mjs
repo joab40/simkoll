@@ -9,13 +9,13 @@ assert.deepEqual(checkinTraining(cycling), { activity_type: 'cycling', session_s
 assert.equal(checkinTraining({ ...cycling, registerTraining: false }), null)
 assert.equal(checkinTraining({ type: 'rest' }), null)
 assert.equal(checkinTraining({ type: 'after', registerTraining: false }), null)
-assert.equal(checkinTraining({ type: 'after', comment: 'Cykling' }).activity_type, 'swim') // never guess historical free text
+assert.equal(checkinTraining({ type: 'after', comment: 'Cykling' }), null) // never guess activity slot from free text
 assert.equal(checkinTraining({ type: 'after', activityType: 'strength' }).activity_type, 'strength')
 assert.equal(validCheckinActivity(cycling), true)
 assert.equal(validCheckinActivity({ activityType: 'swim', plannedCompletion: 'partial' }), true)
 for (const fields of [{ activityType: 'invalid' }, { activityMinutes: -1 }, { activityDistanceMeters: '8' }, { activityMinutes: Infinity }]) assert.equal(validCheckinActivity(fields), false)
 assert.equal(checkinStatus(cycling), 'har cyklat')
-assert.equal(attendanceFromCheckins([], [{ ...cycling, profileId: 'one', createdAt: '2026-10-10T16:00:00Z' }]).one, false)
+assert.equal(Boolean(attendanceFromCheckins([], [{ ...cycling, profileId: 'one', createdAt: '2026-10-10T16:00:00Z' }], 'afternoon_swim').one), false)
 const response = { day_type: 'after', activity_date: '2026-10-10', created_at: '2026-10-10T16:00:00Z', activity_type: 'cycling', activity_minutes: 30, activity_distance_meters: 8000, comment: 'Cykling 8 km', rpe: 4, feeling: 4 }
 const dto = analysisResponse(response)
 assert.equal(dto.activityType, 'cycling'); assert.equal(dto.activityDistanceMeters, 8000)
