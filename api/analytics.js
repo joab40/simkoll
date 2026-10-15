@@ -350,7 +350,7 @@ export default async function handler(request, response) {
       buckets.set(key, [...(buckets.get(key) || []), item])
     })
     const privateView = Boolean(profileId)
-    const workoutFocusLabel = { kondition_frisim: 'Kondition frisim', kondition_special: 'Kondition special', fart: 'Fart', troskel: 'Tröskel', syra: 'Syra', f2_frisim: 'F2 Frisim', f2_spec: 'F2 Spec', distans: 'Distans', teknik: 'Teknik', aterhamtning: 'Återhämtning' }
+    const workoutFocusLabel = { kondition_frisim: 'Kondition frisim', kondition_special: 'Kondition special', fart: 'Fart', sprint: 'Sprint', troskel: 'Tröskel', syra: 'Syra', f2_frisim: 'F2 Frisim', f2_spec: 'F2 Spec', distans: 'Distans', teknik: 'Teknik', aterhamtning: 'Återhämtning' }
     const workoutFocusMap = new Map()
     currentWorkouts.forEach((workout) => {
       const dayRows = currentResponses.filter((item) => stockholmKey(item.created_at) === workout.workout_date)

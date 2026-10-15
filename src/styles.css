@@ -1284,6 +1284,10 @@ button { cursor: pointer; }
 .profile-tools > div { display: grid; gap: 7px; }
 .profile-tools > div > button { width: 100%; min-height: 36px; border: 1px solid #cddcd8; border-radius: 9px; background: white; font-size: 11px; }
 .profile-tools .test-profile-toggle, .profile-tools .delete-profile-button { margin-top: 0; }
+.profile-settings[open] summary { margin-bottom: 12px; }
+.profile-settings .profile-settings-section-title { padding: 0 2px; color: var(--teal); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.profile-settings .profile-settings-section-title.account { margin-top: 8px; padding-top: 14px; border-top: 1px solid #e0eae7; }
+.profile-settings .tempus-edit, .profile-settings .swimmer-specialty-editor { margin: 0; }
 .strength-program-card { display: grid; gap: 13px; margin: 16px 0; padding: 16px; border: 1px solid #cfe1dc; border-radius: 16px; background: linear-gradient(135deg, #f2faf6 0%, #fff 72%); box-shadow: 0 7px 18px rgba(29, 81, 73, .06); }
 .strength-program-card > header { display: flex; align-items: center; gap: 11px; }
 .strength-program-card > header > span { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 13px; background: #dff1eb; font-size: 23px; }
