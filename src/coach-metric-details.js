@@ -8,10 +8,12 @@ export const COACH_RESPONSE_METRICS = {
 }
 
 export function coachMetricDetails(metricKey, responses, profiles = []) {
-  const metric = COACH_RESPONSE_METRICS[metricKey]
+  const activityType = metricKey.startsWith('activity:') ? metricKey.slice(9) : null
+  const activityTitles = { before: 'Jag ska träna', after: 'Jag har tränat', rest: 'Ingen träning idag', sick: 'Jag känner mig sjuk' }
+  const metric = activityTitles[activityType] ? { title: activityTitles[activityType], activityType } : COACH_RESPONSE_METRICS[metricKey]
   if (!metric) return null
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]))
-  const entries = responses.filter((item) => (!metric.afterOnly || item.type === 'after') && typeof item[metricKey] === 'number' && Number.isFinite(item[metricKey]) && item[metricKey] >= 1 && item[metricKey] <= metric.max)
+  const entries = responses.filter((item) => metric.activityType ? item.type === metric.activityType : (!metric.afterOnly || item.type === 'after') && typeof item[metricKey] === 'number' && Number.isFinite(item[metricKey]) && item[metricKey] >= 1 && item[metricKey] <= metric.max)
     .slice().sort(compareCheckinsNewest).map((item) => ({
       response: item,
       value: item[metricKey],
@@ -22,7 +24,7 @@ export function coachMetricDetails(metricKey, responses, profiles = []) {
     }))
   return {
     metric, entries,
-    average: entries.length ? (entries.reduce((sum, item) => sum + item.value, 0) / entries.length).toFixed(1) : '–',
+    average: !metric.activityType && entries.length ? (entries.reduce((sum, item) => sum + item.value, 0) / entries.length).toFixed(1) : '–',
     profileCount: new Set(entries.filter((item) => item.profile).map((item) => item.profile.id)).size,
     anonymousCount: entries.filter((item) => item.anonymous).length,
   }

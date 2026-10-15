@@ -1088,6 +1088,11 @@ button { cursor: pointer; }
 .coach-columns { display: grid; grid-template-columns: .8fr 1.2fr; gap: 12px; margin-top: 12px; align-items: start; }
 .type-list > div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid #e4ece9; }
 .type-list strong { color: var(--teal); }
+.type-list .activity-response-button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 13px 8px; border: 0; border-top: 1px solid #e4ece9; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.activity-response-button > span, .activity-response-button > strong { display: grid; gap: 3px; }
+.activity-response-button small { color: var(--muted); font-size: 12px; font-weight: 500; }
+.activity-response-button:hover { background: #edf7f4; }
+.activity-response-button:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
 .type-list > div > span, .type-list > div > strong { display: grid; gap: 3px; }
 .type-list > div > span small, .type-list > div > strong small { color: var(--muted); font-size: 11px; font-weight: 600; }
 .comments-card blockquote { margin: 0; padding: 14px 0; border-top: 1px solid #e4ece9; color: #40565b; font-size: 14px; line-height: 1.5; }

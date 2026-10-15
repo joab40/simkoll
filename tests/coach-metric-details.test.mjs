@@ -41,3 +41,28 @@ test('missing values do not become zero ratings or participants', () => {
   assert.equal(detail.entries.length, 0)
   assert.equal(detail.average, '–')
 })
+
+test('activity details match category counts, retaining duplicate and anonymous answers', () => {
+  const detail = coachMetricDetails('activity:after', [...responses, { ...responses[1], id: 'second', feeling: null, rpe: null }], profiles)
+  assert.equal(detail.metric.title, 'Jag har tränat')
+  assert.equal(detail.entries.length, 3)
+  assert.equal(detail.profileCount, 1)
+  assert.equal(detail.anonymousCount, 1)
+  assert.equal(detail.entries.filter((item) => item.profile?.displayName === 'Alfred').length, 2)
+  assert.equal(detail.entries.find((item) => item.anonymous).profile, null)
+  assert.equal(detail.average, '–')
+  assert.equal(coachMetricDetails('activity:before', responses, profiles).entries.length, 1)
+  assert.equal(coachMetricDetails('activity:rest', responses, profiles).entries[0].profile.displayName, 'Ebba')
+  assert.equal(coachMetricDetails('activity:sick', responses, profiles).entries.length, 0)
+})
+
+test('activity lists use only supplied period/group responses and distinguish unavailable profiles', () => {
+  const filtered = [{ id: 'old', type: 'before', profileId: 'removed', activityDate: '2026-10-12', createdAt: '2026-10-13T08:00:00Z', lateEntry: true }]
+  const detail = coachMetricDetails('activity:before', filtered, profiles)
+  assert.equal(detail.entries.length, 1)
+  assert.equal(detail.profileCount, 0)
+  assert.equal(detail.anonymousCount, 0)
+  assert.equal(detail.entries[0].anonymous, false)
+  assert.equal(detail.entries[0].day, '2026-10-12')
+  assert.equal(coachMetricDetails('activity:other', filtered, profiles), null)
+})
