@@ -666,14 +666,15 @@ button { cursor: pointer; }
 .goals-page > .back-button { position: absolute; top: 18px; left: max(5px, calc((100vw - 920px) / 2)); }
 .goals-content > h1 { font-size: clamp(38px, 6vw, 52px); }
 .goal-list, .coach-goal-list { display: grid; gap: 12px; }
-.goal-card, .coach-goal-list > article { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 23px; }
+.goal-card, .coach-goal-list > article { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; }
+.goal-card { padding: 23px; }
 .goal-card > header { display: flex; justify-content: space-between; align-items: center; }
 .goal-card > header > small { color: var(--muted); }
 .goal-status { border-radius: 14px; padding: 5px 9px; background: #e5efec; color: var(--teal); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .goal-status.complete { background: #e8f4c3; color: #526b10; }
 .goal-status.paused { background: #f1ece2; color: #78694e; }
 .goal-card h2 { margin: 20px 0 8px; }
-.goal-card > p, .coach-goal-list > article > p { color: #52666a; line-height: 1.55; }
+.goal-card > p, .coach-goal-content > p { color: #52666a; line-height: 1.55; }
 .next-step { background: #e9f4f1; border-left: 3px solid var(--aqua); border-radius: 8px; padding: 11px 13px; display: flex; flex-direction: column; }
 .next-step strong { color: var(--teal); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
 .goal-timeline { border-top: 1px solid #e0e9e7; margin-top: 17px; padding-top: 8px; }
@@ -1005,16 +1006,26 @@ button { cursor: pointer; }
 .goal-form input, .goal-form textarea, .coach-goal-list select, .feedback-form input, .feedback-form select { border: 1.5px solid #d6e2df; border-radius: 10px; background: white; padding: 10px 11px; outline: 0; }
 .goal-form textarea { min-height: 90px; resize: vertical; }
 .goal-form > .primary-button { grid-column: 2; }
-.coach-goal-list > article > header { display: flex; justify-content: space-between; align-items: center; }
-.coach-goal-list > article > header > div { display: flex; align-items: center; gap: 10px; }
-.coach-goal-list > article > header > div > span { font-size: 27px; }
-.coach-goal-list > article > header p { display: flex; flex-direction: column; margin: 0; }
-.coach-goal-list > article > header small { color: var(--muted); }
+.coach-goal-card { overflow: hidden; transition: border-color .18s ease, box-shadow .18s ease; }
+.coach-goal-card.expanded { border-color: #b9d8d2; box-shadow: 0 10px 28px rgba(12, 70, 73, .07); }
+.coach-goal-toggle { width: 100%; border: 0; background: transparent; color: inherit; padding: 18px 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; text-align: left; cursor: pointer; }
+.coach-goal-toggle:hover { background: #f5faf8; }
+.coach-goal-toggle:focus-visible { outline: 3px solid rgba(16, 126, 123, .25); outline-offset: -3px; }
+.coach-goal-owner-emoji { font-size: 27px; }
+.coach-goal-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.coach-goal-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coach-goal-heading small { color: var(--muted); }
+.coach-goal-chevron { color: var(--teal); font-size: 24px; line-height: 1; transition: transform .18s ease; }
+.coach-goal-card.expanded .coach-goal-chevron { transform: rotate(180deg); }
+.coach-goal-content { border-top: 1px solid #e1ebe8; padding: 20px 23px 23px; }
+.coach-goal-status-control { width: min(240px, 100%); display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.coach-goal-status-control select { font-size: 16px; }
 .coach-goal-list details { margin-top: 15px; }
 .coach-goal-list summary { cursor: pointer; color: var(--teal); font-size: 11px; }
 .feedback-form { display: grid; grid-template-columns: 190px 1fr auto; gap: 7px; margin-top: 16px; }
 .feedback-form button { border: 0; border-radius: 10px; background: var(--lime); padding: 0 14px; font-weight: 700; }
 .delete-goal { display: block; margin: 17px 0 0 auto; border: 0; background: transparent; color: #9b5555; font-size: 10px; }
+@media (max-width: 600px) { .coach-goal-toggle { grid-template-columns: auto minmax(0, 1fr) auto; padding: 15px; gap: 10px; } .coach-goal-toggle .goal-status { grid-column: 2; justify-self: start; } .coach-goal-chevron { grid-column: 3; grid-row: 1 / span 2; } .coach-goal-content { padding: 17px 15px 19px; } }
 .period-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 20px; }
 .period-heading h2 { font-size: 30px; margin: 0; text-transform: capitalize; }
 .big-count { display: flex; flex-direction: column; align-items: flex-end; }
