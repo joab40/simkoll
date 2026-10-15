@@ -990,11 +990,17 @@ button { cursor: pointer; }
 .goal-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .goal-fields input, .goal-fields textarea, .goal-fields select { min-width: 0; font-size: 16px; line-height: 1.5; font-weight: 400; }
 .goal-creation-tools label { font-size: .95rem; }
-.goal-creation-tools { order: -1; min-width: 0; display: grid; gap: 12px; padding: 18px; background: #f0f8f6; border: 1px solid #cde4df; border-radius: 14px; }
-.goal-notes-label textarea { width: 100%; min-height: 120px; font-size: 16px; line-height: 1.5; font-weight: 400; }
+.goal-creation-tools { min-width: 0; display: grid; gap: 12px; padding: 18px; background: #f0f8f6; border: 1px solid #cde4df; border-radius: 14px; }
+.goal-inline-tools { padding: 15px 0 0; background: transparent; border: 0; border-top: 1px solid #dbe6e3; border-radius: 0; }
 .goal-creation-tools h3, .goal-creation-tools h4, .goal-creation-tools p { margin: 0; }
 .goal-creation-tools > p, .goal-creation-tools small { font-size: .9rem; line-height: 1.5; color: var(--muted); }
 .goal-tool-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.goal-ai-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.goal-ai-button.analyzing span { display: inline-block; animation: goal-ai-sparkle .75s ease-in-out infinite alternate; }
+.goal-privacy-warning { display: flex; gap: 9px; align-items: flex-start; padding: 12px 14px; border-radius: 11px; background: #fff8df; border: 1px solid #eadca6; color: #5e552f !important; }
+.goal-privacy-warning strong { display: block; color: #3e3a24; }
+@keyframes goal-ai-sparkle { from { transform: rotate(-12deg) scale(.82); opacity: .5; } to { transform: rotate(12deg) scale(1.18); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .goal-ai-button.analyzing span { animation: none; } }
 .goal-ai-proposal { display: grid; gap: 12px; padding: 16px; border: 1px dashed #76aaa3; border-radius: 12px; background: white; }
 .goal-ai-proposal p { white-space: pre-wrap; }
 .goal-analysis-image { margin: 12px 0; }

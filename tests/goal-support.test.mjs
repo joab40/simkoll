@@ -26,13 +26,13 @@ test('goal improvement sends only provided text and image, with a reviewable dra
   assert.equal(usage.feature, 'goal_text_polish')
   assert.equal(usage.response.usage.total_tokens, 120)
 })
-test('rough coach notes alone can produce a complete swimmer-facing goal draft', async () => {
-  const notes = 'tappar fart in i väggen. Ebba vill få bättre flyt i voltvändning. Jobba med tajming på teknikpassen, prata om hur det gick sen.'
+test('rough text in the description can produce a complete swimmer-facing goal draft', async () => {
+  const description = 'tappar fart in i väggen. vill få bättre flyt i voltvändning. jobba med tajming på teknikpassen, prata om hur det gick sen.'
   const proposed = { ...draft, title: 'Bättre flyt i voltvändningen', description: 'Du arbetar med tajmingen in mot väggen för att behålla farten genom voltvändningen.', nextStep: 'Öva tajmingen på teknikpassen och följ upp hur det går.' }
-  const result = await improveGoalText({}, { notes }, {
+  const result = await improveGoalText({}, { description }, {
     fetch: async (url, options) => {
       const body = JSON.parse(options.body)
-      assert.deepEqual(JSON.parse(body.input[1].content[0].text), { notes, title: '', description: '', nextStep: '' })
+      assert.deepEqual(JSON.parse(body.input[1].content[0].text), { notes: '', title: '', description, nextStep: '' })
       assert.match(body.input[0].content, /råa anteckningar/)
       assert.match(body.input[0].content, /du-form/)
       assert.match(body.input[0].content, /Hitta inte på prestationsnivåer/)
@@ -40,6 +40,14 @@ test('rough coach notes alone can produce a complete swimmer-facing goal draft',
     }, log: async () => {},
   })
   assert.deepEqual(result.draft, proposed)
+})
+test('personal data is blocked before a goal text reaches OpenAI', async () => {
+  let calls = 0
+  const deps = { fetch: async () => { calls++; throw new Error('must not run') }, log: async () => {} }
+  await assert.rejects(improveGoalText({}, { description: 'Johan Andersson behöver träna vändningar.' }, deps), /fullständigt namn/)
+  await assert.rejects(improveGoalText({}, { description: 'Kontakt: simmare@example.se' }, deps), /e-postadressen/)
+  await assert.rejects(improveGoalText({}, { description: 'Personnummer 20100101-1234' }, deps), /personnumret/)
+  assert.equal(calls, 0)
 })
 test('text-only goals need no image storage, and invalid images never reach AI', async () => {
   let calls = 0

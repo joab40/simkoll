@@ -3,6 +3,7 @@ import { supabaseStorageRequest, supabaseStorageUrl } from './supabase.js'
 import { decodeExerciseImage } from './strength-images.js'
 import { writeAiUsage } from './audit.js'
 import { readProgramResponse } from './competition-program.js'
+import { detectGoalPersonalData } from '../shared/goal-privacy.js'
 
 const bucket = 'goal-analysis-images'
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -36,7 +37,9 @@ export async function goalImageUrl(goal, deps = {}) {
 
 export async function improveGoalText(request, options, deps = {}) {
   const fields = { notes: String(options.notes || '').trim(), title: String(options.title || '').trim(), description: String(options.description || '').trim(), nextStep: String(options.nextStep || '').trim() }
-  if (fields.notes.length > 5000 || fields.title.length > 100 || fields.description.length > 2000 || fields.nextStep.length > 500 || (!fields.notes && !fields.title && !fields.description && !fields.nextStep && !options.imageData)) throw new Error('Skriv anteckningar eller bifoga en analysbild först. Håll dig inom formulärets textgränser.')
+  if (fields.notes.length > 5000 || fields.title.length > 100 || fields.description.length > 2000 || fields.nextStep.length > 500 || (!fields.notes && !fields.title && !fields.description && !fields.nextStep && !options.imageData)) throw new Error('Skriv en beskrivning eller bifoga en analysbild först. Håll dig inom formulärets textgränser.')
+  const personalData = detectGoalPersonalData([fields.notes, fields.description, fields.nextStep].filter(Boolean).join('\n'))
+  if (personalData) throw new Error(personalData.message)
   if (options.imageData) decodeGoalImage(options.imageData)
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY saknas.')
   const model = process.env.OPENAI_GOAL_MODEL || 'gpt-6.1-sol'
