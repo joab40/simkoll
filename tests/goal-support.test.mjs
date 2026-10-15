@@ -26,6 +26,21 @@ test('goal improvement sends only provided text and image, with a reviewable dra
   assert.equal(usage.feature, 'goal_text_polish')
   assert.equal(usage.response.usage.total_tokens, 120)
 })
+test('rough coach notes alone can produce a complete swimmer-facing goal draft', async () => {
+  const notes = 'tappar fart in i väggen. Ebba vill få bättre flyt i voltvändning. Jobba med tajming på teknikpassen, prata om hur det gick sen.'
+  const proposed = { ...draft, title: 'Bättre flyt i voltvändningen', description: 'Du arbetar med tajmingen in mot väggen för att behålla farten genom voltvändningen.', nextStep: 'Öva tajmingen på teknikpassen och följ upp hur det går.' }
+  const result = await improveGoalText({}, { notes }, {
+    fetch: async (url, options) => {
+      const body = JSON.parse(options.body)
+      assert.deepEqual(JSON.parse(body.input[1].content[0].text), { notes, title: '', description: '', nextStep: '' })
+      assert.match(body.input[0].content, /råa anteckningar/)
+      assert.match(body.input[0].content, /du-form/)
+      assert.match(body.input[0].content, /Hitta inte på prestationsnivåer/)
+      return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify(proposed) }) }
+    }, log: async () => {},
+  })
+  assert.deepEqual(result.draft, proposed)
+})
 test('text-only goals need no image storage, and invalid images never reach AI', async () => {
   let calls = 0
   const deps = { fetch: async (url, options) => { calls++; assert.equal(JSON.parse(options.body).input[1].content.length, 1); return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify(draft) }) } }, log: async () => {} }
@@ -44,8 +59,10 @@ test('overlong fields and malformed responses do not overwrite a goal', async ()
   let calls = 0
   const deps = { fetch: async () => { calls++; return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify({ ...draft, description: 'a'.repeat(2001) }) }) } }, log: async () => {} }
   await assert.rejects(improveGoalText({}, { description: 'a'.repeat(2001) }, deps), /textgränser/)
+  await assert.rejects(improveGoalText({}, { notes: 'a'.repeat(5001) }, deps), /textgränser/)
   assert.equal(calls, 0)
   await assert.rejects(improveGoalText({}, { description: 'Test' }, deps), /ofullständigt/)
+  await assert.rejects(improveGoalText({}, { notes: 'Volt' }, { fetch: async () => ({ ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify({ ...draft, description: '' }) }) }), log: async () => {} }), /ofullständigt/)
 })
 test('private image upload requires valid profile and migration; no arbitrary paths', async () => {
   const paths = []
