@@ -1,7 +1,8 @@
-import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
+import { aiAvailability, getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { queueCategoryPush } from '../server/web-push.js'
+import { saveGoalImage, removeUnattachedGoalImage, goalImageUrl, improveGoalText } from '../server/goal-support.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const FEEDBACK = {
@@ -11,10 +12,11 @@ const FEEDBACK = {
   goal_complete: { points: 20, event: 'goal_complete' },
 }
 
-const mapGoal = (goal, updates = []) => ({
+const mapGoal = (goal, updates = [], imageUrl = null) => ({
   id: goal.id, profileId: goal.profile_id, title: goal.title, description: goal.description,
   nextStep: goal.next_step || '', startDate: goal.start_date, targetDate: goal.target_date,
   status: goal.status, createdAt: goal.created_at, updatedAt: goal.updated_at,
+  imageUrl, hasImage: Boolean(goal.image_path),
   updates: updates.filter((item) => item.goal_id === goal.id).map((item) => ({
     id: item.id, authorRole: item.author_role, content: item.content,
     feedbackType: item.feedback_type, points: item.points, createdAt: item.created_at,
@@ -43,11 +45,11 @@ async function loadGoals(profileId = null) {
   const updatesResult = await supabaseRequest(`goal_updates?goal_id=in.(${goals.map((goal) => goal.id).join(',')})&select=*&order=created_at.desc`)
   if (!updatesResult.ok) throw new Error(`Goal updates GET failed: ${updatesResult.status}`)
   const updates = await updatesResult.json()
-  return goals.map((goal) => mapGoal(goal, updates))
+  return Promise.all(goals.map(async (goal) => mapGoal(goal, updates, await goalImageUrl(goal).catch(() => null))))
 }
 
 async function findGoal(id) {
-  const result = await supabaseRequest(`development_goals?id=eq.${id}&select=*&limit=1`)
+  const result = await supabaseRequest(`development_goals?id=eq.${encodeURIComponent(id)}&select=*&limit=1`)
   if (!result.ok) throw new Error(`Goal lookup failed: ${result.status}`)
   return (await result.json())[0] || null
 }
@@ -58,6 +60,7 @@ export default async function handler(request, response) {
   const coachAccount = role === 'coach' ? coachFromRequest(request) : null
   const isSuperadmin = coachAccount?.role === 'superadmin'
   const isHeadCoach = coachAccount?.role === 'head_coach'
+  if (request.method === 'POST' && ['polish-goal', 'create'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och AI-bearbeta utvecklingsmål.' })
   try {
     if (request.method === 'GET') {
       if (request.query?.settings === 'true') {
@@ -84,6 +87,11 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach') {
+      if (request.body?.action === 'polish-goal') {
+        const availability = await aiAvailability()
+        if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'Klubbens månadstak för AI är nått.' : 'AI-stöd är avstängt.' })
+        try { return sendJson(response, 200, await improveGoalText(request, request.body)) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+      }
       const action = request.body?.action
       if (action === 'save-settings' || action === 'reset-settings') {
         if (!isSuperadmin && !isHeadCoach) return sendJson(response, 403, { error: 'Endast huvudtränare eller superadmin kan ändra webapp-inställningar.' })
@@ -150,12 +158,24 @@ export default async function handler(request, response) {
         const startDate = String(request.body.startDate || '')
         const targetDate = request.body.targetDate ? String(request.body.targetDate) : null
         if (!profileId || !title || title.length > 100 || !description || description.length > 2000 || nextStep.length > 500 || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return sendJson(response, 400, { error: 'Kontrollera målformuläret.' })
+        let imagePath = null
+        if (request.body.imageData) {
+          const owner = await supabaseRequest(`profiles?id=eq.${encodeURIComponent(profileId)}&select=id&limit=1`)
+          if (!owner.ok || !(await owner.json()).length) return sendJson(response, 400, { error: 'Simmarprofilen kunde inte hittas.' })
+          try { imagePath = await saveGoalImage(profileId, request.body.imageData) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+        }
+        // Transport failures can occur after the INSERT committed. Only clean
+        // up the new image when the database explicitly rejects the insert.
         const result = await supabaseRequest('development_goals', {
           method: 'POST', headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({ profile_id: profileId, title, description, next_step: nextStep || null, start_date: startDate, target_date: targetDate, status: 'active' }),
+          body: JSON.stringify({ profile_id: profileId, title, description, next_step: nextStep || null, start_date: startDate, target_date: targetDate, status: 'active', ...(imagePath ? { image_path: imagePath } : {}) }),
         })
-        if (!result.ok) throw new Error(`Goal insert failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 201, { goal: mapGoal((await result.json())[0]) })
+        if (!result.ok) {
+          if (imagePath) await removeUnattachedGoalImage(imagePath).catch(() => {})
+          return sendJson(response, 422, { error: imagePath ? 'Målet kunde inte sparas. Kontrollera att migration 088 är körd. Ingen ändring har sparats.' : 'Målet kunde inte sparas. Kontrollera formuläret.' })
+        }
+        const goal = (await result.json())[0]
+        return sendJson(response, 201, { goal: mapGoal(goal, [], await goalImageUrl(goal).catch(() => null)) })
       }
       if (action === 'status') {
         const status = String(request.body.status || '')
@@ -209,8 +229,10 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'DELETE' && role === 'coach') {
-      const result = await supabaseRequest(`development_goals?id=eq.${request.query?.id || ''}`, { method: 'DELETE' })
+      const goal = await findGoal(String(request.query?.id || ''))
+      const result = await supabaseRequest(`development_goals?id=eq.${encodeURIComponent(request.query?.id || '')}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Goal delete failed: ${result.status}`)
+      if (goal?.image_path && goal.image_path.startsWith(`${goal.profile_id}/`)) await removeUnattachedGoalImage(goal.image_path).catch(() => {})
       return sendJson(response, 200, { ok: true })
     }
     return sendJson(response, 405, { error: 'Method not allowed' })
