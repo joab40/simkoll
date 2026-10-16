@@ -41,7 +41,7 @@ export default async function handler(request, response) {
       supabaseRequest(`community_posts?deleted_at=is.null&created_at=gte.${encodeURIComponent(since)}&select=id,content,created_at&order=created_at.desc&limit=30`),
       supabaseRequest(`group_pep?created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=30`),
       supabaseRequest(`kudos?recipient_profile_id=eq.${profile.id}&created_at=gte.${encodeURIComponent(since)}&select=id,sender_profile_id,template_key,content,created_at&order=created_at.desc&limit=30`),
-      supabaseRequest(`development_goals?profile_id=eq.${profile.id}&updated_at=gte.${encodeURIComponent(since)}&select=id,title,updated_at&order=updated_at.desc&limit=30`),
+      supabaseRequest(`development_goals?profile_id=eq.${profile.id}&updated_at=gte.${encodeURIComponent(since)}&select=id,title,created_at,updated_at,swimmer_seen_at&order=updated_at.desc&limit=30`),
       supabaseRequest(`profile_artifacts?profile_id=eq.${profile.id}&created_at=gte.${encodeURIComponent(since)}&select=id,created_at,artifact_catalog(name,emoji,description)&order=created_at.desc&limit=30`),
       supabaseRequest(`private_messages?recipient_profile_id=eq.${profile.id}&recipient_role=eq.swimmer&created_at=gte.${encodeURIComponent(since)}&select=id,content,created_at&order=created_at.desc&limit=30`),
       supabaseRequest(`point_events?profile_id=eq.${profile.id}&event_type=eq.personal_best&source_key=like.pb_competition:*&created_at=gte.${encodeURIComponent(since)}&select=id,source_key,points,created_at&order=created_at.desc&limit=30`),
@@ -66,7 +66,11 @@ export default async function handler(request, response) {
       if (sender && text) notifications.push({ id: `kudos-${item.id}`, type: 'private', icon: sender.emoji, title: `${sender.displayName} skickade privat pepp`, text, createdAt: item.created_at })
     }
     const goalTitles = Object.fromEntries(goals.map((item) => [item.id, item.title]))
-    for (const item of goals) notifications.push({ id: `goal-${item.id}-${item.updated_at}`, type: 'goal', icon: '🎯', title: 'Ett mål har uppdaterats', text: item.title, createdAt: item.updated_at })
+    for (const item of goals) {
+      const isNew = Math.abs(new Date(item.updated_at) - new Date(item.created_at)) < 60000
+      if (isNew && item.swimmer_seen_at) continue
+      notifications.push({ id: `goal-${item.id}-${item.updated_at}`, type: 'goal', icon: '🎯', title: isNew ? 'Nytt utvecklingsmål från tränaren' : 'Ett mål har uppdaterats', text: item.title, createdAt: item.updated_at })
+    }
     for (const item of await updatesResult.json()) notifications.push({ id: `goal-update-${item.id}`, type: 'goal', icon: '🎯', title: 'Tränaren har skickat feedback', text: `${goalTitles[item.goal_id] || 'Ditt mål'} · ${item.content}`, createdAt: item.created_at })
     for (const item of await artifactsResult.json()) if (item.artifact_catalog) notifications.push({ id: `artifact-${item.id}`, type: 'artifact', icon: item.artifact_catalog.emoji, title: 'Du har fått en ny artefakt!', text: `${item.artifact_catalog.name} · ${item.artifact_catalog.description}`, createdAt: item.created_at })
     for (const item of await messagesResult.json()) notifications.push({ id: `message-${item.id}`, type: 'message', icon: '✉️', title: 'Du har fått ett privat meddelande från tränarna', text: item.content, createdAt: item.created_at })

@@ -89,9 +89,9 @@ export async function deliverMessagePush(event, send) {
     return row.profile_id ? activeProfiles.has(row.profile_id) : activeCoaches.has(row.coach_id) && row.coach_id !== event.senderCoachId
   })
   const payload = {
-    title: category === 'coachMessages' ? 'Simkoll · Nytt från tränarna' : 'Simkoll · Privat meddelande',
-    body: category === 'coachMessages' ? 'Tränarna har skickat ny information. Öppna Simkoll för att läsa.' : 'Du har fått ett nytt privat meddelande. Öppna Simkoll för att läsa.',
-    screen: event.toCoaches ? 'messages' : event.kind === 'coach-info' ? 'coach-info' : event.kind === 'coach-post' ? 'community' : 'private',
+    title: event.kind === 'goal-reflection' ? 'Simkoll · Svar på utvecklingsmål' : category === 'coachMessages' ? 'Simkoll · Nytt från tränarna' : 'Simkoll · Privat meddelande',
+    body: event.kind === 'goal-reflection' ? 'En simmare har svarat på ett mål. Öppna tränarvyn för att läsa.' : category === 'coachMessages' ? 'Tränarna har skickat ny information. Öppna Simkoll för att läsa.' : 'Du har fått ett nytt privat meddelande. Öppna Simkoll för att läsa.',
+    screen: event.kind === 'goal-reflection' ? 'goals' : event.toCoaches ? 'messages' : event.kind === 'coach-info' ? 'coach-info' : event.kind === 'coach-post' ? 'community' : 'private',
     tag: `simkoll-${event.kind}-${event.id}`,
   }
   // Bound concurrency; all work stays inside Vercel's waitUntil lifetime.
@@ -108,6 +108,10 @@ export function queueMessagePush(event) {
 }
 
 const categoryNotifications = {
+  developmentGoals: {
+    column: 'development_talks', setting: 'developmentTalks', screen: 'goals', title: 'Simkoll · Nytt utvecklingsmål',
+    body: 'Tränaren har lagt till ett mål för dig. Öppna Simkoll för att läsa.',
+  },
   developmentTalks: {
     column: 'development_talks', screen: 'talks', title: 'Simkoll · Utvecklingssamtal',
     body: 'Tränaren har öppnat ett utvecklingssamtal för dig. Öppna Simkoll för att förbereda dig.',
@@ -121,9 +125,9 @@ const categoryNotifications = {
 export async function deliverCategoryPush(event, send) {
   const notification = categoryNotifications[event.category]
   if (!notification || !vapidDetails()) return
-  if (event.category === 'developmentTalks' && !event.profileId) return
+  if (['developmentTalks', 'developmentGoals'].includes(event.category) && !event.profileId) return
   const settings = await readPushSettings()
-  if (!settings.enabled || settings[event.category] === false) return
+  if (!settings.enabled || settings[notification.setting || event.category] === false) return
   const profileFilter = event.profileId
     ? `&profile_id=eq.${encodeURIComponent(event.profileId)}`
     : '&profile_id=not.is.null'

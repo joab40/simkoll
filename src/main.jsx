@@ -106,6 +106,7 @@ function App() {
   const [activityDates, setActivityDates] = useState([])
   const [points, setPoints] = useState(null)
   const [notifications, setNotifications] = useState([])
+  const [newDevelopmentGoals, setNewDevelopmentGoals] = useState([])
   const [training, setTraining] = useState(null)
   const [identified, setIdentified] = useState(false)
   const [checkinActivityDate, setCheckinActivityDate] = useState(todayKey())
@@ -127,9 +128,9 @@ function App() {
   const [availableGames, setAvailableGames] = useState([])
   const [previousGames, setPreviousGames] = useState([])
   usePushSession(auth, profile, (target) => {
-    if (auth?.role !== 'swimmer') window.dispatchEvent(new Event('simkoll-coach-open-messages'))
+    if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
     else if (target.screen === 'talks') { setSelectedDevelopmentTalkId(target.talkId || null); setScreen('talks') }
-    else setScreen(target.screen === 'coach-info' ? 'coach-info' : target.screen === 'private' ? 'private-messages' : target.screen === 'community' ? 'community' : target.screen === 'competition-entries' ? 'competition-entries' : 'home')
+    else setScreen(target.screen === 'goals' ? 'goals' : target.screen === 'coach-info' ? 'coach-info' : target.screen === 'private' ? 'private-messages' : target.screen === 'community' ? 'community' : target.screen === 'competition-entries' ? 'competition-entries' : 'home')
   })
 
   useEffect(() => {
@@ -206,9 +207,19 @@ function App() {
   useEffect(() => {
     if (!auth || !profile) return undefined
     const refresh = () => apiRequest('/api/notifications', auth.code).then((data) => setNotifications(data.notifications || [])).catch(() => {})
+    refresh()
     const timer = window.setInterval(refresh, 30000)
     return () => window.clearInterval(timer)
-  }, [auth, profile])
+  }, [auth, profile?.id, screen])
+
+  useEffect(() => {
+    if (!auth || !profile) { setNewDevelopmentGoals([]); return undefined }
+    let active = true
+    const refresh = () => apiRequest('/api/goals?home=true', auth.code).then((data) => { if (active) setNewDevelopmentGoals(data.goals || []) }).catch(() => {})
+    refresh()
+    const timer = window.setInterval(refresh, 30000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [auth, profile?.id, screen])
 
   useEffect(() => {
     if (!auth || !profile) { setDevelopmentTalks([]); setTalksEnabled(false); return }
@@ -253,6 +264,7 @@ function App() {
     setActiveProfilesToday(0)
     setPoints(null)
     setNotifications([])
+    setNewDevelopmentGoals([])
     setAvailableGames([])
     setPreviousGames([])
     setTraining(null)
@@ -316,7 +328,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onCompetitions={() => setScreen('competition-entries')} onGame={() => setScreen('game')} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
         }} onStartYesterday={() => { setCheckinActivityDate(dateKey(new Date(Date.now() - 86400000))); setScreen('privacy-choice') }} />
@@ -845,6 +857,7 @@ function Faq({ role, onBack }) {
       <p className="faq-intro">Här finns en uppdaterad guide till funktionerna. Svaren beskriver simmarens egen upplevelse och är ett stöd för träning, planering och samtal – inte ett prov eller en medicinsk bedömning.</p>
       <section className="faq-install"><p className="eyebrow">Gör Simkoll lätt att hitta</p><h2>Lägg till på hemskärmen</h2><p>En genväg gör det enklare att öppna rätt sida och använda din sparade profil.</p><details><summary>iPhone eller iPad<span>+</span></summary><ol><li>Öppna Simkoll i Safari.</li><li>Tryck på dela-symbolen.</li><li>Välj <strong>Lägg till på hemskärmen</strong>.</li><li>Tryck <strong>Lägg till</strong>.</li></ol></details><details><summary>Android<span>+</span></summary><ol><li>Öppna Simkoll i Chrome.</li><li>Tryck på de tre prickarna.</li><li>Välj <strong>Lägg till på startskärmen</strong> eller <strong>Installera app</strong>.</li><li>Bekräfta.</li></ol></details><small>Webbläsaren måste alltid fråga dig först — Simkoll kan inte skapa genvägen automatiskt.</small></section>
       <div className="faq-list">
+        <details><summary>Hur får jag veta att jag fått ett nytt utvecklingsmål?<span>+</span></summary><p>När tränaren skapar ett mål i samråd med dig visas ett kort på startsidan och en händelse i notislistan. Har du aktiverat webnotiser för utvecklingsmål och samtal på din enhet kan du också få en pushnotis. Öppna kortet och läs målet under Meny → Mina mål. Då försvinner startkortet, men målet ligger kvar i din profil.</p><p>Du kan skriva ett privat svar på målet om du har frågor eller vill berätta hur det går. Tränarna ser svaret under Utvecklingsmål och kan svara där. Se det som ett underlag för ert samtal; du kan inte själv ändra tränarens mål. Undvik känsliga personuppgifter i fritext.</p></details>
         {role === 'coach' && <details><summary>Vilka svar ligger bakom korten under Idag?<span>+</span></summary><p>Klicka på Gruppens känsla, Upplevd ansträngning, Passet eller Upplägget för att se svaren bakom medelvärdet. Listan följer valt datum och gruppfilter och visar simmarens namn, värde, kommentar och när svaret skickades. Anonyma svar visas utan profilkoppling. Flera svar från samma simmare visas separat eftersom varje svar räknas i medelvärdet. Sök på namn eller kommentar och sortera efter värde om du vill följa upp en viss skattning.</p><p>Gruppens känsla omfattar alla incheckningar med ett värde. De andra korten omfattar svar efter träning eller tävling, och bara de som har angett respektive värde. Hjälpsymbolen förklarar fortfarande skalan. Samma svarsvy finns under Förra veckan.</p></details>}
         {role === 'coach' && <details><summary>Vilka har svarat i aktivitetskortet?<span>+</span></summary><p>Under Idag eller Förra veckan klickar du på en rad i Aktivitet → Vad har gruppen gjort?, till exempel ”Jag ska träna · 14 svar”. Då visas svaren med namn för profilsvar, status, datum, passval och kommentarer. Sök på namn eller kommentar för att hitta ett svar. Vald period och gruppfilter följer med. Flera svar från samma simmare visas separat, men profilantalet räknar unika profiler. Anonyma svar visas utan namn.</p></details>}
         <details><summary>Utvecklingsmål och analysbilder<span>+</span></summary><p>Utvecklingsmål skapas av tränaren i samråd med simmaren. Simmaren kan läsa målet och skriva reflektioner men kan inte skapa egna utvecklingsmål. En bifogad analysbild är underlag som kompletterar måltexten och kan öppnas för att se detaljer.</p>{role === 'coach' && <p>På simmarkortet under Simmare visas en kompakt översikt över aktiva utvecklingsmål. Fäll ut ett mål för beskrivning, nästa steg och analysbild, eller välj Öppna och redigera för hela målet. Avslutade mål ligger under Tidigare mål. Nytt mål väljer rätt simmare automatiskt. Under Utvecklingsmål → Nytt mål skriver du stödord eller en påbörjad måltext direkt i Beskrivning. Du kan även prata in en beskrivning och granska transkriberingen. Välj Skapa målförslag med AI för ett förslag med rubrik, beskrivning och eventuellt nästa steg. Simkoll försöker stoppa fullständiga namn, e-post och personnummer innan AI-anropet, men du måste själv avidentifiera text och bild och exempelvis skriva ”simmaren”. Granska förslaget, välj Använd förslaget och redigera vid behov innan du sparar. Ett sparat mål kan senare öppnas och rättas med Redigera mål; rubrik, beskrivning och nästa steg kan ändras utan att status, poäng, bild eller historik påverkas. Läsbara bildobservationer och osäkerheter visas separat. Bilder ska vara JPG, PNG eller WebP under 3 MB och bara avse aktuell simmare. De sparas privat med målet. Att bifoga eller visa en bild gör inget AI-anrop; transkribering och målförslag använder klubbens AI-kvot. Ljudet sparas inte i Simkoll.</p>}</details>
@@ -934,7 +947,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = false, profile, points, notifications, onNotificationsChange, training, workout, competitions, developmentTalks = [], availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
+function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = false, profile, points, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
   const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
@@ -1014,6 +1027,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
       {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={ownResponsesLoaded && !hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && pendingDevelopmentTalk && <DevelopmentTalkCard talk={pendingDevelopmentTalk} onOpen={onTalk} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
+      {profile && newDevelopmentGoals.length > 0 && <NewDevelopmentGoalCard goals={newDevelopmentGoals} onOpen={onGoals} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
@@ -1165,6 +1179,14 @@ function CompetitionSignupCard({ competitions = [], onOpen }) {
   const open = competitions.filter((item) => item.entriesOpen && (item.endDate || item.startDate) >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))
   if (!open.length) return null
   return <section className="competition-signup-card"><div><p className="eyebrow">Ny tävlingsplanering</p><h2>Välj dina grenar 🏊</h2><p>{open.length === 1 ? open[0].title : `${open.length} tävlingar`} är öppna för anmälan.</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna anmälan →</button></section>
+}
+
+function NewDevelopmentGoalCard({ goals, onOpen }) {
+  const latest = goals[0]
+  return <section className="competition-signup-card new-development-goal-card">
+    <div><p className="eyebrow">Nytt från tränarna</p><h2>{goals.length === 1 ? 'Ett nytt utvecklingsmål 🎯' : `${goals.length} nya utvecklingsmål 🎯`}</h2><p>{goals.length === 1 ? latest.title : 'Tränarna har lagt till mål för dig.'} Läs målet och svara gärna med dina tankar.</p></div>
+    <button type="button" className="primary-button" onClick={onOpen}>Visa mina mål →</button>
+  </section>
 }
 
 function DevelopmentTalkCard({ talk, onOpen }) {
@@ -1972,17 +1994,23 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   const [training, setTraining] = useState(null)
   const [loading, setLoading] = useState(true)
   const [reflection, setReflection] = useState({})
+  const [sendingReflection, setSendingReflection] = useState('')
   const [talks, setTalks] = useState([])
   const [seasonForm, setSeasonForm] = useState({ title: 'Mitt höstmål', target: 4, startDate: localDateValue(), endDate: `${new Date().getFullYear()}-12-20`, reflection: '' })
-  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code), apiRequest('/api/goals?talks=true', code)]).then(([goalData, trainingData, talkData]) => { setGoals(goalData.goals); setTraining(trainingData); setTalks(talkData.talks || []); onTrainingChange(trainingData) }).finally(() => setLoading(false))
+  const load = () => Promise.all([apiRequest('/api/goals', code), apiRequest('/api/training', code), apiRequest('/api/goals?talks=true', code)]).then(([goalData, trainingData, talkData]) => {
+    setGoals(goalData.goals); setTraining(trainingData); setTalks(talkData.talks || []); onTrainingChange(trainingData)
+    const unseenIds = (goalData.goals || []).filter((goal) => !goal.swimmerSeenAt && goal.status !== 'complete').map((goal) => goal.id)
+    if (unseenIds.length) apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark-viewed', goalIds: unseenIds }) }).catch(() => {})
+  }).finally(() => setLoading(false))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const addReflection = async (goalId) => {
     const content = String(reflection[goalId] || '').trim()
-    if (!content) return
+    if (!content || sendingReflection) return
+    setSendingReflection(goalId)
     try {
       await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goalId, content }) })
       setReflection({ ...reflection, [goalId]: '' }); await load()
-    } catch (error) { window.alert(error.message) }
+    } catch (error) { window.alert(error.message) } finally { setSendingReflection('') }
   }
   const saveSeasonGoal = async (event) => {
     event.preventDefault()
@@ -1999,7 +2027,7 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   return <div className="goals-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="goals-content"><p className="eyebrow">Ditt ansvar · din utveckling</p><h1>Min träning och mina mål</h1>{loading ? <p className="empty">Hämtar mål…</p> : <>
     <section className="season-goal-section"><div className="section-title"><div><p className="eyebrow">Simmål per vecka</p><h2>Mitt terminsmål</h2></div>{activeSeason && <span>{weekCount} / {activeSeason.target} den här veckan</span>}</div>{activeSeason ? <div className="season-active"><div className="big-session-count"><strong>{weekCount}</strong><span>av {activeSeason.target} simpass</span></div><div><h3>{activeSeason.title}</h3><p>Du har själv valt {activeSeason.target} pass per vecka.</p><div className="session-dots">{Array.from({ length: activeSeason.target }, (_, index) => <i className={index < weekCount ? 'done' : ''} key={index} />)}</div><small>{activeSeason.startDate} – {activeSeason.endDate}</small></div></div> : <form className="season-form" onSubmit={saveSeasonGoal}><label>Vad kallar du målet?<input required value={seasonForm.title} onChange={(event) => setSeasonForm({ ...seasonForm, title: event.target.value })} /></label><label>Antal simpass per vecka<input type="number" min="1" max="14" required value={seasonForm.target} onChange={(event) => setSeasonForm({ ...seasonForm, target: event.target.value })} /></label><label>Från<input type="date" required value={seasonForm.startDate} onChange={(event) => setSeasonForm({ ...seasonForm, startDate: event.target.value })} /></label><label>Till<input type="date" required value={seasonForm.endDate} onChange={(event) => setSeasonForm({ ...seasonForm, endDate: event.target.value })} /></label><label className="wide">Min tanke efter utvecklingssamtalet<textarea maxLength="1000" value={seasonForm.reflection} onChange={(event) => setSeasonForm({ ...seasonForm, reflection: event.target.value })} /></label><button className="primary-button">Spara mitt mål →</button></form>}</section>
     <section className="assigned-programs"><p className="eyebrow">Från tränarna</p><h2>Mina program</h2>{training?.assignments?.length ? training.assignments.map((assignment) => { const programGoals = training.programGoals.filter((goal) => goal.assignmentId === assignment.id); return <article key={assignment.id}><header><span>{assignment.program.type === 'strength' ? '🏋️' : '🤸'}</span><div><strong>{assignment.program.title}</strong><small>{assignment.program.type === 'strength' ? 'Styrketräning' : 'Landträning'}</small></div></header><p>{assignment.program.description}</p>{assignment.program.type === 'strength' ? <StrengthProgramRunner assignment={assignment} logs={training.strengthLogs || []} code={code} onSaved={load} /> : <><pre>{assignment.program.content}</pre><button onClick={() => completeProgram(assignment)}>✓ Markera ett pass genomfört</button></>}{programGoals.map((goal) => <div className="program-goal" key={goal.id}><strong>🎯 {goal.title} · {goal.rewardPoints} poäng</strong><p>{goal.description}</p><span>{goal.status === 'approved' ? `Godkänt! ${goal.coachFeedback}` : goal.status === 'submitted' ? 'Väntar på tränaren' : goal.status === 'continue' ? `Fortsätt jobba · ${goal.coachFeedback}` : ''}</span>{['active', 'continue'].includes(goal.status) && <button onClick={() => submitProgramGoal(goal.id)}>Redo för godkännande →</button>}</div>)}</article> }) : <p className="empty">Inga styrke- eller landträningsprogram ännu.</p>}</section>
-<section className="development-section"><p className="eyebrow">Privat mellan dig och tränarna</p><h2>Mina utvecklingsmål</h2>{goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p><GoalAnalysisImage goal={goal} />{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Min reflektion'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Skriv en kort reflektion…" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button onClick={() => addReflection(goal.id)}>Skicka</button></div>}</article>)}</div> : <p className="empty">Inga utvecklingsmål ännu.</p>}</section>
+<section className="development-section"><p className="eyebrow">Privat mellan dig och tränarna</p><h2>Mina utvecklingsmål</h2><p className="development-guidance">Läs målet och skriv gärna vad du tänker eller undrar. Ditt svar går till tränarna här på målet. De kan svara med återkoppling, och ni kan fortsätta prata om det tillsammans.</p>{goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p><GoalAnalysisImage goal={goal} />{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Mitt svar'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Vad tänker du om målet?" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button type="button" disabled={Boolean(sendingReflection)} onClick={() => addReflection(goal.id)}>{sendingReflection === goal.id ? 'Skickar…' : 'Skicka till tränarna'}</button></div>}</article>)}</div> : <p className="empty">Inga utvecklingsmål ännu.</p>}</section>
   </>}</div></div>
 }
 
@@ -2398,7 +2426,16 @@ function HeadCoachSettings({ code }) {
 function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onSwitchToSwimmer, onClear }) {
   const [view, setView] = useState('today')
   const [goalNavigation, setGoalNavigation] = useState(null)
+  const [goalReplyCount, setGoalReplyCount] = useState(0)
   useEffect(() => { const open = () => setView('community'); window.addEventListener('simkoll-coach-open-messages', open); return () => window.removeEventListener('simkoll-coach-open-messages', open) }, [])
+  useEffect(() => { const open = () => setView('goals'); window.addEventListener('simkoll-coach-open-goals', open); return () => window.removeEventListener('simkoll-coach-open-goals', open) }, [])
+  useEffect(() => {
+    const refresh = () => apiRequest('/api/goals?coachAlerts=true', code).then((data) => setGoalReplyCount(data.count || 0)).catch(() => {})
+    refresh()
+    const timer = window.setInterval(refresh, 30000)
+    window.addEventListener('simkoll-goal-replies-read', refresh)
+    return () => { window.clearInterval(timer); window.removeEventListener('simkoll-goal-replies-read', refresh) }
+  }, [code])
   const [coachMessageCount, setCoachMessageCount] = useState(0)
   const [assistantOpen, setAssistantOpen] = useState(false)
   useEffect(() => { const open = () => setAssistantOpen(true); window.addEventListener('simkoll-assistant-open', open); return () => window.removeEventListener('simkoll-assistant-open', open) }, [])
@@ -2484,7 +2521,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
     if (key === 'push-settings') return <button type="button" key={key} onClick={() => openViewFromMenu(key)}>🔔 Notiser på min enhet</button>
     const item = navItem(key)
     if (!item || !coachVisible(key)) return null
-    return <button type="button" key={key} onClick={() => openViewFromMenu(key)}>{item.label}</button>
+    return <button type="button" key={key} onClick={() => openViewFromMenu(key)}>{item.label}{key === 'goals' && goalReplyCount > 0 && <b className="tab-count">{goalReplyCount}</b>}</button>
   }
   return (
     <main className="coach-shell">
@@ -2493,10 +2530,10 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
       <div className="coach-content">
         <nav className="coach-tabs" aria-label="Tränarens meny">
           <div className="coach-tab-group"><span className="coach-tab-label">Översikt</span><div className="coach-tab-buttons">
-            {orderedOverviewItems.filter((item) => overviewVisible(item.key) && coachVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => selectCoachView(item.key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}{item.key === 'community' && coachMessageCount > 0 && <b className="tab-count coach-message-count">{coachMessageCount}</b>}</button>)}
+            {orderedOverviewItems.filter((item) => overviewVisible(item.key) && coachVisible(item.key)).map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => selectCoachView(item.key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{item.key === 'swimmers' && pendingProfiles.length > 0 && <b className="tab-count">{pendingProfiles.length}</b>}{item.key === 'community' && coachMessageCount > 0 && <b className="tab-count coach-message-count">{coachMessageCount}</b>}{item.key === 'goals' && goalReplyCount > 0 && <b className="tab-count">{goalReplyCount}</b>}</button>)}
           </div></div>
           <details className="coach-tools-menu legacy-tools"><summary>Verktyg <span>⌄</span></summary><div className="coach-tab-buttons">
-            {legacyToolKeys.filter(coachVisible).map((key) => { const item = navItem(key); return item ? <button key={key} className={view === key ? 'active' : ''} onClick={() => openViewFromMenu(key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span></button> : null })}
+            {legacyToolKeys.filter(coachVisible).map((key) => { const item = navItem(key); return item ? <button key={key} className={view === key ? 'active' : ''} onClick={() => openViewFromMenu(key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{key === 'goals' && goalReplyCount > 0 && <b className="tab-count">{goalReplyCount}</b>}</button> : null })}
           </div></details>
         </nav>
         {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
@@ -4012,7 +4049,7 @@ const FEEDBACK_OPTIONS = [
   ['milestone', 'Delmål klart · +10'], ['goal_complete', 'Utvecklingsmål klart · +20'],
 ]
 
-function CoachGoalCard({ goal, owner, entry, setFeedback, updateGoal, updateStatus, sendFeedback, remove, initiallyExpanded = false }) {
+function CoachGoalCard({ goal, owner, entry, setFeedback, updateGoal, updateStatus, sendFeedback, remove, onRead, initiallyExpanded = false }) {
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [editing, setEditing] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -4027,10 +4064,12 @@ function CoachGoalCard({ goal, owner, entry, setFeedback, updateGoal, updateStat
     try { await updateGoal(goal.id, editDraft); setEditing(false) } catch (error) { window.alert(error.message) } finally { setSavingEdit(false) }
   }
   const visiblyUpdated = goal.updatedAt && goal.createdAt && new Date(goal.updatedAt) - new Date(goal.createdAt) > 60000
+  const unreadReplies = goal.updates.filter((update) => update.authorRole === 'swimmer' && !update.coachSeenAt).length
   return <article id={`coach-goal-card-${goal.id}`} className={`coach-goal-card${expanded ? ' expanded' : ''}`}>
-    <button type="button" className="coach-goal-toggle" aria-expanded={expanded} aria-controls={panelId} onClick={() => setExpanded((current) => !current)}>
+    <button type="button" className="coach-goal-toggle" aria-expanded={expanded} aria-controls={panelId} onClick={() => { if (!expanded && unreadReplies) onRead(goal.id); setExpanded((current) => !current) }}>
       <span className="coach-goal-owner-emoji">{owner?.emoji}</span>
       <span className="coach-goal-heading"><strong>{goal.title}</strong><small>{owner?.displayName || 'Okänd profil'}</small></span>
+      {unreadReplies > 0 && <span className="goal-reply-badge">{unreadReplies} {unreadReplies === 1 ? 'nytt svar' : 'nya svar'}</span>}
       <span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span>
       <span className="coach-goal-chevron" aria-hidden="true">⌄</span>
     </button>
@@ -4053,6 +4092,7 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
   const [showCreate, setShowCreate] = useState(initialCreate)
   const [goalToolsBusy, setGoalToolsBusy] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [focusedGoalId, setFocusedGoalId] = useState('')
   const load = () => apiRequest('/api/goals', code).then((data) => setGoals(data.goals))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   useEffect(() => {
@@ -4093,7 +4133,18 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
     try { await apiRequest(`/api/goals?id=${goal.id}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
   }
   const profileFor = (id) => profiles.find((profile) => profile.id === id)
-return <section className="coach-goals"><div className="period-heading"><div><p className="eyebrow">Privat tränare + simmare</p><h2>Utvecklingsmål</h2></div><button type="button" className="primary-button" disabled={creating || goalToolsBusy} onClick={() => setShowCreate(!showCreate)}>{showCreate ? 'Stäng' : 'Nytt mål +'}</button></div>{showCreate && <form className="goal-form" onSubmit={create}><fieldset className="goal-fields wide" disabled={creating || goalToolsBusy}><label>Simmare<select required value={form.profileId} onChange={(event) => setForm({ ...form, profileId: event.target.value })}><option value="">Välj profil…</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Rubrik<input required maxLength="100" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="wide">Beskrivning<textarea required maxLength="2000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Skriv stödord eller en påbörjad måltext…" /></label><label className="wide">Nästa steg<input maxLength="500" value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label><label>Startdatum<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label><label>Måldatum<input type="date" value={form.targetDate} onChange={(event) => setForm({ ...form, targetDate: event.target.value })} /></label></fieldset><GoalCreationTools code={code} request={apiRequest} form={form} onChange={setForm} aiEnabled={aiEnabled} swimmerName={profileFor(form.profileId)?.displayName || ''} disabled={creating} onBusyChange={setGoalToolsBusy} /><button type="submit" className="primary-button" disabled={creating || goalToolsBusy}>{creating ? 'Sparar…' : 'Skapa mål →'}</button></form>}{goals.length ? <div className="coach-goal-list">{goals.map((goal) => <CoachGoalCard key={goal.id} goal={goal} owner={profileFor(goal.profileId)} entry={feedback[goal.id] || { type: 'progress', content: '' }} setFeedback={setFeedback} updateGoal={updateGoal} updateStatus={updateStatus} sendFeedback={sendFeedback} remove={remove} initiallyExpanded={goal.id === initialGoalId} />)}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
+  const unreadGoals = goals.map((goal) => ({ goal, count: goal.updates.filter((update) => update.authorRole === 'swimmer' && !update.coachSeenAt).length })).filter((item) => item.count)
+  const markRepliesRead = async (goalId) => {
+    try { await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark-coach-seen', goalId }) }); await load(); window.dispatchEvent(new Event('simkoll-goal-replies-read')) } catch (error) { window.alert(error.message) }
+  }
+  useEffect(() => {
+    if (initialGoalId && unreadGoals.some(({ goal }) => goal.id === initialGoalId)) markRepliesRead(initialGoalId)
+  }, [initialGoalId, goals])
+  const openReply = (goalId) => { setFocusedGoalId(goalId); markRepliesRead(goalId); window.setTimeout(() => document.getElementById(`coach-goal-card-${goalId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80) }
+  return <section className="coach-goals"><div className="period-heading"><div><p className="eyebrow">Privat tränare + simmare</p><h2>Utvecklingsmål</h2></div><button type="button" className="primary-button" disabled={creating || goalToolsBusy} onClick={() => setShowCreate(!showCreate)}>{showCreate ? 'Stäng' : 'Nytt mål +'}</button></div>
+    {unreadGoals.length > 0 && <section className="goal-replies-notice"><strong>💬 Nya svar från simmare</strong><p>Öppna ett mål för att läsa svaret och ge återkoppling.</p><div>{unreadGoals.map(({ goal, count }) => <button type="button" key={goal.id} onClick={() => openReply(goal.id)}>{profileFor(goal.profileId)?.displayName || 'Simmare'} · {goal.title} <b>{count} {count === 1 ? 'svar' : 'svar'} →</b></button>)}</div></section>}
+    {showCreate && <form className="goal-form" onSubmit={create}><fieldset className="goal-fields wide" disabled={creating || goalToolsBusy}><label>Simmare<select required value={form.profileId} onChange={(event) => setForm({ ...form, profileId: event.target.value })}><option value="">Välj profil…</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Rubrik<input required maxLength="100" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="wide">Beskrivning<textarea required maxLength="2000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Skriv stödord eller en påbörjad måltext…" /></label><label className="wide">Nästa steg<input maxLength="500" value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label><label>Startdatum<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label><label>Måldatum<input type="date" value={form.targetDate} onChange={(event) => setForm({ ...form, targetDate: event.target.value })} /></label></fieldset><GoalCreationTools code={code} request={apiRequest} form={form} onChange={setForm} aiEnabled={aiEnabled} swimmerName={profileFor(form.profileId)?.displayName || ''} disabled={creating} onBusyChange={setGoalToolsBusy} /><button type="submit" className="primary-button" disabled={creating || goalToolsBusy}>{creating ? 'Sparar…' : 'Skapa mål →'}</button></form>}
+    {goals.length ? <div className="coach-goal-list">{goals.map((goal) => <CoachGoalCard key={goal.id} goal={goal} owner={profileFor(goal.profileId)} entry={feedback[goal.id] || { type: 'progress', content: '' }} setFeedback={setFeedback} updateGoal={updateGoal} updateStatus={updateStatus} sendFeedback={sendFeedback} remove={remove} onRead={markRepliesRead} initiallyExpanded={goal.id === initialGoalId || goal.id === focusedGoalId} />)}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
 }
 
 function OpenChatPanel({ code, coach = false, profileId = '' }) {

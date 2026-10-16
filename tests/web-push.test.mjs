@@ -116,6 +116,39 @@ test('development talk push targets only the intended swimmer and stays generic'
   assert(!`${delivered[0].title} ${delivered[0].body}`.includes('swimmer-a'))
 })
 
+test('new goal push uses the existing talk opt-in and targets only its swimmer', async () => {
+  const delivered = []
+  globalThis.fetch = async (url) => {
+    const path = String(url).split('/rest/v1/')[1]
+    if (path.startsWith('app_settings')) return reply([{ setting_value: { enabled: true, developmentTalks: true } }])
+    if (path.startsWith('push_subscriptions')) { assert(path.includes('development_talks=eq.true&profile_id=eq.swimmer-a')); return reply([row('device-a', 'swimmer-a'), row('device-b', 'swimmer-b')]) }
+    if (path.startsWith('profiles')) return reply([{ id: 'swimmer-a', training_group: 'junior' }, { id: 'swimmer-b', training_group: 'junior' }])
+    throw new Error(`Unexpected path: ${path}`)
+  }
+  await deliverCategoryPush({ category: 'developmentGoals', id: 'goal-a', profileId: 'swimmer-a' }, async (_sub, payload) => delivered.push(JSON.parse(payload)))
+  assert.equal(delivered.length, 1)
+  assert.equal(delivered[0].ownerKey, 'swimmer:swimmer-a')
+  assert.equal(delivered[0].screen, 'goals')
+  assert(!`${delivered[0].title} ${delivered[0].body}`.includes('goal-a'))
+})
+
+test('swimmer goal replies notify active coaches without revealing the reply', async () => {
+  const delivered = []
+  globalThis.fetch = async (url) => {
+    const path = String(url).split('/rest/v1/')[1]
+    if (path.startsWith('app_settings')) return reply([{ setting_value: { enabled: true, privateMessages: true } }])
+    if (path.startsWith('push_subscriptions')) { assert(path.includes('private_messages=eq.true&coach_id=not.is.null')); return reply([row('coach-device', null, 'coach-a'), row('inactive-device', null, 'coach-b')]) }
+    if (path.startsWith('profiles')) return reply([])
+    if (path.startsWith('coach_accounts')) return reply([{ id: 'coach-a' }])
+    throw new Error(`Unexpected path: ${path}`)
+  }
+  await deliverMessagePush({ kind: 'goal-reflection', id: 'update-a', toCoaches: true, content: 'private swimmer text' }, async (_sub, payload) => delivered.push(JSON.parse(payload)))
+  assert.equal(delivered.length, 1)
+  assert.equal(delivered[0].ownerKey, 'coach:coach-a')
+  assert.equal(delivered[0].screen, 'goals')
+  assert(!JSON.stringify(delivered).includes('private swimmer text'))
+})
+
 test('expired subscriptions are removed with an owner guard, transient errors retain the device', async (t) => {
   const deletes = []
   globalThis.fetch = async (url, options) => { assert.equal(options.method, 'DELETE'); deletes.push(String(url)); return reply([]) }

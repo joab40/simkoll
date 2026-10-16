@@ -865,6 +865,8 @@ button { cursor: pointer; }
 .development-talk-home-card .development-talk-date { display: inline-block; margin-left: 4px; color: var(--teal); font-weight: 700; }
 .competition-signup-card h2, .competition-signup-card p { margin: 0; }
 .competition-signup-card p:not(.eyebrow) { margin-top: 4px; color: var(--muted); }
+.new-development-goal-card { border-color: #b8dcd5; background: linear-gradient(120deg, #ecf8f3, #f9fff7); }
+.new-development-goal-card .primary-button { flex: 0 0 auto; }
 @media (max-width: 620px) { .competition-signup-card { align-items: stretch; flex-direction: column; } .competition-signup-card .primary-button { width: 100%; } }
 .competition-program summary { cursor: pointer; color: var(--teal); font-weight: 800; font-size: 13px; }
 .competition-program-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
@@ -1011,7 +1013,16 @@ button { cursor: pointer; }
 .goal-form > .primary-button { grid-column: 2; }
 .coach-goal-card { overflow: hidden; transition: border-color .18s ease, box-shadow .18s ease; }
 .coach-goal-card.expanded { border-color: #b9d8d2; box-shadow: 0 10px 28px rgba(12, 70, 73, .07); }
-.coach-goal-toggle { width: 100%; border: 0; background: transparent; color: inherit; padding: 18px 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; text-align: left; cursor: pointer; }
+.goal-replies-notice { margin: 0 0 16px; padding: 16px; border: 1px solid #b9ddd2; border-radius: 16px; background: #eff9f4; }
+.goal-replies-notice > strong { color: var(--teal); }
+.goal-replies-notice p { margin: 5px 0 12px; color: var(--muted); font-size: 12px; }
+.goal-replies-notice > div { display: grid; gap: 7px; }
+.goal-replies-notice button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid #d4e6de; border-radius: 10px; background: white; color: var(--ink); text-align: left; }
+.goal-replies-notice button b, .goal-reply-badge { color: var(--teal); white-space: nowrap; }
+.goal-reply-badge { padding: 4px 7px; border-radius: 999px; background: #ddf3e9; font-size: 10px; font-weight: 800; }
+.coach-goal-toggle { width: 100%; border: 0; background: transparent; color: inherit; padding: 18px 20px; display: flex; gap: 12px; align-items: center; text-align: left; cursor: pointer; }
+.coach-goal-toggle .coach-goal-heading { flex: 1; }
+.coach-goal-toggle .goal-status { flex: 0 0 auto; }
 .coach-goal-toggle:hover { background: #f5faf8; }
 .coach-goal-toggle:focus-visible { outline: 3px solid rgba(16, 126, 123, .25); outline-offset: -3px; }
 .coach-goal-owner-emoji { font-size: 27px; }
@@ -1019,6 +1030,7 @@ button { cursor: pointer; }
 .coach-goal-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .coach-goal-heading small { color: var(--muted); }
 .coach-goal-chevron { color: var(--teal); font-size: 24px; line-height: 1; transition: transform .18s ease; }
+@media (max-width: 640px) { .coach-goal-toggle { flex-wrap: wrap; padding: 14px; gap: 8px; } .coach-goal-toggle .coach-goal-heading { flex: 1 1 calc(100% - 55px); } .coach-goal-toggle .goal-reply-badge { margin-left: 35px; } .coach-goal-toggle .coach-goal-chevron { margin-left: auto; } }
 .coach-goal-card.expanded .coach-goal-chevron { transform: rotate(180deg); }
 .coach-goal-content { border-top: 1px solid #e1ebe8; padding: 20px 23px 23px; }
 .coach-goal-controls { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
@@ -1297,6 +1309,7 @@ button { cursor: pointer; }
 .swimmer-development-goal-image .goal-analysis-image { margin: 0; }
 .swimmer-development-goal-image .goal-analysis-image img { max-height: 170px; }
 .swimmer-development-goal-image .goal-analysis-image figcaption { font-size: 9px; }
+.development-guidance { margin: -3px 0 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .swimmer-development-goals-empty { display: grid !important; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 58px !important; padding: 10px 12px; text-align: left; }
 .swimmer-development-goals-empty > span:first-child { font-size: 23px; }
 .swimmer-development-goals-empty > span:nth-child(2) { display: grid; gap: 2px; }

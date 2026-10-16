@@ -1,7 +1,7 @@
 import { aiAvailability, getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
-import { queueCategoryPush } from '../server/web-push.js'
+import { queueCategoryPush, queueMessagePush } from '../server/web-push.js'
 import { saveGoalImage, removeUnattachedGoalImage, goalImageUrl, improveGoalText } from '../server/goal-support.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
@@ -15,11 +15,11 @@ const FEEDBACK = {
 const mapGoal = (goal, updates = [], imageUrl = null) => ({
   id: goal.id, profileId: goal.profile_id, title: goal.title, description: goal.description,
   nextStep: goal.next_step || '', startDate: goal.start_date, targetDate: goal.target_date,
-  status: goal.status, createdAt: goal.created_at, updatedAt: goal.updated_at,
+  status: goal.status, createdAt: goal.created_at, updatedAt: goal.updated_at, swimmerSeenAt: goal.swimmer_seen_at || null,
   imageUrl, hasImage: Boolean(goal.image_path),
   updates: updates.filter((item) => item.goal_id === goal.id).map((item) => ({
     id: item.id, authorRole: item.author_role, content: item.content,
-    feedbackType: item.feedback_type, points: item.points, createdAt: item.created_at,
+    feedbackType: item.feedback_type, points: item.points, createdAt: item.created_at, coachSeenAt: item.coach_seen_at || null,
   })),
 })
 
@@ -63,6 +63,20 @@ export default async function handler(request, response) {
   if (request.method === 'POST' && ['polish-goal', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål.' })
   try {
     if (request.method === 'GET') {
+      if (request.query?.home === 'true') {
+        const profile = await getSessionProfile(request)
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
+        const result = await supabaseRequest(`development_goals?profile_id=eq.${encodeURIComponent(profile.id)}&swimmer_seen_at=is.null&status=neq.complete&select=id,title,created_at&order=created_at.desc&limit=10`)
+        if (!result.ok) throw new Error(`Goal home lookup failed: ${result.status}`)
+        return sendJson(response, 200, { goals: (await result.json()).map((goal) => ({ id: goal.id, title: goal.title, createdAt: goal.created_at })) })
+      }
+      if (request.query?.coachAlerts === 'true') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa målens svar.' })
+        const result = await supabaseRequest('goal_updates?author_role=eq.swimmer&coach_seen_at=is.null&select=id,goal_id&order=created_at.desc&limit=500')
+        if (!result.ok) throw new Error(`Goal alert lookup failed: ${result.status}`)
+        const updates = await result.json()
+        return sendJson(response, 200, { count: updates.length, goalIds: [...new Set(updates.map((item) => item.goal_id))] })
+      }
       if (request.query?.settings === 'true') {
         const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const value = result.ok ? (await result.json())[0]?.setting_value : null
@@ -175,6 +189,7 @@ export default async function handler(request, response) {
           return sendJson(response, 422, { error: imagePath ? 'Målet kunde inte sparas. Kontrollera att migration 088 är körd. Ingen ändring har sparats.' : 'Målet kunde inte sparas. Kontrollera formuläret.' })
         }
         const goal = (await result.json())[0]
+        queueCategoryPush({ category: 'developmentGoals', id: goal.id, profileId: goal.profile_id })
         return sendJson(response, 201, { goal: mapGoal(goal, [], await goalImageUrl(goal).catch(() => null)) })
       }
       if (action === 'edit') {
@@ -219,6 +234,13 @@ export default async function handler(request, response) {
         if (request.body.feedbackType === 'goal_complete') await supabaseRequest(`development_goals?id=eq.${goal.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'complete', updated_at: new Date().toISOString() }) })
         return sendJson(response, 201, { ok: true })
       }
+      if (action === 'mark-coach-seen') {
+        const goalId = String(request.body.goalId || '')
+        if (!goalId || !(await findGoal(goalId))) return sendJson(response, 404, { error: 'Målet kunde inte hittas.' })
+        const result = await supabaseRequest(`goal_updates?goal_id=eq.${encodeURIComponent(goalId)}&author_role=eq.swimmer&coach_seen_at=is.null`, { method: 'PATCH', body: JSON.stringify({ coach_seen_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Goal reply acknowledgement failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
+      }
     }
 
     if (request.method === 'POST' && request.body?.action === 'save-talk') {
@@ -235,11 +257,21 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST') {
       const profile = await getSessionProfile(request)
+      if (request.body?.action === 'mark-viewed') {
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
+        const ids = [...new Set((Array.isArray(request.body.goalIds) ? request.body.goalIds : []).filter((id) => /^[0-9a-f-]{36}$/i.test(String(id))))].slice(0, 30)
+        if (!ids.length) return sendJson(response, 400, { error: 'Välj ett mål.' })
+        const result = await supabaseRequest(`development_goals?id=in.(${ids.map(encodeURIComponent).join(',')})&profile_id=eq.${encodeURIComponent(profile.id)}&swimmer_seen_at=is.null`, { method: 'PATCH', body: JSON.stringify({ swimmer_seen_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Goal view acknowledgement failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
+      }
       const goal = await findGoal(String(request.body?.goalId || ''))
       const content = String(request.body?.content || '').trim()
-      if (!profile || !goal || goal.profile_id !== profile.id || !content || content.length > 1000) return sendJson(response, 400, { error: 'Kunde inte spara reflektionen.' })
-      const result = await supabaseRequest('goal_updates', { method: 'POST', body: JSON.stringify({ goal_id: goal.id, author_role: 'swimmer', content, points: 0 }) })
+      if (!profile || !goal || goal.profile_id !== profile.id || goal.status === 'complete' || !content || content.length > 1000) return sendJson(response, 400, { error: 'Kunde inte spara reflektionen.' })
+      const result = await supabaseRequest('goal_updates', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ goal_id: goal.id, author_role: 'swimmer', content, points: 0 }) })
       if (!result.ok) throw new Error(`Reflection insert failed: ${result.status}`)
+      const [update] = await result.json()
+      if (update) queueMessagePush({ kind: 'goal-reflection', id: update.id, toCoaches: true })
       return sendJson(response, 201, { ok: true })
     }
 

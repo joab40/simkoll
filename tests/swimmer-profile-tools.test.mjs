@@ -18,5 +18,5 @@ test('swimmer cards include a compact development-goal overview with direct navi
   assert.match(source, /Öppna och redigera →/)
   assert.match(source, /Tidigare mål \(\{previousGoals\.length\}\)/)
   assert.match(source, /onCreateGoal=\{\(profileId\) => openGoalsForProfile\(profileId, '', true\)\}/)
-  assert.match(source, /initiallyExpanded=\{goal\.id === initialGoalId\}/)
+  assert.match(source, /initiallyExpanded=\{goal\.id === initialGoalId \|\| goal\.id === focusedGoalId\}/)
 })
