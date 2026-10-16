@@ -1042,10 +1042,17 @@ button { cursor: pointer; }
 .stat small { color: var(--muted); }
 .coach-card { padding: 27px 30px; }
 .coach-card h2 { font-size: 24px; margin-bottom: 22px; }
-.swimmer-notes { margin: 16px 0; padding: 15px; background: #f4f9f7; border: 1px solid #dbe9e5; border-radius: 15px; }
-.swimmer-notes-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
-.swimmer-notes-heading .eyebrow { margin-bottom: 3px; }
-.swimmer-notes-heading small { color: var(--muted); font-size: 10px; text-align: right; }
+.swimmer-notes { margin: 9px 0 16px; padding: 0; background: #f4f9f7; border: 1px solid #dbe9e5; border-radius: 15px; overflow: hidden; }
+.swimmer-notes > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 12px; padding: 13px 15px; cursor: pointer; list-style: none; }
+.swimmer-notes > summary::-webkit-details-marker { display: none; }
+.swimmer-notes > summary::after { content: '⌄'; color: var(--teal); font-size: 18px; font-weight: 800; transition: transform .2s ease; }
+.swimmer-notes[open] > summary::after { transform: rotate(180deg); }
+.swimmer-notes > summary > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.swimmer-notes > summary strong { color: var(--ink); font-size: 12px; }
+.swimmer-notes > summary small { color: var(--muted); font-size: 10px; }
+.swimmer-notes-summary-meta { display: grid; gap: 2px; text-align: right; white-space: nowrap; }
+.swimmer-notes-summary-meta b { color: var(--teal); font-size: 10px; }
+.swimmer-notes-body { padding: 0 15px 15px; border-top: 1px solid #dbe9e5; }
 .swimmer-notes form { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; align-items: start; }
 .swimmer-notes form > div { display: grid; gap: 7px; min-width: 0; }
 .swimmer-notes input, .swimmer-notes textarea { width: 100%; border: 1px solid #d1e1dc; border-radius: 9px; background: white; padding: 9px; outline: 0; }
