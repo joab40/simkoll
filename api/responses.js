@@ -84,6 +84,18 @@ function yesterdayDate(date = stockholmDate()) {
   return value.toISOString().slice(0, 10)
 }
 
+export function checkinPointAwards(body, activityDate) {
+  if (body.type === 'before') return [{ eventType: 'checkin_before', points: 1, sourceKey: activityDate }]
+  if (body.type !== 'after') return []
+  const activityKey = body.competition === true
+    ? 'competition'
+    : (body.activityType || 'swim') === 'swim'
+      ? body.trainingSlot
+      : body.activityType
+  if (!activityKey) return []
+  return [{ eventType: 'training_feedback', points: 3, sourceKey: `${activityDate}:${activityKey}` }]
+}
+
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
@@ -140,7 +152,9 @@ export default async function handler(request, response) {
       const [created] = await result.json()
       if (sessionProfile) {
         await touchProfileActivity(sessionProfile.id, activityDate)
-        await awardPoints(sessionProfile.id, 'checkin', 3, activityDate)
+        for (const award of checkinPointAwards(request.body, activityDate)) {
+          await awardPoints(sessionProfile.id, award.eventType, award.points, award.sourceKey)
+        }
         await awardArtifact(sessionProfile.id, 'first_step')
         if (!lateEntry) {
           const unlockResult = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {

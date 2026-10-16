@@ -33,6 +33,30 @@ test('ordinary signed-in coaches retain creation rights and text-only goals need
   assert.equal(result.code, 201)
   assert.equal(result.data.goal.hasImage, false)
 })
+test('coach can correct goal text without replacing status, owner, image or history', async () => {
+  let update
+  globalThis.fetch = async (url, options) => {
+    const path = String(url)
+    assert(path.includes('/development_goals?id=eq.goal-one'))
+    assert.equal(options.method, 'PATCH')
+    update = JSON.parse(options.body)
+    assert.deepEqual(Object.keys(update).sort(), ['description', 'next_step', 'title', 'updated_at'])
+    return json([{ id: 'goal-one', profile_id: profileId, status: 'complete', image_path: `${profileId}/saved.png`, created_at: '2026-10-01T10:00:00Z', ...update }])
+  }
+  const result = await call({ action: 'edit', goalId: 'goal-one', title: 'Rättad rubrik', description: 'Rättad måltext.', nextStep: 'Fortsätt följa upp.' })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.goal.title, 'Rättad rubrik')
+  assert.equal(result.data.goal.status, 'complete')
+  assert.equal(result.data.goal.hasImage, true)
+  assert.equal(update.next_step, 'Fortsätt följa upp.')
+})
+test('goal edit rejects empty and overlong corrections before database access', async () => {
+  let calls = 0
+  globalThis.fetch = async () => { calls++; throw new Error('must not run') }
+  assert.equal((await call({ action: 'edit', goalId: 'goal-one', title: '', description: 'Text' })).code, 400)
+  assert.equal((await call({ action: 'edit', goalId: 'goal-one', title: 'Rubrik', description: 'a'.repeat(2001) })).code, 400)
+  assert.equal(calls, 0)
+})
 test('global AI off blocks goal text improvement before any paid call', async () => {
   globalThis.fetch = async (url) => { assert(String(url).includes('app_settings')); return json([{ setting_value: { aiEnabled: false } }]) }
   assert.equal((await call({ action: 'polish-goal', description: 'Test' })).code, 403)

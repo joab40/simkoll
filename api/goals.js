@@ -60,7 +60,7 @@ export default async function handler(request, response) {
   const coachAccount = role === 'coach' ? coachFromRequest(request) : null
   const isSuperadmin = coachAccount?.role === 'superadmin'
   const isHeadCoach = coachAccount?.role === 'head_coach'
-  if (request.method === 'POST' && ['polish-goal', 'create'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och AI-bearbeta utvecklingsmål.' })
+  if (request.method === 'POST' && ['polish-goal', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål.' })
   try {
     if (request.method === 'GET') {
       if (request.query?.settings === 'true') {
@@ -176,6 +176,21 @@ export default async function handler(request, response) {
         }
         const goal = (await result.json())[0]
         return sendJson(response, 201, { goal: mapGoal(goal, [], await goalImageUrl(goal).catch(() => null)) })
+      }
+      if (action === 'edit') {
+        const goalId = String(request.body.goalId || '')
+        const title = String(request.body.title || '').trim()
+        const description = String(request.body.description || '').trim()
+        const nextStep = String(request.body.nextStep || '').trim()
+        if (!goalId || !title || title.length > 100 || !description || description.length > 2000 || nextStep.length > 500) return sendJson(response, 400, { error: 'Kontrollera rubrik, beskrivning och nästa steg.' })
+        const result = await supabaseRequest(`development_goals?id=eq.${encodeURIComponent(goalId)}`, {
+          method: 'PATCH', headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ title, description, next_step: nextStep || null, updated_at: new Date().toISOString() }),
+        })
+        if (!result.ok) throw new Error(`Goal edit failed: ${result.status}`)
+        const [goal] = await result.json()
+        if (!goal) return sendJson(response, 404, { error: 'Utvecklingsmålet kunde inte hittas.' })
+        return sendJson(response, 200, { goal: mapGoal(goal) })
       }
       if (action === 'status') {
         const status = String(request.body.status || '')

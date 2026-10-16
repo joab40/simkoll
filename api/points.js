@@ -97,7 +97,8 @@ async function allTimeGameLeaderboard() {
 
 const POINT_RULES = [
   { activity: 'Daglig aktivitet', points: 1, limit: 'En gång per dag' },
-  { activity: 'Lämna feedback', points: 3, limit: 'En gång per dag' },
+  { activity: 'Checka in före träning', points: 1, limit: 'En gång per dag' },
+  { activity: 'Återkoppla efter träning', points: 3, limit: 'En gång per pass eller vald aktivitet' },
   { activity: 'Skicka pepp', points: 1, limit: 'Tre privata + en till hela gruppen per dag' },
   { activity: 'Testa ett veckospel', points: 1, limit: 'En gång per spel och dag' },
   { activity: 'Bra framsteg / stark vecka', points: 5, limit: 'Efter tränarens bedömning' },
@@ -326,7 +327,7 @@ export default async function handler(request, response) {
     const total = events.reduce((sum, event) => sum + event.points, 0)
     const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
     const next = levels.find((level) => level.min_points > total) || null
-    const rewardLabels = { weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥', coach_info_opened: 'Du läste info från tränarna! ✉️' }
+    const rewardLabels = { checkin_before: 'Du checkade in inför träningen! 🏊', training_feedback: 'Du återkopplade efter träningen! ✨', weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥', coach_info_opened: 'Du läste info från tränarna! ✉️' }
     const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ id: event.id, message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
       total, current: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null,
