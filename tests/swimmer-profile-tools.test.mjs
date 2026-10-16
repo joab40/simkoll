@@ -9,3 +9,14 @@ test('swimmer details use a strength program card and show profile creation date
   assert.match(source, /Profil skapad <strong>\{profile\.createdAt/)
   assert.doesNotMatch(source, /<details className="profile-tools strength-program-picker">/)
 })
+
+test('swimmer cards include a compact development-goal overview with direct navigation', async () => {
+  const source = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8')
+
+  assert.match(source, /function SwimmerDevelopmentGoalsCard/)
+  assert.match(source, /className="swimmer-development-goals-card"/)
+  assert.match(source, /Öppna och redigera →/)
+  assert.match(source, /Tidigare mål \(\{previousGoals\.length\}\)/)
+  assert.match(source, /onCreateGoal=\{\(profileId\) => openGoalsForProfile\(profileId, '', true\)\}/)
+  assert.match(source, /initiallyExpanded=\{goal\.id === initialGoalId\}/)
+})

@@ -1272,6 +1272,45 @@ button { cursor: pointer; }
 .swimmer-goal-edit input { width: 100%; min-height: 34px; border: 1px solid #cdded9; border-radius: 8px; padding: 6px 8px; background: white; }
 .swimmer-goal-edit button { min-height: 34px; border: 0; border-radius: 8px; padding: 0 10px; background: var(--teal); color: white; font-size: 10px; font-weight: 800; }
 .swimmer-goal-edit form > small { grid-column: 1 / -1; color: var(--muted); font-size: 10px; }
+.swimmer-development-goals-card { display: grid; gap: 10px; margin: 17px 0; padding: 15px; border: 1px solid #cfe1dc; border-radius: 15px; background: linear-gradient(135deg, #f5fbf8, #fff); box-shadow: 0 7px 18px rgba(29, 81, 73, .05); }
+.swimmer-development-goals-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.swimmer-development-goals-card > header > div { min-width: 0; display: grid; gap: 2px; }
+.swimmer-development-goals-card .eyebrow { margin: 0; font-size: 8px; }
+.swimmer-development-goals-card h3 { margin: 0; font-size: 16px; }
+.swimmer-development-goals-card header small { color: var(--muted); font-size: 10px; }
+.swimmer-development-goals-card header > button { flex: 0 0 auto; color: var(--teal); font-size: 10px; font-weight: 800; }
+.swimmer-development-goal-list { display: grid; gap: 8px; }
+.swimmer-development-goal { overflow: hidden; border: 1px solid #d8e7e2; border-radius: 11px; background: #fff; }
+.swimmer-development-goal > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; list-style: none; cursor: pointer; }
+.swimmer-development-goal > summary::-webkit-details-marker { display: none; }
+.swimmer-development-goal > summary > span:first-child { min-width: 0; display: grid; gap: 4px; }
+.swimmer-development-goal > summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.swimmer-development-goal > summary small { color: var(--muted); font-size: 9px; }
+.swimmer-development-goal > summary .goal-status { margin: 0; padding: 2px 6px; font-size: 8px; }
+.swimmer-development-goal > summary > span:last-child { color: var(--teal); font-size: 18px; transition: transform .18s ease; }
+.swimmer-development-goal[open] > summary > span:last-child { transform: rotate(180deg); }
+.swimmer-development-goal-content { display: grid; gap: 9px; padding: 0 12px 12px; border-top: 1px solid #edf3f1; }
+.swimmer-development-goal-content > p { margin: 11px 0 0; color: var(--ink); font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
+.swimmer-development-goal-content .next-step { margin: 0; padding: 9px 10px; font-size: 10px; }
+.swimmer-development-goal-content > button { width: 100%; min-height: 36px; font-size: 10px; }
+.swimmer-development-goal-image:empty { display: none; }
+.swimmer-development-goal-image .goal-analysis-image { margin: 0; }
+.swimmer-development-goal-image .goal-analysis-image img { max-height: 170px; }
+.swimmer-development-goal-image .goal-analysis-image figcaption { font-size: 9px; }
+.swimmer-development-goals-empty { display: grid !important; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 58px !important; padding: 10px 12px; text-align: left; }
+.swimmer-development-goals-empty > span:first-child { font-size: 23px; }
+.swimmer-development-goals-empty > span:nth-child(2) { display: grid; gap: 2px; }
+.swimmer-development-goals-empty strong { font-size: 11px; }
+.swimmer-development-goals-empty small { color: var(--muted); font-size: 9px; }
+.swimmer-development-goals-empty b { color: var(--teal); font-size: 18px; }
+.swimmer-previous-goals { border-top: 1px solid #dfebe7; padding-top: 9px; }
+.swimmer-previous-goals > summary { cursor: pointer; color: var(--teal); font-size: 10px; font-weight: 800; }
+.swimmer-previous-goals > div { display: grid; gap: 6px; margin-top: 8px; }
+.swimmer-previous-goals button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; border: 1px solid #dce8e5; border-radius: 9px; padding: 8px 10px; background: white; color: var(--ink); text-align: left; }
+.swimmer-previous-goals button > span:first-child { display: grid; gap: 2px; }
+.swimmer-previous-goals button strong { font-size: 10px; }
+.swimmer-previous-goals button small { color: var(--muted); font-size: 9px; }
+.swimmer-previous-goals button > span:last-child { color: var(--teal); }
 .goal-compliance > form { display: none; }
 .season-goal-section .season-form { display: none; }
 .season-goal-section:has(.season-form)::after { content: 'Tränaren sätter simmålet i dialog med dig.'; display: block; margin-top: 12px; color: var(--muted); font-size: 12px; }
