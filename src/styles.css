@@ -1213,6 +1213,27 @@ button { cursor: pointer; }
 .swimmer-trend-arrow.down { background: #fff1ed; color: #a95454; }
 .swimmer-trend-arrow.mixed { background: #fff5dd; color: #8a6916; }
 .swimmer-trend-open { grid-column: 2; justify-self: end; color: var(--teal); font-size: 10px; white-space: nowrap; }
+.swimmer-compact-week { margin: 0 0 16px; padding: 14px; border: 1px solid #d5e5e0; border-radius: 15px; background: linear-gradient(135deg, #fbfdfc, #f1f8f5); box-shadow: 0 6px 16px rgba(29, 81, 73, .045); }
+.swimmer-compact-week > header { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.swimmer-compact-week > header .eyebrow { margin: 0 0 2px; font-size: 8px; }
+.swimmer-compact-week > header h3 { margin: 0; font-size: 15px; }
+.swimmer-compact-week > header > small { color: var(--muted); font-size: 9px; text-align: right; white-space: nowrap; }
+.swimmer-compact-week > header > small b { color: var(--teal); font-size: 11px; }
+.compact-week-grid { display: grid; grid-template-columns: 28px repeat(7, minmax(25px, 1fr)); gap: 4px; align-items: center; }
+.compact-week-grid > [role="columnheader"] { display: grid; place-items: center; min-height: 28px; border-radius: 8px; color: var(--muted); font-size: 8px; line-height: 1.05; text-transform: capitalize; }
+.compact-week-grid > [role="columnheader"] b { font-size: 9px; }
+.compact-week-grid > [role="columnheader"] small { font-size: 8px; }
+.compact-week-grid > [role="columnheader"].today { background: var(--teal); color: white; }
+.compact-week-corner { color: var(--muted); font-size: 7px; text-transform: uppercase; letter-spacing: .04em; }
+.compact-week-slot { display: grid; place-items: center; height: 28px; font-size: 16px; }
+.compact-week-cell { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; min-width: 0; height: 28px; padding: 2px; border: 1px solid #e0ebe7; border-radius: 8px; background: #edf4f2; }
+.compact-week-cell i, .compact-week-cell b { display: grid; place-items: center; min-width: 0; border-radius: 5px; color: transparent; font-size: 10px; font-style: normal; line-height: 1; }
+.compact-week-cell.planned i { background: #dfedaf; color: #789229; }
+.compact-week-cell.completed b { background: var(--lime); color: var(--ink); font-size: 13px; }
+.compact-week-cell.today { border-color: #78b7aa; box-shadow: 0 0 0 1px rgba(45, 126, 115, .12); }
+.compact-week-help { margin-top: 9px; border-top: 1px solid #dfeae7; padding-top: 7px; }
+.compact-week-help summary { width: fit-content; cursor: pointer; color: var(--teal); font-size: 9px; font-weight: 800; }
+.compact-week-help p { display: flex; flex-wrap: wrap; gap: 6px 13px; margin: 7px 0 0; color: var(--muted); font-size: 9px; }
 .swimmer-card.compact .swimmer-name > span { width: 42px; height: 42px; font-size: 25px; }
 .swimmer-card.compact .swimmer-level { padding: 5px 8px; }
 .swimmer-search { display: flex; align-items: center; gap: 9px; max-width: 420px; margin: 0 0 14px; border: 1px solid #d6e2df; border-radius: 11px; background: white; padding: 0 12px; }

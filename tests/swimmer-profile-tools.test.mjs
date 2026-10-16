@@ -20,3 +20,16 @@ test('swimmer cards include a compact development-goal overview with direct navi
   assert.match(source, /onCreateGoal=\{\(profileId\) => openGoalsForProfile\(profileId, '', true\)\}/)
   assert.match(source, /initiallyExpanded=\{goal\.id === initialGoalId \|\| goal\.id === focusedGoalId\}/)
 })
+
+test('expanded swimmer cards show a compact planned and completed week', async () => {
+  const [source, styles] = await Promise.all([
+    readFile(new URL('../src/main.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/styles.css', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(source, /function SwimmerCompactWeek/)
+  assert.match(source, /<SwimmerCompactWeek training=\{training\} profileId=\{profile\.id\} \/>/)
+  assert.match(source, /◆ Planerat/)
+  assert.match(source, /✓ Genomfört/)
+  assert.match(styles, /\.compact-week-grid/)
+})

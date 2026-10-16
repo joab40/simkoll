@@ -1613,6 +1613,41 @@ const WEEK_SLOTS = [
   { key: 'dryland', short: 'Land', icon: '🤸' }, { key: 'afternoon_swim', short: 'Eftermiddag', icon: '🌇' },
 ]
 
+function SwimmerCompactWeek({ training, profileId }) {
+  const start = weekStart()
+  const end = new Date(start); end.setDate(end.getDate() + 6)
+  const startKey = dateKey(start), endKey = dateKey(end), today = todayKey()
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const value = new Date(start); value.setDate(value.getDate() + index)
+    return { date: dateKey(value), label: value.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), number: value.getDate() }
+  })
+  const sessions = (training?.sessions || []).filter((item) => item.profileId === profileId && item.date >= startKey && item.date <= endKey)
+  const plans = (training?.plannedSessions || []).filter((item) => item.profileId === profileId && item.date >= startKey && item.date <= endKey)
+  const sessionSlot = (item) => item.slot || (item.type === 'swim' ? 'afternoon_swim' : item.type)
+  const completedKeys = new Set(sessions.map((item) => `${item.date}|${sessionSlot(item)}`))
+  const plannedKeys = new Set(plans.map((item) => `${item.date}|${item.slot}`))
+
+  return <section className="swimmer-compact-week" aria-labelledby={`compact-week-${profileId}`}>
+    <header><div><p className="eyebrow">Veckoplanering</p><h3 id={`compact-week-${profileId}`}>Veckan i korthet</h3></div><small><b>{completedKeys.size}</b> genomförda · <b>{plannedKeys.size}</b> planerade</small></header>
+    <div className="compact-week-grid" role="table" aria-label="Planerade och genomförda pass denna vecka">
+      <span className="compact-week-corner" aria-hidden="true">Pass</span>
+      {days.map((day) => <span role="columnheader" className={day.date === today ? 'today' : ''} key={day.date}><b>{day.label}</b><small>{day.number}</small></span>)}
+      {WEEK_SLOTS.map((slot) => <React.Fragment key={slot.key}>
+        <span role="rowheader" className="compact-week-slot" title={slot.short} aria-label={slot.short}>{slot.icon}</span>
+        {days.map((day) => {
+          const key = `${day.date}|${slot.key}`
+          const completed = completedKeys.has(key), planned = plannedKeys.has(key)
+          const state = completed && planned ? 'planerat och genomfört' : completed ? 'genomfört' : planned ? 'planerat' : 'inget registrerat'
+          return <span role="cell" className={`compact-week-cell${day.date === today ? ' today' : ''}${planned ? ' planned' : ''}${completed ? ' completed' : ''}`} title={`${slot.short} ${day.date}: ${state}`} aria-label={`${slot.short} ${day.date}: ${state}`} key={day.date}>
+            <i aria-hidden="true">{planned ? '◆' : ''}</i><b aria-hidden="true">{completed ? '✓' : ''}</b>
+          </span>
+        })}
+      </React.Fragment>)}
+    </div>
+    <details className="compact-week-help"><summary>Så läses veckan</summary><p><span>◆ Planerat</span><span>✓ Genomfört</span><span>Markerad kolumn = idag</span></p></details>
+  </section>
+}
+
 function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState(() => new Set())
   const savingRef = useRef(new Set())
@@ -4639,6 +4674,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
               <span className="swimmer-trend-copy"><small>Simmarens riktning</small><strong>{trendLoading && !trendSummary ? 'Hämtar riktning…' : trendError ? 'Riktningen kunde inte hämtas' : trendState.title}</strong><span>{trendSummary?.periods ? `${trendDate(trendSummary.periods.start)}–${trendLastDay(trendSummary.periods.end)} jämfört med ${trendDate(trendSummary.periods.previousStart)}–${trendLastDay(trendSummary.periods.previousEnd)}` : 'Senaste 7 dagarna jämfört med föregående 7 dagar'}</span></span>
               <b className="swimmer-trend-open">Öppna statistik →</b>
             </button>
+            <SwimmerCompactWeek training={training} profileId={profile.id} />
             <section className="strength-program-card"><header><span aria-hidden="true">🏋️</span><div><p className="eyebrow">Styrketräning</p><h3>Styrkeprogram</h3><small>{strengthAssignments.length ? `${strengthAssignments.length} ${strengthAssignments.length === 1 ? 'aktivt program' : 'aktiva program'}` : 'Inget program tilldelat'}</small></div></header><label><span>Välj program</span><select defaultValue="" onChange={(event) => { assignStrengthProgram(profile.id, event.target.value); event.target.value = '' }}><option value="">Välj styrkeprogram…</option>{(training?.programs || []).filter((program) => program.type === 'strength' && program.active !== false).map((program) => <option value={program.id} key={program.id}>{program.title}</option>)}</select></label>{strengthAssignments.length ? <div className="assigned-strength-list">{strengthAssignments.map((assignment) => <div key={assignment.id}><span><b>Tilldelat</b><strong>{assignment.program.title}</strong></span><button type="button" className="strength-remove-button" aria-label={`Ta bort ${assignment.program.title}`} title="Ta bort tilldelningen" onClick={() => removeStrengthAssignment(assignment)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" /></svg></button></div>)}</div> : <div className="strength-program-empty"><span>＋</span><small>Välj ett program ovan för att lägga till det på profilen.</small></div>}</section>
             {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
             <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra överenskomna mål</summary><form onSubmit={(event) => { event.preventDefault(); saveTrainingGoals(profile, swimGoal, crossGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={trainingGoalDrafts[profile.id]?.swim ?? swimGoal?.target ?? ''} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), swim: event.target.value } }))} /></label><label>Land / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.dryland ?? crossGoal?.drylandTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), dryland: event.target.value } }))} /></label><label>Styrka / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.strength ?? crossGoal?.strengthTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), strength: event.target.value } }))} /></label><button type="submit">Spara mål</button>{trainingGoalStatus[profile.id] && <small>{trainingGoalStatus[profile.id]}</small>}</form><small>Ändras efter dialog med simmaren.</small></details></section>
