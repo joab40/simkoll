@@ -1366,7 +1366,10 @@ button { cursor: pointer; }
 .strength-program-card .assigned-strength-list span { display: grid; gap: 2px; min-width: 0; }
 .strength-program-card .assigned-strength-list b { color: #39806f; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
 .strength-program-card .assigned-strength-list strong { font-size: 10px; line-height: 1.35; }
-.strength-program-card .danger-button { flex: none; min-height: 32px; padding: 6px 9px; font-size: 9px; }
+.strength-program-card .strength-remove-button { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border: 1px solid #ecd7d5; border-radius: 50%; background: #fffafa; color: #a76966; cursor: pointer; }
+.strength-program-card .strength-remove-button:hover { border-color: #d9aaa6; background: #fff1ef; color: #934a47; }
+.strength-program-card .strength-remove-button:focus-visible { outline: 3px solid rgba(169, 105, 102, .22); outline-offset: 2px; }
+.strength-program-card .strength-remove-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .strength-program-empty { display: flex; align-items: center; gap: 9px; padding: 10px 11px; border: 1px dashed #c9ddd7; border-radius: 11px; color: var(--muted); }
 .strength-program-empty > span { color: #66a293; font-size: 20px; }
 .strength-program-empty small { font-size: 10px; line-height: 1.4; }

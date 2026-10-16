@@ -4,3 +4,13 @@ export function latestCoachMessageId(messages = []) {
 }
 
 export const coachInfoReadKey = (profileId) => `simkoll-coach-info-read-${profileId}`
+
+export function markCoachMessageRead(storage, profileId, messageId) {
+  if (!storage || !profileId || !messageId) return false
+  try {
+    storage.setItem(coachInfoReadKey(profileId), messageId)
+    return true
+  } catch {
+    return false
+  }
+}

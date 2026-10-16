@@ -12,7 +12,7 @@ import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-ex
 import CoachMetricDetails from './coach-metric-details.jsx'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { coachMetricDetails } from './coach-metric-details.js'
-import { latestCoachMessageId, coachInfoReadKey } from './coach-info.js'
+import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
 import './styles.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
 import SprintGame from './sprint-game.jsx'
@@ -1164,7 +1164,14 @@ function CoachLetterBadge({ code, profileId, onOpen }) {
     return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
   }, [code, profileId])
   if (!hasMessage || opened) return null
-  const open = () => { if (!opened && messageKey) void apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-info-opened', sourceKey: messageKey }) }).catch(() => {}); onOpen() }
+  const open = () => {
+    if (!opened && messageKey) {
+      setReadKey(messageKey)
+      markCoachMessageRead(window.localStorage, profileId, messageKey)
+      void apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-info-opened', sourceKey: messageKey }) }).catch(() => {})
+    }
+    onOpen()
+  }
   return <button type="button" className="coach-letter-badge" onClick={open} aria-label="Nytt meddelande från tränarna – öppna" title="Nytt meddelande från tränarna"><span className="coach-letter-envelope" aria-hidden="true"><svg viewBox="0 0 48 36" focusable="false"><rect x="2" y="2" width="44" height="32" rx="5" fill="#ffdc59" stroke="#b77916" strokeWidth="2" /><path d="M3 30 18 17M45 30 30 17" fill="none" stroke="#d79928" strokeWidth="2" /><path d="m3 5 18 15a5 5 0 0 0 6 0L45 5" fill="#ffe995" stroke="#b77916" strokeWidth="2" strokeLinejoin="round" /></svg></span></button>
 }
 
@@ -4156,7 +4163,7 @@ function OpenChatPanel({ code, coach = false, profileId = '' }) {
     setChat(next)
     if (!coach && profileId && next.enabled) {
       const latest = latestCoachMessageId(next.messages)
-      if (latest) { try { localStorage.setItem(coachInfoReadKey(profileId), latest) } catch {} }
+      if (latest) markCoachMessageRead(window.localStorage, profileId, latest)
     }
   }).catch((error) => { if (panelActive.current) setStatus(error.message) })
   useEffect(() => { panelActive.current = true; load(); const refresh = window.setInterval(() => { if (!document.hidden) load() }, 15000); return () => { panelActive.current = false; window.clearInterval(refresh) } }, [code, coach, profileId])
@@ -4632,7 +4639,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
               <span className="swimmer-trend-copy"><small>Simmarens riktning</small><strong>{trendLoading && !trendSummary ? 'Hämtar riktning…' : trendError ? 'Riktningen kunde inte hämtas' : trendState.title}</strong><span>{trendSummary?.periods ? `${trendDate(trendSummary.periods.start)}–${trendLastDay(trendSummary.periods.end)} jämfört med ${trendDate(trendSummary.periods.previousStart)}–${trendLastDay(trendSummary.periods.previousEnd)}` : 'Senaste 7 dagarna jämfört med föregående 7 dagar'}</span></span>
               <b className="swimmer-trend-open">Öppna statistik →</b>
             </button>
-            <section className="strength-program-card"><header><span aria-hidden="true">🏋️</span><div><p className="eyebrow">Styrketräning</p><h3>Styrkeprogram</h3><small>{strengthAssignments.length ? `${strengthAssignments.length} ${strengthAssignments.length === 1 ? 'aktivt program' : 'aktiva program'}` : 'Inget program tilldelat'}</small></div></header><label><span>Välj program</span><select defaultValue="" onChange={(event) => { assignStrengthProgram(profile.id, event.target.value); event.target.value = '' }}><option value="">Välj styrkeprogram…</option>{(training?.programs || []).filter((program) => program.type === 'strength' && program.active !== false).map((program) => <option value={program.id} key={program.id}>{program.title}</option>)}</select></label>{strengthAssignments.length ? <div className="assigned-strength-list">{strengthAssignments.map((assignment) => <div key={assignment.id}><span><b>Tilldelat</b><strong>{assignment.program.title}</strong></span><button type="button" className="danger-button" onClick={() => removeStrengthAssignment(assignment)}>Ta bort</button></div>)}</div> : <div className="strength-program-empty"><span>＋</span><small>Välj ett program ovan för att lägga till det på profilen.</small></div>}</section>
+            <section className="strength-program-card"><header><span aria-hidden="true">🏋️</span><div><p className="eyebrow">Styrketräning</p><h3>Styrkeprogram</h3><small>{strengthAssignments.length ? `${strengthAssignments.length} ${strengthAssignments.length === 1 ? 'aktivt program' : 'aktiva program'}` : 'Inget program tilldelat'}</small></div></header><label><span>Välj program</span><select defaultValue="" onChange={(event) => { assignStrengthProgram(profile.id, event.target.value); event.target.value = '' }}><option value="">Välj styrkeprogram…</option>{(training?.programs || []).filter((program) => program.type === 'strength' && program.active !== false).map((program) => <option value={program.id} key={program.id}>{program.title}</option>)}</select></label>{strengthAssignments.length ? <div className="assigned-strength-list">{strengthAssignments.map((assignment) => <div key={assignment.id}><span><b>Tilldelat</b><strong>{assignment.program.title}</strong></span><button type="button" className="strength-remove-button" aria-label={`Ta bort ${assignment.program.title}`} title="Ta bort tilldelningen" onClick={() => removeStrengthAssignment(assignment)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" /></svg></button></div>)}</div> : <div className="strength-program-empty"><span>＋</span><small>Välj ett program ovan för att lägga till det på profilen.</small></div>}</section>
             {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
             <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra överenskomna mål</summary><form onSubmit={(event) => { event.preventDefault(); saveTrainingGoals(profile, swimGoal, crossGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={trainingGoalDrafts[profile.id]?.swim ?? swimGoal?.target ?? ''} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), swim: event.target.value } }))} /></label><label>Land / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.dryland ?? crossGoal?.drylandTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), dryland: event.target.value } }))} /></label><label>Styrka / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.strength ?? crossGoal?.strengthTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), strength: event.target.value } }))} /></label><button type="submit">Spara mål</button>{trainingGoalStatus[profile.id] && <small>{trainingGoalStatus[profile.id]}</small>}</form><small>Ändras efter dialog med simmaren.</small></details></section>
             {goalsEnabled && <SwimmerDevelopmentGoalsCard profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
