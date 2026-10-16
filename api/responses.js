@@ -78,12 +78,6 @@ export function fromDatabase(response, includeDetails) {
   }
 }
 
-function tomorrowDate() {
-  const now = new Date()
-  now.setDate(now.getDate() + 1)
-  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(now)
-}
-
 function yesterdayDate(date = stockholmDate()) {
   const value = new Date(`${date}T12:00:00Z`)
   value.setUTCDate(value.getUTCDate() - 1)
@@ -154,13 +148,6 @@ export default async function handler(request, response) {
             body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: today }),
           })
           if (!unlockResult.ok) console.error(`Workout unlock failed: ${unlockResult.status} ${await unlockResult.text()}`)
-          if (request.body.type === 'after') {
-            const tomorrowUnlock = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
-              method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },
-              body: JSON.stringify({ profile_id: sessionProfile.id, workout_date: tomorrowDate() }),
-            })
-            if (!tomorrowUnlock.ok) console.error(`Tomorrow workout unlock failed: ${tomorrowUnlock.status} ${await tomorrowUnlock.text()}`)
-          }
         }
         // Explicit activity choice drives the training log. An unchecked
         // registration toggle must not create a session. Legacy clients

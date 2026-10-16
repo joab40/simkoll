@@ -12,9 +12,10 @@ import { assistantSystemPrompt } from '../server/assistant-style.js'
 import { buildCoachAssistantFeatureSnapshot, COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
 import { queueCategoryPush } from '../server/web-push.js'
 
-function publicWorkout(item) {
+export function publicWorkout(item, { includeDetails = true } = {}) {
   if (!item) return null
-  return { id: item.id, date: item.workout_date, title: item.title, content: item.content, note: item.note || '', focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
+  const workout = { id: item.id, date: item.workout_date, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
+  return includeDetails ? { ...workout, content: item.content, note: item.note || '' } : workout
 }
 function publicPlan(item) {
   return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
@@ -241,6 +242,7 @@ Simmarens tävlingsanmälningar och utvecklingssamtal:
 - Tävlingsanmälan öppnas när tränaren publicerar grenanmälan. Simmaren hittar den i kortet för ny tävlingsplanering i simmarvyn, i anslutning till Dagens pass. Där väljer simmaren tävling och grenar. “Spara utkast” sparar utan att skicka; “Skicka till tränarna” skickar in grenvalen. Tränaren kan granska och justera anmälan. Vid frågor om vilka grenar simmaren valt ska du använda myCompetitionEntries, gruppera per tävling och berätta gren, distans, simsätt, pass och status. Skilj mellan utkast, inskickad och godkänd. Om underlaget saknar val ska du säga att inga sparade grenval finns och hänvisa till tävlingsplaneringskortet.
 - Utvecklingssamtalet hjälper simmaren förbereda ett samtal med tränarna. Frågorna omfattar hur simning och vardag fungerar, vad simmaren vill utveckla, mål och vilket stöd som önskas. Simmaren kan spara ett utkast och fortsätta senare eller markera sig redo så att tränarna får svaren.
 - Hitta ett aktivt samtal i simmarvyn under Dagens pass, i utvecklingssamtalskortet när tränaren har aktiverat det. Tidigare samtal och sparade svar finns via menyn i profilen under “Mina utvecklingssamtal”. Använd myDevelopmentTalks för frågor om simmarens egna pågående eller tidigare samtal. Sammanfatta bara simmarens egna svar och gemensamma överenskommelser; tränarnas interna anteckningar är privata och ingår inte. Hitta aldrig på ett svar eller uppgifter från andra simmare.
+- Veckoplaneringen och assistentens kalenderunderlag får visa passets rubrik, fokus, planerade meter/minuter, tid och plats före dagens check-in. Själva serierna, passupplägget och tränarens passkommentar är låsta till dagens check-in och finns inte i assistentens underlag. En check-in får bara låsa upp passet för samma datum, aldrig nästa dags pass.
 ` : ''
   const audienceGuidance = role === 'coach'
     ? 'Du pratar med en tränare. Svara ur tränarens perspektiv: använd “gruppen”, “simmarna”, “passet” och “tränaren” där det passar. Ge ett konkret underlag för planering och uppföljning, inte råd formulerade som om frågeställaren själv vore simmare. När data saknas ska du säga att den inte finns i assistentens underlag.'
@@ -645,7 +647,7 @@ export default async function handler(request, response) {
           configuredSportAdminCalendars().then(readSportAdminCalendars),
           supabaseRequest('training_cycles?select=*&order=start_date.asc&limit=300'),
         ])
-        const workouts = workoutsResult.ok ? (await workoutsResult.json()).map(publicWorkout) : []
+        const workouts = workoutsResult.ok ? (await workoutsResult.json()).map((item) => publicWorkout(item, { includeDetails: role === 'coach' })) : []
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const visibleSportAdminActivities = role === 'coach' ? sportAdminActivities : sportAdminActivities.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const cycles = cyclesResult.ok ? await cyclesResult.json() : []
@@ -692,15 +694,16 @@ export default async function handler(request, response) {
       if (role === 'coach' && request.query?.history === 'true') {
         const result = await supabaseRequest('daily_workouts?select=*&order=workout_date.desc&limit=200')
         if (!result.ok) throw new Error(`Workout history GET failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { workouts: (await result.json()).map(publicWorkout) })
+        return sendJson(response, 200, { workouts: (await result.json()).map((item) => publicWorkout(item)) })
       }
       const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&order=created_at.asc&limit=100`)
       if (!result.ok) throw new Error(`Workout GET failed: ${result.status} ${await result.text()}`)
-      let workouts = (await result.json()).map(publicWorkout)
+      let workouts = (await result.json()).map((item) => publicWorkout(item))
       if (profile) {
         workouts = workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         await touchProfileActivity(profile.id)
+        if (workouts.length && requestedDate !== stockholmDate()) return sendJson(response, 200, { workout: null, workouts: [], locked: true })
         const unlockResult = await supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${requestedDate}&select=profile_id&limit=1`)
         if (!unlockResult.ok) throw new Error(`Unlock GET failed: ${unlockResult.status} ${await unlockResult.text()}`)
         const unlocked = (await unlockResult.json()).length > 0
