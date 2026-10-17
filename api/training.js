@@ -289,16 +289,27 @@ export default async function handler(request, response) {
       if (!title || title.length > 100 || !description || description.length > 1000 || !Array.isArray(requestedPasses) || requestedPasses.length < 1 || requestedPasses.length > 3) return sendJson(response, 422, { error: 'Ange namn, beskrivning och 1–3 pass.' })
       const selections = requestedPasses.flatMap((pass) => Array.isArray(pass?.exercises) ? pass.exercises : [])
       const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      if (requestedPasses.some((pass) => !pass || typeof pass.title !== 'string' || !pass.title.trim() || pass.title.length > 100 || !Array.isArray(pass.exercises) || pass.exercises.length < 1 || pass.exercises.length > 30) || selections.some((item) => !item || !idPattern.test(item.sourceProgramId || '') || !Number.isInteger(item.passNumber) || !Number.isInteger(item.exerciseIndex) || item.exerciseIndex < 0 || item.exerciseIndex > 100 || typeof item.exerciseName !== 'string' || !item.exerciseName.trim() || item.exerciseName.length > 150 || typeof item.prescription !== 'string' || item.prescription.length > 160 || /[\r\n]/.test(item.prescription))) return sendJson(response, 422, { error: 'Kontrollera pass, övningar och dosering.' })
-      const sourceIds = [...new Set(selections.map((item) => item.sourceProgramId))]
-      const lookup = await supabaseRequest(`training_programs?id=in.(${sourceIds.join(',')})&program_type=eq.strength&active=eq.true&select=id,title,content,exercise_images`)
-      if (!lookup.ok) throw new Error('Strength exercise source lookup failed')
-      const sources = new Map((await lookup.json()).map((program) => [program.id, program]))
+      const validSelection = (item) => item && typeof item.prescription === 'string' && item.prescription.length <= 160 && !/[\r\n]/.test(item.prescription) && (item.kind === 'custom'
+        ? typeof item.name === 'string' && !!item.name.trim() && item.name.length <= 150 && !/[\r\n]/.test(item.name) && typeof item.instructions === 'string' && item.instructions.length <= 1000 && (!item.imageId || idPattern.test(item.imageId)) && (item.imageInstructions == null || typeof item.imageInstructions === 'string' && item.imageInstructions.length <= 2000)
+        : item.kind == null && idPattern.test(item.sourceProgramId || '') && Number.isInteger(item.passNumber) && Number.isInteger(item.exerciseIndex) && item.exerciseIndex >= 0 && item.exerciseIndex <= 100 && typeof item.exerciseName === 'string' && !!item.exerciseName.trim() && item.exerciseName.length <= 150)
+      if (requestedPasses.some((pass) => !pass || typeof pass.title !== 'string' || !pass.title.trim() || pass.title.length > 100 || !Array.isArray(pass.exercises) || pass.exercises.length < 1 || pass.exercises.length > 30) || selections.some((item) => !validSelection(item))) return sendJson(response, 422, { error: 'Kontrollera pass, övningar och dosering.' })
+      const sourceIds = [...new Set(selections.filter((item) => item.kind !== 'custom').map((item) => item.sourceProgramId))]
+      let sourcePrograms = []
+      if (sourceIds.length) {
+        const lookup = await supabaseRequest(`training_programs?id=in.(${sourceIds.join(',')})&program_type=eq.strength&active=eq.true&select=id,title,content,exercise_images`)
+        if (!lookup.ok) throw new Error('Strength exercise source lookup failed')
+        sourcePrograms = await lookup.json()
+      }
+      const sources = new Map(sourcePrograms.map((program) => [program.id, program]))
       const sourceImages = [...sources.values()].flatMap((program) => Array.isArray(program.exercise_images) ? program.exercise_images : [])
       const passes = []
       for (const requestedPass of requestedPasses) {
         const exercises = []
         for (const selection of requestedPass.exercises) {
+          if (selection.kind === 'custom') {
+            exercises.push({ name: selection.name.trim(), prescription: selection.prescription.trim(), instructions: selection.instructions.trim(), ...(selection.imageId ? { imageId: selection.imageId, imageInstructions: (selection.imageInstructions || '').trim() } : {}) })
+            continue
+          }
           const source = sources.get(selection.sourceProgramId)
           const sourcePass = source && strengthPasses(source).find((pass) => pass.passNumber === selection.passNumber)
           const exercise = sourcePass && strengthExercises(sourcePass.content)[selection.exerciseIndex]
@@ -312,7 +323,16 @@ export default async function handler(request, response) {
       const issues = validateStrengthDraft(draft)
       if (issues.length) return sendJson(response, 422, { error: issues.join(' '), issues })
       let images
-      try { images = await resolveExerciseImages(coachAccount?.sub || '', draftExerciseImages(draft), sourceImages) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+      try {
+        const references = draftExerciseImages(draft)
+        const customPositions = new Set(requestedPasses.flatMap((pass, passIndex) => pass.exercises.flatMap((exercise, exerciseIndex) => exercise.kind === 'custom' ? [`${passIndex + 1}:${exerciseIndex}`] : [])))
+        const isCustom = (image) => customPositions.has(`${image.passNumber}:${image.exerciseIndex}`)
+        const [inherited, own] = await Promise.all([
+          resolveExerciseImages(coachAccount?.sub || '', references.filter((image) => !isCustom(image)), sourceImages),
+          resolveExerciseImages(coachAccount?.sub || '', references.filter(isCustom)),
+        ])
+        images = [...inherited, ...own]
+      } catch (error) { return sendJson(response, 422, { error: error.message }) }
       const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title, description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
       if (!result.ok) throw new Error('Strength library program save failed')
       return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })

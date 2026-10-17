@@ -2756,6 +2756,13 @@ button { cursor: pointer; }
 .strength-builder-catalog-item small, .strength-builder-catalog-item p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.35; overflow-wrap: anywhere; }
 .strength-builder-catalog-item p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .strength-builder-catalog-item button { min-width: 2.5rem; padding: .4rem; font-size: 1.2rem; }
+.strength-builder-new-trigger { justify-self: start; }
+.strength-builder-new-exercise { display: grid; gap: .7rem; padding: 1rem; border: 1px solid #b9ddd2; border-radius: 14px; background: #edf8f3; }
+.strength-builder-new-exercise > small { color: var(--muted); line-height: 1.45; }
+.strength-builder-new-exercise .strength-builder-error { color: #a34639; font-weight: 700; }
+.strength-builder-new-image { min-width: 0; border-top: 1px solid #cbded9; padding-top: .6rem; }
+.strength-builder-new-image summary { cursor: pointer; color: var(--teal); font-weight: 700; }
+.strength-builder-new-image .exercise-image-control { margin-top: .75rem; }
 .strength-builder-pass-tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
 .strength-builder-pass-tabs button { display: grid; gap: .1rem; padding: .55rem .7rem; border: 1px solid #cbdcda; border-radius: 10px; background: white; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
 .strength-builder-pass-tabs button.active { border-color: #2d8984; background: #e6f5f0; }

@@ -61,3 +61,48 @@ test('a stale or invented exercise reference is rejected before saving', async (
   const renamed = await call('superadmin', { ...draft, passes: [{ title: 'Pass A', exercises: [{ ...draft.passes[0].exercises[0], exerciseName: 'Planka' }] }] })
   assert.equal(renamed.code, 422)
 })
+
+test('a new exercise can create a reusable strength program without an existing source', async () => {
+  let inserted
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('/rest/v1/')[1] || ''
+    if (path === 'training_programs' && options.method === 'POST') { inserted = JSON.parse(options.body); return { ok: true, json: async () => [{ id: 'new-program', ...inserted }] } }
+    throw new Error(`Unexpected request: ${url}`)
+  }
+  const response = await call('head_coach', { ...draft, passes: [{ title: 'Pass A', exercises: [{ kind: 'custom', name: 'Enbensknäböj', prescription: '3 × 8 per ben', instructions: 'Håll knät i linje med foten.' }] }] })
+  assert.equal(response.code, 201)
+  assert.match(inserted.content, /1\. Enbensknäböj — 3 × 8 per ben\nInstruktion: Håll knät i linje med foten\./)
+  assert.equal(inserted.exercise_images, undefined)
+})
+
+test('a new exercise may only attach an image owned by the coach', async () => {
+  let inserted = false
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('/rest/v1/')[1] || ''
+    if (path.startsWith('strength_exercise_images?')) return { ok: true, json: async () => [{ id: imageId, coach_id: '44444444-4444-4444-8444-444444444444', storage_path: `${coachId}/${imageId}.png`, source: 'upload' }] }
+    if (path === 'training_programs' && options.method === 'POST') inserted = true
+    throw new Error(`Unexpected request: ${url}`)
+  }
+  const response = await call('superadmin', { ...draft, passes: [{ title: 'Pass A', exercises: [{ kind: 'custom', name: 'Enbensknäböj', prescription: '', instructions: '', imageId }] }] })
+  assert.equal(response.code, 422)
+  assert.equal(inserted, false)
+})
+
+test('a mixed program keeps a source image and a newly uploaded coach image separate', async () => {
+  const ownImageId = '55555555-5555-4555-8555-555555555555'
+  let inserted
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('/rest/v1/')[1] || ''
+    if (path.startsWith('training_programs?')) return { ok: true, json: async () => [source] }
+    if (path.startsWith('strength_exercise_images?')) return { ok: true, json: async () => [
+      { id: imageId, coach_id: '44444444-4444-4444-8444-444444444444', storage_path: source.exercise_images[0].storagePath, source: 'upload' },
+      { id: ownImageId, coach_id: coachId, storage_path: `${coachId}/${ownImageId}.png`, source: 'upload' },
+    ] }
+    if (path === 'training_programs' && options.method === 'POST') { inserted = JSON.parse(options.body); return { ok: true, json: async () => [{ id: 'new-program', ...inserted }] } }
+    throw new Error(`Unexpected request: ${url}`)
+  }
+  const response = await call('head_coach', { ...draft, passes: [{ title: 'Pass A', exercises: [draft.passes[0].exercises[0], { kind: 'custom', name: 'Enbensknäböj', prescription: '3 × 8', instructions: 'Håll balansen.', imageId: ownImageId }] }] })
+  assert.equal(response.code, 201)
+  assert.deepEqual(inserted.exercise_images.map(({ imageId }) => imageId), [imageId, ownImageId])
+  assert.equal(inserted.exercise_images[1].exerciseIndex, 1)
+})
