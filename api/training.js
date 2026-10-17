@@ -281,6 +281,42 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error('Strength import save failed')
       return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })
     }
+    if (action === 'create-strength-from-library') {
+      if (!canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan skapa styrkeprogram.' })
+      const title = String(request.body.title || '').trim()
+      const description = String(request.body.description || '').trim()
+      const requestedPasses = request.body.passes
+      if (!title || title.length > 100 || !description || description.length > 1000 || !Array.isArray(requestedPasses) || requestedPasses.length < 1 || requestedPasses.length > 3) return sendJson(response, 422, { error: 'Ange namn, beskrivning och 1–3 pass.' })
+      const selections = requestedPasses.flatMap((pass) => Array.isArray(pass?.exercises) ? pass.exercises : [])
+      const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      if (requestedPasses.some((pass) => !pass || typeof pass.title !== 'string' || !pass.title.trim() || pass.title.length > 100 || !Array.isArray(pass.exercises) || pass.exercises.length < 1 || pass.exercises.length > 30) || selections.some((item) => !item || !idPattern.test(item.sourceProgramId || '') || !Number.isInteger(item.passNumber) || !Number.isInteger(item.exerciseIndex) || item.exerciseIndex < 0 || item.exerciseIndex > 100 || typeof item.exerciseName !== 'string' || !item.exerciseName.trim() || item.exerciseName.length > 150 || typeof item.prescription !== 'string' || item.prescription.length > 160 || /[\r\n]/.test(item.prescription))) return sendJson(response, 422, { error: 'Kontrollera pass, övningar och dosering.' })
+      const sourceIds = [...new Set(selections.map((item) => item.sourceProgramId))]
+      const lookup = await supabaseRequest(`training_programs?id=in.(${sourceIds.join(',')})&program_type=eq.strength&active=eq.true&select=id,title,content,exercise_images`)
+      if (!lookup.ok) throw new Error('Strength exercise source lookup failed')
+      const sources = new Map((await lookup.json()).map((program) => [program.id, program]))
+      const sourceImages = [...sources.values()].flatMap((program) => Array.isArray(program.exercise_images) ? program.exercise_images : [])
+      const passes = []
+      for (const requestedPass of requestedPasses) {
+        const exercises = []
+        for (const selection of requestedPass.exercises) {
+          const source = sources.get(selection.sourceProgramId)
+          const sourcePass = source && strengthPasses(source).find((pass) => pass.passNumber === selection.passNumber)
+          const exercise = sourcePass && strengthExercises(sourcePass.content)[selection.exerciseIndex]
+          if (!exercise || exercise.name !== selection.exerciseName) return sendJson(response, 422, { error: 'En vald övning saknas eller källprogrammet har ändrats. Ladda om sidan och välj övningen igen.' })
+          const image = source.exercise_images?.find((item) => item.passNumber === selection.passNumber && item.exerciseIndex === selection.exerciseIndex && item.exerciseName === exercise.name)
+          exercises.push({ name: exercise.name, prescription: selection.prescription.trim(), instructions: exercise.instructions, ...(image?.imageId ? { imageId: image.imageId, imageInstructions: image.imageInstructions || '' } : {}) })
+        }
+        passes.push({ title: requestedPass.title.trim(), exercises })
+      }
+      const draft = normalizeStrengthDraft({ title, description, passes })
+      const issues = validateStrengthDraft(draft)
+      if (issues.length) return sendJson(response, 422, { error: issues.join(' '), issues })
+      let images
+      try { images = await resolveExerciseImages(coachAccount?.sub || '', draftExerciseImages(draft), sourceImages) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title, description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
+      if (!result.ok) throw new Error('Strength library program save failed')
+      return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })
+    }
     if (action === 'save-strength-images') {
       const account = coachFromRequest(request)
       if (!['head_coach', 'superadmin'].includes(account?.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan ändra övningsbilder.' })
