@@ -9,11 +9,17 @@ export const COACH_RESPONSE_METRICS = {
 
 export function coachMetricDetails(metricKey, responses, profiles = []) {
   const activityType = metricKey.startsWith('activity:') ? metricKey.slice(9) : null
-  const activityTitles = { before: 'Jag ska träna', after: 'Jag har tränat', rest: 'Ingen träning idag', sick: 'Jag känner mig sjuk' }
+  const activityTitles = { before: 'Jag ska träna', race: 'Ska tävla idag', after: 'Jag har tränat', rest: 'Ingen träning idag', sick: 'Jag känner mig sjuk' }
   const metric = activityTitles[activityType] ? { title: activityTitles[activityType], activityType } : COACH_RESPONSE_METRICS[metricKey]
   if (!metric) return null
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]))
-  const entries = responses.filter((item) => metric.activityType ? item.type === metric.activityType : (!metric.afterOnly || item.type === 'after') && typeof item[metricKey] === 'number' && Number.isFinite(item[metricKey]) && item[metricKey] >= 1 && item[metricKey] <= metric.max)
+  const entries = responses.filter((item) => metric.activityType === 'race'
+    ? item.type === 'before' && item.competition === true
+    : metric.activityType === 'before'
+      ? item.type === 'before' && item.competition !== true
+      : metric.activityType
+        ? item.type === metric.activityType
+        : (!metric.afterOnly || item.type === 'after') && typeof item[metricKey] === 'number' && Number.isFinite(item[metricKey]) && item[metricKey] >= 1 && item[metricKey] <= metric.max)
     .slice().sort(compareCheckinsNewest).map((item) => ({
       response: item,
       value: item[metricKey],

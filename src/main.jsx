@@ -4858,10 +4858,16 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
   const selectedItems = selectedFeeling ? responses.filter((item) => item.feeling === selectedFeeling) : []
   const identifiedItems = selectedItems.filter((item) => item.profileId && profileById.has(item.profileId))
   const anonymousCount = responses.filter((item) => !item.profileId || !profileById.has(item.profileId)).length
-  const activityCounts = DAY_TYPES.map((type) => {
-    const matching = responses.filter((item) => item.type === type.value)
-    return { ...type, profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
-  })
+  const activityCounts = [
+    ...DAY_TYPES.map((type) => {
+      const matching = responses.filter((item) => item.type === type.value && !(type.value === 'before' && item.competition === true))
+      return { ...type, profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
+    }),
+    (() => {
+      const matching = responses.filter((item) => item.type === 'before' && item.competition === true)
+      return { value: 'race', title: 'Ska tävla idag', icon: '🏁', profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
+    })(),
+  ]
   const latestByProfile = [...identifiedItems].sort(compareCheckinsNewest).reduce((result, item) => {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
