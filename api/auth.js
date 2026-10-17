@@ -142,7 +142,7 @@ export default async function handler(request, response) {
     await writeAuditLog(request, { eventType: 'coach_own_swimmer_mode', role: 'coach', profileId: profile.id, details: { actorName: actor.name, action: 'enter' } })
     return sendJson(response, 200, { code: process.env.SIMKOLL_SWIMMER_CODE, profile: publicProfile(profile) })
   }
-  if (action === 'coach-list' || action === 'coach-approve' || action === 'coach-set-role') {
+  if (action === 'coach-list' || action === 'coach-approve' || action === 'coach-reject' || action === 'coach-set-role') {
     if (!actor || actor.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan hantera tränarkonton.' })
     if (action === 'coach-list') {
       const result = await supabaseRequest('coach_accounts?select=id,email,display_name,role,status,created_at,approved_at,last_login_at&order=created_at.asc&limit=200')
@@ -151,6 +151,16 @@ export default async function handler(request, response) {
     }
     const accountId = String(request.body.accountId || '')
     if (!accountId) return sendJson(response, 400, { error: 'Tränarkonto saknas.' })
+    if (action === 'coach-reject') {
+      const targetResult = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}&status=eq.pending&select=id,email,display_name,status&limit=1`)
+      if (!targetResult.ok) throw new Error(`Coach rejection lookup failed: ${targetResult.status}`)
+      const [target] = await targetResult.json()
+      if (!target) return sendJson(response, 409, { error: 'Endast en väntande tränaransökan kan tas bort.' })
+      const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}&status=eq.pending`, { method: 'DELETE' })
+      if (!result.ok) throw new Error(`Coach rejection failed: ${result.status}`)
+      await writeAuditLog(request, { eventType: 'coach_account_rejection', role: 'coach', details: { actorName: actor.name, targetAccountId: accountId, targetEmail: target.email, targetName: target.display_name } })
+      return sendJson(response, 200, { removed: true, accountId })
+    }
     if (action === 'coach-approve') {
       const status = request.body.approved === false ? 'suspended' : 'active'
       if (accountId === actor.sub && status === 'suspended') return sendJson(response, 400, { error: 'Du kan inte stänga av ditt eget superadmin-konto.' })
