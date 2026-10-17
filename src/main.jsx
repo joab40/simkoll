@@ -125,6 +125,7 @@ function App() {
   const [swimmerThemesEnabled, setSwimmerThemesEnabled] = useState(true)
   const [swimmerTheme, setSwimmerTheme] = useState('none')
   const [competitions, setCompetitions] = useState([])
+  const [competitionsLoaded, setCompetitionsLoaded] = useState(false)
   const [availableGames, setAvailableGames] = useState([])
   const [previousGames, setPreviousGames] = useState([])
   usePushSession(auth, profile, (target) => {
@@ -165,16 +166,26 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
+    setCompetitionsLoaded(false)
     const loadProfileData = async () => {
+      // Tävlingsstatusen behövs direkt i check-in. Hämta kalendern parallellt
+      // med startsidans data i stället för att lägga den efter den första laddningen.
+      const competitionPromise = apiRequest('/api/workouts?calendar=true', auth.code)
+        .catch(() => ({ competitions: [] }))
+        .then((data) => {
+          const nextCompetitions = data.competitions || []
+          setCompetitions(nextCompetitions)
+          setCompetitionsLoaded(true)
+          return nextCompetitions
+        })
       // Starta alla oberoende hämtningar samtidigt. Tidigare blockerade
       // /api/training resten av simmarvyn eftersom det hämtades först.
       const [trainingData, workoutData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest('/api/activity?streak=true', auth.code)])
       setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
       // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
-      const [pointsData, notificationData, competitionData, gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), apiRequest('/api/workouts?calendar=true', auth.code).catch(() => ({ competitions: [] })), apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: [] }))])
+      const [pointsData, notificationData, , gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), competitionPromise, apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: [] }))])
       if (pointsData) setPoints(pointsData)
       setNotifications(notificationData.notifications || [])
-      setCompetitions(competitionData.competitions || [])
       setAvailableGames(Array.isArray(gamesData.catalog) ? gamesData.catalog : [])
       setPreviousGames(Array.isArray(gamesData.previousGames) ? gamesData.previousGames : [])
     }
@@ -341,6 +352,7 @@ function App() {
           followUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).followUp}
           raceFollowUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).raceFollowUp}
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
+          competitionStatusLoaded={competitionsLoaded}
           plannedWorkouts={checkinActivityDate === todayKey() ? workout : []}
           plannedSwimSlots={(training?.plannedSessions || []).filter((item) => item.date === checkinActivityDate && ['morning_swim', 'afternoon_swim'].includes(item.slot)).map((item) => item.slot)}
           onBack={() => setScreen('home')}
@@ -2105,7 +2117,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onOpenTalk,
   )
 }
 
-function CheckIn({ hasProfile, competitionToday, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit }) {
+function CheckIn({ hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
@@ -2152,6 +2164,9 @@ function CheckIn({ hasProfile, competitionToday, lateEntry = false, followUp = f
 
   let content
   if (step === 0) {
+    if (!lateEntry && hasProfile && !competitionStatusLoaded) {
+      content = <Question eyebrow="Snabbkoll" title="Hämtar dagens tävlingsinfo…" hint="Ett ögonblick, så visar vi rätt check-in för idag."><div className="loading-state" role="status">Laddar…</div></Question>
+    } else {
     const showCompetitionChoice = !lateEntry && competitionToday && hasProfile && competitionDecision === null
     content = (
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Vad gjorde du igår?' : showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={lateEntry ? 'Välj det som bäst beskriver gårdagen.' : showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
@@ -2164,6 +2179,7 @@ function CheckIn({ hasProfile, competitionToday, lateEntry = false, followUp = f
         </div>
       </Question>
     )
+    }
   } else if (step === 1 && needsActivity) {
     content = <Question eyebrow="Din träning" title={hasPlannedSwim ? 'Genomförde du dagens simpass?' : 'Vad tränade du?'} hint={hasPlannedSwim ? 'Passuppgifterna hämtas automatiskt från planeringen.' : 'Välj det som stämmer bäst.'}>
       {hasPlannedSwim && (swimPlans.length ? swimPlans : [{}]).map((plan, index) => <div className="checkin-planned-workout" key={plan.id || index}><span>🏊</span><div><strong>{plan.title || 'Planerat simpass'}</strong><small>{[plan.timeOfDay === 'morning' ? 'Morgon' : plan.timeOfDay === 'afternoon' ? 'Eftermiddag / kväll' : 'Tid ej angiven', plan.distanceMeters ? `${Number(plan.distanceMeters).toLocaleString('sv-SE')} m` : '', plan.durationMinutes ? `${plan.durationMinutes} min` : ''].filter(Boolean).join(' · ')}</small></div></div>)}
@@ -4259,14 +4275,39 @@ function OpenChatPanel({ code, coach = false, profileId = '' }) {
   const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => {
     if (!panelActive.current) return
     const next = data.openChat || { enabled: false, messages: [] }
-    setChat(next)
+    setChat((current) => {
+      const visibleMessages = Array.isArray(next.messages) ? next.messages : []
+      const pending = (current.messages || []).filter((item) => item.pending && !visibleMessages.some((loaded) => loaded.id === item.id))
+      return { ...next, messages: [...visibleMessages, ...pending].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }
+    })
     if (!coach && profileId && next.enabled) {
       const latest = latestCoachMessageId(next.messages)
       if (latest) markCoachMessageRead(window.localStorage, profileId, latest)
     }
   }).catch((error) => { if (panelActive.current) setStatus(error.message) })
   useEffect(() => { panelActive.current = true; load(); const refresh = window.setInterval(() => { if (!document.hidden) load() }, 15000); return () => { panelActive.current = false; window.clearInterval(refresh) } }, [code, coach, profileId])
-  const send = async (event) => { event.preventDefault(); if (!content.trim()) return; setStatus('Skickar…'); try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content }) }); setContent(''); setStatus(''); await load() } catch (error) { setStatus(error.message) } }
+  const send = async (event) => {
+    event.preventDefault()
+    const messageContent = content.trim()
+    if (!messageContent) return
+    const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const pendingMessage = { id: pendingId, content: messageContent, createdAt: new Date().toISOString(), senderRole: coach ? 'coach' : 'swimmer', senderProfileId: profileId || null, sender: coach ? { displayName: 'Tränare', emoji: '🧑‍🏫' } : { displayName: 'Du', emoji: '🏊' }, pending: true }
+    setChat((current) => ({ ...current, messages: [...(current.messages || []), pendingMessage] }))
+    setContent('')
+    setStatus('Skickar…')
+    try {
+      const result = await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content: messageContent }) })
+      const savedMessage = result.message || { ...pendingMessage, pending: false }
+      setChat((current) => ({ ...current, messages: [...(current.messages || []).filter((item) => item.id !== pendingId && item.id !== savedMessage.id), savedMessage].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }))
+      setStatus('')
+      // Uppdatera övriga meddelanden i bakgrunden; sändningen väntar inte på en full omladdning.
+      load()
+    } catch (error) {
+      setChat((current) => ({ ...current, messages: (current.messages || []).filter((item) => item.id !== pendingId) }))
+      setContent((current) => current || messageContent)
+      setStatus(error.message)
+    }
+  }
   const remove = async (id) => { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id }) }); await load() }
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
   if (!chat.enabled) return null
@@ -4277,7 +4318,7 @@ function OpenChatPanel({ code, coach = false, profileId = '' }) {
       <small>{coach ? 'Synlig för alla simmare och tränare' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor syns bara för tränarna' : 'Gruppen kan läsa och skriva här'}</small>
       {coach && <button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button>}
     </div>
-    <div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => <article className={item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'} key={item.id}><span>{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span><div><strong>{item.sender?.displayName || 'Simmare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{(coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}</article>) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
+    <div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id}><span>{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span><div><strong>{item.sender?.displayName || 'Simmare'}</strong><p>{item.content}</p><small>{item.pending ? 'Skickar…' : formatFeedDate(item.createdAt)}</small></div>{!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}</article>) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
     {(!chat.coachOnly || coach) && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}
   </section>
 }

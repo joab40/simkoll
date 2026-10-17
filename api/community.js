@@ -362,16 +362,18 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       if (request.body?.action === 'open-chat-message') {
         const content = String(request.body?.content || '').trim()
         if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Meddelandet måste vara 1–1000 tecken.' })
-        const moderation = await moderateCustomPep(request, content)
+        const [moderation, enabledResult] = await Promise.all([
+          moderateCustomPep(request, content),
+          supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1'),
+        ])
         if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
-        const enabledResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = enabledResult.ok ? ((await enabledResult.json())[0]?.setting_value || {}) : {}
         if (settings.openChat?.enabled !== true) return sendJson(response, 403, { error: 'Den öppna chatten är avstängd av tränarna.' })
         const result = await supabaseRequest('open_chat_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', visibility: 'group', content }) })
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
         const [message] = await result.json()
         queueMessagePush({ kind: 'coach-info', id: message.id, senderCoachId: coachFromRequest(request)?.sub })
-        return sendJson(response, 201, { ok: true })
+        return sendJson(response, 201, { ok: true, message: { id: message.id, content: message.content, createdAt: message.created_at, senderRole: 'coach', senderProfileId: null, sender: { displayName: 'Tränare', emoji: '🧑‍🏫' } } })
       }
       if (request.body?.action === 'delete-open-chat-message') {
         const id = String(request.body?.id || '')
@@ -458,7 +460,7 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         const [message] = await result.json()
         queueMessagePush({ kind: 'question', id: message.id, toCoaches: true })
         await touchProfileActivity(profile.id)
-        return sendJson(response, 201, { ok: true })
+        return sendJson(response, 201, { ok: true, message: { id: message.id, content: message.content, createdAt: message.created_at, senderRole: 'swimmer', senderProfileId: profile.id, sender: { displayName: profile.display_name || 'Du', emoji: profile.emoji || '🏊' } } })
       }
       if (request.body?.action === 'delete-open-chat-message') {
         const id = String(request.body?.id || '')
