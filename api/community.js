@@ -1,3 +1,4 @@
+import { waitUntil } from '@vercel/functions'
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
@@ -89,6 +90,46 @@ async function moderateCustomPep(request, content) {
   }
 }
 
+async function finishGroupPepModeration(request, pep) {
+  const updateModeration = async (status, { content = pep.content, note = null, pointEligible = status === 'approved' ? pep.point_eligible === true : false } = {}) => {
+    const result = await supabaseRequest(`group_pep?id=eq.${encodeURIComponent(pep.id)}&moderation_status=eq.pending`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ moderation_status: status, moderation_note: note, content, point_eligible: pointEligible }),
+    })
+    if (!result.ok) throw new Error(`Group pep moderation update failed: ${result.status}`)
+    return (await result.json()).length > 0
+  }
+
+  try {
+    const moderation = await moderateCustomPep(request, pep.content)
+    if (!moderation.allowed) {
+      await updateModeration('rejected', { content: null, note: 'Meddelandet kunde inte publiceras. Skriv om texten och försök igen.' })
+      return
+    }
+    const approved = await updateModeration('approved', { pointEligible: pep.point_eligible === true })
+    if (!approved) return
+    if (pep.point_eligible) {
+      try { await awardPoints(pep.sender_profile_id, 'kudos_sent', 1, `${stockholmDate()}:${pep.id}`) }
+      catch (error) { console.warn('Group pep point award failed:', error.message) }
+    }
+    try { await touchProfileActivity(pep.sender_profile_id) }
+    catch (error) { console.warn('Group pep activity update failed:', error.message) }
+    if (pep.point_eligible) {
+      const resolved = await supabaseRequest(`group_pep?id=eq.${encodeURIComponent(pep.id)}&moderation_status=eq.approved`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ point_eligible: false }),
+      })
+      if (!resolved.ok) console.warn(`Group pep point status update failed: ${resolved.status}`)
+    }
+  } catch (error) {
+    console.warn('Group pep moderation failed:', error.message)
+    try { await updateModeration('rejected', { content: null, note: 'Meddelandet kunde inte kontrolleras. Försök att skicka det igen.' }) }
+    catch (updateError) { console.error('Could not close pending group pep:', updateError.message) }
+  }
+}
+
 export const KUDOS_TEMPLATES = {
   great_job: 'Grymt jobbat idag! 💪',
   great_energy: 'Bra energi! ⚡',
@@ -123,7 +164,8 @@ async function pointsToday(profileId, eventType) {
 
 async function messagesSentToday(table, profileId) {
   const column = table === 'kudos' ? 'sender_profile_id' : 'sender_profile_id'
-  const result = await supabaseRequest(`${table}?${column}=eq.${profileId}&select=created_at&order=created_at.desc&limit=100`)
+  const moderationFilter = table === 'group_pep' ? '&moderation_status=neq.rejected' : ''
+  const result = await supabaseRequest(`${table}?${column}=eq.${profileId}${moderationFilter}&select=created_at&order=created_at.desc&limit=100`)
   if (!result.ok) throw new Error(`Daily ${table} count failed: ${result.status}`)
   return (await result.json()).filter((item) => stockholmDay(item.created_at) === stockholmDay()).length
 }
@@ -180,6 +222,17 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (role === 'coach' && request.query?.coachFeed === 'true') return sendJson(response, 200, { events: await getCoachFeed() })
+      if (request.query?.pepStatus) {
+        if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in som simmare för att se meddelandestatus.' })
+        const profile = await getSessionProfile(request)
+        const id = String(request.query.pepStatus)
+        if (!profile || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return sendJson(response, 400, { error: 'Ogiltigt meddelande.' })
+        const result = await supabaseRequest(`group_pep?id=eq.${encodeURIComponent(id)}&sender_profile_id=eq.${encodeURIComponent(profile.id)}&select=moderation_status,moderation_note,point_eligible&limit=1`)
+        if (!result.ok) throw new Error(`Group pep status lookup failed: ${result.status}`)
+        const [pep] = await result.json()
+        if (!pep) return sendJson(response, 404, { error: 'Meddelandet kunde inte hittas.' })
+        return sendJson(response, 200, { status: pep.moderation_status || 'approved', message: pep.moderation_note || null, pointEligible: pep.point_eligible === true })
+      }
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
       if (profile) await touchProfileActivity(profile.id)
@@ -234,12 +287,27 @@ export default async function handler(request, response) {
       }).filter((reaction) => reaction.count > 0)
       const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at, reactions: reactionsFor('coach_post', item.id) }))
       const groupRows = await groupResult.json()
-      const groupPep = groupRows.map((item) => ({ id: item.id, type: 'group', content: item.content || GROUP_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], reactions: reactionsFor('group_pep', item.id) })).filter((item) => item.sender && item.content)
+      const groupPep = groupRows
+        .filter((item) => (item.moderation_status || 'approved') === 'approved' || (role === 'swimmer' && item.sender_profile_id === profile?.id))
+        .map((item) => {
+          const moderationStatus = item.moderation_status || 'approved'
+          return {
+            id: item.id,
+            type: 'group',
+            content: moderationStatus === 'rejected' ? '' : item.content || GROUP_TEMPLATES[item.template_key],
+            moderationStatus,
+            moderationMessage: moderationStatus === 'rejected' ? item.moderation_note || 'Meddelandet kunde inte publiceras. Skriv om texten och försök igen.' : null,
+            createdAt: item.created_at,
+            sender: profiles[item.sender_profile_id],
+            reactions: moderationStatus === 'approved' ? reactionsFor('group_pep', item.id) : [],
+          }
+        })
+        .filter((item) => item.sender && (item.content || item.moderationStatus === 'rejected'))
       const quoteTargets = new Map([...posts, ...groupPep].map((item) => [`${item.type}-${item.id}`, item]))
       for (const type of ['group', 'coach']) {
-        const ids = [...new Set(groupRows.filter((row) => row.reply_type === type && row.reply_id && !quoteTargets.has(`${type}-${row.reply_id}`)).map((row) => row.reply_id))]
+        const ids = [...new Set(groupRows.filter((row) => (row.moderation_status || 'approved') === 'approved' && row.reply_type === type && row.reply_id && !quoteTargets.has(`${type}-${row.reply_id}`)).map((row) => row.reply_id))]
         if (!ids.length) continue
-        const targets = await supabaseRequest(`${type === 'group' ? 'group_pep' : 'community_posts'}?id=in.(${ids.join(',')})${type === 'coach' ? '&deleted_at=is.null' : ''}&select=*`)
+        const targets = await supabaseRequest(`${type === 'group' ? 'group_pep' : 'community_posts'}?id=in.(${ids.join(',')})${type === 'coach' ? '&deleted_at=is.null' : '&moderation_status=eq.approved'}&select=*`)
         if (!targets.ok) throw new Error('Reply history lookup failed')
         for (const row of await targets.json()) {
           if (row.deleted_at) continue
@@ -272,7 +340,7 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       const emoji = String(request.body?.emoji || '')
       if (!['coach_post', 'group_pep'].includes(messageType) || !/^[0-9a-f-]{36}$/i.test(messageId) || !REACTION_EMOJIS.includes(emoji)) return sendJson(response, 400, { error: 'Välj ett giltigt meddelande och en emoji.' })
       const table = messageType === 'group_pep' ? 'group_pep' : 'community_posts'
-      const target = await supabaseRequest(`${table}?id=eq.${encodeURIComponent(messageId)}${messageType === 'coach_post' ? '&deleted_at=is.null' : ''}&select=id&limit=1`)
+      const target = await supabaseRequest(`${table}?id=eq.${encodeURIComponent(messageId)}${messageType === 'coach_post' ? '&deleted_at=is.null' : '&moderation_status=eq.approved'}&select=id&limit=1`)
       if (!target.ok || !(await target.json()).length) return sendJson(response, 404, { error: 'Meddelandet finns inte längre.' })
       const actorKey = role === 'swimmer' ? `swimmer:${profile.id}` : `coach:${coachFromRequest(request)?.sub || 'legacy'}`
       const existing = await supabaseRequest(`community_reactions?message_type=eq.${messageType}&message_id=eq.${messageId}&actor_key=eq.${encodeURIComponent(actorKey)}&emoji=eq.${encodeURIComponent(emoji)}&select=id&limit=1`)
@@ -493,25 +561,30 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       if (mode === 'group') {
         const templateKey = String(request.body?.templateKey || '')
         const customContent = String(request.body?.content || '').trim()
+        const shouldModerateInBackground = templateKey === 'custom' && customContent !== '🙌'
         if (templateKey === 'custom') {
           if (!customPepEnabled) return sendJson(response, 403, { error: 'Egna peppmeddelanden är avstängda av tränarna.' })
           if (!customContent || customContent.length > 300) return sendJson(response, 400, { error: 'Skriv ett eget peppmeddelande på 1–300 tecken.' })
-          const moderation = await moderateCustomPep(request, customContent)
-          if (!moderation.allowed) return sendJson(response, 422, { error: moderation.error })
+          if (hasBlockedPepLanguage(customContent)) return sendJson(response, 422, { error: 'Meddelandet kan inte skickas eftersom det innehåller svordomar eller ett personangrepp. Skriv gärna om det med respektfull ton.' })
         } else if (!GROUP_TEMPLATES[templateKey]) return sendJson(response, 400, { error: 'Välj en grupphälsning.' })
         const reply = request.body?.reply
         if (reply && (!['group', 'coach'].includes(reply.type) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reply.id))) return sendJson(response, 400, { error: 'Välj ett giltigt meddelande att svara på.' })
         if (reply) {
-          const target = await supabaseRequest(`${reply.type === 'group' ? 'group_pep' : 'community_posts'}?id=eq.${reply.id}${reply.type === 'coach' ? '&deleted_at=is.null' : ''}&select=id&limit=1`)
+          const target = await supabaseRequest(`${reply.type === 'group' ? 'group_pep' : 'community_posts'}?id=eq.${reply.id}${reply.type === 'coach' ? '&deleted_at=is.null' : '&moderation_status=eq.approved'}&select=id&limit=1`)
           if (!target.ok) throw new Error('Reply lookup failed')
           if (!(await target.json()).length) return sendJson(response, 404, { error: 'Meddelandet finns inte längre. Avbryt svaret och skicka utan citat.' })
         }
-        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey, content: templateKey === 'custom' ? customContent : null, ...(reply ? { reply_type: reply.type, reply_id: reply.id } : {}) }) })
+        const result = await supabaseRequest('group_pep', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_profile_id: profile.id, template_key: templateKey, content: templateKey === 'custom' ? customContent : null, ...(shouldModerateInBackground ? { moderation_status: 'pending', point_eligible: earnsPoint } : {}), ...(reply ? { reply_type: reply.type, reply_id: reply.id } : {}) }) })
         if (!result.ok) throw new Error(`Group pep insert failed: ${result.status} ${await result.text()}`)
         const [pep] = await result.json()
+        const message = { id: pep.id, type: 'group', content: pep.content || GROUP_TEMPLATES[pep.template_key], moderationStatus: shouldModerateInBackground ? 'pending' : 'approved', createdAt: pep.created_at, sender: { id: profile.id, displayName: profile.display_name || 'Du', emoji: profile.emoji || '🏊' }, reactions: [], ...(reply ? { reply: { id: reply.id, type: reply.type } } : {}) }
+        if (shouldModerateInBackground) {
+          waitUntil(finishGroupPepModeration(request, pep).catch((error) => console.error('Background group pep moderation failed:', error.message)))
+          return sendJson(response, 202, { ok: true, awardedPoints: 0, pointEligible: earnsPoint, moderationPending: true, message })
+        }
         if (earnsPoint) await awardPoints(profile.id, 'kudos_sent', 1, `${stockholmDate()}:${pep.id}`)
         await touchProfileActivity(profile.id)
-        return sendJson(response, 201, { ok: true, awardedPoints: earnsPoint ? 1 : 0 })
+        return sendJson(response, 201, { ok: true, awardedPoints: earnsPoint ? 1 : 0, message })
       }
       const recipientId = String(request.body?.recipientId || '')
       const templateKey = String(request.body?.templateKey || '')

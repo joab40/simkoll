@@ -1964,8 +1964,32 @@ function Community({ profile, code, points, customPepEnabled = true, openChatEna
   }
   const sendGroupMessage = async (body) => {
     const result = await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    try { await load() } catch { setLoadError('Meddelandet är skickat, men flödet kunde inte uppdateras. Försöker igen automatiskt.') }
-    try { onPointsChange(await apiRequest('/api/points', code)) } catch { /* The message is already saved; points refresh on the next page load. */ }
+    if (result.message) setItems((current) => [...current.filter((item) => item.id !== result.message.id), result.message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
+    // Uppdatera hela flödet efter att avsändaren redan fått kvitto.
+    window.setTimeout(() => { load().catch(() => {}) }, 1200)
+    if (result.moderationPending && result.message?.id) {
+      const messageId = result.message.id
+      const refreshModeration = async (attempt = 0) => {
+        try {
+          const state = await apiRequest(`/api/community?pepStatus=${encodeURIComponent(messageId)}`, code)
+          const stillProcessing = state.status === 'pending' || (state.status === 'approved' && state.pointEligible)
+          if (stillProcessing && attempt < 20) {
+            window.setTimeout(() => refreshModeration(attempt + 1), 900)
+            return
+          }
+          setItems((current) => current.map((item) => item.id !== messageId ? item : {
+            ...item,
+            moderationStatus: state.status,
+            content: state.status === 'rejected' ? '' : item.content,
+            moderationMessage: state.status === 'rejected' ? state.message : null,
+          }))
+          if (state.status === 'approved' && result.pointEligible && !state.pointEligible) onPointsChange(await apiRequest('/api/points', code))
+        } catch { /* Feedens ordinarie uppdatering hämtar slutstatusen senare. */ }
+      }
+      window.setTimeout(() => refreshModeration(), 900)
+    } else if (result.awardedPoints) {
+      window.setTimeout(() => { apiRequest('/api/points', code).then(onPointsChange).catch(() => {}) }, 800)
+    }
     return result
   }
   const toggleReaction = async ({ messageType, messageId, emoji }) => {

@@ -7,13 +7,14 @@ delete process.env.OPENAI_API_KEY
 const {default:handler}=await import('../api/community.js')
 const id='11111111-1111-4111-8111-111111111111',profile={id,display_name:'Test',emoji:'🙂'}
 async function call(body){const response={setHeader(){},status(code){this.code=code;return this},json(data){this.data=data;return this}};await handler({method:body?'POST':'GET',headers:{'x-simkoll-code':'swimmer-fixture',cookie:'simkoll_session=fixture'},body,query:{}},response);return response}
-function mock({count=0,target=true,groupRows=[],coachRows=[],custom=true}={}){
+function mock({count=0,target=true,groupRows=[],coachRows=[],custom=true,profilesRows=[profile]}={}){
   const writes=[]
   globalThis.fetch=async(url,options={})=>{
+    if(String(url).includes('api.openai.com/v1/moderations')){await new Promise(resolve=>setTimeout(resolve,15));return {ok:true,json:async()=>({results:[{flagged:false}]})}}
     const path=String(url).split('/rest/v1/')[1];let data=[]
-    if(options.method){writes.push({path,body:JSON.parse(options.body||'{}')});if(path==='group_pep')data=[{id}]}
+    if(options.method){const body=JSON.parse(options.body||'{}');writes.push({path,body});if(path==='group_pep')data=[{id,...body,created_at:new Date().toISOString()}];else if(path.startsWith('group_pep?id=eq.'))data=[{id}]}
     else if(path.startsWith('profile_sessions?'))data=[{profile_id:id}]
-    else if(path.startsWith('profiles?'))data=[profile]
+    else if(path.startsWith('profiles?'))data=profilesRows
     else if(path.startsWith('app_settings?'))data=[{setting_value:{swimmer:{customPep:custom}}}]
     else if(path.includes('select=created_at'))data=Array.from({length:path.startsWith('group_pep')?count:0},()=>({created_at:new Date().toISOString()}))
     else if(path.includes('id=eq.')&&path.includes('select=id'))data=target?[{id}]:[]
@@ -50,6 +51,25 @@ test('own text restrictions and language checks still apply after the quota',asy
   assert.equal(response.code,403);assert.equal(writes.length,0)
   writes=mock({count:4});response=await call({mode:'group',templateKey:'custom',content:'idiot'})
   assert.equal(response.code,422);assert.equal(writes.length,0)
+})
+test('custom group text returns pending immediately and is kept out of the public feed until approved',async()=>{
+  process.env.OPENAI_API_KEY='test-key'
+  const other='22222222-2222-4222-8222-222222222222',jobs=[]
+  const requestContext=Symbol.for('@vercel/request-context'),originalContext=globalThis[requestContext]
+  globalThis[requestContext]={get:()=>({waitUntil:promise=>jobs.push(promise)})}
+  const writes=mock({groupRows:[
+    {id,sender_profile_id:id,template_key:'custom',content:'Bra pass idag!',moderation_status:'pending',created_at:new Date().toISOString()},
+    {id:'33333333-3333-4333-8333-333333333333',sender_profile_id:other,template_key:'custom',content:'Annan väntande text',moderation_status:'pending',created_at:new Date().toISOString()},
+  ],profilesRows:[profile,{id:other,display_name:'Annan',emoji:'🏊'}]}),response=await call({mode:'group',templateKey:'custom',content:'Bra pass idag!'});
+  assert.equal(response.code,202);assert.equal(response.data.moderationPending,true);assert.equal(response.data.message.moderationStatus,'pending')
+  const inserted=writes.find(x=>x.path==='group_pep').body
+  assert.equal(inserted.moderation_status,'pending');assert.equal(inserted.content,'Bra pass idag!')
+  const feed=await call()
+  assert.equal(feed.data.items.length,1);assert.equal(feed.data.items[0].moderationStatus,'pending')
+  assert.equal(feed.data.items[0].content,'Bra pass idag!')
+  await Promise.all(jobs)
+  assert.ok(writes.some(x=>x.path.startsWith('group_pep?id=eq.')&&x.body.moderation_status==='approved'))
+  if(originalContext===undefined)delete globalThis[requestContext];else globalThis[requestContext]=originalContext
 })
 test('deleted coach text is not resurrected in a quote',async()=>{
   mock({groupRows:[{id,sender_profile_id:id,template_key:'group_start',created_at:new Date().toISOString(),reply_type:'coach',reply_id:'22222222-2222-4222-8222-222222222222'}],coachRows:[{id:'22222222-2222-4222-8222-222222222222',content:'Deleted text',deleted_at:new Date().toISOString()}]})
