@@ -698,6 +698,19 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Workout history GET failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { workouts: (await result.json()).map((item) => publicWorkout(item)) })
       }
+      if (role === 'coach' && request.query?.library === 'true') {
+        const result = await supabaseRequest('daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,updated_at&order=workout_date.desc,created_at.desc&limit=1000')
+        if (!result.ok) throw new Error(`Workout library GET failed: ${result.status} ${await result.text()}`)
+        return sendJson(response, 200, { workouts: (await result.json()).map((item) => publicWorkout(item, { includeDetails: false })) })
+      }
+      if (role === 'coach' && request.query?.libraryItem) {
+        const id = String(request.query.libraryItem)
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return sendJson(response, 400, { error: 'Ogiltigt pass-ID.' })
+        const result = await supabaseRequest(`daily_workouts?id=eq.${id}&select=*&limit=1`)
+        if (!result.ok) throw new Error(`Workout library item GET failed: ${result.status} ${await result.text()}`)
+        const workout = (await result.json())[0]
+        return workout ? sendJson(response, 200, { workout: publicWorkout(workout) }) : sendJson(response, 404, { error: 'Passet finns inte längre i biblioteket.' })
+      }
       const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const result = await supabaseRequest(`daily_workouts?workout_date=eq.${requestedDate}&select=*&order=created_at.asc&limit=100`)
       if (!result.ok) throw new Error(`Workout GET failed: ${result.status} ${await result.text()}`)
