@@ -159,6 +159,11 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+    const coachAccount = role === 'coach' ? coachFromRequest(request) : null
+    // The legacy shared coach code has no account role attached. Keep it
+    // backwards compatible, while signed-in ordinary coaches cannot manage
+    // the shared strength-program library.
+    const canManageStrengthPrograms = !coachAccount || ['head_coach', 'superadmin'].includes(coachAccount.role)
 
     if (role !== 'coach') {
       const profile = await getSessionProfile(request)
@@ -301,6 +306,7 @@ export default async function handler(request, response) {
     }
     if (action === 'create-program') {
       const type = String(request.body.type || '')
+      if (type === 'strength' && !canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan skapa styrkeprogram.' })
       const title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim(), content = String(request.body.content || '').trim()
       const startDate = String(request.body.startDate || ''), endDate = request.body.endDate || null
       const profileIds = [...new Set(Array.isArray(request.body.profileIds) ? request.body.profileIds : [])]
@@ -342,7 +348,7 @@ export default async function handler(request, response) {
       if (!existing.ok) throw new Error('Existing assignment lookup failed')
       const oldStrength = (await existing.json()).filter((item) => item.training_programs?.program_type === 'strength')
       if (oldStrength.length) await Promise.all(oldStrength.map((item) => supabaseRequest(`program_assignments?id=eq.${encodeURIComponent(item.id)}`, { method: 'PATCH', body: JSON.stringify({ removed_at: new Date().toISOString() }) })))
-      const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ program_id: programId, profile_id: profileId }) })
+      const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ program_id: programId, profile_id: profileId, removed_at: null }) })
       if (!result.ok) throw new Error(`Assignment failed: ${result.status}`)
       return sendJson(response, 201, { ok: true })
     }
@@ -354,6 +360,7 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { ok: true })
     }
     if (action === 'archive-program') {
+      if (!canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan arkivera styrkeprogram.' })
       const programId = String(request.body.programId || '')
       if (!programId) return sendJson(response, 400, { error: 'Programmet saknas.' })
       const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'PATCH', body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }) })
@@ -361,6 +368,7 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { ok: true })
     }
     if (action === 'delete-program') {
+      if (!canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan radera styrkeprogram.' })
       const programId = String(request.body.programId || '')
       if (!programId) return sendJson(response, 400, { error: 'Programmet saknas.' })
       const assignmentsResult = await supabaseRequest(`program_assignments?program_id=eq.${encodeURIComponent(programId)}&removed_at=is.null&select=id&limit=1`)
@@ -373,6 +381,7 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { ok: true })
     }
     if (action === 'update-program') {
+      if (!canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan redigera styrkeprogram.' })
       const programId = String(request.body.programId || ''), title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim(), content = String(request.body.content || '').trim()
       if (!programId || !title || title.length > 100 || !description || description.length > 1000 || !content || content.length > 5000) return sendJson(response, 400, { error: 'Kontrollera programmets namn, beskrivning och innehåll.' })
       const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ title, description, content, updated_at: new Date().toISOString() }) })
