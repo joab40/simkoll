@@ -2,12 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-test('swimmer details keep profile settings but move strength assignment to its own page', async () => {
+test('swimmer details keep compact strength assignment while full management has its own page', async () => {
   const source = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const swimmerSection = source.slice(source.indexOf('function Swimmers('), source.indexOf('function PeriodOverview('))
 
   assert.match(source, /Profil skapad <strong>\{profile\.createdAt/)
-  assert.doesNotMatch(swimmerSection, /className="strength-program-card"/)
+  assert.match(source, /function SwimmerStrengthProgramCard/)
+  assert.match(source, /className=\{`swimmer-strength-program-card/)
+  assert.match(source, /Byt eller ta bort program/)
+  assert.match(swimmerSection, /<SwimmerStrengthProgramCard profile=\{profile\}/)
   assert.match(source, /function CoachStrengthPrograms/)
   assert.match(source, /<h2>Styrkeprogram<\/h2>/)
   assert.match(source, /Tilldela styrkeprogram/)
