@@ -2532,6 +2532,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   useEffect(() => { const open = () => setAssistantOpen(true); window.addEventListener('simkoll-assistant-open', open); return () => window.removeEventListener('simkoll-assistant-open', open) }, [])
   const [summaryDate, setSummaryDate] = useState(todayKey())
   const [summaryWorkouts, setSummaryWorkouts] = useState([])
+  const [summaryPlanning, setSummaryPlanning] = useState({ plans: [], competitions: [] })
   const [selectedGroups, setSelectedGroups] = useState(['ungdom_orange', 'ungdom_svart', 'junior'])
   const [availableGroups, setAvailableGroups] = useState([['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']])
   const [competitionResults, setCompetitionResults] = useState([])
@@ -2606,6 +2607,13 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
     if (!code || view !== 'today') return
     apiRequest(`/api/workouts?date=${summaryDate}`, code).then((data) => setSummaryWorkouts(data.workouts || (data.workout ? [data.workout] : []))).catch(() => setSummaryWorkouts([]))
   }, [code, summaryDate, view])
+  useEffect(() => {
+    if (!code || view !== 'today') return
+    Promise.allSettled([apiRequest('/api/workouts?planning=true', code), apiRequest('/api/workouts?calendar=true', code)]).then(([planning, calendar]) => setSummaryPlanning({
+      plans: planning.status === 'fulfilled' ? planning.value.plans || [] : [],
+      competitions: calendar.status === 'fulfilled' ? calendar.value.competitions || [] : [],
+    }))
+  }, [code, view])
 
   const applyCoachProfile = (savedAccount, groups) => { if (savedAccount) setCoachProfile(savedAccount); if (Array.isArray(groups) && groups.length) setSelectedGroups(groups); else if (groups && !groups.length) setSelectedGroups(groupOptions.map(([value]) => value)) }
   const renderCoachMenuLink = (key) => {
@@ -2690,6 +2698,10 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
             responses={view === 'today' ? selectedDateResponses : scopedResponses}
             title={view === 'today' ? (summaryDate === todayKey() ? 'Idag' : 'Vald dag') : 'Förra veckan'}
             profiles={groupFilteredProfiles}
+            hasPlannedCompetition={view === 'today' && (
+              summaryPlanning.plans.some((item) => item.activityType === 'competition' && item.date === summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group)))) ||
+              summaryPlanning.competitions.some((item) => item.startDate <= summaryDate && (item.endDate || item.startDate) >= summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group))))
+            )}
             periodLabel={view === 'today'
               ? summaryDateLabel
               : previousWeekLabel}
@@ -4845,7 +4857,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays, hasPlannedCompetition = false }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
   const [selectedMetric, setSelectedMetric] = useState(null)
   useEffect(() => { setSelectedMetric(null) }, [periodLabel])
@@ -4858,16 +4870,13 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
   const selectedItems = selectedFeeling ? responses.filter((item) => item.feeling === selectedFeeling) : []
   const identifiedItems = selectedItems.filter((item) => item.profileId && profileById.has(item.profileId))
   const anonymousCount = responses.filter((item) => !item.profileId || !profileById.has(item.profileId)).length
-  const activityCounts = [
-    ...DAY_TYPES.map((type) => {
+  const normalActivityCounts = DAY_TYPES.map((type) => {
       const matching = responses.filter((item) => item.type === type.value && !(type.value === 'before' && item.competition === true))
       return { ...type, profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
-    }),
-    (() => {
-      const matching = responses.filter((item) => item.type === 'before' && item.competition === true)
-      return { value: 'race', title: 'Ska tävla idag', icon: '🏁', profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
-    })(),
-  ]
+  })
+  const raceResponses = responses.filter((item) => item.type === 'before' && item.competition === true)
+  const raceActivity = { value: 'race', title: 'Ska tävla idag', profiles: new Set(raceResponses.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: raceResponses.length, planned: hasPlannedCompetition }
+  const activityCounts = raceActivity.answers || hasPlannedCompetition ? [raceActivity, ...normalActivityCounts] : normalActivityCounts
   const latestByProfile = [...identifiedItems].sort(compareCheckinsNewest).reduce((result, item) => {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
@@ -4905,7 +4914,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays }) {
         <section className="coach-card">
           <p className="eyebrow">Aktivitet</p><h2>Vad har gruppen gjort?</h2>
           <div className="type-list">
-            {activityCounts.map((item) => <button type="button" className="activity-response-button" key={item.value} onClick={() => setSelectedMetric(`activity:${item.value}`)} aria-haspopup="dialog" aria-label={`${item.title}: visa ${item.answers} svar från ${item.profiles} profiler`}><span>{item.title}<small>{item.answers} svar · Visa vilka →</small></span><strong>{item.profiles}<small>{item.profiles === 1 ? 'profil' : 'profiler'}</small></strong></button>)}
+            {activityCounts.map((item) => <button type="button" className="activity-response-button" key={item.value} onClick={() => setSelectedMetric(`activity:${item.value}`)} aria-haspopup="dialog" aria-label={`${item.title}: visa ${item.answers} svar från ${item.profiles} profiler`}><span>{item.title}<small>{item.planned && !item.answers ? 'Planerad tävling · Ingen har checkat in ännu' : `${item.answers} svar · Visa vilka →`}</small></span><strong>{item.profiles}<small>{item.profiles === 1 ? 'profil' : 'profiler'}</small></strong></button>)}
           </div>
         </section>
         <section className="coach-card comments-card">
