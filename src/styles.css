@@ -2451,8 +2451,32 @@ button { cursor: pointer; }
 .talk-create-form .primary-button { min-height: 44px; white-space: nowrap; }
 .talk-coach-row .talk-row-open { display: grid; grid-template-columns: 30px minmax(90px, 1fr) auto 18px; flex: 1; min-width: 0; }
 .talk-coach-row .talk-switch, .talk-coach-row .talk-delete-button { display: inline-flex; align-items: center; justify-content: center; flex: none; min-height: 38px; }
+.talk-bulk-form { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #f7fbf9; }
+.talk-roster-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.talk-roster-heading h3 { margin: 0 0 4px; }
+.talk-roster-heading p, .talk-bulk-hint { margin: 0; color: var(--muted); }
+.talk-roster { display: grid; gap: 6px; max-height: 390px; overflow: auto; }
+.talk-roster-row { display: grid; grid-template-columns: 22px 32px minmax(110px, 1fr) auto auto; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+.talk-roster-row.is-selectable { cursor: pointer; }
+.talk-roster-row input { width: 18px; height: 18px; accent-color: var(--teal); }
+.talk-roster-avatar { font-size: 22px; }
+.talk-roster-row > small { color: var(--muted); }
+.talk-status-pill { display: inline-flex; justify-content: center; padding: 5px 9px; border-radius: 999px; background: #eef3f2; color: #52666b; font-size: .84rem; font-weight: 700; white-space: nowrap; }
+.talk-status-pill.unbooked { background: #fff4d7; color: #795b00; }
+.talk-status-pill.started { background: #e8f0ff; color: #315b91; }
+.talk-status-pill.ready, .talk-status-pill.done { background: #e3f4db; color: #2f713c; }
+.talk-status-pill.seen { background: #e4f4f2; color: #176e69; }
+.talk-status-pill.off { background: #f2eded; color: #775959; }
+.talk-bulk-actions { display: flex; align-items: end; gap: 10px; margin-top: 14px; }
+.talk-bulk-actions label { display: grid; gap: 6px; min-width: 200px; font-weight: 700; }
+.talk-bulk-actions input { min-height: 44px; }
+.talk-bulk-actions .primary-button { min-height: 44px; }
+.talk-bulk-hint { display: block; margin-top: 10px; font-size: .9rem; }
+.talk-all-records { margin-top: 16px; }
+.talk-all-records > summary { cursor: pointer; font-weight: 700; }
+.talk-all-records .talk-coach-list { margin-top: 10px; }
 .talk-delete-button { border: 1px solid #e6c6c0; border-radius: 10px; padding: 7px 10px; background: #fff8f6; color: #9d4037; font-weight: 700; cursor: pointer; }
-@media (max-width: 620px) { .talk-create-form { grid-template-columns: 1fr 1fr; } .talk-create-form label:first-child { grid-column: 1 / -1; } .talk-create-form .primary-button { grid-column: 1 / -1; width: 100%; } .talk-coach-row .talk-row-open { grid-template-columns: 26px minmax(70px, 1fr) 18px; } .talk-coach-row .talk-row-open small { grid-column: 2; } }
+@media (max-width: 620px) { .talk-create-form { grid-template-columns: 1fr 1fr; } .talk-create-form label:first-child { grid-column: 1 / -1; } .talk-create-form .primary-button { grid-column: 1 / -1; width: 100%; } .talk-coach-row .talk-row-open { grid-template-columns: 26px minmax(70px, 1fr) 18px; } .talk-coach-row .talk-row-open small { grid-column: 2; } .talk-roster-heading { align-items: flex-start; flex-direction: column; } .talk-roster-row { grid-template-columns: 20px 28px minmax(75px, 1fr) auto; gap: 7px; padding: 9px; } .talk-roster-row > small { grid-column: 3 / 5; } .talk-status-pill { font-size: .72rem; padding: 4px 6px; } .talk-bulk-actions { align-items: stretch; flex-direction: column; } .talk-bulk-actions label { min-width: 0; } .talk-bulk-actions .primary-button { width: 100%; } }
 .global-talk-setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -12px 0 18px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f7fbf9; }.global-talk-setting span { display: grid; gap: 3px; }.global-talk-setting small { color: var(--muted); }
 .app-feedback-card { margin-top: 14px; padding: 5px; border: 1px solid #dbe8e5; border-radius: 16px; background: var(--paper); }
 .app-feedback-trigger { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }

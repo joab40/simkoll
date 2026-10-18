@@ -23,7 +23,7 @@ const mapGoal = (goal, updates = [], imageUrl = null) => ({
   })),
 })
 
-const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
+const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerSeenAt: item.swimmer_seen_at || null, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
 async function loadTalks(profileId = null) {
   const filter = profileId ? `&swimmer_id=eq.${profileId}` : ''
   const result = await supabaseRequest(`development_talks?select=*&${filter.slice(1)}&order=meeting_date.desc,created_at.desc&limit=200`)
@@ -129,6 +129,26 @@ export default async function handler(request, response) {
         const talk = mapTalk((await result.json())[0])
         if (action === 'create-talk' && talk.enabled && talk.status === 'draft') queueCategoryPush({ category: 'developmentTalks', id: talk.id, profileId: talk.swimmerId })
         return sendJson(response, 200, { talk })
+      }
+      if (action === 'create-talks') {
+        const profileIds = [...new Set((Array.isArray(request.body.profileIds) ? request.body.profileIds : []).map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 100)
+        const meetingDate = String(request.body.meetingDate || '')
+        if (!profileIds.length || !/^\d{4}-\d{2}-\d{2}$/.test(meetingDate)) return sendJson(response, 400, { error: 'Välj minst en simmare och ett giltigt datum.' })
+        const profileResult = await supabaseRequest(`profiles?id=in.(${profileIds.map(encodeURIComponent).join(',')})&select=id`)
+        if (!profileResult.ok) throw new Error(`Bulk talk profile lookup failed: ${profileResult.status}`)
+        const validIds = new Set((await profileResult.json()).map((profile) => profile.id))
+        if (validIds.size !== profileIds.length) return sendJson(response, 400, { error: 'En eller flera simmarprofiler kunde inte hittas. Uppdatera listan och försök igen.' })
+        const activeResult = await supabaseRequest(`development_talks?swimmer_id=in.(${profileIds.map(encodeURIComponent).join(',')})&enabled=eq.true&status=in.(draft,prepared)&select=swimmer_id`)
+        if (!activeResult.ok) throw new Error(`Bulk talk duplicate lookup failed: ${activeResult.status}`)
+        const alreadyActive = new Set((await activeResult.json()).map((talk) => talk.swimmer_id))
+        const createIds = profileIds.filter((profileId) => !alreadyActive.has(profileId))
+        if (!createIds.length) return sendJson(response, 200, { talks: [], skipped: profileIds.length, message: 'Alla valda simmare har redan ett aktivt samtal.' })
+        const payload = createIds.map((profileId) => ({ swimmer_id: profileId, coach_id: 'coach', meeting_date: meetingDate, status: 'draft', enabled: true, swimmer_answers: {}, coach_notes: {}, agreement: {}, updated_at: new Date().toISOString() }))
+        const result = await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        if (!result.ok) throw new Error(`Bulk development talk save failed: ${result.status} ${await result.text()}`)
+        const talks = (await result.json()).map(mapTalk)
+        talks.forEach((talk) => queueCategoryPush({ category: 'developmentTalks', id: talk.id, profileId: talk.swimmerId }))
+        return sendJson(response, 201, { talks, skipped: alreadyActive.size })
       }
       if (action === 'delete-talk') {
         const id = String(request.body.id || '')
@@ -257,6 +277,14 @@ export default async function handler(request, response) {
 
     if (request.method === 'POST') {
       const profile = await getSessionProfile(request)
+      if (request.body?.action === 'mark-talk-viewed') {
+        if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
+        const id = String(request.body.id || '')
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return sendJson(response, 400, { error: 'Samtalet kunde inte hittas.' })
+        const result = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&swimmer_id=eq.${encodeURIComponent(profile.id)}&enabled=eq.true&swimmer_seen_at=is.null`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ swimmer_seen_at: new Date().toISOString() }) })
+        if (!result.ok) throw new Error(`Development talk view acknowledgement failed: ${result.status}`)
+        return sendJson(response, 200, { ok: true })
+      }
       if (request.body?.action === 'mark-viewed') {
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
         const ids = [...new Set((Array.isArray(request.body.goalIds) ? request.body.goalIds : []).filter((id) => /^[0-9a-f-]{36}$/i.test(String(id))))].slice(0, 30)
