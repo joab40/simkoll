@@ -5,7 +5,14 @@ const average = (rows, key) => {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
 }
 export const responseDay = (row) => row.activity_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(row.created_at))
-export const analysisResponse = (row) => ({ date: responseDay(row), submittedAt: row.created_at, lateEntry: Boolean(row.late_entry), status: row.day_type, activityType: row.activity_type || null, trainingSlot: row.session_slot || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, plannedCompletion: row.planned_completion || null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) })
+const submissionDay = (value) => value ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value)) : null
+const dayDifference = (from, to) => from && to ? Math.max(0, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000)) : 0
+export const analysisResponse = (row) => {
+  const date = responseDay(row)
+  const submittedAt = row.created_at || null
+  const submittedDate = submissionDay(submittedAt)
+  return { date, submittedAt, lateEntry: Boolean(row.late_entry), reportDelayDays: dayDifference(date, submittedDate), competition: row.competition === true, status: row.day_type, activityType: row.activity_type || null, trainingSlot: row.session_slot || null, activityMinutes: row.activity_minutes ?? null, activityDistanceMeters: row.activity_distance_meters ?? null, plannedCompletion: row.planned_completion || null, feeling: row.feeling, energy: row.energy, body: row.body, rpe: row.rpe, speedFeeling: row.speed_feeling, temperature: row.temperature, passRating: row.pass_rating, setupRating: row.setup_rating, comment: String(row.comment || '').slice(0, 1200) }
+}
 
 // Use explicit AM/PM links when present. Never attach the same day's feedback to both
 // AM and PM, or count a planned workout's full distance as actually swum.
@@ -48,7 +55,7 @@ export function individualSignals(details) {
     const activities = after.map((row) => ({ type: row.activityType || null, minutes: row.activityMinutes ?? null, distanceMeters: row.activityDistanceMeters ?? null, comment: row.comment || '', rpe: row.rpe, passRating: row.passRating, speedFeeling: row.speedFeeling }))
     const dayPasses = passes.filter((row) => row.date === date)
     const matched = dayPasses.filter((row) => ['slot', 'day_only'].includes(row.matchStatus))
-    return { date, responses: rows.length, title: 'Dagens upplevelse', activities, mixedActivities: activityTypes.size > 1, ...Object.fromEntries(keys.map((key) => [key, average(['rpe', 'speedFeeling', 'passRating'].includes(key) ? comparableAfter : rows, key)])), distanceMeters: matched.some((row) => row.distanceMeters != null) ? matched.reduce((sum, row) => sum + (row.distanceMeters || 0), 0) : null, durationMinutes: matched.some((row) => row.durationMinutes != null) ? matched.reduce((sum, row) => sum + (row.durationMinutes || 0), 0) : null }
+    return { date, responses: rows.length, title: 'Dagens upplevelse', competition: rows.some((row) => row.competition), competitionReportDelayDays: Math.max(0, ...rows.filter((row) => row.competition).map((row) => row.reportDelayDays || 0)), activities, mixedActivities: activityTypes.size > 1, ...Object.fromEntries(keys.map((key) => [key, average(['rpe', 'speedFeeling', 'passRating'].includes(key) ? comparableAfter : rows, key)])), distanceMeters: matched.some((row) => row.distanceMeters != null) ? matched.reduce((sum, row) => sum + (row.distanceMeters || 0), 0) : null, durationMinutes: matched.some((row) => row.durationMinutes != null) ? matched.reduce((sum, row) => sum + (row.durationMinutes || 0), 0) : null }
   })
   const focusMap = new Map()
   passes.forEach((row) => {
