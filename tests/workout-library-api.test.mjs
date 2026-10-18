@@ -23,6 +23,7 @@ test('workout picker fetches a lightweight coach-only library summary', async ()
   const response = await call({ library: 'true' })
   assert.equal(response.code, 200)
   assert.match(path, /select=id,workout_date,title,focus/)
+  assert.match(path, /or=\(focus\.is\.null,focus\.neq\.tavling\)/)
   assert.doesNotMatch(path, /select=\*/)
   assert.equal(response.data.workouts[0].title, row.title)
   assert.equal('content' in response.data.workouts[0], false)
@@ -43,4 +44,24 @@ test('invalid IDs and unauthenticated library access are rejected before databas
   globalThis.fetch = async () => { throw new Error('No database request expected') }
   assert.equal((await call({ libraryItem: 'not-an-id' })).code, 400)
   assert.equal((await call({ library: 'true' }, '')).code, 403)
+})
+
+test('competition and warm-up focuses can be saved as distinct workouts', async () => {
+  const saved = []
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('/rest/v1/')[1]
+    if (path === 'daily_workouts' && options.method === 'POST') {
+      const payload = JSON.parse(options.body)
+      saved.push(payload)
+      return { ok: true, json: async () => [{ ...row, ...payload }] }
+    }
+    return { ok: false, json: async () => [], text: async () => '' }
+  }
+  for (const focus of ['tavlingsinsim', 'tavling']) {
+    const response = { setHeader() {}, status(status) { this.code = status; return this }, json(data) { this.data = data; return this } }
+    await workouts({ method: 'POST', headers: { 'x-simkoll-code': code }, body: { date: row.workout_date, title: row.title, content: row.content, focus, targetGroups: ['junior'] } }, response)
+    assert.equal(response.code, 200)
+    assert.equal(response.data.workout.focus, focus)
+  }
+  assert.deepEqual(saved.map((item) => item.focus), ['tavlingsinsim', 'tavling'])
 })

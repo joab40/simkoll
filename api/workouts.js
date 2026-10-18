@@ -30,6 +30,12 @@ function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
 }
 
+const WORKOUT_FOCUS_VALUES = ['', 'fart', 'sprint', 'troskel', 'syra', 'f2_frisim', 'f2_spec', 'distans', 'teknik', 'aterhamtning', 'kondition_frisim', 'kondition_special', 'tavlingsinsim', 'tavling']
+function normalizeImportedWorkoutFocus(value) {
+  const focus = String(value || '').trim().toLocaleLowerCase('sv-SE').replace(/ä/g, 'a').replace(/å/g, 'a').replace(/ö/g, 'o').replace(/[\s-]+/g, '_')
+  return WORKOUT_FOCUS_VALUES.includes(focus) ? focus : ''
+}
+
 let assistantCalendarCache = { expiresAt: 0, activities: [] }
 const assistantRowsCache = new Map()
 
@@ -355,6 +361,7 @@ Viktiga tolkningsregler:
 - Läs alltid den separata högerkolumnen med starttider. Värden som "st. 3,15", "st. 1,45", "st. 0,45" och "st. 0,30" hör till serien på samma rad även när kolumnen ligger långt från serien eller när en cell är visuellt sammanslagen. Skriv varje starttid sist på rätt serierad, till exempel "200 eget · Fenor · st. 3,15". Flytta inte starttider till note, tappa dem inte och återanvänd inte en tid på en annan rad.
 - Bevara ordning, radbrytningar, parenteser, förkortningar, simsätt, instruktioner och eventuella starttider. Duplicera inte rubriker (till exempel flera INSIM) och slå inte ihop olika block.
 - Läs endast tävlingsinformation till note om den faktiskt syns i bilden. Läs "Summa" som distanceMeters och "Tid" som durationMinutes när de finns. Använd heltal utan enheter i dessa två fält.
+- Välj focus="tavlingsinsim" bara när passet faktiskt är ett insim inför tävling, och focus="tavling" bara när innehållet beskriver själva tävlingen/tävlingsdagen. En notering om "Nästa tävling" gör inte ett vanligt träningspass till ett tävlingspass. Om inriktningen inte framgår, lämna focus tomt.
 - Hitta inte på titel, meter, tider eller träningsinnehåll. Om ett värde saknas ska fältet vara tomt.
 
 Returnera strikt JSON med exakt nycklarna title, content, note, distanceMeters, durationMinutes och focus. "content" ska vara ren text (inte markdown-tabell), med rubriker på egna rader och blockstrukturen enligt reglerna ovan. Filnamn: ${fileName}`
@@ -367,7 +374,7 @@ Returnera strikt JSON med exakt nycklarna title, content, note, distanceMeters, 
     const raw = String(payload.choices?.[0]?.message?.content || '{}'), first = raw.indexOf('{'), last = raw.lastIndexOf('}')
     const parsed = JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw)
     const content = String(parsed.content || '').replace(/\r\n?/g, '\n').split('\n').map((line) => line.replace(/[ \t]+$/g, '')).filter((line, index, lines) => line.trim() || (index > 0 && index < lines.length - 1 && lines[index - 1]?.trim())).join('\n').trim().slice(0, 5000)
-    return { draft: { title: String(parsed.title || 'Importerat träningspass').slice(0, 80), content, note: String(parsed.note || '').slice(0, 500), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : '', durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : '', focus: typeof parsed.focus === 'string' ? parsed.focus : '', targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] } }
+    return { draft: { title: String(parsed.title || 'Importerat träningspass').slice(0, 80), content, note: String(parsed.note || '').slice(0, 500), distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : '', durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : '', focus: normalizeImportedWorkoutFocus(parsed.focus), targetGroups: ['ungdom_orange', 'ungdom_svart', 'junior'] } }
   } catch (error) { console.warn('Workout image AI fallback:', error.message); return { error: 'Bildtolkningen kunde inte läsas.' } }
 }
 
@@ -546,7 +553,7 @@ async function improveWorkoutWithAi(request, csv, fallback) {
   const prompt = `Du är en erfaren simtränare som redigerar ett träningspass från ett svenskt kalkylblad. Avgör själv vilken information som är viktig för att en simmare ska kunna genomföra passet och ta bort resten. Returnera endast giltig JSON utan markdown med exakt dessa nycklar: title (string max 80), content (string max 5000), coachMessage (string max 500, tom om ingen relevant information finns), distanceMeters (heltal eller null), durationMinutes (heltal eller null), focus (en av fart,troskel,syra,f2_frisim,f2_spec,distans,teknik,aterhamtning,kondition_frisim,kondition_special eller tom sträng).\n\nVIKTIGT OM URVAL:\n- Behåll insim/uppvärmning, huvudserie, teknik, ben/arm, avsim och andra delar som behövs för att förstå hela passet.\n- Leta särskilt efter rubriken "Nästa tävling". Om den finns ska du i coachMessage sammanfatta relevanta kommande tävlingar med namn, antal dagar kvar och datum. Skriv exempelvis "Kommande tävlingar:\\nSundsvall Swimgames · 4 dagar kvar · 19/09/2026". Hitta inte på uppgifter.\n- Ta bort tävlingskalendern från content, men använd den i coachMessage.\n- Ta bort datumrubriker, interna kolumnrubriker, tomma celler, summeringsrader och annan administration.\n- Gissa aldrig en serie, starttid, meter, tidsåtgång eller tävlingsuppgift.\n\nVIKTIGT OM ORDNING OCH FORMAT:\n- Behåll exakt källans ordning. Sortera aldrig serier eller starttider.\n- Starttid/startintervall ska alltid ligga på samma rad som serien den hör till.\n- Skriv avsnittsnamn på egen rad, följt av serierna på egna rader. Använd gärna formatet "## Huvudserie".\n- Använd vanlig text och separatorn " · " mellan delar på samma rad. Exempel: "8x50 frisim · fenor · start 1:00".\n- Skriv inte förklarande text utanför själva passet.\n\nKÄLLDATA (CSV):\n${csv.slice(0, 24000)}`
   try {
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-    const enrichedPrompt = `${prompt.replace('fart,troskel', 'fart,sprint,troskel')}\n\nFocus-regel: sprint används när passets tydliga huvudinriktning är kort maximal eller nära maximal simning med full fart och tillräcklig vila.\n\nExtra layoutregler för kalkylblad: "Insim 1" och "Insim 2" är rubriker, aldrig 1x/2x. En blockmultiplikator får bara användas när en separat cell innehåller exakt 2x eller 3x; skriv den en gång som "2x [" på egen rad, lägg blockets serier indragna två blanksteg och avsluta med "]". Behåll serier som 2x100, 4x25 och 8x25 exakt som egna serier. Om ingen separat multiplikator syns, skapa ingen klammer. Tolk 2x/3x och klamrar som blockstruktur, inte som löptext. Behåll även underblock som 2x inne i större block. Om flera celler hör till samma serie ska de ligga på samma rad med " · ". En starttid ska alltid ligga sist på serien den hör till och får aldrig bli en fristående rad. Behåll exakt ordning och skilj större avsnitt tydligt.`
+    const enrichedPrompt = `${prompt.replace('fart,troskel', 'fart,sprint,tavlingsinsim,tavling,troskel')}\n\nFocus-regel: sprint används när passets tydliga huvudinriktning är kort maximal eller nära maximal simning med full fart och tillräcklig vila. tavlingsinsim används bara för ett faktiskt insim inför tävling; tavling bara för själva tävlingen/tävlingsdagen. En notering om "Nästa tävling" i ett träningspass ska inte ändra dess focus till tavling eller tavlingsinsim. Lämna focus tomt om underlaget inte räcker.\n\nExtra layoutregler för kalkylblad: "Insim 1" och "Insim 2" är rubriker, aldrig 1x/2x. En blockmultiplikator får bara användas när en separat cell innehåller exakt 2x eller 3x; skriv den en gång som "2x [" på egen rad, lägg blockets serier indragna två blanksteg och avsluta med "]". Behåll serier som 2x100, 4x25 och 8x25 exakt som egna serier. Om ingen separat multiplikator syns, skapa ingen klammer. Tolk 2x/3x och klamrar som blockstruktur, inte som löptext. Behåll även underblock som 2x inne i större block. Om flera celler hör till samma serie ska de ligga på samma rad med " · ". En starttid ska alltid ligga sist på serien den hör till och får aldrig bli en fristående rad. Behåll exakt ordning och skilj större avsnitt tydligt.`
     const result = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0, max_tokens: 1400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du returnerar alltid strikt JSON. Bevara blockklamrar och indrag i passtexten.' }, { role: 'user', content: enrichedPrompt }] }) })
     if (!result.ok) { await writeAiUsage(request, { feature: 'workout_import', model, role: 'coach', status: 'failure', error: `HTTP ${result.status}` }); return fallback }
     const payload = await result.json()
@@ -558,7 +565,7 @@ async function improveWorkoutWithAi(request, csv, fallback) {
     const cleanedLines = String(parsed.content).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').split(/\r?\n/).map((line) => line.replace(/[ \t]+$/g, '').replace(/\s*·\s*/g, ' · ').trimEnd()).filter((line) => line.trim())
     const formattedContent = formatWorkoutLayout(cleanedLines.join('\n'))
     const coachMessage = typeof parsed.coachMessage === 'string' && parsed.coachMessage.trim() ? parsed.coachMessage.trim().slice(0, 500) : fallback.note
-    return { ...fallback, title: String(parsed.title).slice(0, 80), content: formattedContent.slice(0, 5000), note: coachMessage, distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : fallback.distanceMeters, durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : fallback.durationMinutes, focus: typeof parsed.focus === 'string' ? parsed.focus : '' }
+    return { ...fallback, title: String(parsed.title).slice(0, 80), content: formattedContent.slice(0, 5000), note: coachMessage, distanceMeters: Number.isInteger(parsed.distanceMeters) ? parsed.distanceMeters : fallback.distanceMeters, durationMinutes: Number.isInteger(parsed.durationMinutes) ? parsed.durationMinutes : fallback.durationMinutes, focus: normalizeImportedWorkoutFocus(parsed.focus) }
   } catch (error) {
     console.warn('Workout AI import fallback:', error.message)
     return fallback
@@ -699,7 +706,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { workouts: (await result.json()).map((item) => publicWorkout(item)) })
       }
       if (role === 'coach' && request.query?.library === 'true') {
-        const result = await supabaseRequest('daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,updated_at&order=workout_date.desc,created_at.desc&limit=1000')
+        const result = await supabaseRequest('daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,updated_at&or=(focus.is.null,focus.neq.tavling)&order=workout_date.desc,created_at.desc&limit=1000')
         if (!result.ok) throw new Error(`Workout library GET failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { workouts: (await result.json()).map((item) => publicWorkout(item, { includeDetails: false })) })
       }
@@ -984,7 +991,7 @@ export default async function handler(request, response) {
       const distanceMeters = request.body?.distanceMeters === '' || request.body?.distanceMeters == null ? null : Number(request.body.distanceMeters)
       const durationMinutes = request.body?.durationMinutes === '' || request.body?.durationMinutes == null ? null : Number(request.body.durationMinutes)
       const targetGroups = Array.isArray(request.body?.targetGroups) ? request.body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
-      const validFocus = ['', 'fart', 'sprint', 'troskel', 'syra', 'f2_frisim', 'f2_spec', 'distans', 'teknik', 'aterhamtning', 'kondition_frisim', 'kondition_special'].includes(focus)
+      const validFocus = WORKOUT_FOCUS_VALUES.includes(focus)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !validFocus || !['', 'morning', 'afternoon'].includes(timeOfDay) || !targetGroups.length || (distanceMeters !== null && (!Number.isInteger(distanceMeters) || distanceMeters < 1 || distanceMeters > 50000)) || (durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600))) {
         return sendJson(response, 400, { error: 'Kontrollera datum, rubrik och passbeskrivning.' })
       }
