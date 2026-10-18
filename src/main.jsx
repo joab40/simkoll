@@ -2586,9 +2586,14 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   const groupFilteredProfiles = allGroupsSelected ? profiles : profiles.filter((profile) => selectedGroups.includes(profileGroupKey(profile)))
   const groupFilteredIds = new Set(groupFilteredProfiles.map((profile) => profile.id))
   const groupFilteredResponses = responses.filter((response) => !response.profileId ? allGroupsSelected : groupFilteredIds.has(response.profileId))
+  const summaryCompetitionPlans = [
+    ...summaryPlanning.plans.filter((item) => item.activityType === 'competition' && item.date === summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group)))),
+    ...summaryPlanning.competitions.filter((item) => item.startDate <= summaryDate && (item.endDate || item.startDate) >= summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group)))),
+  ].filter((item, index, items) => items.findIndex((candidate) => String(candidate.title || candidate.name || '').toLocaleLowerCase('sv-SE') === String(item.title || item.name || '').toLocaleLowerCase('sv-SE')) === index)
   const previousWeek = previousWeekRange()
   const todayResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const selectedDateResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === summaryDate)
+  const hasCompetitionOnSummaryDate = summaryCompetitionPlans.length > 0 || selectedDateResponses.some((item) => item.competition === true)
   const selectedActiveProfiles = new Set(selectedDateResponses.map((item) => item.profileId).filter(Boolean)).size
   const previousWeekResponses = groupFilteredResponses.filter((response) => {
     const date = responseDate(response)
@@ -2638,7 +2643,8 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
           </div></details>
         </nav>
         {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
-        {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} />}
+        {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} hasCompetition={hasCompetitionOnSummaryDate} />}
+        {view === 'today' && <CompetitionDaySummary date={summaryDate} plans={summaryCompetitionPlans} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'coach-profile' ? (
@@ -2700,10 +2706,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
             responses={view === 'today' ? selectedDateResponses : scopedResponses}
             title={view === 'today' ? (summaryDate === todayKey() ? 'Idag' : 'Vald dag') : 'Förra veckan'}
             profiles={groupFilteredProfiles}
-            hasPlannedCompetition={view === 'today' && (
-              summaryPlanning.plans.some((item) => item.activityType === 'competition' && item.date === summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group)))) ||
-              summaryPlanning.competitions.some((item) => item.startDate <= summaryDate && (item.endDate || item.startDate) >= summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group))))
-            )}
+            hasPlannedCompetition={view === 'today' && summaryCompetitionPlans.length > 0}
             periodLabel={view === 'today'
               ? summaryDateLabel
               : previousWeekLabel}
@@ -3011,14 +3014,51 @@ function LaneAssignmentAssistantNewDraft({ code, profiles, onClose }) {
   return <div className="lane-planner-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={plannerRef} className={`lane-planner-modal${fullScreen ? ' lane-planner-fullscreen' : ''}`} role="dialog" aria-modal="true" aria-labelledby="lane-planner-title"><div className="lane-planner-heading"><div><p className="eyebrow">Närvarande idag · {profiles.length} simmare</p><h2 id="lane-planner-title">Banindelning</h2></div><div className="lane-planner-heading-actions"><button type="button" className="secondary-button" onClick={toggleFullscreen}>{fullScreen || document.fullscreenElement ? '↙ Lämna fullskärm' : '⛶ Fullskärm'}</button><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></div></div><div className="lane-planner-form"><label>Antal ordinarie banor<input type="number" min="1" max="20" value={lanes} onChange={(event) => { setLanes(event.target.value); setGenerated(false) }} /></label><label>Relevant distans<select value={distance} onChange={(event) => { setDistance(Number(event.target.value)); setGenerated(false) }}><option value="50">50 m · fart</option><option value="100">100 m</option><option value="200">200 m · längre serie</option><option value="400">400 m+</option></select></label><label>Snabb bana<select value={fastLane} onChange={(event) => { setFastLane(event.target.value); setGenerated(false) }}><option value="none">Ingen – jämna heat</option>{Array.from({ length: count }, (_, index) => <option key={index + 1} value={index + 1}>Bana {index + 1} – snabbaste gruppen</option>)}</select></label><label className="lane-extra-toggle"><span>Extra bana</span><input type="checkbox" checked={extraLane} onChange={(event) => { setExtraLane(event.target.checked); setGenerated(false); setPublished(false) }} /> Visa Bana X</label></div><p className="lane-planner-help">{loading ? 'Hämtar sparade tider…' : 'Snabbaste simmarna placeras först på bana 1, 2, 3 osv. Välj snabb bana om de ska samlas på samma bana.'}</p><button type="button" className="primary-button" onClick={create}>Skapa banfördelning →</button>{generated && <><div className="lane-planner-results">{assignments.map((lane, index) => <article key={index}><strong>{index === count ? 'Bana X' : `Bana ${index + 1}`}</strong>{lane.length ? lane.map((profile) => <span key={profile.id}><span>{profile.emoji} {profile.displayName}</span><small>{timeLabel(profile)}</small><select aria-label={`Flytta ${profile.displayName}`} value={laneMap[profile.id]} onChange={(event) => moveProfile(profile.id, event.target.value)}>{Array.from({ length: totalLanes }, (_, laneIndex) => <option key={laneIndex + 1} value={laneIndex + 1}>{laneIndex === count ? 'Bana X' : `Bana ${laneIndex + 1}`}</option>)}</select></span>) : <small>Tom</small>}</article>)}</div><div className="lane-planner-publish-actions"><button type="button" className="secondary-button" onClick={() => setPublished(true)}>Publicera banfördelning</button>{published && <span>Publicerad för närvarande grupp</span>}</div>{published && <section className="lane-published-view"><p className="eyebrow">Publicerad banfördelning</p><h3>Så här ser dagens upplägg ut</h3><div>{assignments.map((lane, index) => <article key={index}><strong>{index === count ? 'Bana X' : `Bana ${index + 1}`}</strong><small>{index === count ? 'Extra simmare' : 'Jämnt heat'}</small>{lane.length ? lane.map((profile) => <span key={profile.id}>{profile.emoji} {profile.displayName}</span>) : <em>Tom bana</em>}</article>)}</div></section>}</>}</section></div>
 }
 
-function TodayWorkoutSummary({ workouts = [], selectedGroups = [] }) {
+function TodayWorkoutSummary({ workouts = [], selectedGroups = [], hasCompetition = false }) {
   const [selected, setSelected] = useState(null)
   const visible = workouts.filter((workout) => !workout.targetGroups?.length || selectedGroups.length === 0 || workout.targetGroups.some((group) => selectedGroups.includes(group)))
   const focusLabel = (workout) => WORKOUT_FOCUSES.find(([value]) => value === workout.focus)?.[1] || workout.focus || 'Träningspass'
   return <section className="today-workout-summary coach-card">
     <div className="today-workout-summary-head"><div><p className="eyebrow">Dagens träning</p><h2>Pass och inriktning</h2></div><span>Tryck för att öppna</span></div>
-    {visible.length ? <div className="today-workout-summary-list">{visible.map((workout) => <button type="button" className="today-workout-summary-item" key={workout.id} onClick={() => setSelected(workout)}><span className="today-workout-focus">{focusLabel(workout)}</span><strong>{workout.title || 'Träningspass'}</strong><small>{[workout.distanceMeters ? `${Number(workout.distanceMeters).toLocaleString('sv-SE')} m` : '', workout.durationMinutes ? `${workout.durationMinutes} min` : '', workout.timeOfDay === 'morning' ? 'Förmiddag' : workout.timeOfDay === 'afternoon' ? 'Eftermiddag' : ''].filter(Boolean).join(' · ') || 'Öppna passet'}</small><b>→</b></button>)}</div> : <p className="empty">Inget upplagt pass för den här dagen.</p>}
+    {visible.length ? <div className="today-workout-summary-list">{visible.map((workout) => <button type="button" className="today-workout-summary-item" key={workout.id} onClick={() => setSelected(workout)}><span className="today-workout-focus">{focusLabel(workout)}</span><strong>{workout.title || 'Träningspass'}</strong><small>{[workout.distanceMeters ? `${Number(workout.distanceMeters).toLocaleString('sv-SE')} m` : '', workout.durationMinutes ? `${workout.durationMinutes} min` : '', workout.timeOfDay === 'morning' ? 'Förmiddag' : workout.timeOfDay === 'afternoon' ? 'Eftermiddag' : ''].filter(Boolean).join(' · ') || 'Öppna passet'}</small><b>→</b></button>)}</div> : <p className="empty">{hasCompetition ? 'Inget simpass upplagt. Tävlingsläget för dagen visas nedan.' : 'Inget upplagt pass för den här dagen.'}</p>}
     {selected && <div className="workout-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><section className="workout-preview-modal" role="dialog" aria-modal="true" aria-labelledby="today-workout-title"><button type="button" className="workout-preview-close" onClick={() => setSelected(null)} aria-label="Stäng">×</button><p className="eyebrow">{focusLabel(selected)}</p><h2 id="today-workout-title">{selected.title || 'Träningspass'}</h2><WorkoutMeta workout={selected} /><WorkoutContent content={selected.content} />{selected.note && <aside><strong>Kommentar från tränaren</strong>{selected.note}</aside>}</section></div>}
+  </section>
+}
+
+function CompetitionDaySummary({ date, plans = [], responses = [], profiles = [] }) {
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]))
+  const latestByProfile = [...responses].filter((item) => item.profileId && profileById.has(item.profileId)).sort(compareCheckinsNewest).reduce((result, item) => {
+    if (!result.has(item.profileId)) result.set(item.profileId, item)
+    return result
+  }, new Map())
+  const participants = [...latestByProfile.entries()].map(([profileId, item]) => ({ profile: profileById.get(profileId), item }))
+  const completed = participants.filter(({ item }) => item.competition === true && item.type === 'after')
+  const intending = participants.filter(({ item }) => item.competition === true && item.type !== 'after')
+  const swimTraining = participants.filter(({ item }) => item.type === 'after' && item.competition !== true && item.activityType === 'swim')
+  const unspecifiedTraining = participants.filter(({ item }) => item.type === 'after' && item.competition !== true && !item.activityType)
+  const otherTraining = participants.filter(({ item }) => item.type === 'after' && item.competition !== true && item.activityType && item.activityType !== 'swim')
+  const noTraining = participants.filter(({ item }) => ['rest', 'sick'].includes(item.type))
+  const planningTraining = participants.filter(({ item }) => item.type === 'before' && item.competition !== true)
+  const answeredIds = new Set(latestByProfile.keys())
+  const notReported = profiles.filter((profile) => !answeredIds.has(profile.id))
+  const hasCompetition = plans.length > 0 || completed.length > 0 || intending.length > 0
+  if (!hasCompetition) return null
+  const rows = [
+    { title: 'Har tävlat idag', items: completed, icon: '🏅', tone: 'done' },
+    { title: 'Ska tävla idag', items: intending, icon: '🏁', tone: 'race' },
+    { title: 'Har simtränat', items: swimTraining, icon: '🏊', tone: 'swim' },
+    { title: 'Har tränat · aktivitet ej angiven', items: unspecifiedTraining, icon: '✅', tone: 'other' },
+    { title: 'Annan träning', items: otherTraining, icon: '🏋️', tone: 'other' },
+    { title: 'Vila eller sjuk', items: noTraining, icon: '⏸️', tone: 'rest' },
+    { title: 'Planerar träning', items: planningTraining, icon: '📋', tone: 'planned' },
+  ]
+  return <section className="competition-day-summary coach-card">
+    <div className="competition-day-heading"><div><p className="eyebrow">🏆 Tävlingsdag · {new Date(`${date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>{plans[0]?.title || plans[0]?.name || 'Dagens tävling'}</h2><small>{plans.length ? 'Tävlingsplanering från kalendern och dagens incheckningar' : 'Visas eftersom simmare har checkat in som tävlande idag'}</small></div><span className="competition-day-total"><strong>{completed.length + intending.length}</strong><small>tävlings-<br />incheckningar</small></span></div>
+    {plans.length > 1 && <div className="competition-day-events">{plans.slice(1).map((plan, index) => <span key={`${plan.id || plan.title || plan.name}-${index}`}>📅 {plan.title || plan.name || 'Tävling'}</span>)}</div>}
+    <div className="competition-day-groups">{rows.filter((row) => row.items.length).map((row) => <details className={`competition-day-group ${row.tone}`} key={row.title}><summary><span aria-hidden="true">{row.icon}</span><strong>{row.title}</strong><b>{row.items.length}</b><small>Visa namn</small></summary><div>{row.items.map(({ profile, item }) => <article key={profile.id}><span>{profile.emoji || '🏊'}</span><strong>{profile.displayName}</strong><small>{item.activityType && item.activityType !== 'swim' ? activityLabel(item.activityType) : item.type === 'after' && item.competition ? 'Tävlingsdagen rapporterad' : ''}</small></article>)}</div></details>)}
+      <details className="competition-day-group not-reported"><summary><span aria-hidden="true">…</span><strong>Ingen incheckning idag</strong><b>{notReported.length}</b><small>Visa namn</small></summary><div>{notReported.map((profile) => <article key={profile.id}><span>{profile.emoji || '🏊'}</span><strong>{profile.displayName}</strong><small>Ej rapporterat</small></article>)}</div></details>
+    </div>
+    <small className="competition-day-note">Tävlingsplanering är inte samma sak som bekräftat deltagande. “Ska tävla” visar simmarens egen incheckning; simträning och annan aktivitet hålls isär.</small>
   </section>
 }
 

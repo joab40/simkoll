@@ -2582,6 +2582,29 @@ button { cursor: pointer; }
 .today-workout-summary-item strong { font-size: 15px; }
 .today-workout-summary-item small { color: var(--muted); }
 .today-workout-summary-item > b { position: absolute; right: 15px; top: 50%; color: var(--teal); font-size: 20px; transform: translateY(-50%); }
+.competition-day-summary { display: grid; gap: 14px; margin: -4px 0 18px; border-color: #cce8df; background: linear-gradient(125deg, #fafffb, #edf8f4); }
+.competition-day-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.competition-day-heading h2 { margin: 2px 0 4px; }
+.competition-day-heading small, .competition-day-note { color: var(--muted); }
+.competition-day-total { display: flex; align-items: center; gap: 9px; padding: 10px 15px; border-radius: 14px; background: #dff1ea; color: var(--teal); }
+.competition-day-total strong { font-size: 30px; line-height: 1; }
+.competition-day-total small { font-size: 12px; font-weight: 700; line-height: 1.15; }
+.competition-day-events { display: flex; flex-wrap: wrap; gap: 7px; }
+.competition-day-events span { padding: 6px 10px; border-radius: 999px; background: #e7f3ef; color: #38655f; font-size: 13px; font-weight: 700; }
+.competition-day-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 8px; }
+.competition-day-group { align-self: start; border: 1px solid #dce9e5; border-radius: 12px; background: rgba(255,255,255,.78); overflow: hidden; }
+.competition-day-group > summary { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 7px; padding: 11px 12px; cursor: pointer; list-style: none; }
+.competition-day-group > summary::-webkit-details-marker { display: none; }
+.competition-day-group > summary > span { font-size: 18px; }
+.competition-day-group > summary > b { color: var(--teal); font-size: 18px; }
+.competition-day-group > summary > small { grid-column: 2 / 4; color: var(--muted); }
+.competition-day-group > div { display: grid; gap: 1px; padding: 0 10px 8px; }
+.competition-day-group article { display: grid; grid-template-columns: 25px minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 7px 3px; border-top: 1px solid #edf2f0; }
+.competition-day-group article > small { color: var(--muted); }
+.competition-day-group.done { border-color: #d4e9d7; }
+.competition-day-group.race { border-color: #f0e0b8; }
+.competition-day-group.not-reported { background: #f7f9f8; }
+.competition-day-note { font-size: 12px; }
 .today-workout-focus { width: fit-content; padding: 3px 8px; border-radius: 999px; background: #dff1ea; color: #2d7168; font-size: 11px; font-weight: 800; }
 .workout-preview-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(15, 38, 39, .48); }
 .workout-preview-modal { position: relative; width: min(720px, 100%); max-height: min(82vh, 760px); overflow: auto; padding: 24px; border: 1px solid #d5e7e1; border-radius: 20px; background: var(--paper); box-shadow: 0 24px 70px rgba(15, 38, 39, .28); }
@@ -2589,7 +2612,7 @@ button { cursor: pointer; }
 .workout-preview-close { position: absolute; top: 10px; right: 12px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #e8f2ef; color: var(--ink); font-size: 24px; line-height: 1; cursor: pointer; }
 .workout-preview-modal aside { margin-top: 16px; padding: 12px; border-radius: 12px; background: #f1f7f5; color: var(--muted); white-space: pre-line; }
 .workout-preview-modal aside strong { display: block; margin-bottom: 4px; color: var(--ink); }
-@media (max-width: 600px) { .today-workout-summary-list { grid-template-columns: 1fr; } .today-workout-summary-head { align-items: flex-start; flex-direction: column; } .workout-preview-backdrop { align-items: end; padding: 10px; } .workout-preview-modal { max-height: 88vh; padding: 20px 16px; border-radius: 18px; } }
+@media (max-width: 600px) { .today-workout-summary-list { grid-template-columns: 1fr; } .today-workout-summary-head { align-items: flex-start; flex-direction: column; } .competition-day-heading { align-items: flex-start; } .competition-day-total { flex: none; padding: 8px 10px; } .competition-day-total strong { font-size: 25px; } .competition-day-groups { grid-template-columns: 1fr; } .competition-day-group article { grid-template-columns: 22px minmax(0, 1fr); } .competition-day-group article > small { grid-column: 2; } .workout-preview-backdrop { align-items: end; padding: 10px; } .workout-preview-modal { max-height: 88vh; padding: 20px 16px; border-radius: 18px; } }
 :root {
   --assistant-shadow: 0 20px 60px rgba(27, 57, 82, .22);
 }
