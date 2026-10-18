@@ -4,6 +4,7 @@ import { coachFromRequest } from '../server/coach-auth.js'
 import { normalizeStrengthDraft, validateStrengthDraft, strengthDraftContent, draftExerciseImages } from '../shared/strength-import.js'
 import { resolveExerciseImages, signedExerciseImages } from '../server/strength-images.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
+import { loadTrainingDiary, saveDiaryReflection } from '../server/training-diary.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -150,6 +151,16 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if ((request.method === 'GET' && request.query?.diary === 'true') || (request.method === 'POST' && request.body?.action === 'diary-reflection')) {
+      if (role !== 'swimmer') return sendJson(response, 403, { error: 'Öppna din egen simmarvy för att använda träningsdagboken.' })
+      const profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil.' })
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      if (request.method === 'POST') {
+        try { return sendJson(response, 200, { reflection: await saveDiaryReflection(profile, request.body) }) } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+      }
+      try { return sendJson(response, 200, await loadTrainingDiary(profile, String(request.query.start || ''), String(request.query.end || ''))) } catch (error) { return sendJson(response, /Välj/.test(error.message) ? 400 : 502, { error: error.message }) }
+    }
     if (request.method === 'GET') {
       if (role === 'coach') return sendJson(response, 200, await loadTraining())
       const profile = await getSessionProfile(request)

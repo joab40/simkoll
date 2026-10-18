@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
+.profile-diary-link { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 18px; margin: 16px 0; border: 1px solid #c8ded6; border-radius: 16px; background: #ebf6ef; color: var(--ink); text-align: left; font: inherit; }
+.profile-diary-link span { display: grid; gap: 5px; }
+.profile-diary-link small { color: var(--muted); }
+
 :root {
   font-family: 'DM Sans', sans-serif;
   color: #102d37;

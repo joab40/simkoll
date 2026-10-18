@@ -1,6 +1,7 @@
 # Drift och dokumentation
 
 - [Produktbacklogg och planerade funktioner](backlog.md)
+- [Min träningsdagbok: funktion, underlag och driftsättning](training-diary.md)
 - [Miljövariabler: vad som behövs och var de anges](environment-variables.md)
 - [Pushnotiser: driftsättning och enhetstest](web-push.md)
 

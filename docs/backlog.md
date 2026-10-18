@@ -2,7 +2,8 @@
 
 ## Min träningsdagbok – simmarvyn
 
-Status: förslag godkänt för backloggen 2026-10-18. Ingen leveranstid bestämd.
+Status: första versionen implementerad 2026-10-18, inväntar driftsättning.
+Sparande av reflektioner kräver migration `095_training_diary.sql`.
 
 ### Syfte
 
