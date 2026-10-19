@@ -1,7 +1,7 @@
 import { coachFromRequest } from './coach-auth.js'
 import { getSessionProfile } from './profile-auth.js'
 import { getRole, sendJson, supabaseRequest } from './supabase.js'
-import { cleanPushSubscription, endpointHash, readPushSettings, sendDevicePush, validPushEndpoint, vapidDetails } from './web-push.js'
+import { cleanPushSubscription, deliverTrainingReminders, endpointHash, readPushSettings, sendDevicePush, validPushEndpoint, vapidDetails } from './web-push.js'
 
 async function pushOwner(request) {
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
@@ -22,13 +22,20 @@ async function pushOwner(request) {
 
 export default async function pushHandler(request, response) {
   try {
+    if (request.query?.cron === 'training-reminder') {
+      const secret = process.env.CRON_SECRET
+      const kind = String(request.query?.kind || '')
+      if (!secret || request.headers.authorization !== `Bearer ${secret}`) return sendJson(response, 401, { error: 'Unauthorized' })
+      if (!['missingCheckin', 'afterTraining'].includes(kind)) return sendJson(response, 400, { error: 'Ogiltig påminnelsetyp.' })
+      return sendJson(response, 200, { ok: true, kind, ...(await deliverTrainingReminders(kind)) })
+    }
     const owner = await pushOwner(request)
     if (!owner) return sendJson(response, 403, { error: 'Logga in på ditt personliga konto för att hantera pushnotiser.' })
     const filter = `${owner.column}=eq.${encodeURIComponent(owner.id)}`
     const settings = await readPushSettings()
     const details = vapidDetails()
     if (request.method === 'GET') {
-      const database = await supabaseRequest('push_subscriptions?select=id,development_talks,competition_entries&limit=1', { headers: { Prefer: 'count=exact' } })
+      const database = await supabaseRequest('push_subscriptions?select=id,development_talks,competition_entries,training_reminders&limit=1', { headers: { Prefer: 'count=exact' } })
       return sendJson(response, 200, {
         settings, configured: Boolean(details), databaseReady: database.ok, publicKey: details?.publicKey || '', ownerKey: owner.key,
         ...(owner.canViewUsers ? { canViewUsers: true, ...(owner.admin ? { deviceCount: database.ok ? Number(database.headers.get('content-range')?.split('/')[1] || 0) : 0 } : {}) } : {}),
@@ -64,22 +71,37 @@ export default async function pushHandler(request, response) {
         privateMessages: submitted.privateMessages !== false,
         developmentTalks: submitted.developmentTalks !== false,
         competitionEntries: submitted.competitionEntries !== false,
+        checkinReminders: settings.checkinReminders,
       }
       if (value.enabled && !details) return sendJson(response, 503, { error: 'Pushnycklar saknas i serverns konfiguration.' })
-      const database = await supabaseRequest('push_subscriptions?select=id,development_talks,competition_entries&limit=1')
+      const database = await supabaseRequest('push_subscriptions?select=id,development_talks,competition_entries,training_reminders&limit=1')
       if (value.enabled && !database.ok) return sendJson(response, 503, { error: 'Databasuppdateringen för pushnotiser behöver köras först.' })
       const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ setting_key: 'web_push', setting_value: value, updated_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error('Push settings save failed')
       return sendJson(response, 200, { settings: value })
     }
+    if (action === 'reminder-settings') {
+      if (!owner.canViewUsers) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan ändra påminnelser.' })
+      const submitted = request.body?.checkinReminders || {}
+      const checkinReminders = {
+        ...settings.checkinReminders,
+        missingCheckin: submitted.missingCheckin === true,
+        afterTraining: submitted.afterTraining === true,
+      }
+      const database = await supabaseRequest('push_subscriptions?select=id,training_reminders&limit=1')
+      if (!database.ok) return sendJson(response, 503, { error: 'Kör först den nya databasmigreringen för träningspåminnelser.' })
+      const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ setting_key: 'web_push', setting_value: { ...settings, checkinReminders }, updated_at: new Date().toISOString() }) })
+      if (!result.ok) throw new Error('Reminder settings save failed')
+      return sendJson(response, 200, { checkinReminders })
+    }
     const endpoint = request.body?.subscription?.endpoint || request.body?.endpoint
     if (typeof endpoint !== 'string' || !validPushEndpoint(endpoint)) return sendJson(response, 400, { error: 'Ogiltig pushprenumeration.' })
     const hash = endpointHash(endpoint)
     if (action === 'push-status' || action === 'push-test') {
-      const result = await supabaseRequest(`push_subscriptions?endpoint_hash=eq.${hash}&${filter}&select=id,profile_id,coach_id,subscription,coach_messages,private_messages,development_talks,competition_entries&limit=1`)
+      const result = await supabaseRequest(`push_subscriptions?endpoint_hash=eq.${hash}&${filter}&select=id,profile_id,coach_id,subscription,coach_messages,private_messages,development_talks,competition_entries,training_reminders&limit=1`)
       if (!result.ok) return sendJson(response, 503, { error: 'Pushnotiser är inte färdigkonfigurerade ännu.' })
       const [row] = await result.json()
-      if (action === 'push-status') return sendJson(response, 200, { subscribed: Boolean(row), preferences: row ? { coachMessages: row.coach_messages, privateMessages: row.private_messages, developmentTalks: row.development_talks, competitionEntries: row.competition_entries } : null })
+      if (action === 'push-status') return sendJson(response, 200, { subscribed: Boolean(row), preferences: row ? { coachMessages: row.coach_messages, privateMessages: row.private_messages, developmentTalks: row.development_talks, competitionEntries: row.competition_entries, trainingReminders: row.training_reminders } : null })
       if (!settings.enabled || !details) return sendJson(response, 403, { error: 'Pushnotiser är avstängda just nu.' })
       if (!row) return sendJson(response, 404, { error: 'Aktivera notiser på enheten först.' })
       const delivered = await sendDevicePush(row, { title: 'Simkoll · Testnotis', body: 'Pushnotiser är aktiverade på den här enheten.', screen: 'home', tag: 'simkoll-push-test' })
@@ -97,7 +119,7 @@ export default async function pushHandler(request, response) {
     const preferences = request.body.preferences || {}
     const result = await supabaseRequest('push_subscriptions?on_conflict=endpoint_hash', {
       method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' },
-      body: JSON.stringify({ endpoint_hash: hash, subscription, profile_id: owner.role === 'swimmer' ? owner.id : null, coach_id: owner.role === 'coach' ? owner.id : null, coach_messages: preferences.coachMessages !== false, private_messages: preferences.privateMessages !== false, development_talks: preferences.developmentTalks !== false, competition_entries: preferences.competitionEntries !== false, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ endpoint_hash: hash, subscription, profile_id: owner.role === 'swimmer' ? owner.id : null, coach_id: owner.role === 'coach' ? owner.id : null, coach_messages: preferences.coachMessages !== false, private_messages: preferences.privateMessages !== false, development_talks: preferences.developmentTalks !== false, competition_entries: preferences.competitionEntries !== false, training_reminders: owner.role === 'swimmer' && preferences.trainingReminders !== false, updated_at: new Date().toISOString() }),
     })
     if (!result.ok) throw new Error('Push subscription save failed')
     return sendJson(response, 200, { ok: true })

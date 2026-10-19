@@ -3,7 +3,7 @@ import webpush from 'web-push'
 import { waitUntil } from '@vercel/functions'
 import { supabaseRequest } from './supabase.js'
 
-export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true }
+export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true, checkinReminders: { missingCheckin: false, afterTraining: false } }
 export const endpointHash = (endpoint) => createHash('sha256').update(endpoint).digest('hex')
 
 // Subscription endpoints cause outbound server requests. Accept only known push
@@ -40,7 +40,90 @@ export function vapidDetails() {
 export async function readPushSettings() {
   const result = await supabaseRequest('app_settings?setting_key=eq.web_push&select=setting_value&limit=1')
   if (!result.ok) throw new Error('Push settings unavailable')
-  return { ...pushDefaults, ...(await result.json())[0]?.setting_value }
+  const saved = (await result.json())[0]?.setting_value || {}
+  return { ...pushDefaults, ...saved, checkinReminders: { ...pushDefaults.checkinReminders, ...(saved.checkinReminders || {}) } }
+}
+
+const stockholmDay = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+const targetGroupsForWorkout = (workout) => Array.isArray(workout.target_groups) && workout.target_groups.length ? workout.target_groups : ['ungdom_orange', 'ungdom_svart', 'junior']
+
+async function claimTrainingReminder(profileId, date, kind) {
+  const result = await supabaseRequest('training_reminder_deliveries?on_conflict=profile_id,reminder_date', {
+    method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+    body: JSON.stringify({ profile_id: profileId, reminder_date: date, reminder_kind: kind }),
+  })
+  if (!result.ok) throw new Error('Training reminder claim failed')
+  return (await result.json()).length > 0
+}
+
+async function releaseTrainingReminder(profileId, date) {
+  await supabaseRequest(`training_reminder_deliveries?profile_id=eq.${encodeURIComponent(profileId)}&reminder_date=eq.${date}`, { method: 'DELETE' })
+}
+
+async function sendTrainingReminder(profileId, date, kind) {
+  const claimed = await claimTrainingReminder(profileId, date, kind)
+  if (!claimed) return false
+  const devices = await supabaseRequest(`push_subscriptions?profile_id=eq.${encodeURIComponent(profileId)}&training_reminders=eq.true&select=id,profile_id,coach_id,subscription&limit=100`)
+  if (!devices.ok) { await releaseTrainingReminder(profileId, date); throw new Error('Training reminder devices unavailable') }
+  const rows = await devices.json()
+  const messages = {
+    missingCheckin: ['Simkoll · Dagens träning', 'Du har inte checkat in för dagens planerade träning. Öppna Simkoll när det passar.'],
+    afterTraining: ['Simkoll · Efter träningen', 'Du skrev att du skulle träna för en stund sedan. Om passet blev av, fyll gärna i efterrapporten i Simkoll.'],
+  }
+  const [title, body] = messages[kind]
+  const payload = { title, body, screen: 'home', tag: `simkoll-training-reminder-${date}` }
+  const results = await Promise.all(rows.map((row) => sendDevicePush(row, payload)))
+  const delivered = results.some(Boolean)
+  if (!delivered) await releaseTrainingReminder(profileId, date)
+  return delivered
+}
+
+export async function deliverTrainingReminders(kind) {
+  if (!Object.hasOwn(pushDefaults.checkinReminders, kind) || !vapidDetails()) return { sent: 0, skipped: 0 }
+  const settings = await readPushSettings()
+  if (!settings.enabled || settings.checkinReminders[kind] !== true) return { sent: 0, skipped: 0 }
+  const date = stockholmDay()
+  const [profilesResult, responsesResult] = await Promise.all([
+    supabaseRequest('profiles?active=eq.true&approval_status=eq.approved&is_test_profile=eq.false&select=id,training_group&limit=10000'),
+    supabaseRequest(`responses?activity_date=eq.${date}&select=id,profile_id,day_type,competition,activity_type,session_slot,created_at&limit=20000`),
+  ])
+  if (!profilesResult.ok || !responsesResult.ok) throw new Error('Training reminder source data unavailable')
+  const profiles = await profilesResult.json()
+  const responses = await responsesResult.json()
+  const byProfile = new Map()
+  for (const row of responses) {
+    if (!byProfile.has(row.profile_id)) byProfile.set(row.profile_id, [])
+    byProfile.get(row.profile_id).push(row)
+  }
+  let eligible = profiles
+  if (kind === 'missingCheckin') {
+    const [workoutsResult, competitionsResult] = await Promise.all([
+      supabaseRequest(`daily_workouts?workout_date=eq.${date}&select=workout_date,focus,target_groups&limit=500`),
+      supabaseRequest(`competition_calendar?start_date=lte.${date}&end_date=gte.${date}&select=start_date,end_date,target_groups&limit=500`),
+    ])
+    if (!workoutsResult.ok || !competitionsResult.ok) throw new Error('Training plan lookup failed')
+    const workouts = (await workoutsResult.json()).filter((row) => row.focus !== 'tavling')
+    const competitions = await competitionsResult.json()
+    eligible = profiles.filter((profile) => {
+      const group = profile.training_group
+      if (!group || (byProfile.get(profile.id) || []).length) return false
+      const hasPlannedWorkout = workouts.some((workout) => targetGroupsForWorkout(workout).includes(group))
+      const hasCompetition = competitions.some((competition) => !competition.target_groups?.length || competition.target_groups.includes(group))
+      return hasPlannedWorkout && !hasCompetition
+    })
+  } else if (kind === 'afterTraining') {
+    const dueBeforeCutoff = Date.now() - 2.5 * 60 * 60 * 1000
+    eligible = profiles.filter((profile) => {
+      const rows = byProfile.get(profile.id) || []
+      const before = rows.filter((row) => row.day_type === 'before' && row.competition !== true && (!row.activity_type || row.activity_type === 'swim') && ['morning_swim', 'afternoon_swim'].includes(row.session_slot) && Number.isFinite(Date.parse(row.created_at)) && Date.parse(row.created_at) <= dueBeforeCutoff)
+      return before.some((start) => !rows.some((end) => end.day_type === 'after' && end.competition !== true && (!end.activity_type || end.activity_type === 'swim') && end.session_slot === start.session_slot && Date.parse(end.created_at) >= Date.parse(start.created_at)))
+    })
+  }
+  let sent = 0, next = 0
+  await Promise.all(Array.from({ length: Math.min(8, eligible.length) }, async () => {
+    while (next < eligible.length) if (await sendTrainingReminder(eligible[next++].id, date, kind)) sent++
+  }))
+  return { sent, skipped: profiles.length - eligible.length }
 }
 
 export async function sendDevicePush(row, payload, send = webpush.sendNotification.bind(webpush)) {
