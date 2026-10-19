@@ -7,3 +7,6 @@
 .pep-unread-anchor{position:relative;height:0;flex-shrink:0;z-index:3}.pep-unread-anchor .pep-new-messages{bottom:12px}
 .pep-bubble{box-sizing:border-box;min-width:min(180px,48%);max-width:min(88%,560px);padding:13px 16px 8px}.pep-bubble p{font-size:16px;line-height:1.45;margin:5px 0 8px}
 @media(max-width:640px){.pep-bubble{min-width:min(180px,calc(100% - 40px));max-width:calc(100% - 40px);padding:13px 15px 8px}.pep-bubble p{font-size:17px;line-height:1.42}}
+.pep-modern-heading strong{font-size:17px;line-height:1.25}.pep-modern-heading small{font-size:13px;line-height:1.35}.pep-author{font-size:13px}.pep-bubble p{font-size:16px;line-height:1.4}.pep-bubble time{font-size:11px}.pep-input textarea{font-size:16px}.pep-compose-caption{font-size:11px;line-height:1.4}.pep-modern-templates button{font-size:12px}
+.pep-bubble-emoji-only{width:fit-content;min-width:0!important;padding:9px 12px 7px}.pep-bubble-emoji-only p{font-size:30px;line-height:1.05;margin:4px 0 10px}.pep-bubble-emoji-only footer{min-width:104px}
+@media(max-width:640px){.pep-modern-heading strong{font-size:17px}.pep-modern-heading small{font-size:13px}.pep-author{font-size:13px}.pep-bubble p{font-size:16px;line-height:1.4}.pep-bubble time{font-size:11px}.pep-compose-caption{font-size:10.5px}.pep-bubble-emoji-only p{font-size:30px}}
