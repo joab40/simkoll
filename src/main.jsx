@@ -1071,13 +1071,28 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
   const [active, setActive] = useState(0)
   const [height, setHeight] = useState(null)
   const slides = React.Children.toArray(children)
+  const nearestSlideIndex = (element) => {
+    if (!element?.children.length) return 0
+    const trackLeft = element.getBoundingClientRect().left
+    let nearestIndex = 0
+    let nearestDistance = Infinity
+    Array.from(element.children).forEach((slide, index) => {
+      const distance = Math.abs(slide.getBoundingClientRect().left - trackLeft)
+      if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index }
+    })
+    return nearestIndex
+  }
   const goTo = (index, smooth = true) => {
     const element = track.current
     if (!element) return
-    const slide = element.children[Math.max(0, Math.min(slides.length - 1, index))]
+    const targetIndex = Math.max(0, Math.min(slides.length - 1, index))
+    const slide = element.children[targetIndex]
     if (!slide) return
+    activeRef.current = targetIndex
+    setActive(targetIndex)
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    element.scrollTo({ left: slide.offsetLeft - element.children[0].offsetLeft, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
+    const left = element.scrollLeft + slide.getBoundingClientRect().left - element.getBoundingClientRect().left
+    element.scrollTo({ left, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
   }
   useLayoutEffect(() => {
     const index = enabled ? Math.max(0, Math.min(slides.length - 1, initialIndex)) : 0
@@ -1098,6 +1113,13 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
     observer.observe(track.current)
     return () => observer.disconnect()
   }, [enabled, slides.length])
+  useEffect(() => {
+    const element = track.current
+    if (!enabled || !element) return
+    const settleOnNearestSlide = () => goTo(nearestSlideIndex(element), false)
+    element.addEventListener('scrollend', settleOnNearestSlide)
+    return () => element.removeEventListener('scrollend', settleOnNearestSlide)
+  }, [enabled, slides.length])
   useLayoutEffect(() => {
     if (!enabled || !autoHeight) { setHeight(null); return }
     const slide = track.current?.children[active]
@@ -1111,10 +1133,8 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
   return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
     <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { height } : undefined} ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
       const element = event.currentTarget
-      const distance = element.children[1]?.offsetLeft - element.children[0].offsetLeft
-      if (!distance) return
-      const index = Math.max(0, Math.min(slides.length - 1, Math.round(element.scrollLeft / distance)))
-      activeRef.current = index; setActive(index)
+      const index = nearestSlideIndex(element)
+      if (index !== activeRef.current) { activeRef.current = index; setActive(index) }
     }} onKeyDown={(event) => {
       if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault(); goTo(activeRef.current + (event.key === 'ArrowRight' ? 1 : -1))
@@ -2225,7 +2245,7 @@ function CheckIn({ hasProfile, competitionToday, competitionStatusLoaded = true,
     </Question>
   } else if (needsSwimSlot && step === slotStep) {
     content = <Question eyebrow="Vilket simpass?" title={form.type === 'before' ? 'Vilket pass ska du träna?' : 'Vilket pass tränade du?'} hint="Svaret kopplas bara till det pass du väljer. Rapportera båda separat om du tränat två simpass.">
-      <div className="choice-stack">{[{ slot: 'morning_swim', time: 'morning', label: '🌅 Morgonpass' }, { slot: 'afternoon_swim', time: 'afternoon', label: '🌇 Eftermiddag / kväll' }].map((option) => <button type="button" key={option.slot} className={`choice-card${form.trainingSlot === option.slot ? ' selected' : ''}`} onClick={() => { update('trainingSlot', option.slot); next() }}><span>{option.label}<small>{swimPlans.filter((plan) => plan.timeOfDay === option.time).map((plan) => plan.title).join(' · ') || (plannedSwimSlots.includes(option.slot) ? 'Finns i din veckoplan' : 'Välj om detta är passet du menar')}</small></span><span>›</span></button>)}</div>
+      <div className="choice-stack">{[{ slot: 'morning_swim', time: 'morning', label: '🌅 Morgonpass' }, { slot: 'afternoon_swim', time: 'afternoon', label: '🌇 Eftermiddag / kväll' }].map((option) => <button type="button" key={option.slot} className={`choice-card choice-card-with-description${form.trainingSlot === option.slot ? ' selected' : ''}`} onClick={() => { update('trainingSlot', option.slot); next() }}><span>{option.label}<small>{swimPlans.filter((plan) => plan.timeOfDay === option.time).map((plan) => plan.title).join(' · ') || (plannedSwimSlots.includes(option.slot) ? 'Finns i din veckoplan' : 'Välj om detta är passet du menar')}</small></span><span>›</span></button>)}</div>
     </Question>
   } else if (step === questionOffset - 1) {
     content = (
