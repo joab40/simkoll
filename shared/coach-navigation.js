@@ -1,5 +1,5 @@
 export const COACH_NAV_ITEMS = [
-  { key: 'today', label: 'Idag', mobile: 'Idag' }, { key: 'swimmers', label: 'Simmare', mobile: 'Simmare' },
+  { key: 'today', label: 'Idag', mobile: 'Idag' }, { key: 'control-panel', label: 'Kontrollpanel', mobile: 'Överblick' }, { key: 'swimmers', label: 'Simmare', mobile: 'Simmare' },
   { key: 'groups', label: 'Grupper', mobile: 'Grupper' }, { key: 'workout', label: 'Pass', mobile: 'Pass' },
   { key: 'planning', label: 'Planering', mobile: 'Plan' }, { key: 'competition-calendar', label: 'Tävlingskalender', mobile: 'Tävling' },
   { key: 'community', label: 'Meddelanden', mobile: 'Meddelanden' }, { key: 'meeting', label: 'Veckomöte', mobile: 'Möte' },
@@ -18,7 +18,7 @@ export const COACH_OVERVIEW_FEATURES = COACH_MENU_FEATURES
 
 export const COACH_MENU_SECTIONS = [
   ['Arbeta', ['workout', 'swimmers', 'groups', 'community']],
-  ['Följa upp', ['meeting', 'trends', 'history', 'week', 'coach-feed', 'competition', 'rewards']],
+  ['Följa upp', ['control-panel', 'meeting', 'trends', 'history', 'week', 'coach-feed', 'competition', 'rewards']],
   ['Planera & stötta', ['planning', 'competition-calendar', 'talks', 'goals', 'programs', 'strength-programs', 'workout-library', 'games']],
   ['Övrigt', ['push-settings', 'app-feedback', 'faq', 'legal']],
 ]

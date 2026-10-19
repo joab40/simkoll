@@ -11,6 +11,7 @@ import StrengthProgramImport from './strength-program-import.jsx'
 import StrengthProgramBuilder from './strength-program-builder.jsx'
 import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-exercise-images.jsx'
 import CoachMetricDetails from './coach-metric-details.jsx'
+import CoachControlPanel from './coach-control-panel.jsx'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { coachMetricDetails } from './coach-metric-details.js'
 import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
@@ -2544,6 +2545,7 @@ function HeadCoachSettings({ code }) {
 
 function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onSwitchToSwimmer, onClear }) {
   const [view, setView] = useState('today')
+  const [focusedSwimmerId, setFocusedSwimmerId] = useState('')
   const [goalNavigation, setGoalNavigation] = useState(null)
   const [goalReplyCount, setGoalReplyCount] = useState(0)
   useEffect(() => { const open = () => setView('community'); window.addEventListener('simkoll-coach-open-messages', open); return () => window.removeEventListener('simkoll-coach-open-messages', open) }, [])
@@ -2685,6 +2687,8 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
           <><LegalPurpose /><LegalPage /><CoachTermsSection /><SwimmerTermsSection /></>
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
+        ) : view === 'control-panel' ? (
+          <CoachControlPanel profiles={groupFilteredProfiles} responses={groupFilteredResponses} asOf={todayKey()} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
         ) : view === 'rewards' ? (
@@ -2702,7 +2706,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'talks' ? (
           <DevelopmentTalkCoach code={code} profiles={groupFilteredProfiles} />
         ) : view === 'community' ? (
-          <><OpenChatPanel code={code} coach /><CoachCommunity code={code} profiles={groupFilteredProfiles} /></>
+          <><OpenChatPanel code={code} coach /><CoachCommunity code={code} profiles={groupFilteredProfiles} initialRecipientId={focusedSwimmerId} /></>
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} selectedGroups={selectedGroups} availableGroups={availableGroups} />
         ) : view === 'planning' ? (
@@ -2722,7 +2726,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'workout-library' ? (
           <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
-          <Swimmers profiles={groupFilteredProfiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={groupFilteredResponses} code={code} aiEnabled={aiEnabled} goalsEnabled={coachVisible('goals')} onOpenGoal={(profileId, goalId) => openGoalsForProfile(profileId, goalId)} onCreateGoal={(profileId) => openGoalsForProfile(profileId, '', true)} />
+          <Swimmers profiles={groupFilteredProfiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={groupFilteredResponses} code={code} aiEnabled={aiEnabled} goalsEnabled={coachVisible('goals')} initialProfileId={focusedSwimmerId} onOpenGoal={(profileId, goalId) => openGoalsForProfile(profileId, goalId)} onCreateGoal={(profileId) => openGoalsForProfile(profileId, '', true)} />
         ) : view === 'competition' ? (
           <CompetitionResults profiles={profiles} results={competitionResults} loading={competitionLoading} syncingProfileId={competitionSyncProfile} lastSyncedAt={tempusSyncedAt} accountRole={accountRole} code={code} onResultsChanged={loadCompetitionResults} onSync={() => { setCompetitionLoading(true); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results' }) }).then((data) => { if (data.syncedAt) setTempusSyncedAt(data.syncedAt); if (data.failures?.length) window.alert(`Tempus synk: ${data.synced} sparade, ${data.failures.length} misslyckades.`); return loadCompetitionResults() }).finally(() => setCompetitionLoading(false)) }} onSyncProfile={(profileId) => { setCompetitionSyncProfile(profileId); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results', profileId }) }).then((data) => { if (data.syncedAt) setTempusSyncedAt(data.syncedAt); if (data.failures?.length) window.alert(`Tempus synk misslyckades: ${data.failures[0]}`); return loadCompetitionResults() }).finally(() => setCompetitionSyncProfile(null)) }} />
         ) : view === 'history' ? (
@@ -4517,16 +4521,19 @@ function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = fals
   </section>
 }
 
-function CoachCommunity({ code, profiles }) {
+function CoachCommunity({ code, profiles, initialRecipientId = '' }) {
   const [content, setContent] = useState('')
   const [polishing, setPolishing] = useState(false)
   const [message, setMessage] = useState('')
   const [recipientId, setRecipientId] = useState('')
+  const privateMessageRef = useRef(null)
+  useEffect(() => { if (initialRecipientId) setRecipientId(initialRecipientId) }, [initialRecipientId])
   const [items, setItems] = useState([])
   const [messages, setMessages] = useState([])
   const [openChat, setOpenChat] = useState({ enabled: false, backgroundImage: '', messages: [] })
   const [openChatContent, setOpenChatContent] = useState('')
   const [loading, setLoading] = useState(true)
+  useEffect(() => { if (initialRecipientId && !loading) privateMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [initialRecipientId, loading])
   const load = () => apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { setItems(data.items); setMessages(data.messages || []); setOpenChat(data.openChat || { enabled: false, messages: [] }) }).finally(() => setLoading(false))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const publish = async (event) => {
@@ -4551,7 +4558,7 @@ function CoachCommunity({ code, profiles }) {
   const sendMessage = async (event) => { event.preventDefault(); try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'message', recipientId, content: message }) }); setMessage(''); setRecipientId(''); await load() } catch (error) { window.alert(error.message) } }
   const removePrivateMessage = async (id) => { if (!window.confirm('Ta bort det privata meddelandet?')) return; try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-private-message', id }) }); await load() } catch (error) { window.alert(error.message) } }
   const sendOpenChat = async (event) => { event.preventDefault(); if (!openChatContent.trim()) return; try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content: openChatContent }) }); setOpenChatContent(''); await load() } catch (error) { window.alert(error.message) } }
-  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div className="community-post-actions"><button type="button" className={`text-button${polishing ? ' ai-working' : ''}`} disabled={polishing || !content.trim()} onClick={improvePost}>{polishing ? 'Förbättrar texten…' : '✨ Förbättra text med AI'}</button><small>{content.length}/1000</small><button className="primary-button" disabled={loading || polishing}>Publicera →</button></div></form><section className="coach-private-message"><h3>Skicka privat till simmare</h3><form onSubmit={sendMessage}><select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.filter((profile) => !profile.isTestProfile).map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select><textarea required maxLength="1000" placeholder="Skriv ett privat meddelande…" value={message} onChange={(event) => setMessage(event.target.value)} /><button className="primary-button">Skicka privat →</button></form></section><section className="coach-messages"><h3>Privata meddelanden</h3>{messages.length ? messages.map((item) => <article key={item.id}><span>{item.fromCoach ? '📣' : (item.sender?.emoji || '👤')}</span><div><strong>{item.fromCoach ? `Tränare → ${item.recipient?.displayName || 'simmare'}` : `${item.sender?.displayName || 'Simmare'} → tränarna`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div><button type="button" className="text-button danger-text" onClick={() => removePrivateMessage(item.id)}>Ta bort</button></article>) : <p className="empty">Inga privata meddelanden ännu.</p>}</section><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → hela gruppen`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
+  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div className="community-post-actions"><button type="button" className={`text-button${polishing ? ' ai-working' : ''}`} disabled={polishing || !content.trim()} onClick={improvePost}>{polishing ? 'Förbättrar texten…' : '✨ Förbättra text med AI'}</button><small>{content.length}/1000</small><button className="primary-button" disabled={loading || polishing}>Publicera →</button></div></form><section className="coach-private-message" ref={privateMessageRef}><h3>Skicka privat till simmare</h3><form onSubmit={sendMessage}><select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.filter((profile) => !profile.isTestProfile).map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select><textarea required maxLength="1000" placeholder="Skriv ett privat meddelande…" value={message} onChange={(event) => setMessage(event.target.value)} /><button className="primary-button">Skicka privat →</button></form></section><section className="coach-messages"><h3>Privata meddelanden</h3>{messages.length ? messages.map((item) => <article key={item.id}><span>{item.fromCoach ? '📣' : (item.sender?.emoji || '👤')}</span><div><strong>{item.fromCoach ? `Tränare → ${item.recipient?.displayName || 'simmare'}` : `${item.sender?.displayName || 'Simmare'} → tränarna`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div><button type="button" className="text-button danger-text" onClick={() => removePrivateMessage(item.id)}>Ta bort</button></article>) : <p className="empty">Inga privata meddelanden ännu.</p>}</section><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → hela gruppen`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
 }
 
 function localDateValue() {
@@ -4867,7 +4874,7 @@ function SwimmerStrengthProgramCard({ profile, training, code, onChanged }) {
   </details>
 }
 
-function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code, aiEnabled = true, goalsEnabled = true, onOpenGoal, onCreateGoal }) {
+function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code, aiEnabled = true, goalsEnabled = true, initialProfileId = '', onOpenGoal, onCreateGoal }) {
   const [reset, setReset] = useState(null)
   const [search, setSearch] = useState('')
   const [trafficFilter, setTrafficFilter] = useState('all')
@@ -4887,6 +4894,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [tempusResults, setTempusResults] = useState({})
   const [tempusLoading, setTempusLoading] = useState({})
   const [developmentGoals, setDevelopmentGoals] = useState([])
+  useEffect(() => { if (!initialProfileId) return; const profile = profiles.find((item) => item.id === initialProfileId); if (profile) { setSearch(profile.displayName); setTrafficFilter('all'); setExpandedProfile(profile.id) } }, [initialProfileId])
   useEffect(() => { apiRequest('/api/points?artifacts=true', code).then((data) => { setArtifactCatalog(data.catalog || []); setArtifactAssignments(data.assignments || []); setArtifactError('') }).catch((error) => setArtifactError(error.message || 'Kunde inte hämta artefakterna.')) }, [code])
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
   const loadTraining = () => apiRequest('/api/training', code).then(setTraining)
