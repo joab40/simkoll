@@ -5,6 +5,15 @@ omfattar historik, vecka/månad/termin/egen period, jämförelse med en lika
 lång föregående period, veckosammanfattningar, kalender, passdetaljer,
 utvecklingsmål, tävlingsresultat och egna reflektioner.
 
+Veckovyn **Så hänger min träning ihop** visar pass, rapporterade simmeter,
+RPE, aktiva dagar och fartkänsla sida vid sida. Välj en vecka för att se
+underlaget och jämför hela intilliggande veckor. Tävlingsresultat visas
+separat; en snabbare tid markeras bara mot tidigare resultat i samma gren
+och bassäng inom den hämtade historiken. Det innebär inte automatiskt ett
+personligt rekord. Aktuella utvecklingsmål visas som kontext, inte som
+historiska mätvärden. Saknade svar räknas inte som noll, och vyn gör inga
+påståenden om att träningen orsakat ett visst resultat.
+
 ## Driftsättning
 
 1. Kör `supabase/migrations/095_training_diary.sql` i Supabase SQL Editor.

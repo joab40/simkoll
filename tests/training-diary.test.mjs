@@ -1,12 +1,46 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildDiaryEntries, summarizeDiary, diaryRange } from '../shared/training-diary.js'
+import { buildDiaryEntries, summarizeDiary, summarizeDiaryConnections, diaryRange } from '../shared/training-diary.js'
 
 const day = '2026-10-14'
 const session = (slot = 'morning_swim', extra = {}) => ({ id: slot, activity_type: 'swim', session_date: day, session_slot: slot, source: 'checkin', ...extra })
 const answer = (extra = {}) => ({ id: 'answer', activity_date: day, created_at: '2026-10-15T08:00:00Z', day_type: 'after', activity_type: 'swim', session_slot: 'morning_swim', feeling: 4, rpe: 6, ...extra })
 const workout = (extra = {}) => ({ id: 'workout', workout_date: day, time_of_day: 'morning', target_groups: ['junior'], title: 'Teknik', content: '100 m ryggsim', note: 'Tekniktips', distance_meters: 4500, duration_minutes: 90, ...extra })
 const build = (extra = {}) => buildDiaryEntries({ sessions: [session()], responses: [answer()], workouts: [workout()], trainingGroup: 'junior', today: '2026-10-18', ...extra })
+
+test('weekly connections keep unknown values, competition and other activities distinct', () => {
+  const rows = [
+    { date: '2026-10-12', sessions: 1, competition: false, swimMeters: 2500, estimatedSwimMeters: null, rpe: 7, speedFeeling: 3 },
+    { date: '2026-10-13', sessions: 1, competition: false, swimMeters: null, estimatedSwimMeters: 3000, rpe: null, speedFeeling: null },
+    { date: '2026-10-14', sessions: 0, competition: true, completedCompetition: true, swimMeters: null, estimatedSwimMeters: null, rpe: null, speedFeeling: null },
+    { date: '2026-10-15', sessions: 0, competition: false, swimMeters: null, estimatedSwimMeters: null, rpe: null, speedFeeling: null },
+  ]
+  const [week] = summarizeDiaryConnections(rows)
+  assert.equal(week.sessions, 2)
+  assert.equal(week.activeDays, 2)
+  assert.equal(week.competitionDays, 1)
+  assert.equal(week.plannedCompetitionDays, 0)
+  assert.equal(week.swimMeters, 2500)
+  assert.equal(week.estimatedSwimMeters, 3000)
+  assert.equal(week.rpe, 7)
+  assert.equal(week.rpeDays, 1)
+  assert.equal(week.speedFeeling, 3)
+  assert.equal(week.calendarDays, 4)
+  assert.equal(summarizeDiaryConnections(rows.slice(2))[0].swimMeters, null)
+})
+
+test('race comparison needs an earlier day with the same event and pool', () => {
+  const days = ['2026-10-12', '2026-10-13', '2026-10-14'].map((date) => ({ date, sessions: 0, competition: true, swimMeters: null, estimatedSwimMeters: null, rpe: null, speedFeeling: null }))
+  const results = [
+    { date: '2026-10-10', event: '100 frisim', pool: '25 m', resultTime: 6000 },
+    { date: '2026-10-12', event: '100 frisim', pool: '50 m', resultTime: 6100 },
+    { date: '2026-10-12', event: '100 frisim', pool: '25 m', resultTime: 5900 },
+    { date: '2026-10-12', event: '100 frisim', pool: '25 m', resultTime: 5800 },
+    { date: '2026-10-13', event: '100 frisim', pool: '25 m', resultTime: 5750 },
+  ]
+  const [week] = summarizeDiaryConnections(days, results)
+  assert.deepEqual(week.results.map((result) => result.fasterBy), [null, 100, 200, 50])
+})
 
 test('late and repeated check-ins stay on the activity day without duplicating a session', () => {
   const entries = build({ responses: [answer({ id: 'older', activity_distance_meters: 4200, comment: 'Bra grepp' }), answer({ activity_distance_meters: 4300, activity_minutes: 85, comment: 'Ny reflektion' })] })
@@ -70,6 +104,8 @@ test('competition intentions stay unconfirmed; strength logs merge with register
   assert.equal(summary.sessions, 1)
   assert.equal(summary.competitionDays, 0)
   assert.equal(summary.plannedCompetitionDays, 1)
+  assert.equal(summarizeDiaryConnections(summary.days)[0].competitionDays, 0)
+  assert.equal(summarizeDiaryConnections(summary.days)[0].plannedCompetitionDays, 1)
   assert.equal(entries.find((entry) => entry.type === 'strength').strengthLogs.length, 1)
 })
 test('today content stays locked and saved notes survive changed pass linkage', () => {

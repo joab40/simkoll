@@ -3,7 +3,7 @@
 .diary-heading h1 { margin: 4px 0 9px; font-size: clamp(27px, 4vw, 42px); letter-spacing: -.045em; }
 .diary-heading p { margin: 0; color: var(--muted); }
 .diary-heading > span { font-size: 40px; }
-.diary-period, .diary-development, .diary-weeks, .diary-calendar, .diary-history, .diary-goals { padding: 22px; margin: 16px 0; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); }
+.diary-period, .diary-connections, .diary-development, .diary-calendar, .diary-history, .diary-goals { padding: 22px; margin: 16px 0; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); }
 .diary-period { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px; background: #e7f2ee; }
 .diary-period form, .diary-presets, .diary-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .diary-period label, .diary-filters label { display: grid; gap: 5px; font-size: 13px; font-weight: 700; }
@@ -18,7 +18,7 @@
 .diary-stats em { font-size: 13px; font-style: normal; font-weight: 500; }
 .diary-stats small, .diary-stats article > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .diary-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-.diary-section-heading h2, .diary-weeks h2 { margin: 0; font-size: 21px; }
+.diary-section-heading h2 { margin: 0; font-size: 21px; }
 .diary-section-heading > div:last-child { display: flex; align-items: center; gap: 9px; }
 .diary-development .diary-section-heading > div { display: block; }
 .diary-legend, .diary-comparison { display: flex; flex-wrap: wrap; gap: 9px 18px; font-size: 12px; color: var(--muted); }
@@ -35,12 +35,39 @@
 .diary-comparison { margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--line); }
 .diary-table-scroll table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
 .diary-table-scroll th, .diary-table-scroll td { text-align: left; padding: 9px; border-bottom: 1px solid var(--line); }
-.diary-weeks > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 9px; margin-top: 15px; }
+.diary-connections-intro, .diary-connection-observation, .diary-connection-method { color: var(--muted); line-height: 1.55; font-size: 13px; }
+.diary-connection-key { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0 10px; color: var(--muted); font-size: 12px; }
+.diary-connection-key span { display: inline-flex; align-items: center; gap: 5px; }
+.diary-connection-key i { width: 9px; height: 9px; border-radius: 3px; }
+.diary-connection-key .sessions, .diary-connection-bars .sessions { background: #177d7c; }
+.diary-connection-key .effort, .diary-connection-bars .effort { background: #e79b8c; }
+.diary-connection-key .continuity, .diary-connection-bars .continuity { background: #a1c84a; }
+.diary-connection-key .development, .diary-connection-bars .development { background: #9580dc; }
+.diary-week-selector { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; padding: 3px 2px 9px; }
+.diary-week-selector button { display: grid; gap: 8px; flex: 0 0 145px; min-width: 0; padding: 11px; text-align: left; scroll-snap-align: start; border: 1px solid var(--line); border-radius: 12px; background: #f6faf7; color: var(--ink); font: inherit; }
+.diary-week-selector button[aria-pressed=true] { border-color: #147b7b; background: #edf7f3; box-shadow: inset 0 0 0 1px #147b7b; }
+.diary-week-selector button strong { font-size: 12px; white-space: nowrap; }
+.diary-week-selector button small { color: var(--muted); font-size: 11px; }
+.diary-connection-bars { height: 44px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid #cadcd5; }
+.diary-connection-bars i { display: block; width: 20px; max-height: 100%; border-radius: 4px 4px 0 0; }
+.diary-connection-week-title { margin: 17px 0 10px; font-size: 16px; }
+.diary-connection-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.diary-connection-metrics article { display: grid; align-content: start; gap: 7px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #f7faf8; }
+.diary-connection-metrics article small { font-weight: 700; font-size: 12px; }
+.diary-connection-metrics article strong { font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.diary-connection-metrics article span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.diary-connection-observation { margin: 14px 0; }
+.diary-connection-results { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.diary-connection-results summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+.diary-connection-results ul { margin: 11px 0; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.diary-connection-results li + li { margin-top: 5px; }
+.diary-connection-results em { color: #146b63; font-style: normal; font-weight: 700; }
+.diary-connection-results small { color: var(--muted); line-height: 1.5; }
+.diary-connection-goals { margin: 10px 0; padding: 11px 13px; background: #f4f7ec; border-radius: 11px; font-size: 12px; line-height: 1.5; }
 .diary-type-summary { display: flex; flex-wrap: wrap; gap: 7px; margin: 13px 0 0; }
+.diary-type-summary strong { align-self: center; font-size: 12px; }
 .diary-type-summary span { padding: 5px 9px; border-radius: 999px; background: #e5f2ed; font-size: 12px; color: var(--teal); }
-.diary-weeks article { display: grid; gap: 8px; padding: 13px; background: #eef6f2; border-radius: 13px; }
-.diary-weeks article > span { color: var(--muted); font-size: 12px; }
-.diary-week-dots { display: flex; gap: 5px; }
+.diary-week-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
 .diary-week-dots button { width: 28px; height: 28px; padding: 0; border: 1px solid #cfdfd8; border-radius: 50%; background: white; font: inherit; font-size: 12px; color: var(--muted); }
 .diary-week-dots button.active { background: #167c7a; color: white; }
 .diary-week-dots button.race { background: #f5dda5; color: #684b17; }
@@ -81,4 +108,5 @@
 .diary-goals summary { cursor: pointer; font-weight: 700; }
 .diary-goals summary small { color: var(--muted); font-weight: 400; }
 .diary-goals p { white-space: pre-wrap; line-height: 1.6; }
-@media (max-width: 700px) { .training-diary-page { padding: 19px 12px 30px; } .diary-period, .diary-development, .diary-weeks, .diary-calendar, .diary-history, .diary-goals { padding: 15px; border-radius: 17px; } .diary-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .diary-stats article { padding: 14px; } .diary-stats article > strong { font-size: 22px; } .diary-period form { width: 100%; } .diary-period form label { flex: 1; min-width: 110px; } .diary-period form input { width: 100%; min-width: 0; } .diary-period form button { width: 100%; } .diary-calendar-grid { gap: 3px; } .diary-calendar-grid > button { min-height: 70px; padding: 6px; font-size: 13px; } .diary-calendar-grid i { font-size: 13px; } .diary-entry > summary { padding: 12px; gap: 9px; } .diary-entry-value { max-width: 105px; } .diary-entry-metrics { grid-template-columns: repeat(2, 1fr); } .diary-entry-content { padding: 14px; } }
+@media (max-width: 900px) { .diary-connection-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .training-diary-page { padding: 19px 12px 30px; } .diary-period, .diary-connections, .diary-development, .diary-calendar, .diary-history, .diary-goals { padding: 15px; border-radius: 17px; } .diary-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .diary-stats article { padding: 14px; } .diary-stats article > strong { font-size: 22px; } .diary-period form { width: 100%; } .diary-period form label { flex: 1; min-width: 110px; } .diary-period form input { width: 100%; min-width: 0; } .diary-period form button { width: 100%; } .diary-calendar-grid { gap: 3px; } .diary-calendar-grid > button { min-height: 70px; padding: 6px; font-size: 13px; } .diary-calendar-grid i { font-size: 13px; } .diary-entry > summary { padding: 12px; gap: 9px; } .diary-entry-value { max-width: 105px; } .diary-entry-metrics { grid-template-columns: repeat(2, 1fr); } .diary-entry-content { padding: 14px; } }

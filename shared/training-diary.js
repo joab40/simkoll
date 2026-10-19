@@ -118,7 +118,59 @@ export function summarizeDiary(entries, responses, start, end) {
     const dayEntries = selected.filter((entry) => entry.date === date)
     const dayTraining = training.filter((entry) => entry.date === date)
     const dayResponses = responses.filter((row) => responseDay(row) === date)
-    days.push({ date, sessions: dayTraining.length, competition: dayEntries.some((entry) => entry.type === 'competition'), swimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.reportedMeters)), estimatedSwimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.estimatedMeters)), minutes: sumKnown(dayTraining.map((entry) => entry.reportedMinutes)), feeling: mean(dayResponses.map((row) => row.feeling)), body: mean(dayResponses.map((row) => row.body)), rpe: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.rpe)), speedFeeling: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.speedFeeling)) })
+    days.push({ date, sessions: dayTraining.length, competition: dayEntries.some((entry) => entry.type === 'competition'), completedCompetition: dayEntries.some((entry) => entry.type === 'competition' && entry.state === 'completed'), plannedCompetition: dayEntries.some((entry) => entry.type === 'competition' && entry.state === 'planned'), swimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.reportedMeters)), estimatedSwimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.estimatedMeters)), minutes: sumKnown(dayTraining.map((entry) => entry.reportedMinutes)), feeling: mean(dayResponses.map((row) => row.feeling)), body: mean(dayResponses.map((row) => row.body)), rpe: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.rpe)), speedFeeling: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.speedFeeling)) })
   }
   return { sessions: training.length, byType: Object.fromEntries([...new Set(training.map((entry) => entry.type))].map((type) => [type, training.filter((entry) => entry.type === type).length])), activeDays: new Set(training.map((entry) => entry.date)).size, competitionDays: new Set(selected.filter((entry) => entry.type === 'competition' && entry.state === 'completed').map((entry) => entry.date)).size, plannedCompetitionDays: new Set(selected.filter((entry) => entry.type === 'competition' && entry.state === 'planned').map((entry) => entry.date)).size, swimMeters: sumKnown(training.filter((entry) => entry.type === 'swim').map((entry) => entry.reportedMeters)), estimatedSwimMeters: sumKnown(training.filter((entry) => entry.type === 'swim').map((entry) => entry.estimatedMeters)), minutes: sumKnown(training.map((entry) => entry.reportedMinutes)), estimatedMinutes: sumKnown(training.map((entry) => entry.estimatedMinutes)), rpe: mean(days.map((row) => row.rpe)), feeling: mean(days.map((row) => row.feeling)), speedFeeling: mean(days.map((row) => row.speedFeeling)), days }
+}
+
+// Results are compared only with an earlier date in the same event and pool.
+// The history supplied by the diary endpoint covers the selected period and
+// its equally long comparison period, not the swimmer's all-time record.
+export function summarizeDiaryConnections(days, raceResults = []) {
+  const weeks = new Map()
+  days.forEach((day) => {
+    const start = diaryMonday(day.date)
+    if (!weeks.has(start)) weeks.set(start, { start, days: [], results: [] })
+    weeks.get(start).days.push(day)
+  })
+  if (!days.length) return []
+  const firstDay = days[0].date, lastDay = days.at(-1).date
+  const bestBefore = new Map(), byDate = new Map()
+  raceResults.filter((row) => row.date && row.date <= lastDay).forEach((row) => {
+    if (!byDate.has(row.date)) byDate.set(row.date, [])
+    byDate.get(row.date).push(row)
+  })
+  Array.from(byDate.keys()).sort().forEach((date) => {
+    const updates = new Map()
+    byDate.get(date).forEach((row) => {
+      const event = String(row.event || '').trim().toLocaleLowerCase('sv-SE')
+      const pool = String(row.pool || '').trim().toLocaleLowerCase('sv-SE')
+      const key = event && /(^|\D)(25|50)(\D|$)/.test(pool) ? `${event}|${pool}` : null
+      const time = number(row.resultTime)
+      const previous = key ? bestBefore.get(key) : null
+      if (date >= firstDay) weeks.get(diaryMonday(date))?.results.push({ ...row, fasterBy: previous != null && time != null && time > 0 && time < previous ? previous - time : null })
+      if (key && time != null && time > 0) updates.set(key, Math.min(updates.get(key) ?? Infinity, time))
+    })
+    updates.forEach((time, key) => bestBefore.set(key, Math.min(bestBefore.get(key) ?? Infinity, time)))
+  })
+  return [...weeks.values()].map((week) => {
+    const rows = week.days
+    return {
+      start: week.start,
+      end: rows.at(-1).date,
+      calendarDays: rows.length,
+      sessions: rows.reduce((total, row) => total + row.sessions, 0),
+      activeDays: rows.filter((row) => row.sessions > 0).length,
+      competitionDays: rows.filter((row) => row.completedCompetition).length,
+      plannedCompetitionDays: rows.filter((row) => row.plannedCompetition && !row.completedCompetition).length,
+      swimMeters: sumKnown(rows.map((row) => row.swimMeters)),
+      estimatedSwimMeters: sumKnown(rows.map((row) => row.estimatedSwimMeters)),
+      rpe: mean(rows.map((row) => row.rpe)),
+      rpeDays: rows.filter((row) => row.rpe != null).length,
+      speedFeeling: mean(rows.map((row) => row.speedFeeling)),
+      speedDays: rows.filter((row) => row.speedFeeling != null).length,
+      days: rows,
+      results: week.results,
+    }
+  })
 }
