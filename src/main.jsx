@@ -406,7 +406,7 @@ function App() {
       }} />}
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
       {screen === 'legal' && <><LegalPurpose /><LegalPage onBack={() => setScreen('home')} /></>}
-      <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>
+      {screen !== 'coach-info' && <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>}
     </Shell>
   )
 }

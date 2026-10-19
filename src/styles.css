@@ -170,7 +170,6 @@ button { cursor: pointer; }
 .coach-info-header .back-button { margin: 0; padding: 0; width: 40px; height: 40px; flex: none; border: 1px solid #c9ddda; border-radius: 50%; background: #fff; color: var(--teal); font-size: 22px; }
 .coach-info-page .open-chat-panel { min-height: 28rem; }
 .coach-info-page .swimmer-info-chat { height: var(--coach-info-chat-height, min(78svh, 48rem)); min-height: 0; margin-bottom: 0; box-sizing: border-box; }
-.coach-info-page + .swimmer-app-meta { margin-top: 12px; }
 .coach-info-page .open-chat-heading { display: block; line-height: 1.3; }
 .coach-info-page .open-chat-heading small { font-size: 11px; }
 .mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
@@ -302,7 +301,7 @@ button { cursor: pointer; }
 .game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .game-card-stack { display: grid; gap: 12px; }
 .games-carousel { margin-top: 12px; }
-.games-carousel .swimmer-hero-track { border-radius: 22px; }
+.games-carousel .swimmer-hero-track { width: 100%; min-width: 0; gap: 0; border-radius: 22px; scroll-padding-inline: 0; }
 .games-carousel .game-card { margin-top: 0; display: block; padding: 22px; }
 .games-carousel .game-card > div { width: 100%; min-width: 0; display: grid; grid-template-rows: 14px 30px 42px auto; gap: 8px; }
 .games-carousel .game-card .eyebrow { margin: 0; }
