@@ -88,6 +88,23 @@ test('partial, missing and ambiguous volumes are not fabricated as complete or z
   assert.equal(empty.swimMeters, null)
   assert.equal(empty.days[0].rpe, null)
 })
+test('coach attendance can backfill a completed pass and use its uniquely matched plan as an estimate', () => {
+  const attendance = session('morning_swim', { source: 'coach-attendance' })
+  const entries = build({ sessions: [attendance], responses: [] })
+  assert.equal(entries.length, 1)
+  assert.equal(entries[0].state, 'completed')
+  assert.equal(entries[0].title, 'Teknik')
+  assert.equal(entries[0].focus, '')
+  assert.equal(entries[0].reportedMeters, null)
+  assert.equal(entries[0].estimatedMeters, 4500)
+  assert.equal(entries[0].estimatedMinutes, 90)
+  assert.equal(summarizeDiary(entries, [], day, day).estimatedSwimMeters, 4500)
+})
+test('attendance backfill merges with an existing weekly/manual registration instead of duplicating it', () => {
+  const entries = build({ sessions: [session('morning_swim', { source: 'manual' }), session('morning_swim', { id: 'attendance', source: 'coach-attendance' })], responses: [] })
+  assert.equal(entries.length, 1)
+  assert.equal(summarizeDiary(entries, [], day, day).sessions, 1)
+})
 test('untyped legacy distance and comments cannot establish swimming as the activity', () => {
   const responses = [answer({ activity_type: null, session_slot: null, activity_distance_meters: 7000, comment: 'Cyklade hem' })]
   const entries = build({ responses })

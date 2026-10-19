@@ -23,12 +23,13 @@ export async function loadTrainingDiary(profile, start, end) {
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${range.previousStart}&${field}=lt.${range.endExclusive}`
   const read = (query, label, optional = false) => rows(query, { label, optional, warnings })
-  const [sessions, responses, workouts, plans, personalPlans, strengthLogs, assignments, results, goals, reflections, unlocks] = await Promise.all([
+  const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks] = await Promise.all([
     read(`personal_training_sessions?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'registrerade pass'),
     read(`responses?${owner}&${within('activity_date')}&select=*&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
     read(`daily_workouts?${within('workout_date')}&select=*&order=workout_date.asc,id.asc`, 'upplagda pass'),
     read(`training_plans?${within('plan_date')}&select=*&order=plan_date.asc,id.asc`, 'grundplanering'),
     read(`planned_training_sessions?${owner}&${within('planned_date')}&select=*&order=planned_date.asc,id.asc`, 'personlig planering'),
+    read(`session_attendance?${owner}&${within('attendance_date')}&present=eq.true&select=attendance_date,session_slot,present,marked_at&order=attendance_date.asc,marked_at.asc`, 'tränarens närvaromarkeringar', true),
     read(`strength_program_logs?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'styrkeloggar', true),
     read(`program_assignments?${owner}&select=id,training_programs(title,content)&order=id.asc`, 'styrkeprogram', true),
     read(`competition_results?${owner}&${within('result_date')}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`, 'tävlingsresultat', true),
@@ -36,7 +37,17 @@ export async function loadTrainingDiary(profile, start, end) {
     read(`training_diary_reflections?${owner}&${within('activity_date')}&select=entry_key,activity_date,what_worked,next_time,updated_at&order=activity_date.asc,id.asc`, 'dagboksanteckningar (kräver migration 095)', true),
     read(`workout_unlocks?${owner}&workout_date=eq.${stockholmDate()}&select=profile_id&order=profile_id.asc`, 'dagens passåtkomst'),
   ])
-  const entries = buildDiaryEntries({ sessions, responses, workouts, plans, personalPlans, strengthLogs, assignments, results, reflections, trainingGroup: profile.training_group || profile.trainingGroup, today: stockholmDate(), unlockedToday: unlocks.length > 0 })
+  // Older coach attendance may predate personal_training_sessions. Merge it
+  // into the same completed-session stream; the diary builder deduplicates by
+  // date/type/slot and only links a published pass when the match is unique.
+  const attendanceSessions = attendance.map((row) => ({
+    id: `attendance-${row.attendance_date}-${row.session_slot}`,
+    session_date: row.attendance_date,
+    session_slot: row.session_slot,
+    activity_type: 'swim',
+    source: 'coach-attendance',
+  }))
+  const entries = buildDiaryEntries({ sessions: [...sessions, ...attendanceSessions], responses, workouts, plans, personalPlans, strengthLogs, assignments, results, reflections, trainingGroup: profile.training_group || profile.trainingGroup, today: stockholmDate(), unlockedToday: unlocks.length > 0 })
   return {
     range,
     entries: entries.filter((entry) => entry.date >= start && entry.date <= end),
