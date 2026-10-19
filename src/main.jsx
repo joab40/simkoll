@@ -1946,7 +1946,7 @@ const GROUP_PEP_OPTIONS = [
 ]
 
 function CoachInfoPage({ code, profile, onBack }) {
-  return <main className="page-content coach-info-page"><header className="coach-info-header"><button type="button" className="back-button" onClick={onBack} aria-label="Tillbaka">←</button><h1>Info från tränarna</h1></header><OpenChatPanel code={code} profileId={profile?.id} /></main>
+  return <main className="page-content coach-info-page"><header className="coach-info-header"><button type="button" className="back-button" onClick={onBack} aria-label="Tillbaka">←</button><h1>Info från tränarna</h1></header><OpenChatPanel code={code} profileId={profile?.id} fitViewport /></main>
 }
 
 
@@ -4438,9 +4438,10 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
     {goals.length ? <div className="coach-goal-list">{goals.map((goal) => <CoachGoalCard key={goal.id} goal={goal} owner={profileFor(goal.profileId)} entry={feedback[goal.id] || { type: 'progress', content: '' }} setFeedback={setFeedback} updateGoal={updateGoal} updateStatus={updateStatus} sendFeedback={sendFeedback} remove={remove} onRead={markRepliesRead} initiallyExpanded={goal.id === initialGoalId || goal.id === focusedGoalId} />)}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
 }
 
-function OpenChatPanel({ code, coach = false, profileId = '' }) {
+function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = false }) {
   const [chat, setChat] = useState({ enabled: false, backgroundImage: '', messages: [] }); const [content, setContent] = useState(''); const [status, setStatus] = useState('')
   const panelActive = useRef(true)
+  const chatPanelRef = useRef(null)
   const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => {
     if (!panelActive.current) return
     const next = data.openChat || { enabled: false, messages: [] }
@@ -4455,6 +4456,30 @@ function OpenChatPanel({ code, coach = false, profileId = '' }) {
     }
   }).catch((error) => { if (panelActive.current) setStatus(error.message) })
   useEffect(() => { panelActive.current = true; load(); const refresh = window.setInterval(() => { if (!document.hidden) load() }, 15000); return () => { panelActive.current = false; window.clearInterval(refresh) } }, [code, coach, profileId])
+  useLayoutEffect(() => {
+    if (!fitViewport || !chat.enabled || !chatPanelRef.current) return
+    const panel = chatPanelRef.current
+    const footer = document.querySelector('.swimmer-app-meta')
+    const viewport = window.visualViewport
+    const measure = () => {
+      const viewportHeight = viewport?.height || window.innerHeight
+      const viewportTop = viewport?.offsetTop || 0
+      const panelTop = panel.getBoundingClientRect().top - viewportTop
+      const footerHeight = footer?.getBoundingClientRect().height || 0
+      const footerGap = 12
+      const available = Math.min(768, viewportHeight - panelTop - footerHeight - footerGap)
+      panel.style.setProperty('--coach-info-chat-height', `${Math.max(180, available)}px`)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    viewport?.addEventListener('resize', measure)
+    viewport?.addEventListener('scroll', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      viewport?.removeEventListener('resize', measure)
+      viewport?.removeEventListener('scroll', measure)
+    }
+  }, [fitViewport, chat.enabled])
   const send = async (event) => {
     event.preventDefault()
     const messageContent = content.trim()
@@ -4481,7 +4506,7 @@ function OpenChatPanel({ code, coach = false, profileId = '' }) {
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
   if (!chat.enabled) return null
   const chatBackground = chat.backgroundImage || '/assets/open-chat-bg-teal.png'
-  return <section className="open-chat-panel coach-open-chat" style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
+  return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${fitViewport ? ' swimmer-info-chat' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
     <div className="open-chat-heading">
       {coach && <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div>}
       <small>{coach ? 'Synlig för alla simmare och tränare' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor syns bara för tränarna' : 'Gruppen kan läsa och skriva här'}</small>
