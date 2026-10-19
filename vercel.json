@@ -5,7 +5,6 @@
   "functions": { "api/workouts.js": { "maxDuration": 300 }, "api/community.js": { "maxDuration": 60 }, "api/analytics.js": { "maxDuration": 300 }, "api/notifications.js": { "maxDuration": 60 } },
   "headers": [{ "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }],
   "crons": [
-    { "path": "/api/profiles?cron=tempus", "schedule": "0 1 * * *" },
-    { "path": "/api/notifications?push=true&cron=training-reminder&kind=missingCheckin", "schedule": "0 18 * * *" }
+    { "path": "/api/profiles?cron=tempus", "schedule": "0 1 * * *" }
   ]
 }

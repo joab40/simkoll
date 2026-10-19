@@ -9,7 +9,7 @@ För en samlad förklaring av alla Simkoll-miljövariabler, se
 
 ## Aktivera
 
-1. Kör `supabase/migrations/078_web_push.sql`, `084_push_categories.sql` och `096_training_push_reminders.sql` i Supabases SQL-editor.
+1. Kör `supabase/migrations/078_web_push.sql`, `084_push_categories.sql`, `096_training_push_reminders.sql` och `097_automatic_training_reminders.sql` i Supabases SQL-editor. Redan körda migreringar behöver inte köras igen.
 2. Generera ett VAPID-nyckelpar en gång: `npx web-push generate-vapid-keys --json`.
 3. Lägg in följande servermiljövariabler i Vercel för rätt miljö:
    - `WEB_PUSH_PUBLIC_KEY`: publicKey från genereringen.
@@ -37,28 +37,24 @@ Efterrapportpåminnelsen utgår från tidpunkten då simmaren skickar ”Jag ska
 träna”. Om en efterrapport för samma simpass saknas skickas en generell notis
 efter 2,5 timmar. Det är en uppskattning från incheckningstidpunkten, inte en
 verifiering av när simpasset faktiskt började. Supabase Cron kontrollerar detta
-var femte minut. Migreringen 096 skapar jobbet, men det väntar tills två värden
-har lagts i Supabase Vault: `simkoll_training_reminder_url` och
-`simkoll_cron_secret`.
+var femte minut. Kvällspåminnelsen kontrolleras från kl. 20 svensk tid under
+en timme så att en tillfällig driftstörning kan följas av ett nytt försök.
 
-Efter att migrering 096 är körd, skapa dessa Vault-hemligheter en gång i
-Supabase SQL Editor. Byt domän och platshållare innan körning; använd samma
-hemliga värde som `CRON_SECRET` i Vercel:
+Efter migrering 097 och driftsättning: öppna den publicerade Simkoll-appen som
+huvudtränare eller superadmin, välj önskade påminnelser och tryck **Spara
+påminnelser**. Simkoll skapar eller uppdaterar då schemat och de två
+Vault-värdena automatiskt. Du behöver inte ange någon ny miljövariabel i
+Vercel och inte heller kopiera någon nyckel till Supabase. Om 096 redan är
+körd räcker det att köra 097 och sedan spara påminnelserna i appen.
 
-```sql
-select vault.create_secret(
-  'https://DIN-PRODUKTIONSDOMAN/api/notifications?push=true&cron=training-reminder&kind=afterTraining',
-  'simkoll_training_reminder_url'
-);
-
-select vault.create_secret(
-  'DITT-CRON_SECRET-VARDE',
-  'simkoll_cron_secret'
-);
-```
-
-Kvällspåminnelsen för utebliven incheckning använder Vercel Cron en gång per
-dag. På Hobby körs den inom den schemalagda timmen, inte på exakt minut.
+Tekniskt använder servern en separat HMAC-token härledd från den befintliga
+privata pushnyckeln. Pushnyckeln lämnar aldrig Vercel och token skickas aldrig
+till webbläsaren. Endast serverns service-roll kan anropa SQL-funktionen som
+sparar Vault-värden, uppdaterar påminnelsevalen och byter Cron-jobb i samma
+transaktion. Produktionsadressen hämtas från Vercels automatiska systemuppgifter;
+en förhandsvisning får inte ändra schemat. Den gamla körningen från 096 ersätts
+när inställningarna sparas. Stängs båda påminnelserna av tas Cron-jobbet bort.
+Om pushnyckeln eller produktionsdomänen byts: spara påminnelserna igen.
 
 ## Enheter
 
@@ -91,8 +87,9 @@ Använd minst en riktig iPhone och en Android-enhet, samt två olika simmarkonto
 
 Push använder befintliga `/api/notifications?push=true` och meddelande-API:t.
 Antalet serverlessfunktioner är fortsatt 12. Efterrapportpåminnelsen använder
-Supabase Cron var femte minut och Vercel Cron sköter kvällskontrollen för
-utebliven incheckning. Service worker hanterar bara notiser; HTML, API-svar och användardata
+Supabase Cron var femte minut, som även sköter kvällskontrollen för
+utebliven incheckning. Tempus behåller sitt befintliga Vercel Cron-jobb.
+Service worker hanterar bara notiser; HTML, API-svar och användardata
 cachas inte. Prenumerationer skyddas av RLS och hanteras endast server-side.
 Servern kontrollerar mottagarens aktiva konto och rensar utgångna endpoints
 när leverantören svarar 404/410.

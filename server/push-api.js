@@ -2,6 +2,7 @@ import { coachFromRequest } from './coach-auth.js'
 import { getSessionProfile } from './profile-auth.js'
 import { getRole, sendJson, supabaseRequest } from './supabase.js'
 import { cleanPushSubscription, deliverTrainingReminders, endpointHash, readPushSettings, sendDevicePush, validPushEndpoint, vapidDetails } from './web-push.js'
+import { configureTrainingReminderSchedule, isMissingCheckinReminderTime, isTrainingReminderAuthorized } from './training-reminder-schedule.js'
 
 async function pushOwner(request) {
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
@@ -23,10 +24,15 @@ async function pushOwner(request) {
 export default async function pushHandler(request, response) {
   try {
     if (request.query?.cron === 'training-reminder') {
-      const secret = process.env.CRON_SECRET
+      if (!['GET', 'POST'].includes(request.method)) return sendJson(response, 405, { error: 'Metoden stöds inte.' })
       const kind = String(request.query?.kind || '')
-      if (!secret || request.headers.authorization !== `Bearer ${secret}`) return sendJson(response, 401, { error: 'Unauthorized' })
-      if (!['missingCheckin', 'afterTraining'].includes(kind)) return sendJson(response, 400, { error: 'Ogiltig påminnelsetyp.' })
+      if (!isTrainingReminderAuthorized(request.headers.authorization)) return sendJson(response, 401, { error: 'Unauthorized' })
+      if (!['missingCheckin', 'afterTraining', 'scheduled'].includes(kind)) return sendJson(response, 400, { error: 'Ogiltig påminnelsetyp.' })
+      if (kind === 'scheduled') {
+        const afterTraining = await deliverTrainingReminders('afterTraining')
+        const missingCheckin = isMissingCheckinReminderTime() ? await deliverTrainingReminders('missingCheckin') : { sent: 0, skipped: 0 }
+        return sendJson(response, 200, { ok: true, afterTraining, missingCheckin })
+      }
       return sendJson(response, 200, { ok: true, kind, ...(await deliverTrainingReminders(kind)) })
     }
     const owner = await pushOwner(request)
@@ -88,10 +94,11 @@ export default async function pushHandler(request, response) {
         missingCheckin: submitted.missingCheckin === true,
         afterTraining: submitted.afterTraining === true,
       }
+      if ((checkinReminders.missingCheckin || checkinReminders.afterTraining) && !settings.enabled) return sendJson(response, 400, { error: 'Aktivera först push för klubben.' })
       const database = await supabaseRequest('push_subscriptions?select=id,training_reminders&limit=1')
       if (!database.ok) return sendJson(response, 503, { error: 'Kör först den nya databasmigreringen för träningspåminnelser.' })
-      const result = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ setting_key: 'web_push', setting_value: { ...settings, checkinReminders }, updated_at: new Date().toISOString() }) })
-      if (!result.ok) throw new Error('Reminder settings save failed')
+      const schedule = await configureTrainingReminderSchedule(request, checkinReminders)
+      if (schedule.error) return sendJson(response, 503, { error: schedule.error })
       return sendJson(response, 200, { checkinReminders })
     }
     const endpoint = request.body?.subscription?.endpoint || request.body?.endpoint
