@@ -878,6 +878,8 @@ button { cursor: pointer; }
 .program-publish-issues { padding: 12px; border-radius: 10px; background: #fff3d7; color: #634610; }
 .program-publish-issues summary { cursor: pointer; font-weight: 700; }
 .program-publish-issues ul { max-height: 200px; overflow: auto; padding-left: 20px; }
+.program-edit-issue { display: inline-block; margin-left: 8px; font-size: 13px; text-decoration: underline; }
+.program-optional-hint { color: var(--muted); font-size: 13px; line-height: 1.5; }
 @keyframes program-save-spin { to { transform: rotate(360deg); } }
 .program-save-success { margin: 14px 0; padding: 14px 16px; border: 1px solid #b8dec1; border-radius: 12px; background: #edf8ed; color: #28623a; font-weight: 700; line-height: 1.45; }
 .program-analysis-status { color: var(--teal); padding: 12px; border-radius: 12px; background: #edf7f3; }

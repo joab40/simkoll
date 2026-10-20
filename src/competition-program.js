@@ -5,8 +5,13 @@ export const PROGRAM_STROKES = ['Frisim', 'Ryggsim', 'Bröstsim', 'Fjärilsim', 
 // from a class letter (notably D), or invent missing event numbers.
 export function normalizeProgram(draft = {}) {
   const trim = (value, max = 120) => String(value ?? '').trim().slice(0, max)
+  const time = (value) => {
+    const text = trim(value, 60)
+    const match = text.match(/^(?:kl\.?\s*)?([01]?\d|2[0-3])[:.]([0-5]\d)$/i)
+    return match ? `${match[1].padStart(2, '0')}:${match[2]}` : text
+  }
   return {
-    sessions: Array.isArray(draft.sessions) ? draft.sessions.map((s) => ({ label: trim(s.label, 60), date: trim(s.date, 40), warmup: trim(s.warmup, 10), start: trim(s.start, 10), expectedNumbers: Array.isArray(s.expectedNumbers) ? s.expectedNumbers.map((n) => trim(n, 20)) : [] })) : [],
+    sessions: Array.isArray(draft.sessions) ? draft.sessions.map((s) => ({ label: trim(s.label, 60), date: trim(s.date, 40), warmup: time(s.warmup), start: time(s.start), expectedNumbers: Array.isArray(s.expectedNumbers) ? s.expectedNumbers.map((n) => trim(n, 20)) : [] })) : [],
     warnings: Array.isArray(draft.warnings) ? draft.warnings.map((w) => trim(w, 400)) : [],
     events: Array.isArray(draft.events) ? draft.events.map((e, i) => ({
       eventOrder: i + 1, eventNumber: trim(e.eventNumber, 20), sessionLabel: trim(e.sessionLabel, 60),
@@ -29,7 +34,6 @@ export function validateProgram(draft) {
     if (!e.label) add(`${name}: rubrik saknas.`, i)
     if (!sessions.has(e.sessionLabel)) add(`${name}: välj ett pass.`, i)
     if (!PROGRAM_GENDERS.includes(e.gender)) add(`${name}: kontrollera kön; klass D betyder inte Damer.`, i)
-    if (!e.ageClass) add(`${name}: åldersklass saknas.`, i)
     if (e.itemType === 'race') {
       if (!Number.isInteger(e.distanceMeters) || e.distanceMeters <= 0 || e.distanceMeters > 100000) add(`${name}: kontrollera distansen.`, i)
       if (!PROGRAM_STROKES.includes(e.stroke) || e.stroke === 'Annat') add(`${name}: kontrollera simsättet.`, i)
@@ -42,7 +46,6 @@ export function validateProgram(draft) {
   }
   for (const session of draft.sessions) {
     if (!session.label) add('Ett pass saknar namn.')
-    for (const field of ['warmup', 'start']) if (session[field] && !/^([01]\d|2[0-3]):[0-5]\d$/.test(session[field])) add(`${session.label}: tiden ska anges som HH:MM.`)
     const actual = draft.events.filter((e) => e.sessionLabel === session.label && e.itemType === 'race').map((e) => e.eventNumber)
     const missing = [...new Set(session.expectedNumbers.filter((n) => !actual.includes(n)))]
     const extra = [...new Set(actual.filter((n) => n && session.expectedNumbers.length && !session.expectedNumbers.includes(n)))]

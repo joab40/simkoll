@@ -63,3 +63,17 @@ test('publishing a reordered draft passes the new order to storage and returns i
   assert.equal(response.code, 200)
   assert.deepEqual(response.data.events.slice(0, 2).map((event) => event.eventNumber), reordered.events.slice(0, 2).map((event) => event.eventNumber))
 })
+
+test('publishing allows missing classes and free text session times', async () => {
+  const draft = structuredClone(salsimmet)
+  draft.events[7].ageClass = ''
+  draft.sessions[0].start = 'Efter föregående pass'
+  globalThis.fetch = async (url, init) => {
+    assert(String(url).endsWith('/rpc/publish_competition_program'))
+    const payload = JSON.parse(init.body)
+    assert.equal(payload.p_events[7].ageClass, '')
+    assert.equal(payload.p_metadata.sessions[0].start, 'Efter föregående pass')
+    return { ok: true, json: async () => [] }
+  }
+  assert.equal((await post({ ...publish, draft })).code, 200)
+})

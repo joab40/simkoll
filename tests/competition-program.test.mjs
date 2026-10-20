@@ -34,6 +34,19 @@ test('uncertain extraction needs review; explicit unnumbered pause remains nonse
   assert.deepEqual(validateProgram(draft), [])
   assert.equal(normalizeProgram(draft).events.at(-1).entryAllowed, false)
 })
+test('optional class and session times do not block publishing or invent metadata', () => {
+  const source = structuredClone(salsimmet)
+  source.events[7].ageClass = ''
+  source.sessions[0].warmup = '9.00'
+  source.sessions[0].start = 'Efter föregående pass'
+  source.sessions[1].warmup = ''
+  const draft = normalizeProgram(source)
+  assert.deepEqual(validateProgram(draft), [])
+  assert.equal(draft.events[7].ageClass, '')
+  assert.equal(draft.sessions[0].warmup, '09:00')
+  assert.equal(draft.sessions[0].start, 'Efter föregående pass')
+  assert.equal(draft.sessions[1].warmup, '')
+})
 test('incomplete, refused and malformed AI responses cannot be treated as programs', () => {
   assert.throws(() => readProgramResponse({ status: 'incomplete', output_text: '{"events":[]}' }))
   assert.throws(() => readProgramResponse({ status: 'completed', output: [{ content: [{ type: 'refusal' }] }] }))
