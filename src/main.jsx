@@ -3881,6 +3881,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const publishBusy = useRef(false)
   const sourceRef = useRef(null)
   useEffect(() => () => { if (sourceRef.current) URL.revokeObjectURL(sourceRef.current) }, [])
   const load = async () => {
@@ -3913,12 +3914,14 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
     reader.readAsDataURL(file)
   }
   const publish = async (reviewedDraft) => {
+    if (publishBusy.current) return
+    publishBusy.current = true
     setSaving(true); setError(''); setSuccess('')
     try {
       const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish-competition-program', competitionId: competition.id, draft: reviewedDraft, programSnapshot: snapshot, reviewed: true }) })
       setEvents(data.events); setSnapshot(data.programSnapshot); setSessions(data.sessions || []); setDraft(null)
       setSuccess('✓ Grenprogrammet har sparats. Det sparade programmet är uppdaterat och befintliga anmälningar för oförändrade grenar är kvar.')
-    } catch (e) { setError(e.message) } finally { setSaving(false) }
+    } catch (e) { setError(e.message) } finally { publishBusy.current = false; setSaving(false) }
   }
   return <details className="competition-program" onToggle={(event) => event.currentTarget.open && events === null && !loading && load()}>
     <summary>{events?.length ? `Grenprogram · ${events.filter((e) => e.itemType === 'race').length} grenar` : 'Grenprogram · lägg till'}</summary>
@@ -3927,9 +3930,9 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
       {canManage ? <><label className={`secondary-button competition-import-button${importing ? ' is-importing' : ''}`}><span className="competition-import-label"><span className="competition-import-icon" aria-hidden="true">{importing ? '🧠' : '📎'}</span>{importing ? 'Analyserar pass och grenar…' : 'Läs in bild / PDF'}</span><input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={importFile} disabled={importing || saving || !!draft} /></label><small>AI läser pass och grenrader separat. Du granskar och godkänner innan något sparas. Word? Exportera först till PDF.</small></> : <small>Inläsning och AI-analys av tävlings-PM hanteras av huvudtränare eller superadmin.</small>}
     </div>
     {importing && <p role="status" className="program-analysis-status">Läser tabellernas struktur och kontrollerar grenordningen. Större dokument kan ta ett par minuter.</p>}
-    {error && <p role="alert" className="program-warning">{error}</p>}
+    {error && !draft && <p role="alert" className="program-warning">{error}</p>}
     {success && <p role="status" className="program-save-success">{success}</p>}
-    {draft && <CompetitionProgramReview draft={draft} setDraft={setDraft} saving={saving} onPublish={publish} onCancel={() => { setDraft(null); setError('') }} sourceUrl={source.url} sourceType={source.type} />}
+    {draft && <CompetitionProgramReview draft={draft} setDraft={setDraft} saving={saving} publishError={error} onPublish={publish} onCancel={() => { setDraft(null); setError('') }} sourceUrl={source.url} sourceType={source.type} />}
     {!draft && sessions.length > 0 && <div className="program-saved-sessions">{sessions.map((s) => <p key={s.label}><strong>{s.label}</strong> · {[s.date, s.warmup && `Insim ${s.warmup}`, s.start && `Start ${s.start}`].filter(Boolean).join(' · ')}</p>)}</div>}
     {!draft && events?.length ? <div className="competition-event-list">{events.map((item) => {
       const names = entries.filter((entry) => (entry.event_id === item.id || entry.eventId === item.id) && entry.status === 'submitted')

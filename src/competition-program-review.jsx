@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react'
+import React, { useId, useMemo, useState } from 'react'
 import { normalizeProgram, validateProgram, PROGRAM_GENDERS, PROGRAM_STROKES } from './competition-program.js'
 
-export default function CompetitionProgramReview({ draft, setDraft, onPublish, onCancel, saving, sourceUrl, sourceType }) {
+export default function CompetitionProgramReview({ draft, setDraft, onPublish, onCancel, saving, publishError, sourceUrl, sourceType }) {
+  const feedbackId = useId()
   const [reviewed, setReviewed] = useState(false)
   const [active, setActive] = useState(0)
   const normalized = useMemo(() => normalizeProgram(draft), [draft])
@@ -17,6 +18,7 @@ export default function CompetitionProgramReview({ draft, setDraft, onPublish, o
   }
   const move = (index, offset) => { setReviewed(false); setDraft((d) => { const events = [...d.events]; [events[index], events[index + offset]] = [events[index + offset], events[index]]; return { ...d, events } }) }
   return <section className="program-review" aria-label="Granska grenprogram" aria-busy={saving}>
+    <fieldset className="program-review-fields" disabled={saving} aria-label="Grenprogram att granska">
     <header><p className="eyebrow">Utkast · inte sparat</p><h3>Granska grenprogrammet</h3><p>{draft.events.filter((e) => e.itemType === 'race').length} grenar · {draft.sessions.length} pass</p><small>Det sparade programmet ändras först när du godkänner. Kontrollera mot originalet — AI kan misstolka även tydliga dokument.</small></header>
     <details className="program-source"><summary>Visa originalet</summary>{sourceType.startsWith('image/') ? <img src={sourceUrl} alt="Originalet till grenprogrammet" /> : <a href={sourceUrl} target="_blank" rel="noreferrer">Öppna original-PDF i ny flik ↗</a>}</details>
     {!!draft.warnings.length && <div className="program-warning" role="status"><strong>Kontrollera särskilt</strong>{draft.warnings.map((w, i) => <p key={i}>{w}</p>)}</div>}
@@ -34,7 +36,13 @@ export default function CompetitionProgramReview({ draft, setDraft, onPublish, o
     </details>)}</div>
     <button type="button" className="secondary-button" disabled={saving || !session} onClick={() => { setReviewed(false); setDraft((d) => { const events = [...d.events]; const at = events.reduce((last, e, i) => e.sessionLabel === session.label ? i + 1 : last, 0); events.splice(at, 0, { eventNumber: '', sessionLabel: session.label, itemType: 'race', gender: 'Alla', ageClass: 'Alla åldrar', distanceMeters: null, stroke: 'Annat', label: '', source: 'Manuellt tillagd', uncertain: true }); return { ...d, events } }) }}>＋ Lägg till saknad rad</button>
     <label className="program-review-check"><input type="checkbox" checked={reviewed} disabled={saving} onChange={(e) => setReviewed(e.target.checked)} />Jag har jämfört alla pass och eventuella varningar med originalet.</label>
-    <div className="settings-actions"><button type="button" className="secondary-button" disabled={saving} onClick={onCancel}>Kasta utkast</button><button type="button" className="primary-button program-publish-button" aria-live="polite" disabled={saving || !reviewed || !!issues.length} onClick={() => onPublish(normalized)}>{saving ? <><span className="program-save-spinner" aria-hidden="true" />Sparar program…</> : 'Godkänn och spara program'}</button></div>
+    <div id={feedbackId} className="program-publish-feedback">
+      {publishError && <p role="alert" className="program-warning">Kunde inte spara: {publishError}</p>}
+      {!!issues.length && <details className="program-publish-issues"><summary>{issues.length} saker behöver åtgärdas innan programmet kan sparas</summary><ul>{issues.map((issue, i) => <li key={i}>{issue.message}</li>)}</ul></details>}
+      {!saving && !issues.length && !reviewed && <p>Markera att du jämfört programmet med originalet för att aktivera sparandet.</p>}
+    </div>
+    <div className="settings-actions"><button type="button" className="secondary-button" disabled={saving} onClick={onCancel}>Kasta utkast</button><button type="button" className="primary-button program-publish-button" aria-busy={saving} aria-describedby={feedbackId} aria-live="polite" disabled={saving || !reviewed || !!issues.length} onClick={() => onPublish(normalized)}>{saving ? <><span className="program-save-spinner" aria-hidden="true" />Sparar program…</> : 'Godkänn och spara program'}</button></div>
     <small>Befintliga anmälningar behålls. En ändrad eller borttagen gren med anmälningar blockerar sparandet så att ingen anmälan försvinner.</small>
+    </fieldset>
   </section>
 }

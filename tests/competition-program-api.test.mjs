@@ -6,7 +6,9 @@ process.env.SUPABASE_SECRET_KEY = 'fixture-only'
 process.env.SIMKOLL_COACH_CODE = 'fixture-coach'
 process.env.OPENAI_API_KEY = 'fixture-only'
 const { default: handler } = await import('../api/workouts.js')
-async function post(body, code = 'fixture-coach') {
+const { createCoachToken } = await import('../server/coach-auth.js')
+const headCoachCode = createCoachToken({ id: 'fixture-head-coach', email: 'fixture@example.invalid', role: 'head_coach' })
+async function post(body, code = headCoachCode) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
   await handler({ method: 'POST', headers: { 'x-simkoll-code': code }, body }, response)
   return response
@@ -30,6 +32,7 @@ test('publishing validates review, role and rows before any write', async () => 
   assert.equal((await post({ ...publish, reviewed: false })).code, 400)
   assert.equal((await post({ ...publish, draft: { ...salsimmet, events: [] } })).code, 422)
   assert.equal((await post(publish, 'invalid-code')).code, 403)
+  assert.equal((await post(publish, 'fixture-coach')).code, 403)
 })
 test('publishing uses one atomic RPC and reports conflicts without a destructive fallback', async () => {
   let count = 0
@@ -45,4 +48,18 @@ test('publishing uses one atomic RPC and reports conflicts without a destructive
   assert.equal(response.code, 409)
   assert.match(response.data.error, /redan anmälningar/)
   assert.equal(count, 1)
+})
+
+test('publishing a reordered draft passes the new order to storage and returns it', async () => {
+  const reordered = { ...salsimmet, events: [salsimmet.events[1], salsimmet.events[0], ...salsimmet.events.slice(2)] }
+  globalThis.fetch = async (url, init) => {
+    assert(String(url).endsWith('/rpc/publish_competition_program'))
+    const { p_events } = JSON.parse(init.body)
+    assert.deepEqual(p_events.slice(0, 2).map((event) => event.eventNumber), reordered.events.slice(0, 2).map((event) => event.eventNumber))
+    assert.deepEqual(p_events.map((event) => event.eventOrder), Array.from({ length: 55 }, (_, index) => index + 1))
+    return { ok: true, json: async () => p_events.map((event, index) => ({ id: `race-${index}`, event_order: event.eventOrder, event_number: event.eventNumber, label: event.label, item_type: event.itemType })) }
+  }
+  const response = await post({ ...publish, draft: reordered })
+  assert.equal(response.code, 200)
+  assert.deepEqual(response.data.events.slice(0, 2).map((event) => event.eventNumber), reordered.events.slice(0, 2).map((event) => event.eventNumber))
 })

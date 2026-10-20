@@ -869,8 +869,15 @@ button { cursor: pointer; }
 .program-review-check input { margin-top: 3px; }
 .program-publish-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 250px; transition: filter .18s ease, transform .18s ease, box-shadow .18s ease; }
 .program-publish-button:not(:disabled):hover { filter: brightness(.97); transform: translateY(-1px); box-shadow: 0 6px 16px #183c3618; }
-.program-publish-button:disabled { opacity: .78; cursor: wait; }
-.program-save-spinner { width: 17px; height: 17px; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: program-save-spin .75s linear infinite; }
+.program-publish-button:disabled { opacity: .65; cursor: not-allowed; }
+.program-publish-button[aria-busy="true"] { opacity: .85; cursor: wait; }
+.program-publish-button .program-save-spinner { display: inline-block; margin: 0; width: 17px; height: 17px; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: program-save-spin .75s linear infinite; }
+.program-review-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.program-publish-feedback { margin: 10px 0; font-size: 14px; line-height: 1.5; }
+.program-publish-feedback > p { margin: 0; }
+.program-publish-issues { padding: 12px; border-radius: 10px; background: #fff3d7; color: #634610; }
+.program-publish-issues summary { cursor: pointer; font-weight: 700; }
+.program-publish-issues ul { max-height: 200px; overflow: auto; padding-left: 20px; }
 @keyframes program-save-spin { to { transform: rotate(360deg); } }
 .program-save-success { margin: 14px 0; padding: 14px 16px; border: 1px solid #b8dec1; border-radius: 12px; background: #edf8ed; color: #28623a; font-weight: 700; line-height: 1.45; }
 .program-analysis-status { color: var(--teal); padding: 12px; border-radius: 12px; background: #edf7f3; }
