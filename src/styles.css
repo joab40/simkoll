@@ -2599,16 +2599,19 @@ button { cursor: pointer; }
 .competition-day-total small { font-size: 12px; font-weight: 700; line-height: 1.15; }
 .competition-day-events { display: flex; flex-wrap: wrap; gap: 7px; }
 .competition-day-events span { padding: 6px 10px; border-radius: 999px; background: #e7f3ef; color: #38655f; font-size: 13px; font-weight: 700; }
-.competition-day-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 8px; }
-.competition-day-group { align-self: start; border: 1px solid #dce9e5; border-radius: 12px; background: rgba(255,255,255,.78); overflow: hidden; }
-.competition-day-group > summary { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 7px; padding: 11px 12px; cursor: pointer; list-style: none; }
+.competition-day-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 8px; align-items: start; }
+.competition-day-group { min-width: 0; align-self: start; border: 1px solid #dce9e5; border-radius: 12px; background: rgba(255,255,255,.78); overflow: hidden; }
+.competition-day-group > summary { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 11px 12px; cursor: pointer; list-style: none; }
 .competition-day-group > summary::-webkit-details-marker { display: none; }
 .competition-day-group > summary > span { font-size: 18px; }
 .competition-day-group > summary > b { color: var(--teal); font-size: 18px; }
+.competition-day-group > summary > strong { min-width: 0; overflow-wrap: anywhere; }
 .competition-day-group > summary > small { grid-column: 2 / 4; color: var(--muted); }
 .competition-day-group > div { display: grid; gap: 1px; padding: 0 10px 8px; }
-.competition-day-group article { display: grid; grid-template-columns: 25px minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 7px 3px; border-top: 1px solid #edf2f0; }
-.competition-day-group article > small { color: var(--muted); }
+.competition-day-group article { display: grid; grid-template-columns: 25px minmax(0, 1fr); align-items: start; gap: 3px 7px; padding: 8px 3px; border-top: 1px solid #edf2f0; }
+.competition-day-group article > span { grid-row: span 2; }
+.competition-day-group article > strong { min-width: 0; overflow-wrap: anywhere; }
+.competition-day-group article > small { grid-column: 2; min-width: 0; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
 .competition-day-group.done { border-color: #d4e9d7; }
 .competition-day-group.race { border-color: #f0e0b8; }
 .competition-day-group.not-reported { background: #f7f9f8; }

@@ -7,13 +7,13 @@ process.env.SIMKOLL_COACH_CODE = 'coach-fixture'
 
 const { default: handler } = await import('../api/goals.js')
 
-async function call(body) {
+async function call(body, { swimmer = false, method = 'POST', query = {} } = {}) {
   const response = {
     setHeader() {},
     status(code) { this.code = code; return this },
     json(data) { this.data = data; return this },
   }
-  await handler({ method: 'POST', headers: { 'x-simkoll-code': 'coach-fixture' }, body, query: {} }, response)
+  await handler({ method, headers: { 'x-simkoll-code': swimmer ? '' : 'coach-fixture', ...(swimmer ? { cookie: 'simkoll_session=test-token' } : {}) }, body, query }, response)
   return response
 }
 
@@ -44,4 +44,63 @@ test('an inactive development talk can be switched on again', async () => {
   assert.equal(updateBody.enabled, true)
   assert.equal(updateBody.status, 'draft')
   assert.match(updateBody.updated_at, /^\d{4}-\d{2}-\d{2}T/)
+})
+
+const talkId = '11111111-1111-4111-8111-111111111111'
+const swimmerId = '22222222-2222-4222-8222-222222222222'
+function fixture(status = 'prepared') {
+  let row = { id: talkId, swimmer_id: swimmerId, meeting_date: '2026-10-20', enabled: true, status, swimmer_answers: { goals: 'Mitt eget svar' }, coach_notes: { summary: 'Privat' }, agreement: { summary: 'Gemensamt' } }
+  const writes = []
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('/rest/v1/')[1]
+    const reply = (data) => ({ ok: true, status: 200, json: async () => data, text: async () => '' })
+    if (path.startsWith('profile_sessions?')) return reply([{ profile_id: swimmerId }])
+    if (path.startsWith('profiles?')) return reply([{ id: swimmerId, active: true, approval_status: 'approved' }])
+    if (path.startsWith('app_settings?')) return reply([{ setting_value: { enabled: true } }])
+    assert.ok(path.startsWith('development_talks?'), path)
+    if (options.method === 'PATCH') { const body = JSON.parse(options.body); writes.push(body); row = { ...row, ...body } }
+    return reply([row])
+  }
+  return writes
+}
+
+test('saving coach notes preserves readiness and never replaces swimmer answers', async () => {
+  const writes = fixture()
+  const response = await call({ action: 'update-talk', id: talkId, profileId: swimmerId, coachNotes: { summary: 'Nytt' }, swimmerAnswers: { goals: 'Ska ignoreras' } })
+  assert.equal(response.code, 200)
+  assert.equal(response.data.talk.status, 'prepared')
+  assert.equal(response.data.talk.swimmerAnswers.goals, 'Mitt eget svar')
+  assert.equal(response.data.talk.coachNotes.summary, 'Nytt')
+  assert.equal(Object.hasOwn(writes[0], 'swimmer_answers'), false)
+  assert.equal(Object.hasOwn(writes[0], 'swimmer_id'), false)
+})
+
+test('completion is explicit and invalid updates do not write', async () => {
+  const writes = fixture()
+  for (const extra of [{ status: 'invalid' }, { meetingDate: '2026-02-30' }, { profileId: 'another-swimmer' }, { followUpDate: '2026-10-19' }]) {
+    assert.equal((await call({ action: 'update-talk', id: talkId, ...extra })).code, 400)
+  }
+  assert.equal(writes.length, 0)
+  const response = await call({ action: 'update-talk', id: talkId, status: 'completed' })
+  assert.equal(response.code, 200)
+  assert.equal(response.data.talk.status, 'completed')
+})
+
+test('swimmer cannot reopen a completed conversation', async () => {
+  const writes = fixture('completed')
+  assert.equal((await call({ action: 'save-talk', id: talkId, status: 'draft' }, { swimmer: true })).code, 403)
+  assert.equal(writes.length, 0)
+})
+
+test('private coach notes are excluded from swimmer reads and save responses', async () => {
+  fixture()
+  const read = await call(null, { swimmer: true, method: 'GET', query: { talks: 'true' } })
+  assert.equal(read.code, 200)
+  assert.equal(Object.hasOwn(read.data.talks[0], 'coachNotes'), false)
+  assert.equal(read.data.talks[0].agreement.summary, 'Gemensamt')
+  const save = await call({ action: 'save-talk', id: talkId, status: 'prepared', swimmerAnswers: { goals: 'Uppdaterat' } }, { swimmer: true })
+  assert.equal(save.code, 200)
+  assert.equal(Object.hasOwn(save.data.talk, 'coachNotes'), false)
+  const coach = await call(null, { method: 'GET', query: { talks: 'true' } })
+  assert.equal(coach.data.talks[0].coachNotes.summary, 'Privat')
 })

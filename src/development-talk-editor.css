@@ -1,0 +1,25 @@
+.talk-editor { scroll-margin-top: 24px; }
+.talk-editor-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+.talk-editor-heading h3 { margin: 4px 0; font-size: 25px; }
+.talk-next-step { padding: 14px 16px; border: 1px solid #cce3d4; border-radius: 13px; background: #eef8ef; margin: 12px 0 18px; }
+.talk-next-step p { margin: 6px 0 0; color: var(--muted); line-height: 1.5; font-size: 14px; }
+.talk-read-answers { padding: 16px; background: #f5f9f7; border-radius: 14px; margin: 18px 0; }
+.talk-read-answers h4 { margin: 0 0 12px; }
+.talk-read-answers > div { padding: 12px 0; border-top: 1px solid var(--line); }
+.talk-read-answers p { margin: 5px 0 0; white-space: pre-wrap; line-height: 1.5; }
+.talk-editor fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.talk-editor label { display: grid; gap: 6px; margin: 14px 0 5px; font-weight: 700; }
+.talk-editor input, .talk-editor textarea { width: 100%; box-sizing: border-box; min-width: 0; padding: 12px; border: 1px solid #caddd6; border-radius: 10px; font: inherit; font-size: 16px; background: white; color: var(--ink); }
+.talk-editor small { color: var(--muted); line-height: 1.5; }
+.talk-editor-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.talk-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0 10px; }
+.talk-editor-status { padding: 12px 14px; border-radius: 10px; background: #edf5f1; color: #256b51; }
+.talk-editor-delete { margin-top: 24px; color: var(--muted); }
+.talk-editor-delete summary { cursor: pointer; }
+.talk-editor-delete button { margin-top: 10px; }
+.talk-roster-row.talk-roster-row-v2 { grid-template-columns: 22px 32px minmax(110px, 1fr) auto auto; }
+.talk-roster-row-v2 .talk-roster-date { grid-column: 3; }
+.talk-roster-row-v2 .talk-roster-open { grid-column: 4 / 6; justify-self: end; font-size: 13px; min-height: 38px; }
+.talk-roster-row-v2 .talk-roster-check { display: flex; margin: 0; cursor: pointer; }
+.talk-roster-row-v2 .talk-roster-check input { margin: 0; }
+@media (max-width: 620px) { .talk-roster-row.talk-roster-row-v2 { grid-template-columns: 20px 28px minmax(0, 1fr); } .talk-roster-row-v2 .talk-status-pill { grid-column: 3; white-space: normal; justify-self: start; } .talk-roster-row-v2 .talk-roster-date { grid-column: 3; } .talk-roster-row-v2 .talk-roster-open { grid-column: 2 / 4; justify-self: stretch; } .talk-editor-dates { grid-template-columns: 1fr; } .talk-editor-actions > button { width: 100%; } }

@@ -1,0 +1,37 @@
+.swim-times-panel { min-width: 0; margin: 16px 0; padding: clamp(16px, 3vw, 24px); border: 1px solid var(--line, #dce9e5); border-radius: 20px; background: var(--paper, #fff); color: var(--ink, #17343d); }
+.swim-times-heading, .swim-time-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.swim-times-heading h2 { margin: 3px 0; font-size: 21px; }
+.swim-times-help, .swim-time-progress > p, .swim-time-progress > small { color: var(--muted, #647d81); font-size: 13px; line-height: 1.6; }
+.swim-times-panel label { display: grid; min-width: 0; gap: 5px; font-size: 13px; font-weight: 700; }
+.swim-times-panel input, .swim-times-panel select, .swim-times-panel textarea { box-sizing: border-box; min-width: 0; max-width: 100%; width: 100%; border: 1px solid #cbddda; border-radius: 10px; padding: 11px; background: white; color: var(--ink); font: inherit; font-size: 16px; }
+.swim-times-panel button:focus-visible, .swim-times-panel input:focus-visible, .swim-times-panel select:focus-visible, .swim-times-panel textarea:focus-visible { outline: 3px solid #369e9a; outline-offset: 2px; }
+.swim-time-editor { margin: 16px 0; padding: 18px; border: 1px solid #c7dfd5; border-radius: 14px; background: #f1f8f4; }
+.swim-time-editor h3 { margin: 0 0 14px; }
+.swim-time-editor fieldset { display: grid; gap: 15px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.swim-time-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.swim-time-equipment { display: grid; gap: 6px; font-size: 13px; }
+.swim-time-equipment > span { color: var(--muted); }
+.swim-time-equipment > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.swim-time-equipment label { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 7px 11px; border: 1px solid #d6e5dd; border-radius: 999px; background: white; cursor: pointer; }
+.swim-time-equipment input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: #147b7b; }
+.swim-time-actions { justify-content: flex-start; }
+.swim-time-series { margin: 18px 0 12px; }
+.swim-time-best { display: grid; gap: 6px; padding: 13px 16px; border-radius: 12px; background: #e7f3ed; }
+.swim-time-best > span { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.swim-time-chart { overflow-x: auto; max-width: 100%; overscroll-behavior-x: contain; }
+.swim-time-chart svg { display: block; max-width: none; }
+.swim-time-chart text { fill: #45696d; font: 11px sans-serif; }
+.swim-time-history { margin-top: 18px; }
+.swim-time-history summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+.swim-time-history ul { list-style: none; margin: 0; padding: 0; }
+.swim-time-history li { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; border-top: 1px solid #deebe5; padding: 13px 0; }
+.swim-time-history li > div:first-child { min-width: 0; flex: 1 1 230px; }
+.swim-time-history li strong, .swim-time-history li small { display: block; overflow-wrap: anywhere; }
+.swim-time-history li small { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.swim-time-history li p { margin: 6px 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.swim-time-note { white-space: pre-wrap; }
+.swim-times-status { color: #216a45; }
+.swim-times-period { display: flex; flex-wrap: wrap; gap: 12px; margin: 15px 0; }
+.swim-times-coach > summary { cursor: pointer; font-weight: 700; padding: 12px 0; }
+@media (max-width: 650px) { .swim-time-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .swim-time-editor { padding: 13px; } .swim-times-heading > button { width: 100%; } }
+@media (max-width: 480px) { .swim-time-fields { grid-template-columns: 1fr; } }

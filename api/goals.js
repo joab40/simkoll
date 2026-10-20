@@ -5,6 +5,8 @@ import { queueCategoryPush, queueMessagePush } from '../server/web-push.js'
 import { saveGoalImage, removeUnattachedGoalImage, goalImageUrl, improveGoalText } from '../server/goal-support.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
+const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
+const validTalkText = (value, max) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length <= 50 && Object.values(value).every((text) => typeof text === 'string' && text.length <= max)
 const FEEDBACK = {
   progress: { points: 5, event: 'goal_progress' },
   strong_week: { points: 5, event: 'goal_progress' },
@@ -30,6 +32,7 @@ async function loadTalks(profileId = null) {
   if (!result.ok) throw new Error(`Development talks GET failed: ${result.status}`)
   return (await result.json()).map(mapTalk)
 }
+const swimmerTalk = (talk) => { const { coachNotes, ...visible } = talk; return visible }
 async function talksEnabled() {
   const result = await supabaseRequest("app_settings?setting_key=eq.development_talks&select=setting_value&limit=1")
   if (!result.ok) return true
@@ -92,7 +95,7 @@ export default async function handler(request, response) {
         if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null), globalEnabled: await talksEnabled() })
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Utvecklingssamtal visas bara för inloggade profiler.' })
-        return sendJson(response, 200, { talks: await loadTalks(profile.id), globalEnabled: await talksEnabled() })
+        return sendJson(response, 200, { talks: (await loadTalks(profile.id)).map(swimmerTalk), globalEnabled: await talksEnabled() })
       }
       if (role === 'coach') return sendJson(response, 200, { goals: await loadGoals() })
       const profile = await getSessionProfile(request)
@@ -121,12 +124,30 @@ export default async function handler(request, response) {
       }
       if (action === 'create-talk' || action === 'update-talk') {
         const id = String(request.body.id || ''), profileId = String(request.body.profileId || ''), body = request.body
-        const status = ['draft', 'prepared', 'completed'].includes(body.status) ? body.status : (action === 'create-talk' ? 'draft' : 'completed')
-        if (!profileId || (body.meetingDate && !/^\d{4}-\d{2}-\d{2}$/.test(body.meetingDate))) return sendJson(response, 400, { error: 'Välj en simmare och ett giltigt datum.' })
-        const payload = { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, meeting_date: body.meetingDate || new Date().toISOString().slice(0, 10), status, enabled: body.enabled !== false, swimmer_answers: body.swimmerAnswers || {}, coach_notes: body.coachNotes || {}, agreement: body.agreement || {}, follow_up_date: body.followUpDate || null, updated_at: new Date().toISOString() }
-        const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        let current = null
+        if (action === 'update-talk') {
+          if (!/^[0-9a-f-]{36}$/i.test(id)) return sendJson(response, 400, { error: 'Samtalet kunde inte hittas.' })
+          const existing = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&select=*&limit=1`)
+          if (!existing.ok) throw new Error(`Development talk lookup failed: ${existing.status}`)
+          current = (await existing.json())[0]
+          if (!current) return sendJson(response, 404, { error: 'Samtalet finns inte längre. Uppdatera sidan.' })
+          if (profileId && profileId !== current.swimmer_id) return sendJson(response, 400, { error: 'Samtalet tillhör en annan simmare.' })
+        }
+        const status = body.status ?? current?.status ?? 'draft'
+        const meetingDate = body.meetingDate ?? current?.meeting_date ?? new Date().toISOString().slice(0, 10)
+        const followUpDate = body.followUpDate === undefined ? current?.follow_up_date || null : body.followUpDate || null
+        if (!(current?.swimmer_id || profileId) || !validTalkDate(meetingDate) || (followUpDate && (!validTalkDate(followUpDate) || followUpDate < meetingDate))) return sendJson(response, 400, { error: 'Välj en simmare, ett giltigt samtalsdatum och eventuell uppföljning tidigast samma dag.' })
+        if (!['draft', 'prepared', 'completed'].includes(status)) return sendJson(response, 400, { error: 'Välj en giltig samtalsstatus.' })
+        if ((body.coachNotes !== undefined && !validTalkText(body.coachNotes, 10000)) || (body.agreement !== undefined && !validTalkText(body.agreement, 5000))) return sendJson(response, 400, { error: 'Kontrollera anteckningarna (högst 10 000 tecken) och överenskommelsen (högst 5 000 tecken).' })
+        const payload = { meeting_date: meetingDate, status, follow_up_date: followUpDate, updated_at: new Date().toISOString(), ...(body.enabled !== undefined ? { enabled: body.enabled !== false } : {}), ...(body.coachNotes !== undefined ? { coach_notes: body.coachNotes } : {}), ...(body.agreement !== undefined ? { agreement: body.agreement } : {}) }
+        // Coach notes never replace the swimmer's own submitted answers. An
+        // ordinary save also preserves readiness until completion is explicit.
+        if (action === 'create-talk') Object.assign(payload, { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, swimmer_answers: body.swimmerAnswers || {}, enabled: body.enabled !== false })
+        const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&swimmer_id=eq.${encodeURIComponent(current.swimmer_id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
-        const talk = mapTalk((await result.json())[0])
+        const [row] = await result.json()
+        if (!row) return sendJson(response, 404, { error: 'Samtalet finns inte längre. Uppdatera sidan.' })
+        const talk = mapTalk(row)
         if (action === 'create-talk' && talk.enabled && talk.status === 'draft') queueCategoryPush({ category: 'developmentTalks', id: talk.id, profileId: talk.swimmerId })
         return sendJson(response, 200, { talk })
       }
@@ -267,12 +288,20 @@ export default async function handler(request, response) {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
       if (!(await talksEnabled())) return sendJson(response, 403, { error: 'Utvecklingssamtal är avstängda.' })
-      if (request.body.id) { const existing = await supabaseRequest(`development_talks?id=eq.${request.body.id}&swimmer_id=eq.${profile.id}&select=enabled&limit=1`); if (existing.ok && (await existing.json())[0]?.enabled === false) return sendJson(response, 403, { error: 'Samtalet är skrivskyddat.' }) }
+      if (request.body.id) {
+        const talkId = String(request.body.id)
+        if (!/^[0-9a-f-]{36}$/i.test(talkId)) return sendJson(response, 400, { error: 'Samtalet kunde inte hittas.' })
+        const existing = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(talkId)}&swimmer_id=eq.${encodeURIComponent(profile.id)}&select=enabled,status&limit=1`)
+        if (!existing.ok) throw new Error(`Development talk lookup failed: ${existing.status}`)
+        const [talk] = await existing.json()
+        if (!talk) return sendJson(response, 404, { error: 'Samtalet finns inte i din profil.' })
+        if (talk.enabled === false || talk.status === 'completed') return sendJson(response, 403, { error: 'Samtalet är genomfört eller skrivskyddat.' })
+      }
       const id = String(request.body?.id || ''), answers = request.body?.swimmerAnswers || {}, status = request.body?.status === 'prepared' ? 'prepared' : 'draft'
       const payload = { swimmer_id: profile.id, meeting_date: request.body?.meetingDate || new Date().toISOString().slice(0, 10), status, swimmer_answers: answers, updated_at: new Date().toISOString() }
       const result = id ? await supabaseRequest(`development_talks?id=eq.${id}&swimmer_id=eq.${profile.id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
       if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
-      return sendJson(response, 200, { talk: mapTalk((await result.json())[0]) })
+      return sendJson(response, 200, { talk: swimmerTalk(mapTalk((await result.json())[0])) })
     }
 
     if (request.method === 'POST') {

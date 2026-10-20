@@ -64,3 +64,46 @@ tränaren eller svar på ett utvecklingsmål.
 
 Valbar AI-tolkning ligger kvar i backloggen. Dagboken, graferna och
 anteckningssparandet gör inga AI-anrop.
+
+## Egna träningstider och testlopp
+
+Kör även `supabase/migrations/098_training_swim_times.sql` före driftsättning.
+Under **Min träningsdagbok → Mina egna tider → Registrera en tid** kan
+simmaren ange datum, valfri distans 1–10 000 m, simsätt, bassäng, tid,
+träning/testlopp, start, arm/ben/hel simning, hjälpmedel, tidtagning,
+extra förutsättningar och en kommentar. Ett genomfört simpass på samma
+datum kan kopplas till tiden. Kopplingen verifieras mot den egna dagboken.
+
+`training_swim_times` är en separat tabell med RLS. Simmaren identifieras
+alltid från profilsessionen. Inskickade profil-id:n styr aldrig läsning eller
+skrivning för simmare. Ändring och radering filtrerar på både tids-id och profil-id.
+Registreringen skapar inga träningspass, simmeter, officiella personbästan
+eller PB-poäng. Egna tider jämförs bara när samtliga förutsättningar stämmer;
+bästa egna tid avser den valda perioden. Tiderna lagras som heltal i hundradelar.
+
+I tränarvyn finns **Träningstider och testlopp** som ett minimerat kort i
+simmarkortet, under styrkeprogrammet. Historiken hämtas först när kortet
+öppnas och kan filtreras på period. Alla aktiva personliga tränarkonton får
+läsa, lägga till och rätta tider för klubbens aktiva, godkända simmare enligt
+klubbens uttryckliga val. Kontostatus och aktuell roll verifieras på servern
+vid varje anrop; den gamla delade tränarkoden räcker inte. Tränare får inte
+tillgång till privata dagboksreflektioner genom den här funktionen.
+
+Både simmare och tränare kan rätta en tidsregistrering. Simmaren kan också
+radera sina egna tider. Sparande, rättning och radering loggas med profil,
+tids-id och aktörsroll; för tränare loggas även kontots id. Kopplade pass
+behålls när tränaren rättar en tid, men kan kopplas loss. Byter registreringen
+datum tas den gamla passkopplingen bort i formuläret. Ingen ytterligare
+migration utöver 098 behövs för tränarvyn.
+
+## Tempus-historik
+
+Hämtningen läser både kort- och långbaneresultat med `best_time_only=0`.
+Den tidigare kapningen vid 500 resultat per simmare är borttagen. Om Tempus
+lämnar nästa sidlänkar följs de inom samma simmares offentliga resultatsida.
+Resultat dedupliceras och sparas i batchar. Tidsgräns, sidgräns eller misslyckad
+sida markeras som ofullständig hämtning i svaret och synkstatusen.
+
+Återfunna äldre resultat och första importen utlöser inte gamla PB-belöningar.
+PB-belöning kräver ett resultat från de senaste 14 dagarna som slår tidigare
+sparat bästa och är bäst bland de hämtade tiderna i samma gren/bassäng.

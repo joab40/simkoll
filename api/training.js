@@ -5,6 +5,9 @@ import { normalizeStrengthDraft, validateStrengthDraft, strengthDraftContent, dr
 import { resolveExerciseImages, signedExerciseImages } from '../server/strength-images.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import { loadTrainingDiary, saveDiaryReflection } from '../server/training-diary.js'
+import { loadSwimTimes, saveSwimTime, deleteSwimTime } from '../server/swim-times.js'
+import { isTimeId } from '../shared/swim-times.js'
+import { writeAuditLog } from '../server/audit.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -151,6 +154,39 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if ((request.method === 'GET' && request.query?.swimTimes === 'true') || (request.method === 'POST' && ['save-swim-time', 'delete-swim-time'].includes(request.body?.action))) {
+      if (!['swimmer', 'coach'].includes(role)) return sendJson(response, 403, { error: 'Logga in för att använda träningstider.' })
+      let profile, coach = null
+      if (role === 'coach') {
+        // Club-wide coach read/create/update access was explicitly approved by
+        // the club owner. Recheck active personal membership on every request;
+        // a shared legacy code or suspended/stale coach token is insufficient.
+        coach = coachFromRequest(request)
+        if (!coach || !isTimeId(coach.sub)) return sendJson(response, 403, { error: 'Logga in med ditt personliga tränarkonto.' })
+        const membership = await supabaseRequest(`coach_accounts?id=eq.${coach.sub}&status=eq.active&select=id,role&limit=1`)
+        if (!membership.ok) return sendJson(response, 503, { error: 'Tränarbehörigheten kunde inte verifieras.' })
+        const account = (await membership.json())[0]
+        if (!account || account.role !== coach.role || !['coach', 'head_coach', 'superadmin'].includes(account.role)) return sendJson(response, 403, { error: 'Tränarkontot saknar behörighet.' })
+        if (request.method === 'POST' && request.body.action === 'delete-swim-time') return sendJson(response, 403, { error: 'Simmaren kan ta bort sina egna tider. Tränaren kan lägga till och rätta tider.' })
+        const profileId = String((request.method === 'GET' ? request.query.profileId : request.body.profileId) || '')
+        if (!isTimeId(profileId)) return sendJson(response, 400, { error: 'Välj en simmare.' })
+        const found = await supabaseRequest(`profiles?id=eq.${profileId}&active=eq.true&approval_status=eq.approved&select=id,training_group&limit=1`)
+        if (!found.ok) return sendJson(response, 502, { error: 'Simmaren kunde inte hämtas.' })
+        profile = (await found.json())[0]
+      } else profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 403, { error: 'Simmarprofilen är inte tillgänglig.' })
+      try {
+        if (request.method === 'GET') return sendJson(response, 200, await loadSwimTimes(profile.id, String(request.query.start || ''), String(request.query.end || '')))
+        if (request.body.action === 'delete-swim-time') {
+          await deleteSwimTime(profile.id, request.body.id)
+          await writeAuditLog(request, { eventType: 'training_time_delete', role, profileId: profile.id, details: { timeId: request.body.id } })
+          return sendJson(response, 200, { ok: true })
+        }
+        const time = await saveSwimTime(profile, request.body)
+        await writeAuditLog(request, { eventType: request.body.id ? 'training_time_update' : 'training_time_create', role, profileId: profile.id, details: { timeId: time.id, ...(coach ? { coachAccountId: coach.sub } : {}) } })
+        return sendJson(response, request.body.id ? 200 : 201, { time })
+      } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+    }
     if ((request.method === 'GET' && request.query?.diary === 'true') || (request.method === 'POST' && request.body?.action === 'diary-reflection')) {
       if (role !== 'swimmer') return sendJson(response, 403, { error: 'Öppna din egen simmarvy för att använda träningsdagboken.' })
       const profile = await getSessionProfile(request)

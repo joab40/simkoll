@@ -3,6 +3,7 @@ import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from 
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import { estimatedCostUsd } from '../server/ai-costs.js'
 import { coachFromRequest } from '../server/coach-auth.js'
+import { fetchTempusResults, tempusResultRows, storeTempusRows, newTempusBests } from '../server/tempus-results.js'
 import { getSessionDays } from '../server/session-settings.js'
 import {
   clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, hashPin,
@@ -27,25 +28,25 @@ async function runTempusCron() {
   const profilesResult = await supabaseRequest('profiles?active=eq.true&approval_status=eq.approved&tempus_id=not.is.null&select=id,tempus_id')
   if (!profilesResult.ok) throw new Error('Tempus profiles lookup failed')
   let synced = 0; let personalBests = 0; let gratifications = 0
+  const failures = [], deadline = Date.now() + 45000
   for (const profile of await profilesResult.json()) {
+    if (Date.now() >= deadline) { failures.push('Tidsgränsen nåddes innan alla profiler hann hämtas.'); break }
     const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&source=eq.tempus&select=event,pool,result_time&order=result_time.asc&limit=10000`)
-    if (!existingResult.ok) continue
+    if (!existingResult.ok) { failures.push(`${profile.id}: tidigare resultat kunde inte hämtas.`); continue }
     const best = new Map(); (await existingResult.json()).forEach((item) => { if (Number.isFinite(item.result_time)) { const key = `${item.event}|${item.pool || ''}`; best.set(key, Math.min(best.get(key) ?? Infinity, item.result_time)) } })
-    const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming?best_time_only=0&from_date=2000-01-01&to_date=${new Date().toISOString().slice(0, 10)}`)
-    if (!page.ok) continue
-    const match = (await page.text()).match(/data-page="([^\"]+)"/); if (!match) continue
-    let data; try { data = JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&').replace(/\\\//g, '/')) } catch { continue }
-    const all = [...(data.props?.results_short?.data || []), ...(data.props?.results_long?.data || [])]
-    const rows = all.filter((item) => item.event_name && item.result_date && item.swim_time).slice(0, 500).map((item) => ({ profile_id: profile.id, event: item.event_name, competition_name: item.competition_name || null, pool: item.pool_type_name || null, result_date: item.result_date, swim_time: item.swim_time, result_time: Number.isFinite(Number(item.result_time)) ? Number(item.result_time) : null, aqua_points: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, synced_at: new Date().toISOString() }))
+    let fetched
+    try { fetched = await fetchTempusResults(profile.tempus_id, { deadline: Math.min(deadline, Date.now() + 20000) }) } catch (error) { failures.push(`${profile.id}: ${error.message}`); continue }
+    if (!fetched.complete) failures.push(`${profile.id}: ${fetched.warnings.join(' ')}`)
+    const rows = tempusResultRows(profile.id, fetched.results)
     if (!rows.length) continue
-    const improved = rows.filter((row) => { const previous = best.get(`${row.event}|${row.pool || ''}`); return Number.isFinite(row.result_time) && previous != null && row.result_time < previous })
-    const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) })
-    if (!upsert.ok) continue
-    synced += rows.length
+    const improved = fetched.complete ? newTempusBests(rows, best) : []
+    const upsert = await storeTempusRows(supabaseRequest, rows)
+    synced += upsert.saved
+    if (!upsert.ok) { failures.push(`${profile.id}: resultat kunde inte sparas (HTTP ${upsert.status}).`); continue }
     if (improved.length) { gratifications += await awardCompetitionBest(profile.id, improved); personalBests += improved.length }
   }
-  const syncedAt = await saveTempusSyncTimestamp('cron', { synced, personalBests, gratifications })
-  return { synced, personalBests, gratifications, syncedAt }
+  const syncedAt = await saveTempusSyncTimestamp('cron', { synced, personalBests, gratifications, complete: failures.length === 0, failures })
+  return { synced, personalBests, gratifications, syncedAt, complete: failures.length === 0, failures }
 }
 
 const groupRole = (request) => getRole(String(request.headers['x-simkoll-code'] || ''))
@@ -96,7 +97,7 @@ ${String(content).slice(0, 3000)}`
     return { text: content, usedAi: false }
   }
 }
-const BACKUP_TABLES = ['profiles', 'responses', 'daily_workouts', 'training_plans', 'competition_calendar', 'competition_events', 'competition_entries', 'training_groups', 'profile_daily_activity', 'workout_unlocks', 'season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'training_programs', 'program_assignments', 'program_goals', 'development_goals', 'goal_updates', 'development_talks', 'group_pep', 'private_messages', 'community_posts', 'kudos', 'point_events', 'reward_levels', 'artifact_catalog', 'profile_artifacts', 'game_scores', 'competition_results', 'session_attendance', 'app_feedback', 'app_settings', 'ai_insights', 'coach_activity_notes', 'coach_swimmer_notes']
+const BACKUP_TABLES = ['profiles', 'responses', 'daily_workouts', 'training_plans', 'competition_calendar', 'competition_events', 'competition_entries', 'training_groups', 'profile_daily_activity', 'workout_unlocks', 'season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'training_programs', 'program_assignments', 'program_goals', 'development_goals', 'goal_updates', 'development_talks', 'group_pep', 'private_messages', 'community_posts', 'kudos', 'point_events', 'reward_levels', 'artifact_catalog', 'profile_artifacts', 'game_scores', 'competition_results', 'session_attendance', 'app_feedback', 'app_settings', 'ai_insights', 'coach_activity_notes', 'coach_swimmer_notes', 'training_swim_times']
 
 async function findProfile(username) {
   const result = await supabaseRequest(`profiles?username=eq.${encodeURIComponent(username)}&select=*&limit=1`)
@@ -477,19 +478,11 @@ export default async function handler(request, response) {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan hämta Tempus-resultat.' })
       const tempusId = String(request.body.tempusId || '').trim()
       if (!/^\d{1,12}$/.test(tempusId)) return sendJson(response, 400, { error: 'Ogiltigt Tempus-ID.' })
-      const to = new Date()
-      const params = new URLSearchParams({ best_time_only: '0', from_date: '2000-01-01', to_date: to.toISOString().slice(0, 10) })
-      const page = await fetch(`https://www.tempusopen.se/swimmers/${tempusId}/swimming?${params}`)
-      if (!page.ok) return sendJson(response, 502, { error: 'Tempus Open kunde inte hämtas just nu.' })
-      const html = await page.text()
-      const match = html.match(/data-page="([^\"]+)"/)
-      if (!match) return sendJson(response, 502, { error: 'Tempus-resultaten kunde inte läsas.' })
-      const decoded = match[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&').replace(/\\\//g, '/')
-      let pageData
-      try { pageData = JSON.parse(decoded) } catch { return sendJson(response, 502, { error: 'Tempus-resultaten hade ett oväntat format.' }) }
-      const swimmer = pageData.props?.swimmer || {}
+      let fetched
+      try { fetched = await fetchTempusResults(tempusId) } catch (error) { return sendJson(response, 502, { error: error.message }) }
+      const swimmer = fetched.swimmer
       const byEvent = new Map()
-      const allResults = [...(pageData.props?.results_short?.data || []), ...(pageData.props?.results_long?.data || [])]
+      const allResults = fetched.results
       for (const item of allResults) {
         const pool = item.pool_type_name || ''
         const result = { event: item.event_name || '', date: item.result_date || '', time: item.swim_time || '', aquaPoints: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, pool, timeValue: Number(item.result_time) }
@@ -508,7 +501,7 @@ export default async function handler(request, response) {
         historyMap.get(key).items.push({ date, time: item.swim_time, aquaPoints: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null })
       }
       const history = [...historyMap.values()].map((group) => ({ ...group, items: group.items.sort((a, b) => b.date.localeCompare(a.date)) })).sort((a, b) => a.event.localeCompare(b.event, 'sv') || a.pool.localeCompare(b.pool, 'sv'))
-      return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results, history })
+      return sendJson(response, 200, { swimmer: { name: swimmer.name || '', license: swimmer.license || '', club: swimmer.club_name || '' }, results, history, complete: fetched.complete, warnings: fetched.warnings })
     }
 
     if (action === 'sync-tempus-results') {
@@ -525,28 +518,27 @@ export default async function handler(request, response) {
         return sendJson(response, 404, { error: 'Simmaren saknar godkänt Tempus-ID eller är inte tillgänglig.', profileId: requestedProfileId })
       }
       let synced = 0, attempted = 0, failures = []
+      const deadline = Date.now() + 45000
       for (const profile of targetProfiles) {
-        const to = new Date()
-        const params = new URLSearchParams({ best_time_only: '0', from_date: '2000-01-01', to_date: to.toISOString().slice(0, 10) })
-        const page = await fetch(`https://www.tempusopen.se/swimmers/${profile.tempus_id}/swimming?${params}`)
-        if (!page.ok) continue
-        const html = await page.text(), match = html.match(/data-page="([^\"]+)"/)
-        if (!match) continue
-        let pageData
-        try { pageData = JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&').replace(/\\\//g, '/')) } catch { continue }
-        const all = [...(pageData.props?.results_short?.data || []), ...(pageData.props?.results_long?.data || [])]
-        const rows = all.filter((item) => item.event_name && item.result_date && item.swim_time).sort((a, b) => String(b.result_date).localeCompare(String(a.result_date))).slice(0, 500).map((item) => ({ profile_id: profile.id, event: item.event_name, competition_name: item.competition_name || null, pool: item.pool_type_name || null, result_date: item.result_date, swim_time: item.swim_time, result_time: Number.isFinite(Number(item.result_time)) ? Number(item.result_time) : null, aqua_points: Number.isFinite(Number(item.aqua_points)) ? Number(item.aqua_points) : null, synced_at: new Date().toISOString() }))
+        if (Date.now() >= deadline) { failures.push('Tidsgränsen nåddes innan alla profiler hann hämtas.'); break }
+        let fetched
+        try { fetched = await fetchTempusResults(profile.tempus_id, { deadline: Math.min(deadline, Date.now() + 20000) }) } catch (error) { failures.push(`${profile.id}: ${error.message}`); continue }
+        if (!fetched.complete) failures.push(`${profile.id}: ${fetched.warnings.join(' ')}`)
+        const rows = tempusResultRows(profile.id, fetched.results)
         attempted += rows.length
         if (rows.length) {
           const existingResult = await supabaseRequest(`competition_results?profile_id=eq.${profile.id}&source=eq.tempus&select=event,pool,result_time&limit=10000`)
           const best = new Map()
           if (existingResult.ok) (await existingResult.json()).forEach((item) => { if (Number.isFinite(item.result_time)) { const key = `${item.event}|${item.pool || ''}`; best.set(key, Math.min(best.get(key) ?? Infinity, item.result_time)) } })
-          const improved = rows.filter((row) => { const previous = best.get(`${row.event}|${row.pool || ''}`); return Number.isFinite(row.result_time) && previous != null && row.result_time < previous })
-          const upsert = await supabaseRequest('competition_results?on_conflict=profile_id,event,pool,result_date,swim_time,competition_name', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); if (upsert.ok) { synced += rows.length; if (improved.length) await awardCompetitionBest(profile.id, improved) } else failures.push(`${profile.id}: ${upsert.status} ${(await upsert.text()).slice(0, 180)}`)
+          if (!existingResult.ok) { failures.push(`${profile.id}: tidigare resultat kunde inte hämtas.`); continue }
+          const improved = fetched.complete ? newTempusBests(rows, best) : []
+          const upsert = await storeTempusRows(supabaseRequest, rows)
+          synced += upsert.saved
+          if (upsert.ok) { if (improved.length) await awardCompetitionBest(profile.id, improved) } else failures.push(`${profile.id}: resultat kunde inte sparas (HTTP ${upsert.status}).`)
         }
       }
-      const syncedAt = await saveTempusSyncTimestamp('manual', { synced, attempted, profileId: requestedProfileId || null, profileCount: targetProfiles.length })
-      return sendJson(response, 200, { synced, attempted, failures, profileId: requestedProfileId || null, profileCount: targetProfiles.length, syncedAt })
+      const syncedAt = await saveTempusSyncTimestamp('manual', { synced, attempted, profileId: requestedProfileId || null, profileCount: targetProfiles.length, complete: failures.length === 0, failures })
+      return sendJson(response, 200, { synced, attempted, failures, complete: failures.length === 0, profileId: requestedProfileId || null, profileCount: targetProfiles.length, syncedAt })
     }
 
     if (action === 'delete-profile') {

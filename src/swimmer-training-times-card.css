@@ -1,0 +1,12 @@
+.swimmer-training-times-card { margin: 14px 0; min-width: 0; border: 1px solid #d1e4dd; border-radius: 16px; background: #f8fcfa; }
+.swimmer-training-times-card > summary { display: flex; align-items: center; gap: 12px; list-style: none; padding: 14px 16px; cursor: pointer; }
+.swimmer-training-times-card > summary::-webkit-details-marker { display: none; }
+.swimmer-training-times-card > summary > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.swimmer-training-times-card > summary strong { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.swimmer-training-times-card > summary small { font-size: 12px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.swimmer-time-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 12px; background: #e6f2ec; font-size: 21px; }
+.swimmer-time-expand::after { content: '+'; color: var(--teal); font-size: 23px; }
+.swimmer-training-times-card[open] .swimmer-time-expand::after { content: '−'; }
+.swimmer-training-times-card > summary:focus-visible { outline: 3px solid #369e9a; outline-offset: 2px; border-radius: 16px; }
+.swimmer-training-times-card > .swim-times-panel { margin: 0; border: 0; border-top: 1px solid #d1e4dd; border-radius: 0 0 16px 16px; }
+.swimmer-times-loading { margin: 0; padding: 16px; color: var(--muted); }
