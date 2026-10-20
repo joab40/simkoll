@@ -49,7 +49,7 @@ test('an inactive development talk can be switched on again', async () => {
 const talkId = '11111111-1111-4111-8111-111111111111'
 const swimmerId = '22222222-2222-4222-8222-222222222222'
 function fixture(status = 'prepared') {
-  let row = { id: talkId, swimmer_id: swimmerId, meeting_date: '2026-10-20', enabled: true, status, swimmer_answers: { goals: 'Mitt eget svar' }, coach_notes: { summary: 'Privat' }, agreement: { summary: 'Gemensamt' } }
+  let row = { id: talkId, swimmer_id: swimmerId, meeting_date: '2026-10-20', updated_at: '2026-10-20T08:00:00Z', enabled: true, status, swimmer_answers: { goals: 'Mitt eget svar' }, coach_notes: { summary: 'Privat' }, agreement: { summary: 'Gemensamt' } }
   const writes = []
   globalThis.fetch = async (url, options = {}) => {
     const path = String(url).split('/rest/v1/')[1]
@@ -57,22 +57,40 @@ function fixture(status = 'prepared') {
     if (path.startsWith('profile_sessions?')) return reply([{ profile_id: swimmerId }])
     if (path.startsWith('profiles?')) return reply([{ id: swimmerId, active: true, approval_status: 'approved' }])
     if (path.startsWith('app_settings?')) return reply([{ setting_value: { enabled: true } }])
+    if (path.startsWith('audit_logs')) return reply([])
     assert.ok(path.startsWith('development_talks?'), path)
-    if (options.method === 'PATCH') { const body = JSON.parse(options.body); writes.push(body); row = { ...row, ...body } }
+    if (options.method === 'PATCH') { const body = JSON.parse(options.body); writes.push(body); if (path.includes('updated_at=eq.') && !path.includes(encodeURIComponent(row.updated_at))) return reply([]); row = { ...row, ...body } }
     return reply([row])
   }
   return writes
 }
 
-test('saving coach notes preserves readiness and never replaces swimmer answers', async () => {
+test('saving coach notes preserves readiness and swimmer answers', async () => {
   const writes = fixture()
-  const response = await call({ action: 'update-talk', id: talkId, profileId: swimmerId, coachNotes: { summary: 'Nytt' }, swimmerAnswers: { goals: 'Ska ignoreras' } })
+  const response = await call({ action: 'update-talk', id: talkId, profileId: swimmerId, coachNotes: { summary: 'Nytt' } })
   assert.equal(response.code, 200)
   assert.equal(response.data.talk.status, 'prepared')
   assert.equal(response.data.talk.swimmerAnswers.goals, 'Mitt eget svar')
   assert.equal(response.data.talk.coachNotes.summary, 'Nytt')
   assert.equal(Object.hasOwn(writes[0], 'swimmer_answers'), false)
   assert.equal(Object.hasOwn(writes[0], 'swimmer_id'), false)
+})
+
+test('coach may correct existing swimmer answers with a version check', async () => {
+  const writes = fixture()
+  const response = await call({ action: 'update-talk', id: talkId, profileId: swimmerId, expectedUpdatedAt: '2026-10-20T08:00:00Z', swimmerAnswers: { goals: 'Rättat tillsammans' } })
+  assert.equal(response.code, 200)
+  assert.equal(response.data.talk.swimmerAnswers.goals, 'Rättat tillsammans')
+  assert.equal(writes[0].swimmer_answers.goals, 'Rättat tillsammans')
+})
+
+test('coach cannot overwrite newer or completed swimmer answers', async () => {
+  const writes = fixture()
+  assert.equal((await call({ action: 'update-talk', id: talkId, expectedUpdatedAt: '2026-10-19T08:00:00Z', swimmerAnswers: { goals: 'Föråldrat' } })).code, 409)
+  assert.equal((await call({ action: 'update-talk', id: talkId, expectedUpdatedAt: '2026-10-20T08:00:00Z', swimmerAnswers: { unrelated: 'Nytt svar' } })).code, 400)
+  assert.equal(writes.length, 0)
+  fixture('completed')
+  assert.equal((await call({ action: 'update-talk', id: talkId, expectedUpdatedAt: '2026-10-20T08:00:00Z', swimmerAnswers: { goals: 'Sent' } })).code, 403)
 })
 
 test('completion is explicit and invalid updates do not write', async () => {
@@ -89,6 +107,13 @@ test('completion is explicit and invalid updates do not write', async () => {
 test('swimmer cannot reopen a completed conversation', async () => {
   const writes = fixture('completed')
   assert.equal((await call({ action: 'save-talk', id: talkId, status: 'draft' }, { swimmer: true })).code, 403)
+  assert.equal(writes.length, 0)
+})
+
+test('swimmer cannot overwrite answers changed during the meeting', async () => {
+  const writes = fixture()
+  const response = await call({ action: 'save-talk', id: talkId, expectedUpdatedAt: '2026-10-19T08:00:00Z', swimmerAnswers: { goals: 'Äldre version' } }, { swimmer: true })
+  assert.equal(response.code, 409)
   assert.equal(writes.length, 0)
 })
 

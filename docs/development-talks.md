@@ -1,15 +1,22 @@
 # Utvecklingssamtal
 
 I gruppens förberedelser används kryssrutorna bara för att boka nya samtal.
-Ett befintligt samtal öppnas med **Öppna samtal →**, även när statusen är
+Ett befintligt samtal öppnas med **Öppna →**, även när statusen är
 **Redo för samtal**. Statusen betyder att simmaren skickat sina förberedelser,
 inte att samtalet är genomfört.
 
-Tränaren läser svaren och dokumenterar samtalet. **Spara anteckningar** behåller
+Tränaren läser svaren och dokumenterar samtalet. Under ett pågående möte kan
+tränaren välja **Redigera svar tillsammans** för att rätta simmarens redan
+ifyllda svar. Ändringarna blir synliga även för simmaren, så de bör göras i
+samråd. Ett genomfört samtals svar är skrivskyddade. Redigeringen loggas utan
+att svarstexten kopieras till loggen. Om samtalet ändrats i en annan vy sedan
+det öppnades stoppas sparningen för att undvika att nyare svar skrivs över.
+
+**Spara ändringar** behåller
 statusen. **Markera som genomfört** sparar och avslutar samtalet uttryckligen.
 Interna tränaranteckningar lämnas inte ut i simmarens API-svar. Den gemensamma
-överenskommelsen finns i simmarens samtalshistorik. Simmarens egna svar skrivs
-inte över när tränaren sparar anteckningar.
+överenskommelsen finns i simmarens samtalshistorik. Simmarens svar skrivs inte
+över när tränaren bara sparar anteckningar.
 
 Ett genomfört samtal ligger kvar i historiken och simmaren kan bokas på nytt.
 Ingen ny databasmigrering behövs för detta flöde.

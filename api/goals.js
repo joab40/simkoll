@@ -3,6 +3,7 @@ import { coachFromRequest } from '../server/coach-auth.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { queueCategoryPush, queueMessagePush } from '../server/web-push.js'
 import { saveGoalImage, removeUnattachedGoalImage, goalImageUrl, improveGoalText } from '../server/goal-support.js'
+import { writeAuditLog } from '../server/audit.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
@@ -139,15 +140,28 @@ export default async function handler(request, response) {
         if (!(current?.swimmer_id || profileId) || !validTalkDate(meetingDate) || (followUpDate && (!validTalkDate(followUpDate) || followUpDate < meetingDate))) return sendJson(response, 400, { error: 'Välj en simmare, ett giltigt samtalsdatum och eventuell uppföljning tidigast samma dag.' })
         if (!['draft', 'prepared', 'completed'].includes(status)) return sendJson(response, 400, { error: 'Välj en giltig samtalsstatus.' })
         if ((body.coachNotes !== undefined && !validTalkText(body.coachNotes, 10000)) || (body.agreement !== undefined && !validTalkText(body.agreement, 5000))) return sendJson(response, 400, { error: 'Kontrollera anteckningarna (högst 10 000 tecken) och överenskommelsen (högst 5 000 tecken).' })
-        const payload = { meeting_date: meetingDate, status, follow_up_date: followUpDate, updated_at: new Date().toISOString(), ...(body.enabled !== undefined ? { enabled: body.enabled !== false } : {}), ...(body.coachNotes !== undefined ? { coach_notes: body.coachNotes } : {}), ...(body.agreement !== undefined ? { agreement: body.agreement } : {}) }
-        // Coach notes never replace the swimmer's own submitted answers. An
-        // ordinary save also preserves readiness until completion is explicit.
+        const editingAnswers = action === 'update-talk' && body.swimmerAnswers !== undefined
+        if (editingAnswers) {
+          const answers = body.swimmerAnswers
+          const previous = current.swimmer_answers || {}
+          if (current.status === 'completed') return sendJson(response, 403, { error: 'Svaren i ett genomfört samtal kan inte längre ändras.' })
+          if (!body.expectedUpdatedAt || body.expectedUpdatedAt !== current.updated_at) return sendJson(response, 409, { error: 'Samtalet har ändrats sedan du öppnade det. Uppdatera och granska svaren innan du sparar.' })
+          if (!answers || typeof answers !== 'object' || Array.isArray(answers) || Object.keys(answers).length > 50 || Object.keys(answers).some((key) => !Object.hasOwn(previous, key) || (key === '__step' ? answers[key] !== previous[key] : typeof answers[key] !== 'string' || answers[key].length > 1000))) return sendJson(response, 400, { error: 'Kontrollera svaren. Bara befintliga svar kan rättas, högst 1 000 tecken per svar.' })
+          if (Object.keys(previous).some((key) => !Object.hasOwn(answers, key))) return sendJson(response, 400, { error: 'Något svar saknas. Uppdatera samtalet och försök igen.' })
+        }
+        const payload = { meeting_date: meetingDate, status, follow_up_date: followUpDate, updated_at: new Date().toISOString(), ...(body.enabled !== undefined ? { enabled: body.enabled !== false } : {}), ...(body.coachNotes !== undefined ? { coach_notes: body.coachNotes } : {}), ...(body.agreement !== undefined ? { agreement: body.agreement } : {}), ...(editingAnswers ? { swimmer_answers: body.swimmerAnswers } : {}) }
+        // Ordinary coach saves preserve swimmer answers; explicit joint edits
+        // require a matching version and never alter the swimmer's step metadata.
         if (action === 'create-talk') Object.assign(payload, { swimmer_id: profileId, coach_id: 'coach', group_id: body.groupId || null, swimmer_answers: body.swimmerAnswers || {}, enabled: body.enabled !== false })
-        const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&swimmer_id=eq.${encodeURIComponent(current.swimmer_id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        const result = action === 'create-talk' ? await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&swimmer_id=eq.${encodeURIComponent(current.swimmer_id)}${body.expectedUpdatedAt ? `&updated_at=eq.${encodeURIComponent(body.expectedUpdatedAt)}` : ''}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
         const [row] = await result.json()
-        if (!row) return sendJson(response, 404, { error: 'Samtalet finns inte längre. Uppdatera sidan.' })
+        if (!row) return sendJson(response, 409, { error: 'Samtalet har ändrats av någon annan. Uppdatera och granska innan du sparar.' })
         const talk = mapTalk(row)
+        if (editingAnswers) {
+          const changedFields = Object.keys(body.swimmerAnswers).filter((key) => key !== '__step' && body.swimmerAnswers[key] !== current.swimmer_answers?.[key])
+          if (changedFields.length) await writeAuditLog(request, { eventType: 'development_talk_answers_edited', role: 'coach', profileId: current.swimmer_id, details: { talkId: id, changedFields, coachAccountId: coachAccount?.sub || null } })
+        }
         if (action === 'create-talk' && talk.enabled && talk.status === 'draft') queueCategoryPush({ category: 'developmentTalks', id: talk.id, profileId: talk.swimmerId })
         return sendJson(response, 200, { talk })
       }
@@ -291,17 +305,20 @@ export default async function handler(request, response) {
       if (request.body.id) {
         const talkId = String(request.body.id)
         if (!/^[0-9a-f-]{36}$/i.test(talkId)) return sendJson(response, 400, { error: 'Samtalet kunde inte hittas.' })
-        const existing = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(talkId)}&swimmer_id=eq.${encodeURIComponent(profile.id)}&select=enabled,status&limit=1`)
+        const existing = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(talkId)}&swimmer_id=eq.${encodeURIComponent(profile.id)}&select=enabled,status,updated_at&limit=1`)
         if (!existing.ok) throw new Error(`Development talk lookup failed: ${existing.status}`)
         const [talk] = await existing.json()
         if (!talk) return sendJson(response, 404, { error: 'Samtalet finns inte i din profil.' })
         if (talk.enabled === false || talk.status === 'completed') return sendJson(response, 403, { error: 'Samtalet är genomfört eller skrivskyddat.' })
+        if (request.body.expectedUpdatedAt && request.body.expectedUpdatedAt !== talk.updated_at) return sendJson(response, 409, { error: 'Samtalet ändrades nyligen. Öppna det igen och granska svaren innan du sparar.' })
       }
       const id = String(request.body?.id || ''), answers = request.body?.swimmerAnswers || {}, status = request.body?.status === 'prepared' ? 'prepared' : 'draft'
       const payload = { swimmer_id: profile.id, meeting_date: request.body?.meetingDate || new Date().toISOString().slice(0, 10), status, swimmer_answers: answers, updated_at: new Date().toISOString() }
-      const result = id ? await supabaseRequest(`development_talks?id=eq.${id}&swimmer_id=eq.${profile.id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+      const result = id ? await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(id)}&swimmer_id=eq.${encodeURIComponent(profile.id)}${request.body.expectedUpdatedAt ? `&updated_at=eq.${encodeURIComponent(request.body.expectedUpdatedAt)}` : ''}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }) : await supabaseRequest('development_talks', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
       if (!result.ok) throw new Error(`Development talk save failed: ${result.status} ${await result.text()}`)
-      return sendJson(response, 200, { talk: swimmerTalk(mapTalk((await result.json())[0])) })
+      const [savedTalk] = await result.json()
+      if (!savedTalk) return sendJson(response, 409, { error: 'Samtalet ändrades nyligen. Öppna det igen och granska svaren innan du sparar.' })
+      return sendJson(response, 200, { talk: swimmerTalk(mapTalk(savedTalk)) })
     }
 
     if (request.method === 'POST') {
