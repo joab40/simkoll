@@ -1,0 +1,22 @@
+.swimmer-development { margin: 18px 0; padding: clamp(16px, 3vw, 26px); border: 1px solid #c9dfd6; border-radius: 22px; background: linear-gradient(145deg, #f9fff8, #f1f8f5); }
+.diary-period-numbers { margin: 16px 0; }
+.diary-period-numbers > summary { cursor: pointer; font-weight: 700; padding: 12px 0; }
+.development-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.development-heading h2 { margin: 4px 0 8px; font-size: clamp(23px, 3vw, 30px); letter-spacing: -.03em; }
+.development-heading p:not(.eyebrow), .development-method { color: var(--muted); line-height: 1.5; font-size: 13px; }
+.development-perspectives { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.development-perspectives article { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding: 16px; border: 1px solid #dce8e2; border-radius: 15px; background: #ffffffdb; }
+.development-perspectives article > span { font-size: 24px; }
+.development-perspectives h3 { font-size: 14px; margin: 8px 0; }
+.development-perspectives strong { color: var(--teal); font-size: 18px; overflow-wrap: anywhere; }
+.development-perspectives p, .development-perspectives small { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.development-perspectives button { margin-top: auto; padding: 12px 0 0; min-height: 44px; color: var(--teal); border: 0; background: none; font: inherit; font-size: 13px; text-align: left; font-weight: 700; }
+.development-journey, .development-time-evidence { border-top: 1px solid #d9e7df; margin-top: 18px; padding-top: 15px; }
+.development-journey summary, .development-time-evidence summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.development-journey article, .development-time-evidence > p { border-left: 3px solid #b9d9cb; padding: 8px 14px; margin: 14px 0; background: #ffffffa0; border-radius: 0 10px 10px 0; }
+.development-journey h3 { font-size: 15px; margin: 4px 0; }
+.development-journey p { font-size: 13px; line-height: 1.5; }
+.development-journey small, .development-time-evidence span, .development-time-evidence small { display: block; margin-top: 5px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.development-time-evidence strong { font-size: 13px; }
+@media (max-width: 800px) { .development-perspectives { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 440px) { .development-perspectives { grid-template-columns: 1fr; } .development-heading > button { width: 100%; } }

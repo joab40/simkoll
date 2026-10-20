@@ -1,5 +1,24 @@
 # Min träningsdagbok
 
+## Min utveckling – hela bilden
+
+Överst i dagboken samlas genomförd simträning, gym/styrka, träningsdagar,
+RPE, egna reflektioner, aktuella utvecklingsmål, egna tider/testlopp och
+registrerade tävlingsresultat för vald period. **Registrera testlopp +** öppnar
+det befintliga tidsformuläret med typen Testlopp förvald. Ett testlopp kan vara
+fristående; det skapar inte ett extra pass eller officiellt personbästa.
+
+Korten öppnar motsvarande historik, mål eller tidsjämförelse. **Min väg vecka
+för vecka** visar träningsinsatsen, RPE och egna/tävlingsresultat tillsammans.
+Egna tider jämförs bara vid identiska förutsättningar och olika datum. Jämförelsen
+avser bästa registreringen första respektive senaste dagen i vald period,
+inte ett officiellt personbästa. Målens status är aktuell och sätts inte
+automatiskt. Saknade eller begränsade källor redovisas. Vila och hög RPE
+bedöms inte som sämre respektive bättre utveckling. Ingen AI körs.
+
+Detta använder samma profilsäkra API:er och befintliga migrationer 095/098.
+Ingen ytterligare SQL behövs.
+
 Simmaren öppnar dagboken via sin meny eller Min profil. Första versionen
 omfattar historik, vecka/månad/termin/egen period, jämförelse med en lika
 lång föregående period, veckosammanfattningar, kalender, passdetaljer,

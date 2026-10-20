@@ -16,7 +16,7 @@ function TimeProgress({ group }) {
   return <div className="swim-time-progress"><p>Snabbare tider ligger högre. Punkterna är dina registreringar.</p><div className="swim-time-chart"><svg width={width} height={height} role="img" aria-label={`Jämförbara träningstider: ${group.description}`}><polyline points={items.map((item, index) => `${x(index)},${y(item.result_time)}`).join(' ')} fill="none" stroke="#147b7b" strokeWidth="2" />{items.map((item, index) => <g key={item.id}><circle cx={x(index)} cy={y(item.result_time)} r="4" fill="#147b7b"><title>{dateLabel(item.result_date)}: {formatTrainingTime(item.result_time)}</title></circle><text x={x(index)} y={y(item.result_time) - 9} textAnchor="middle">{formatTrainingTime(item.result_time)}</text><text x={x(index)} y={140} textAnchor="middle">{new Date(`${item.result_date}T12:00:00Z`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</text></g>)}</svg></div><small>Varje punkt visas i datumordning. Samma förutsättningar innebär samma gren, bassäng, typ av tid, start, arm/ben/hel simning, hjälpmedel, tidtagning och extra förutsättningar.</small></div>
 }
 
-export default function SwimTimes({ code, request, range, entries = [], profileId, coachView = false, readOnly = false, onDirty }) {
+export default function SwimTimes({ code, request, range, entries = [], profileId, coachView = false, readOnly = false, onDirty, onData, createRequest, onCreateHandled }) {
   const today = todayKey()
   const [ownRange, setOwnRange] = useState(() => ({ start: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10), end: today }))
   const period = range || ownRange
@@ -39,6 +39,16 @@ export default function SwimTimes({ code, request, range, entries = [], profileI
     return () => { active = false }
   }, [code, profileId, coachView, period.start, period.end, reload])
   const visibleTimes = useMemo(() => times.filter((row) => row.result_date >= period.start && row.result_date <= period.end), [times, period.start, period.end])
+  useEffect(() => { onData?.({ rows: visibleTimes, loading, error, limited, periodKey: `${period.start}:${period.end}` }) }, [visibleTimes, loading, error, limited, period.start, period.end, onData])
+  const handledCreate = useRef(null)
+  useEffect(() => {
+    if (!createRequest || handledCreate.current === createRequest || loading || error || readOnly) return
+    handledCreate.current = createRequest
+    onCreateHandled?.(null)
+    if (dirty && !window.confirm('Du har en osparad tid. Lämna ändringarna?')) return
+    const draft = { ...defaults(period.end), kind: createRequest.kind === 'test' ? 'test' : 'training' }
+    setOriginal(JSON.stringify(draft)); setEditor(draft); setFormError(''); setStatus('')
+  }, [createRequest, loading, error, readOnly])
   const groups = useMemo(() => comparableSwimTimes(visibleTimes), [visibleTimes])
   const group = groups.find((item) => item.key === selected) || groups[0]
   const change = (key, value) => { setEditor((current) => ({ ...current, [key]: value, ...(key === 'date' ? { entryKey: '' } : {}) })); setFormError('') }
@@ -62,7 +72,7 @@ export default function SwimTimes({ code, request, range, entries = [], profileI
   }
   const selectField = (key, label, values) => <label>{label}<select value={editor[key]} onChange={(event) => change(key, event.target.value)}>{Object.entries(values).map(([value, title]) => <option value={value} key={value}>{title}</option>)}</select></label>
   return <section className="swim-times-panel" aria-label={coachView ? 'Simmarens träningstider' : 'Mina egna träningstider'}>
-    <div className="swim-times-heading"><div>{!coachView && <p className="eyebrow">Träning och testlopp</p>}<h2>{coachView ? 'Tider och utveckling' : 'Mina egna tider'}</h2></div>{!readOnly && !loading && !error && <button type="button" className="secondary-button" disabled={busy} onClick={() => openEditor()}>Registrera en tid +</button>}</div>
+    <div className="swim-times-heading"><div>{!coachView && <p className="eyebrow">Träning och testlopp</p>}<h2>{coachView ? 'Tider och utveckling' : 'Mina egna tider och testlopp'}</h2></div>{!readOnly && !loading && !error && <button type="button" className="secondary-button" disabled={busy} onClick={() => openEditor()}>Registrera en tid +</button>}</div>
     <p className="swim-times-help">{coachView ? 'Följ tider med samma förutsättningar och rätta vid behov tillsammans med simmaren.' : 'Följ exempelvis 75 m arm med dolme eller 100 m frisim över tid. Tränarna kan också läsa och rätta tiderna.'} Egna tider visas separat från tävlingsresultat och officiella personbästan. De ger inga PB-poäng och skapar inga extra pass eller simmeter.</p>
     {!range && <div className="swim-times-period"><label>Från<input type="date" value={ownRange.start} max={ownRange.end} onChange={(event) => setOwnRange({ ...ownRange, start: event.target.value })} /></label><label>Till<input type="date" value={ownRange.end} min={ownRange.start} max={today} onChange={(event) => setOwnRange({ ...ownRange, end: event.target.value })} /></label></div>}
     {loading && <p role="status">Hämtar tider…</p>}{error && <p role="alert">{error} <button type="button" className="text-button" onClick={() => setReload((value) => value + 1)}>Försök igen</button></p>}{status && <p role="status" className="swim-times-status">{status}</p>}{limited && <p>Historiken är begränsad. Välj en kortare period för ett fullständigare underlag.</p>}
