@@ -867,6 +867,12 @@ button { cursor: pointer; }
 .program-evidence { font-size: 12px; background: #f0f5f3; padding: 10px; border-radius: 8px; overflow-wrap: anywhere; }
 .program-review .program-review-check { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; font-weight: 500; }
 .program-review-check input { margin-top: 3px; }
+.program-publish-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 250px; transition: filter .18s ease, transform .18s ease, box-shadow .18s ease; }
+.program-publish-button:not(:disabled):hover { filter: brightness(.97); transform: translateY(-1px); box-shadow: 0 6px 16px #183c3618; }
+.program-publish-button:disabled { opacity: .78; cursor: wait; }
+.program-save-spinner { width: 17px; height: 17px; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: program-save-spin .75s linear infinite; }
+@keyframes program-save-spin { to { transform: rotate(360deg); } }
+.program-save-success { margin: 14px 0; padding: 14px 16px; border: 1px solid #b8dec1; border-radius: 12px; background: #edf8ed; color: #28623a; font-weight: 700; line-height: 1.45; }
 .program-analysis-status { color: var(--teal); padding: 12px; border-radius: 12px; background: #edf7f3; }
 .program-saved-sessions { font-size: 13px; }
 @media (max-width: 480px) { .program-review .settings-actions { display: grid; } .program-review .settings-actions button { width: 100%; } }

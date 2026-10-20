@@ -3880,6 +3880,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
   const [importing, setImporting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const sourceRef = useRef(null)
   useEffect(() => () => { if (sourceRef.current) URL.revokeObjectURL(sourceRef.current) }, [])
   const load = async () => {
@@ -3896,7 +3897,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
     const type = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : '')
     if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type)) return setError('Välj en bild eller PDF. Exportera Word till PDF för att bevara tabellernas layout.')
     if (file.size > 3 * 1024 * 1024) return setError('Välj en fil under 3 MB så att den ryms i uppladdningen. Exportera eller komprimera dokumentet och försök igen.')
-    setImporting(true); setError('')
+    setImporting(true); setError(''); setSuccess('')
     if (!await load()) { setImporting(false); return }
     const reader = new FileReader()
     reader.onerror = () => { setError('Filen kunde inte läsas.'); setImporting(false) }
@@ -3912,10 +3913,11 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
     reader.readAsDataURL(file)
   }
   const publish = async (reviewedDraft) => {
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setSuccess('')
     try {
       const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish-competition-program', competitionId: competition.id, draft: reviewedDraft, programSnapshot: snapshot, reviewed: true }) })
       setEvents(data.events); setSnapshot(data.programSnapshot); setSessions(data.sessions || []); setDraft(null)
+      setSuccess('✓ Grenprogrammet har sparats. Det sparade programmet är uppdaterat och befintliga anmälningar för oförändrade grenar är kvar.')
     } catch (e) { setError(e.message) } finally { setSaving(false) }
   }
   return <details className="competition-program" onToggle={(event) => event.currentTarget.open && events === null && !loading && load()}>
@@ -3926,6 +3928,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
     </div>
     {importing && <p role="status" className="program-analysis-status">Läser tabellernas struktur och kontrollerar grenordningen. Större dokument kan ta ett par minuter.</p>}
     {error && <p role="alert" className="program-warning">{error}</p>}
+    {success && <p role="status" className="program-save-success">{success}</p>}
     {draft && <CompetitionProgramReview draft={draft} setDraft={setDraft} saving={saving} onPublish={publish} onCancel={() => { setDraft(null); setError('') }} sourceUrl={source.url} sourceType={source.type} />}
     {!draft && sessions.length > 0 && <div className="program-saved-sessions">{sessions.map((s) => <p key={s.label}><strong>{s.label}</strong> · {[s.date, s.warmup && `Insim ${s.warmup}`, s.start && `Start ${s.start}`].filter(Boolean).join(' · ')}</p>)}</div>}
     {!draft && events?.length ? <div className="competition-event-list">{events.map((item) => {
