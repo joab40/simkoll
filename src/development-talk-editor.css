@@ -1,4 +1,10 @@
 .talk-editor { scroll-margin-top: 24px; }
+.talk-dictation { padding: 14px; margin: 16px 0; border: 1px solid #d5e5de; border-radius: 12px; background: #f3f8f5; }
+.talk-dictation summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.talk-dictation p { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.talk-editor .talk-dictation-consent { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.5; font-weight: 400; }
+.talk-dictation-consent input { width: 20px; height: 20px; flex: none; margin: 2px 0 0; accent-color: #167574; }
+.talk-transcript-review { border-top: 1px solid var(--line); padding-top: 8px; }
 .talk-editor-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
 .talk-editor-heading h3 { margin: 4px 0; font-size: 25px; }
 .talk-next-step { padding: 14px 16px; border: 1px solid #cce3d4; border-radius: 13px; background: #eef8ef; margin: 12px 0 18px; }
