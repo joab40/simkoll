@@ -8,6 +8,7 @@ import { loadTrainingDiary, saveDiaryReflection } from '../server/training-diary
 import { loadSwimTimes, saveSwimTime, deleteSwimTime } from '../server/swim-times.js'
 import { isTimeId } from '../shared/swim-times.js'
 import { writeAuditLog } from '../server/audit.js'
+import { loadCoachWeek } from '../server/coach-week.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -154,6 +155,11 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if (request.method === 'GET' && request.query?.coachWeek !== undefined) {
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se gruppens veckoplanering.' })
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      try { return sendJson(response, 200, await loadCoachWeek(String(request.query.coachWeek))) } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+    }
     if ((request.method === 'GET' && request.query?.swimTimes === 'true') || (request.method === 'POST' && ['save-swim-time', 'delete-swim-time'].includes(request.body?.action))) {
       if (!['swimmer', 'coach'].includes(role)) return sendJson(response, 403, { error: 'Logga in för att använda träningstider.' })
       let profile, coach = null

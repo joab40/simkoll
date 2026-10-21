@@ -1,14 +1,16 @@
 import React, { useMemo } from 'react'
 import { buildCoachControlPanel } from '../shared/coach-control-panel.js'
 import './coach-control-panel.css'
+import CoachWeek from './coach-week.jsx'
 
 const fmt = (value) => value == null ? '–' : Number(value).toLocaleString('sv-SE')
 const dayLabel = (value) => new Date(`${value}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' })
 
-export default function CoachControlPanel({ profiles, responses, asOf, onOpenSwimmer, onMessage }) {
+export default function CoachControlPanel({ profiles, responses, asOf, code, request, onOpenSwimmer, onMessage }) {
   const report = useMemo(() => buildCoachControlPanel(profiles, responses, asOf), [profiles, responses, asOf])
   return <section className="coach-control-panel">
     <div className="period-heading"><div><p className="eyebrow">Tränarens kontrollpanel</p><h1>Gruppen i korthet</h1><small>{dayLabel(report.start)}–{dayLabel(report.end)} · {report.profileCount} simmare i valda grupper</small></div></div>
+    <CoachWeek profiles={profiles} asOf={asOf} code={code} request={request} onOpenSwimmer={onOpenSwimmer} />
     <p className="coach-panel-intro">Här sammanfattas simmarnas egna incheckningar. Pass är rapporterade genomförda aktiviteter, inte automatiskt bekräftad närvaro. Använd signalerna som underlag för samtal, inte som medicinska bedömningar.</p>
     <div className="coach-panel-metrics">
       <article><small>Genomförda aktiviteter</small><strong>{report.completedPasses}</strong><span>Unika pass från efter-incheckningar</span></article>

@@ -1,0 +1,50 @@
+.coach-week { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+.coach-week-header, .coach-week-detail > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.coach-week-header h2, .coach-week-detail h3 { margin: 0; }
+.coach-week-header p:not(.eyebrow), .coach-week-help { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.coach-week-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.coach-week-navigation .secondary-button { min-height: 40px; padding: 8px 12px; font-size: 13px; }
+.coach-week-scroll { overflow-x: auto; overscroll-behavior-x: contain; margin: 15px 0 10px; }
+.coach-week-mobile-hint { display: none; }
+.coach-week-grid { width: 100%; min-width: 740px; border-collapse: separate; border-spacing: 4px; table-layout: fixed; font-size: 13px; }
+.coach-week-grid th { text-align: center; font-weight: 700; padding: 5px 0; }
+.coach-week-grid th:first-child { width: 105px; text-align: left; position: sticky; left: 0; z-index: 1; background: var(--paper); }
+.coach-week-grid tbody th span { display: block; font-size: 23px; margin-bottom: 4px; }
+.coach-week-grid th small { display: block; color: var(--muted); font-weight: 400; margin-top: 4px; font-size: 12px; }
+.coach-week-grid .is-today { border-radius: 10px; background: #dcefeb; color: var(--teal); }
+.coach-week-cell { width: 100%; padding: 10px 6px; min-height: 70px; border: 2px solid transparent; border-radius: 12px; background: #edf5f2; color: var(--ink); cursor: pointer; }
+.coach-week-cell-counts { display: flex; justify-content: space-evenly; align-items: center; gap: 4px; }
+.coach-week-cell-counts > span { padding: 5px 2px; border-radius: 7px; color: #6c8480; font-size: 12px; }
+.coach-week-cell-counts b { font-size: 17px; }
+.coach-week-cell.has-plans .coach-week-cell-counts > span:first-child { background: #e0edb4; color: #48620e; }
+.coach-week-cell.has-completed .coach-week-cell-counts > span:last-child { background: #cef359; color: #203b24; }
+.coach-week-cell small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.coach-week-cell[aria-pressed="true"], .coach-week-cell:hover { border-color: var(--teal); }
+.coach-week-cell:focus-visible, .coach-week-filters button:focus-visible { outline: 3px solid #8cd2cc; outline-offset: 2px; }
+.coach-week-detail { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 18px; }
+.coach-week-detail h3 { font-size: 19px; }
+.coach-week-filters { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin: 16px 0; }
+.coach-week-filters button { border: 1px solid var(--line); border-radius: 20px; min-height: 40px; padding: 8px 12px; background: white; color: var(--ink); cursor: pointer; font-size: 13px; }
+.coach-week-filters button[aria-pressed="true"] { border-color: var(--teal); background: #e0f0ea; color: var(--teal); }
+.coach-week-filters label { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.coach-week-filters input { width: 155px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; font: inherit; font-size: 16px; color: var(--ink); }
+.coach-week-people article, .coach-week-list-heading { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(90px, .65fr) minmax(180px, 1.4fr); align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.coach-week-list-heading { color: var(--muted); font-size: 12px; }
+.coach-week-person { display: flex; gap: 8px; align-items: center; text-align: left; border: 0; background: none; color: var(--teal); cursor: pointer; min-width: 0; min-height: 40px; padding: 0; font: inherit; }
+.coach-week-person strong { overflow-wrap: anywhere; }
+.coach-week-plan-label { color: var(--muted); }
+.coach-week-plan-label.planned { color: #5c751f; }
+.coach-week-person-status { min-width: 0; overflow-wrap: anywhere; }
+.coach-week-person-status strong { display: block; font-size: 13px; }
+.coach-week-person-status .is-completed { color: var(--teal); }
+.coach-week-person-status small { display: block; color: var(--muted); margin-top: 4px; font-size: 12px; line-height: 1.4; }
+@media (max-width: 600px) {
+  .coach-week { padding: 14px; }
+  .coach-week-mobile-hint { display: block; color: var(--teal); font-size: 12px; margin: 14px 0 0; }
+  .coach-week-navigation { width: 100%; }
+  .coach-week-list-heading { display: none; }
+  .coach-week-people article { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .coach-week-person-status { grid-column: 1 / -1; padding-left: 0; }
+  .coach-week-filters label { width: 100%; margin-left: 0; }
+  .coach-week-filters input { flex: 1; width: 100%; min-width: 0; }
+}
