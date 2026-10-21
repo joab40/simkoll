@@ -11,6 +11,7 @@ import { assistantScheduleLabels, buildAssistantSwimCalendar, addScheduleWeekday
 import { assistantSystemPrompt } from '../server/assistant-style.js'
 import { buildCoachAssistantFeatureSnapshot, COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
 import { queueCategoryPush } from '../server/web-push.js'
+import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 
 export function publicWorkout(item, { includeDetails = true } = {}) {
   if (!item) return null
@@ -24,7 +25,7 @@ function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
 }
 function publicCompetition(item) {
-  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, updatedAt: item.updated_at }
+  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), updatedAt: item.updated_at }
 }
 function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
@@ -217,10 +218,11 @@ Assistent och data: När en fråga skickas behandlas frågan och relevant underl
 OpenAI och policy: OpenAI uppger att API-data inte används för modellträning som standard, om kunden inte väljer att dela data. OpenAI:s standardloggar för missbruksövervakning kan innehålla innehåll och sparas i upp till 30 dagar. Simkoll kan inte läsa vilken datakontroll som gäller för den aktuella OpenAI-organisationen/projektet. Hänvisa vid behov till Info & villkor i appens meny och OpenAI:s dokumentation https://platform.openai.com/docs/guides/your-data. Påstå inte en exakt klubbretention, personuppgiftsansvarig, kontaktadress eller OpenAI-inställning: dessa uppgifter är inte konfigurerade/visade här och måste bekräftas av klubben.`
   const pushFaq = '\nPushnotiser: Superadmin aktiverar klubbens Pushnotiser i tränarvyns inställningar. Huvudtränare och superadmin kan även slå på två valfria träningspåminnelser i Inställningar och trycka Spara påminnelser; schemaläggning och behörighet ordnas automatiskt, utan nya miljövariabler i Vercel eller manuell kopiering av hemligheter. Varje användare måste själv godkänna Aktivera notiser en gång per enhet; efter det krävs ingen ny systemfråga för kategorier. Enheten måste ha kategorin Påminnelser om träningsincheckning påslagen. Om tränaren aktiverat efterrapportpåminnelsen skickas den ungefär 2,5 timmar efter att simmaren tryckt Jag ska träna, om ingen efterrapport har kommit för samma pass. Tiden utgår från incheckningen och är inte en exakt mätning av när passet började. En annan valfri notis kan påminna omkring kl. 20 svensk tid om planerad träning saknar helt incheckningssvar; den skickas inte om simmaren svarat, exempelvis vila, sjukdom eller tävling. Högst en träningspåminnelse skickas per simmare och dag. Simmaren kan stänga av träningspåminnelser per enhet. Övriga pushnotiser gäller Info från tränarna, privata meddelanden, utvecklingssamtal och när tävlingsanmälan öppnar. Notiser visar inte privata svar eller meddelandetext. Assistenten kan inte se om notiser är aktiverade på den aktuella enheten och kan inte aktivera dem åt användaren. Push garanterar inte leverans eller läsning. Båda påminnelserna kontrolleras ungefär var femte minut via Supabase Cron. Databasuppdateringarna 096 och 097 samt befintlig pushkonfiguration krävs; om 096 redan körts räcker det att köra 097 och därefter spara påminnelserna från den publicerade appen.'
   const goalFaq = '\nUtvecklingsmål i simmarvyn: Tränaren skapar målet i samråd med simmaren. Ett nytt mål visas som ett kort på startsidan under Dagens pass och som en händelse i notislistan. Har simmaren aktiverat push för utvecklingsmål och samtal kan en webnotis komma utan en ny systemfråga. När simmaren öppnar målsidan och ser målet markeras det som läst och startkortet försvinner; målet finns kvar via Meny → Mina mål → Mina utvecklingsmål. Där syns beskrivning, nästa steg, eventuell analysbild och svarshistorik. Simmaren kan skriva ett privat svar direkt på målet; tränarna får en notis och läser svaret under Utvecklingsmål i tränarvyn. Tränaren kan skriva återkoppling på samma mål. Simmaren kan inte själv skapa eller redigera tränarens mål. Uppmana inte till att skriva diagnoser eller andra känsliga personuppgifter. Assistenten kan läsa aktuell måltext ur trainingAndGoals.developmentGoals, men inte svarshistoriken för målet; vid frågor om ett visst svar ska simmaren öppna målet i Mina mål. Påstå inte att en notis verkligen levererats eller att tränaren läst svaret.'
-  const faq = baseFaq + pushFaq + goalFaq
+  const competitionFaq = '\nTävlingskalender och PM: Alla tränare kan skapa och redigera tävlingens datum, plats, grupper och kommentar samt bifoga original-PM som PDF eller bild (högst 3 MB). Original-PM sparas separat från det AI-tolkade grenprogrammet och finns kvar när programmet uppdateras. Simmaren hittar PM via Meny → Mina grenar → välj kommande tävling → Öppna PM, även om grenanmälan ännu inte öppnats. Tävlingen ska gälla simmarens grupp. Saknad klass betyder ej angiven; kontrollera original-PM och fråga tränaren. För anmälan måste tränaren först spara ett program med valbara grenar och sedan välja Öppna grenanmälan för simmare. Stängd anmälan behåller tidigare val. Om grenval inte kan sparas behålls tidigare val. Assistenten kan förklara flödet men kan inte öppna bilagans innehåll, tolka ett bifogat PM på eget initiativ eller påstå att alla klasser har kommit med.'
+  const faq = baseFaq + pushFaq + goalFaq + competitionFaq
   const coachFaq = role === 'coach' ? `${COACH_ASSISTANT_FEATURE_GUIDE}
 Tränarens FAQ – roller och behörigheter:
-- Grenprogram läses in i Tävlingskalender → Grenprogram → Läs in bild / PDF (högst 3 MB). Word exporteras till PDF för att tabellayouten ska finnas kvar. PM-modellen har en separat inställning OPENAI_COMPETITION_PROGRAM_MODEL, normalt GPT-6.1 Sol; detta ändrar inte chattassistentens modell. AI inventerar först passen och synliga grennummer, läser därefter grenraderna separat. Mix är eget kön; A–F är klassbeteckningar, inte kön. Tränaren granskar utkastet per pass, jämför med originalet, rättar fel och kontrollerar osäkra rader. Godkänn och spara program ändrar programmet först efter granskningen. Sparade grenanmälningar behålls när grenens identitet är oförändrad; ändrad/borttagen gren med anmälningar blockerar sparandet. Inget importflöde kan garantera perfekt tolkning av varje PM. Grenanmälan öppnas separat via Publicera grenanmälan för simmare.
+- Grenprogram läses in i Tävlingskalender → Grenprogram → Läs in bild / PDF (högst 3 MB). Word exporteras till PDF för att tabellayouten ska finnas kvar. PM-modellen har en separat inställning OPENAI_COMPETITION_PROGRAM_MODEL, normalt GPT-6.1 Sol; detta ändrar inte chattassistentens modell. AI inventerar först passen och synliga grennummer, läser därefter grenraderna separat. Mix är eget kön; A–F är klassbeteckningar, inte kön. Tränaren granskar utkastet per pass, jämför med originalet, rättar fel och kontrollerar osäkra rader. Godkänn och spara program ändrar programmet först efter granskningen. Sparade grenanmälningar behålls när grenens identitet är oförändrad; ändrad/borttagen gren med anmälningar blockerar sparandet. Inget importflöde kan garantera perfekt tolkning av varje PM. Grenanmälan öppnas separat via Öppna grenanmälan för simmare.
 - Huvudtränare och superadmin kan under Mitt tränarkonto koppla sitt eget simmarkonto genom att verifiera användarnamn och PIN en gång. PIN-koden sparas inte. Därefter kan de välja Byt till min simmarvy och använda den vanliga simmarvyn med sitt eget konto. En tydlig knapp högst upp byter tillbaka till tränarvyn. Det går inte att söka efter eller öppna andra simmares profiler.
 - Det finns tre tränarroller. **Tränare** arbetar med gruppernas vardag men kan inte ändra klubbens inställningar eller sina egna vyinställningar. **Huvudtränare och superadmin** kan styra globalt vilka delar av tränarmenyn som visas. Superadmin har dessutom tillgång till övriga globala inställningar, säkerhet, integrationer och tränarkonton.
 - Superadmin öppnar Tränarvy → Tränarkonton för att godkänna eller permanent ta bort väntande ansökningar samt aktivera, stänga av och byta roll på befintliga tränare. En borttagen ansökan kan skickas in på nytt senare. Superadmin kan hantera andra superadmins men kan inte stänga av eller nedgradera sitt eget konto.
@@ -507,15 +509,9 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
   // Kör kopplingen sekventiellt. Om flera pass sparas samtidigt kan parallella
   // matchningar annars välja samma planeringsrad och skriva över varandra.
   for (const workout of workouts.filter((item) => !hidden.has(item.workout_date) && !linkedWorkoutIds.has(item.id))) await syncPlanningFromWorkout(workout)
-  const competitionsResult = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
-  const competitions = competitionsResult.ok ? await competitionsResult.json() : []
-  const planDates = new Set(cleanPlans.map((item) => `${item.plan_date}:${item.activity_type}`))
-  await Promise.all(competitions.flatMap((competition) => {
-    const start = new Date(`${competition.start_date}T12:00:00`), end = new Date(`${competition.end_date}T12:00:00`), entries = []
-    for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) { const date = day.toISOString().slice(0, 10); if (!hidden.has(date) && !planDates.has(`${date}:competition`)) entries.push(supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'competition', title: competition.title, target_groups: competition.target_groups, location: competition.location, notes: competition.notes, updated_at: new Date().toISOString() }) })) }
-    return entries
-  }))
-  if (!workouts.length && !competitions.length) return cleanPlans
+  // Calendar competitions are synchronized transactionally by migration 099.
+  // Creating copies on reads would leave stale dates/groups and duplicate days.
+  if (!workouts.length) return cleanPlans
   const refreshed = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
   return refreshed.ok ? await refreshed.json() : cleanPlans
 }
@@ -625,7 +621,7 @@ const mapCompetitionEvent = (item) => {
   const sessionLabel = String(item.session_label || '').trim()
   const baseLabel = String(item.label || '').trim()
   const label = sessionLabel && !baseLabel.toLowerCase().includes(sessionLabel.toLowerCase()) ? `${sessionLabel} · ${baseLabel}` : baseLabel
-  return { id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: `Kön: ${item.gender === 'Dam' ? 'Damer' : item.gender === 'Herr' ? 'Herrar' : item.gender || 'Alla'}`, ageClass: `Klass: ${item.age_class || 'Alla åldrar'}`, distanceMeters: item.distance_meters || null, stroke: item.stroke, label, sessionLabel, itemType: item.item_type || 'race', entryAllowed: item.entry_allowed !== false, selectable: item.entry_allowed !== false }
+  return { id: item.id, competitionId: item.competition_id, eventOrder: item.event_order, eventNumber: item.event_number || '', gender: `Kön: ${item.gender === 'Dam' ? 'Damer' : item.gender === 'Herr' ? 'Herrar' : item.gender || 'Alla'}`, ageClass: `Klass: ${item.age_class || 'Ej angiven – se PM'}`, distanceMeters: item.distance_meters || null, stroke: item.stroke, label, sessionLabel, itemType: item.item_type || 'race', entryAllowed: item.entry_allowed !== false, selectable: item.entry_allowed !== false }
 }
 
 export default async function handler(request, response) {
@@ -676,9 +672,23 @@ export default async function handler(request, response) {
         const visible = role === 'coach' || profile?.is_test_profile || !profile?.training_group ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
         return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
       }
+      if (request.query?.competitionPm === 'true') {
+        const id = String(request.query.id || '')
+        if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Välj en giltig tävling.' })
+        const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(id)}&select=*&limit=1`)
+        if (!result.ok) throw new Error('PM-uppgifterna kunde inte hämtas.')
+        const competition = (await result.json())[0]
+        if (!canReadCompetition(competition, role, profile)) return sendJson(response, 404, { error: 'Tävlingen finns inte för din grupp.' })
+        try { return sendJson(response, 200, { document: await competitionPmUrl(competition) }) }
+        catch (error) { return sendJson(response, 422, { error: error.message }) }
+      }
       if (request.query?.program === 'true') {
         const competitionId = String(request.query.id || '')
         if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const calendarResult = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}&select=*&limit=1`)
+        if (!calendarResult.ok) throw new Error('Tävlingen kunde inte hämtas.')
+        const calendar = (await calendarResult.json())[0]
+        if (!canReadCompetition(calendar, role, profile)) return sendJson(response, 404, { error: 'Tävlingen finns inte för din grupp.' })
         const eventsResult = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}&select=*&order=event_order.asc`)
         if (!eventsResult.ok) throw new Error(`Competition events GET failed: ${eventsResult.status}`)
         const entryQuery = role === 'coach' ? `competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&select=*&order=created_at.asc` : profile ? `competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${profile.id}&select=*&order=created_at.asc` : null
@@ -694,8 +704,6 @@ export default async function handler(request, response) {
           publicEntries = entries.map((entry) => ({ ...entry, profileName: profileMap.get(entry.profile_id)?.display_name || 'Simmare', profileEmoji: profileMap.get(entry.profile_id)?.emoji || '🏊' }))
         }
         const rawEvents = await eventsResult.json()
-        const calendarResult = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}&select=*&limit=1`)
-        const calendar = calendarResult.ok ? (await calendarResult.json())[0] : null
         return sendJson(response, 200, { events: rawEvents.map(mapCompetitionEvent), entries: publicEntries, sessions: calendar?.program_metadata?.sessions || [], ...(role === 'coach' ? { programSnapshot: rawEvents } : {}) })
       }
       if (role === 'coach' && request.query?.notes === 'true') {
@@ -744,31 +752,25 @@ export default async function handler(request, response) {
         if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         return sendJson(response, 200, await answerAssistant(request, role))
       }
-      if (request.body?.action === 'coach-update-competition-entry') {
-        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ändra tävlingsval.' })
-        const competitionId = String(request.body.competitionId || ''), profileId = String(request.body.profileId || '')
-        const eventIds = Array.isArray(request.body.eventIds) ? [...new Set(request.body.eventIds.map(String))].slice(0, 30) : []
-        if (!competitionId || !profileId) return sendJson(response, 400, { error: 'Tävling eller simmare saknas.' })
-        const reset = await supabaseRequest(`competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${encodeURIComponent(profileId)}`, { method: 'DELETE' })
-        if (!reset.ok) throw new Error(`Competition entries reset failed: ${reset.status}`)
-        if (!eventIds.length) return sendJson(response, 200, { entries: [] })
-        const insert = await supabaseRequest('competition_entries', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(eventIds.map((eventId) => ({ competition_id: competitionId, event_id: eventId, profile_id: profileId, status: 'submitted', submitted_at: new Date().toISOString() }))) })
-        if (!insert.ok) throw new Error(`Competition entries insert failed: ${insert.status} ${await insert.text()}`)
-        return sendJson(response, 200, { entries: await insert.json() })
-      }
-      if (request.body?.action === 'save-competition-entry' || request.body?.action === 'submit-competition-entries') {
-        const swimmer = role === 'coach' ? null : await getSessionProfile(request)
-        if (!swimmer) return sendJson(response, 403, { error: 'Logga in med en simmarprofil först.' })
-        const competitionId = String(request.body.competitionId || '')
-        const eventIds = Array.isArray(request.body.eventIds) ? [...new Set(request.body.eventIds.map(String))].slice(0, 30) : []
-        if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
-        const existing = await supabaseRequest(`competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${encodeURIComponent(swimmer.id)}`, { method: 'DELETE' })
-        if (!existing.ok) throw new Error(`Competition entries reset failed: ${existing.status}`)
-        if (!eventIds.length) return sendJson(response, 200, { entries: [], status: request.body.action === 'submit-competition-entries' ? 'submitted' : 'draft' })
-        const status = request.body.action === 'submit-competition-entries' ? 'submitted' : 'draft'
-        const insert = await supabaseRequest('competition_entries', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(eventIds.map((eventId) => ({ competition_id: competitionId, event_id: eventId, profile_id: swimmer.id, status, submitted_at: status === 'submitted' ? new Date().toISOString() : null }))) })
-        if (!insert.ok) throw new Error(`Competition entries insert failed: ${insert.status} ${await insert.text()}`)
-        return sendJson(response, 200, { entries: await insert.json(), status })
+      if (['coach-update-competition-entry', 'save-competition-entry', 'submit-competition-entries'].includes(request.body?.action)) {
+        const coachEdit = request.body.action === 'coach-update-competition-entry'
+        if (coachEdit && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ändra tävlingsval.' })
+        const swimmer = coachEdit || role === 'coach' ? null : await getSessionProfile(request)
+        if (!coachEdit && !swimmer) return sendJson(response, 403, { error: 'Logga in med en simmarprofil först.' })
+        const competitionId = String(request.body.competitionId || ''), profileId = coachEdit ? String(request.body.profileId || '') : swimmer.id
+        const submitted = request.body.eventIds
+        if (!competitionUuid.test(competitionId) || !competitionUuid.test(profileId) || !Array.isArray(submitted) || submitted.length > 30 || submitted.some((id) => typeof id !== 'string' || !competitionUuid.test(id))) return sendJson(response, 400, { error: 'Välj en tävling, simmare och högst 30 giltiga grenar.' })
+        const lookup = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}&select=*&limit=1`)
+        if (!lookup.ok) throw new Error('Tävlingen kunde inte hämtas.')
+        const competition = (await lookup.json())[0]
+        if (!canReadCompetition(competition, role, swimmer)) return sendJson(response, 404, { error: 'Tävlingen finns inte för din grupp.' })
+        const status = coachEdit || request.body.action === 'submit-competition-entries' ? 'submitted' : 'draft'
+        const saved = await supabaseRequest('rpc/save_competition_entries', { method: 'POST', body: JSON.stringify({ p_competition: competitionId, p_profile: profileId, p_events: [...new Set(submitted)], p_status: status, p_coach: coachEdit }) })
+        if (!saved.ok) {
+          const failure = await saved.json().catch(() => ({})), message = String(failure.message || '')
+          return sendJson(response, 409, { error: message.includes('ENTRIES_CLOSED') ? 'Grenanmälan är stängd. Dina tidigare val finns kvar.' : message.includes('INVALID_SELECTION') ? 'Någon gren är inte längre valbar i den här tävlingen. Hämta programmet igen. Dina tidigare val finns kvar.' : 'Grenvalen kunde inte sparas. Dina tidigare val finns kvar. Kontrollera att databasuppdatering 099 är körd.' })
+        }
+        return sendJson(response, 200, { entries: await saved.json(), status })
       }
       if (request.body?.action === 'assistant-transcribe') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
@@ -844,28 +846,61 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Coach note save failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { note: publicCoachNote((await result.json())[0]) })
       }
+      if (['upload-competition-pm', 'remove-competition-pm'].includes(request.body?.action)) {
+        const id = String(request.body.competitionId || '')
+        if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Spara tävlingen innan du bifogar PM.' })
+        const lookup = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(id)}&select=*&limit=1`)
+        if (!lookup.ok) throw new Error('Tävlingen kunde inte hämtas.')
+        const current = (await lookup.json())[0]
+        if (!current) return sendJson(response, 404, { error: 'Tävlingen finns inte längre.' })
+        let document = null
+        if (request.body.action === 'upload-competition-pm') {
+          try { document = await storeCompetitionPm(id, decodeCompetitionPm(request.body.fileData, request.body.fileName)) }
+          catch (error) { return sendJson(response, 422, { error: error.message }) }
+        }
+        // Compare the original pointer so simultaneous replacements cannot delete
+        // another coach's new document. Storage stays independent of AI metadata.
+        const filter = current.pm_document?.path ? `&pm_document->>path=eq.${encodeURIComponent(current.pm_document.path)}` : '&pm_document=is.null'
+        const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(id)}${filter}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ pm_document: document, updated_at: new Date().toISOString() }) })
+        if (!result.ok) { await removeCompetitionPm(document); return sendJson(response, 422, { error: 'PM kunde inte kopplas till tävlingen. Kontrollera att databasuppdatering 099 är körd.' }) }
+        const row = (await result.json())[0]
+        if (!row) { await removeCompetitionPm(document); return sendJson(response, 409, { error: 'Tävlingens PM ändrades av någon annan. Hämta tävlingslistan igen.' }) }
+        await removeCompetitionPm(current.pm_document)
+        return sendJson(response, 200, { competition: publicCompetition(row) })
+      }
       if (request.body?.action === 'save-competition') {
         const body = request.body
         const startDate = String(body.startDate || ''), endDate = String(body.endDate || startDate), title = String(body.title || '').trim()
         const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, namn och minst en grupp.' })
+        const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
+        if (!validDate(startDate) || !validDate(endDate) || endDate < startDate || !title || !targetGroups.length || (body.id && !competitionUuid.test(String(body.id)))) return sendJson(response, 400, { error: 'Fyll i giltiga datum, namn och minst en grupp. Slutdatum får inte vara före startdatum.' })
+        if (Date.parse(endDate) - Date.parse(startDate) > 366 * 86400000) return sendJson(response, 400, { error: 'Kontrollera tävlingsdatumen. En tävling får sträcka sig över högst ett år.' })
         const payload = { start_date: startDate, end_date: endDate, title: title.slice(0, 120), category: String(body.category || '').slice(0, 80) || null, location: String(body.location || '').slice(0, 120) || null, target_groups: targetGroups, notes: String(body.notes || '').slice(0, 500) || null, updated_at: new Date().toISOString() }
-        const endpoint = body.id ? `competition_calendar?id=eq.${body.id}` : 'competition_calendar'
+        const endpoint = body.id ? `competition_calendar?id=eq.${encodeURIComponent(body.id)}` : 'competition_calendar'
         const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
         if (!result.ok) throw new Error(`Competition save failed: ${result.status} ${await result.text()}`)
-        return sendJson(response, 200, { competition: publicCompetition((await result.json())[0]) })
+        const row = (await result.json())[0]
+        if (!row) return sendJson(response, 404, { error: 'Tävlingen finns inte längre. Uppdatera listan.' })
+        return sendJson(response, 200, { competition: publicCompetition(row) })
       }
       if (request.body?.action === 'set-competition-entries-open') {
         if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan publicera grenanmälan.' })
         const competitionId = String(request.body.competitionId || '')
-        if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        if (!competitionUuid.test(competitionId) || typeof request.body.open !== 'boolean') return sendJson(response, 400, { error: 'Välj en giltig tävling och om anmälan ska öppnas eller stängas.' })
         const current = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}&select=id,entries_open,title,target_groups&limit=1`)
         if (!current.ok) throw new Error(`Competition lookup failed: ${current.status}`)
         const previous = (await current.json())[0]
         if (!previous) return sendJson(response, 404, { error: 'Tävlingen hittades inte.' })
+        if (request.body.open === true) {
+          const program = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}&item_type=eq.race&entry_allowed=eq.true&select=id&limit=1`)
+          if (!program.ok) throw new Error('Det sparade grenprogrammet kunde inte kontrolleras.')
+          if (!(await program.json()).length) return sendJson(response, 422, { error: 'Spara ett grenprogram med valbara grenar innan du öppnar anmälan för simmarna.' })
+        }
         const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ entries_open: request.body.open === true, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Competition publication update failed: ${result.status} ${await result.text()}`)
-        const competition = publicCompetition((await result.json())[0])
+        const [savedCompetition] = await result.json()
+        if (!savedCompetition) return sendJson(response, 404, { error: 'Tävlingen finns inte längre. Uppdatera listan.' })
+        const competition = publicCompetition(savedCompetition)
         if (request.body.open === true && !previous.entries_open) queueCategoryPush({ category: 'competitionEntries', id: competition.id, targetGroups: previous.target_groups || [] })
         return sendJson(response, 200, { competition })
       }
@@ -1015,10 +1050,14 @@ export default async function handler(request, response) {
 
     if (request.method === 'DELETE') {
       if (request.query?.calendar === 'true') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ta bort tävlingar.' })
         const id = String(request.query?.id || '')
-        if (!id) return sendJson(response, 400, { error: 'Tävling saknas.' })
-        const result = await supabaseRequest(`competition_calendar?id=eq.${id}`, { method: 'DELETE' })
+        if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Tävling saknas.' })
+        const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } })
         if (!result.ok) throw new Error(`Competition DELETE failed: ${result.status} ${await result.text()}`)
+        const [deleted] = await result.json()
+        if (!deleted) return sendJson(response, 404, { error: 'Tävlingen finns inte längre.' })
+        await removeCompetitionPm(deleted.pm_document)
         return sendJson(response, 200, { ok: true })
       }
       if (request.query?.planning === 'true') {

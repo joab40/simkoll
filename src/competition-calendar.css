@@ -1,0 +1,21 @@
+.competition-calendar-v2 .competition-form-fields { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 12px; }
+.competition-calendar-v2 .competition-form-fields > .settings-actions { margin-top: 8px; }
+.competition-calendar-v2 .competition-form-fields textarea { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.competition-calendar-v2 .competition-form-fields small { color: var(--muted); line-height: 1.5; }
+.competition-card-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.competition-card-actions .competition-publish-button, .competition-card-actions .competition-submissions-button { margin: 0; }
+.competition-feedback { padding: 12px 15px; background: #edf8ef; border: 1px solid #bedfc7; border-radius: 12px; color: #28623a; line-height: 1.5; }
+.competition-calendar-v2 .competition-calendar-list > article > div { min-width: 0; flex: 1; }
+.competition-calendar-v2 .competition-calendar-list > article > .text-button { align-self: flex-start; white-space: nowrap; }
+.competition-calendar-v2 .competition-is-past { background: #f2f6f4; }
+.competition-calendar-v2 button:disabled { opacity: .6; cursor: not-allowed; }
+.competition-calendar-v2 button[aria-busy="true"] { cursor: wait; }
+.competition-calendar-v2 .form-error { color: #9d4037; }
+.competition-pm { display: grid; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid #d2e4de; border-radius: 12px; background: #f4faf7; }
+.competition-pm > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.competition-pm small { color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+.competition-pm p { margin: 0; font-size: 14px; }
+.competition-pm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.competition-pm-actions .secondary-button { min-height: 40px; padding: 8px 12px; font-size: 14px; }
+.competition-entry-fields { min-width: 0; border: 0; margin: 0; padding: 0; }
+@media (max-width: 620px) { .competition-card-actions { align-items: stretch; } .competition-card-actions > button { width: 100%; } .competition-calendar-v2 .competition-form .settings-actions { display: grid; } .competition-calendar-v2 .competition-calendar-list > article { display: block; } .competition-calendar-v2 .competition-calendar-list > article > .text-button { margin-top: 12px; } }
