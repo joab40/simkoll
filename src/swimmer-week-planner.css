@@ -1,0 +1,11 @@
+.swimmer-week-picker { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.swimmer-week-options { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: #e8f2ef; }
+.swimmer-week-options button { padding: 10px 14px; min-height: 42px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--teal); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.swimmer-week-options button[aria-pressed="true"] { background: white; border-color: #d1e3dc; box-shadow: 0 2px 5px #163f3110; }
+.swimmer-week-options button:focus-visible { outline: 3px solid #8cd2cc; outline-offset: 2px; }
+.swimmer-week-options button:disabled { cursor: wait; opacity: .6; }
+.swimmer-week-picker p { display: grid; gap: 3px; margin: 0; color: var(--teal); font-size: 13px; }
+.swimmer-week-picker p span, .swimmer-next-week-help { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.swimmer-next-week-help { margin: 10px 0 0; }
+.weekly-training-card .weekly-summary small { display: block; }
+@media (max-width: 550px) { .swimmer-week-options { width: 100%; } .swimmer-week-options button { flex: 1; } .swimmer-week-picker p { grid-template-columns: auto auto; gap: 10px; } }

@@ -9,6 +9,7 @@ import { loadSwimTimes, saveSwimTime, deleteSwimTime } from '../server/swim-time
 import { isTimeId } from '../shared/swim-times.js'
 import { writeAuditLog } from '../server/audit.js'
 import { loadCoachWeek } from '../server/coach-week.js'
+import { planningWeekStart } from '../shared/weekly-planning.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -26,7 +27,7 @@ async function loadTraining(profileId = null) {
     supabaseRequest(`season_swim_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`cross_training_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
-    supabaseRequest(`planned_training_sessions?select=*${profileFilter}&order=planned_date.asc&limit=1000`),
+    supabaseRequest(`planned_training_sessions?select=*${profileFilter}&planned_date=gte.${currentWeekStart()}&planned_date=lt.${addDays(currentWeekStart(), 14)}&order=planned_date.asc&limit=1000`),
     supabaseRequest(`program_assignments?select=*${profileFilter}&removed_at=is.null`),
     supabaseRequest('training_programs?select=*&order=created_at.desc'),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
@@ -287,8 +288,8 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { ok: true, message: request.body.completed === true && request.body.skipCheer !== true ? await trainingCheer(profile.id, slot) : null })
       }
       if (action === 'toggle-plan') {
-        const date = String(request.body.date || ''), slot = String(request.body.slot || ''), weekStart = currentWeekStart()
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['morning_swim', 'afternoon_swim', 'strength', 'dryland'].includes(slot) || date < stockholmDate() || date >= addDays(weekStart, 7)) return sendJson(response, 400, { error: 'Planeringen kan bara ändras för återstående dagar den här veckan.' })
+        const date = String(request.body.date || ''), slot = String(request.body.slot || ''), weekStart = planningWeekStart(date, stockholmDate())
+        if (!weekStart || !['morning_swim', 'afternoon_swim', 'strength', 'dryland'].includes(slot)) return sendJson(response, 400, { error: 'Planeringen kan ändras från idag till och med söndag nästa vecka.' })
         const filter = `profile_id=eq.${profile.id}&planned_date=eq.${date}&session_slot=eq.${slot}`
         if (request.body.planned === true) {
           const result = await supabaseRequest('planned_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ profile_id: profile.id, week_start: weekStart, planned_date: date, session_slot: slot }) })
