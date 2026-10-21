@@ -4,6 +4,7 @@ import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { queueCategoryPush, queueMessagePush } from '../server/web-push.js'
 import { saveGoalImage, removeUnattachedGoalImage, goalImageUrl, improveGoalText } from '../server/goal-support.js'
 import { writeAuditLog } from '../server/audit.js'
+import { TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
@@ -146,7 +147,7 @@ export default async function handler(request, response) {
           const previous = current.swimmer_answers || {}
           if (current.status === 'completed') return sendJson(response, 403, { error: 'Svaren i ett genomfört samtal kan inte längre ändras.' })
           if (!body.expectedUpdatedAt || body.expectedUpdatedAt !== current.updated_at) return sendJson(response, 409, { error: 'Samtalet har ändrats sedan du öppnade det. Uppdatera och granska svaren innan du sparar.' })
-          if (!answers || typeof answers !== 'object' || Array.isArray(answers) || Object.keys(answers).length > 50 || Object.keys(answers).some((key) => !Object.hasOwn(previous, key) || (key === '__step' ? answers[key] !== previous[key] : typeof answers[key] !== 'string' || answers[key].length > 1000))) return sendJson(response, 400, { error: 'Kontrollera svaren. Bara befintliga svar kan rättas, högst 1 000 tecken per svar.' })
+          if (!answers || typeof answers !== 'object' || Array.isArray(answers) || Object.keys(answers).length > 50 || Object.keys(answers).some((key) => key === '__step' ? !Object.hasOwn(previous, key) || answers[key] !== previous[key] : (!Object.hasOwn(previous, key) && !Object.hasOwn(TALK_FIELD_LABELS, key)) || typeof answers[key] !== 'string' || answers[key].length > 1000)) return sendJson(response, 400, { error: 'Kontrollera svaren. Fyll i formulärets frågor eller rätta befintliga svar, högst 1 000 tecken per svar.' })
           if (Object.keys(previous).some((key) => !Object.hasOwn(answers, key))) return sendJson(response, 400, { error: 'Något svar saknas. Uppdatera samtalet och försök igen.' })
         }
         const payload = { meeting_date: meetingDate, status, follow_up_date: followUpDate, updated_at: new Date().toISOString(), ...(body.enabled !== undefined ? { enabled: body.enabled !== false } : {}), ...(body.coachNotes !== undefined ? { coach_notes: body.coachNotes } : {}), ...(body.agreement !== undefined ? { agreement: body.agreement } : {}), ...(editingAnswers ? { swimmer_answers: body.swimmerAnswers } : {}) }

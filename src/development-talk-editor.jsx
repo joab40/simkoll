@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react'
 import './development-talk-editor.css'
 import DevelopmentTalkDictation from './development-talk-dictation.jsx'
 import { appendTalkTranscript } from './talk-dictation.js'
+import { developmentTalkQuestions } from '../shared/development-talk-form.js'
 
 const summary = (value = {}) => typeof value.summary === 'string' ? value.summary : Object.values(value).filter((item) => typeof item === 'string').join('\n')
 const initial = (talk) => ({ notes: summary(talk.coachNotes), agreement: summary(talk.agreement), meetingDate: talk.meetingDate, followUpDate: talk.followUpDate || '', answers: { ...(talk.swimmerAnswers || {}) } })
 
-export default function DevelopmentTalkEditor({ talk, swimmerName, fieldLabels, code, request, onBack, onSaved, onRemove }) {
+export default function DevelopmentTalkEditor({ talk, swimmerName, code, request, onBack, onSaved, onRemove }) {
   const [draft, setDraft] = useState(() => initial(talk)), [baseline, setBaseline] = useState(() => initial(talk)), [saving, setSaving] = useState(''), [status, setStatus] = useState('')
   const busy = useRef(false), root = useRef(null)
   const version = useRef(talk.updatedAt)
@@ -19,7 +20,8 @@ export default function DevelopmentTalkEditor({ talk, swimmerName, fieldLabels, 
   const update = (key, value) => { setDraft((current) => ({ ...current, [key]: value })); setStatus('') }
   const updateAnswer = (key, value) => { setDraft((current) => ({ ...current, answers: { ...current.answers, [key]: value } })); setStatus('') }
   const answersChanged = JSON.stringify(draft.answers) !== JSON.stringify(baseline.answers)
-  const answerEntries = Object.entries(draft.answers).filter(([key, value]) => key !== '__step' && (String(value || '').trim() || String(baseline.answers[key] || '').trim()))
+  const { sections, legacy } = developmentTalkQuestions(draft.answers)
+  const renderAnswer = ({ key, label, value }) => <div className="talk-question" key={key}><strong>{label}</strong>{editingAnswers ? <textarea aria-label={label} value={value} placeholder="Fyll i svaret tillsammans under samtalet…" maxLength={1000} rows={3} disabled={blocked} onChange={(event) => updateAnswer(key, event.target.value)} /> : <p className={value.trim() ? '' : 'talk-answer-missing'}>{value.trim() ? value : 'Ej besvarad'}</p>}</div>
   const save = async (complete) => {
     if (busy.current || audioBusy || audioPending) return
     if (!draft.meetingDate || (draft.followUpDate && draft.followUpDate < draft.meetingDate)) return setStatus('Välj ett giltigt samtalsdatum och ett uppföljningsdatum tidigast samma dag.')
@@ -35,7 +37,14 @@ export default function DevelopmentTalkEditor({ talk, swimmerName, fieldLabels, 
   return <div className="talk-editor" ref={root}><button type="button" className="back-button" disabled={Boolean(saving) || audioBusy} onClick={() => { if (!dirty || window.confirm('Du har osparade svar, anteckningar eller ett ogranskat textförslag. Lämna utan att spara?')) onBack() }}>← Alla samtal</button>
     <div className="talk-editor-heading"><div><p className="eyebrow">Utvecklingssamtal</p><h3>{swimmerName}</h3></div><span className="talk-status-pill ready">{talk.status === 'completed' ? 'Genomfört' : talk.status === 'prepared' ? 'Redo för samtal' : 'Förberedelser pågår'}</span></div>
     <div className="talk-next-step"><strong>{talk.status === 'completed' ? 'Samtalet är genomfört' : 'Nästa steg: håll samtalet tillsammans'}</strong><p>{talk.status === 'completed' ? 'Du kan fortfarande rätta anteckningar och överenskommelsen nedan.' : 'Läs simmarens svar, skriv anteckningar och kom överens om nästa steg. Spara under tiden och markera som genomfört när ni är klara.'}</p></div>
-    <section className="talk-read-answers"><div className="talk-answers-heading"><h4>Simmarens förberedelser</h4>{talk.status !== 'completed' && answerEntries.length > 0 && <button type="button" className="secondary-button" disabled={blocked} onClick={() => setEditingAnswers((current) => !current)}>{editingAnswers ? 'Dölj redigering' : 'Redigera svar tillsammans'}</button>}</div>{editingAnswers && <p className="talk-answer-explanation">Gå igenom ändringarna med simmaren. Sparade svar visas också i simmarens samtalshistorik.</p>}{answersChanged && <p className="talk-answer-explanation" role="status">Ändrade svar är inte sparade ännu.</p>}{answerEntries.map(([key, value]) => <div key={key}><strong>{fieldLabels[key] || key}</strong>{editingAnswers ? <textarea aria-label={fieldLabels[key] || key} value={String(value)} maxLength={1000} rows={3} disabled={blocked} onChange={(event) => updateAnswer(key, event.target.value)} /> : <p>{String(value)}</p>}</div>)}{!answerEntries.length && <p>Inga förberedelser är inskickade ännu. Ni kan ändå dokumentera samtalet.</p>}</section>
+    <section className="talk-read-answers">
+      <div className="talk-answers-heading"><h4>Simmarens förberedelser</h4>{talk.status !== 'completed' && <button type="button" className="secondary-button" disabled={blocked} onClick={() => setEditingAnswers((current) => !current)}>{editingAnswers ? 'Dölj redigering' : 'Redigera svar tillsammans'}</button>}</div>
+      <p className="talk-answer-explanation">Alla frågor visas i samma ordning som i simmarens formulär, även de obesvarade.</p>
+      {editingAnswers && <p className="talk-answer-explanation">Gå igenom och komplettera svaren tillsammans. Sparade svar visas också i simmarens samtalshistorik.</p>}
+      {answersChanged && <p className="talk-answer-explanation" role="status">Ändrade svar är inte sparade ännu.</p>}
+      {sections.map(({ icon, title, questions }) => <section className="talk-question-section" key={title}><h5><span aria-hidden="true">{icon}</span> {title}<small>{questions.filter((question) => question.answered).length}/{questions.length} besvarade</small></h5>{questions.map(renderAnswer)}</section>)}
+      {legacy.length > 0 && <section className="talk-question-section"><h5>Tidigare frågor</h5>{legacy.map(renderAnswer)}</section>}
+    </section>
     <fieldset disabled={Boolean(saving)}><div className="talk-editor-dates"><label>Datum för samtalet<input type="date" value={draft.meetingDate} onChange={(event) => update('meetingDate', event.target.value)} required /></label><label>Uppföljning (valfritt)<input type="date" min={draft.meetingDate} value={draft.followUpDate} onChange={(event) => update('followUpDate', event.target.value)} /></label></div>
       <label>Tränarens interna anteckningar<textarea value={draft.notes} maxLength={10000} rows={5} onChange={(event) => update('notes', event.target.value)} placeholder="Det här vill vi följa upp…" /></label><small>Anteckningarna visas bara för tränare.</small>
       <DevelopmentTalkDictation code={code} request={request} disabled={Boolean(saving)} onBusyChange={setAudioBusy} onPendingChange={setAudioPending} onAppend={(text) => update('notes', appendTalkTranscript(draft.notes, text))} />

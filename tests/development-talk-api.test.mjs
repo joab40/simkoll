@@ -48,8 +48,8 @@ test('an inactive development talk can be switched on again', async () => {
 
 const talkId = '11111111-1111-4111-8111-111111111111'
 const swimmerId = '22222222-2222-4222-8222-222222222222'
-function fixture(status = 'prepared') {
-  let row = { id: talkId, swimmer_id: swimmerId, meeting_date: '2026-10-20', updated_at: '2026-10-20T08:00:00Z', enabled: true, status, swimmer_answers: { goals: 'Mitt eget svar' }, coach_notes: { summary: 'Privat' }, agreement: { summary: 'Gemensamt' } }
+function fixture(status = 'prepared', swimmerAnswers = { goals: 'Mitt eget svar' }) {
+  let row = { id: talkId, swimmer_id: swimmerId, meeting_date: '2026-10-20', updated_at: '2026-10-20T08:00:00Z', enabled: true, status, swimmer_answers: swimmerAnswers, coach_notes: { summary: 'Privat' }, agreement: { summary: 'Gemensamt' } }
   const writes = []
   globalThis.fetch = async (url, options = {}) => {
     const path = String(url).split('/rest/v1/')[1]
@@ -82,6 +82,27 @@ test('coach may correct existing swimmer answers with a version check', async ()
   assert.equal(response.code, 200)
   assert.equal(response.data.talk.swimmerAnswers.goals, 'Rättat tillsammans')
   assert.equal(writes[0].swimmer_answers.goals, 'Rättat tillsammans')
+})
+
+test('coach can fill an unanswered form question while preserving earlier answers and metadata', async () => {
+  const previous = { goals: 'Äldre svar', teknik: 'Bättre vändningar', __step: 5 }
+  const writes = fixture('prepared', previous)
+  const response = await call({ action: 'update-talk', id: talkId, expectedUpdatedAt: '2026-10-20T08:00:00Z', swimmerAnswers: { ...previous, stod: 'Följa upp vändningarna tillsammans' } })
+  assert.equal(response.code, 200)
+  assert.equal(response.data.talk.swimmerAnswers.stod, 'Följa upp vändningarna tillsammans')
+  assert.equal(response.data.talk.swimmerAnswers.__step, 5)
+  assert.equal(writes[0].swimmer_answers.goals, 'Äldre svar')
+  assert.equal(response.data.talk.status, 'prepared')
+})
+
+test('empty preparations can be filled in together, but internal metadata cannot be invented', async () => {
+  const writes = fixture('draft', {})
+  const invalid = await call({ action: 'update-talk', id: talkId, expectedUpdatedAt: '2026-10-20T08:00:00Z', swimmerAnswers: { simPass: '6', __step: 4 } })
+  assert.equal(invalid.code, 400)
+  assert.equal(writes.length, 0)
+  const result = await call({ action: 'update-talk', id: talkId, expectedUpdatedAt: '2026-10-20T08:00:00Z', swimmerAnswers: { simPass: '6' } })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.talk.swimmerAnswers.simPass, '6')
 })
 
 test('coach cannot overwrite newer or completed swimmer answers', async () => {

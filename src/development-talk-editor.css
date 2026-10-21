@@ -18,6 +18,12 @@
 .talk-read-answers textarea { display: block; margin-top: 8px; min-height: 80px; resize: vertical; }
 .talk-read-answers > div { padding: 12px 0; border-top: 1px solid var(--line); }
 .talk-read-answers p { margin: 5px 0 0; white-space: pre-wrap; line-height: 1.5; }
+.talk-question-section { margin-top: 20px; }
+.talk-question-section h5 { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); color: var(--teal); font-size: 16px; }
+.talk-question-section h5 small { margin-left: auto; font-size: 12px; font-weight: 400; }
+.talk-question { padding: 10px 0; }
+.talk-question strong { font-size: 14px; }
+.talk-read-answers .talk-answer-missing { color: var(--muted); font-size: 14px; font-style: italic; }
 .talk-editor fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .talk-editor label { display: grid; gap: 6px; margin: 14px 0 5px; font-weight: 700; }
 .talk-editor input, .talk-editor textarea { width: 100%; box-sizing: border-box; min-width: 0; padding: 12px; border: 1px solid #caddd6; border-radius: 10px; font: inherit; font-size: 16px; background: white; color: var(--ink); }

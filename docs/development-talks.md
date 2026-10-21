@@ -5,9 +5,10 @@ Ett befintligt samtal öppnas med **Öppna →**, även när statusen är
 **Redo för samtal**. Statusen betyder att simmaren skickat sina förberedelser,
 inte att samtalet är genomfört.
 
-Tränaren läser svaren och dokumenterar samtalet. Under ett pågående möte kan
-tränaren välja **Redigera svar tillsammans** för att rätta simmarens redan
-ifyllda svar. Ändringarna blir synliga även för simmaren, så de bör göras i
+Tränarvyn visar samtliga frågor i samma avsnitt och ordning som simmarens
+formulär. Tomma frågor visas som **Ej besvarad**. Under ett pågående möte kan
+tränaren välja **Redigera svar tillsammans** för att rätta befintliga svar
+eller komplettera obesvarade frågor. Ändringarna blir synliga även för simmaren, så de bör göras i
 samråd. Ett genomfört samtals svar är skrivskyddade. Redigeringen loggas utan
 att svarstexten kopieras till loggen. Om samtalet ändrats i en annan vy sedan
 det öppnades stoppas sparningen för att undvika att nyare svar skrivs över.
