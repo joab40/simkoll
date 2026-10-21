@@ -5,6 +5,7 @@ import { queueCategoryPush, queueMessagePush } from '../server/web-push.js'
 import { saveGoalImage, removeUnattachedGoalImage, goalImageUrl, improveGoalText } from '../server/goal-support.js'
 import { writeAuditLog } from '../server/audit.js'
 import { TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
+import { proposeTalkAgreement } from '../server/talk-agreement.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
@@ -65,7 +66,7 @@ export default async function handler(request, response) {
   const coachAccount = role === 'coach' ? coachFromRequest(request) : null
   const isSuperadmin = coachAccount?.role === 'superadmin'
   const isHeadCoach = coachAccount?.role === 'head_coach'
-  if (request.method === 'POST' && ['polish-goal', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål.' })
+  if (request.method === 'POST' && ['polish-goal', 'propose-talk-agreement', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål och överenskommelser.' })
   try {
     if (request.method === 'GET') {
       if (request.query?.home === 'true') {
@@ -106,10 +107,10 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach') {
-      if (request.body?.action === 'polish-goal') {
+      if (['polish-goal', 'propose-talk-agreement'].includes(request.body?.action)) {
         const availability = await aiAvailability()
         if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'Klubbens månadstak för AI är nått.' : 'AI-stöd är avstängt.' })
-        try { return sendJson(response, 200, await improveGoalText(request, request.body)) } catch (error) { return sendJson(response, 422, { error: error.message }) }
+        try { return sendJson(response, 200, request.body.action === 'propose-talk-agreement' ? await proposeTalkAgreement(request, request.body.notes) : await improveGoalText(request, request.body)) } catch (error) { return sendJson(response, 422, { error: error.message }) }
       }
       const action = request.body?.action
       if (action === 'save-settings' || action === 'reset-settings') {

@@ -34,3 +34,24 @@ den i interna anteckningar, eller kasta förslaget. Först när anteckningarna
 sparas lagras texten. Avbruten inspelning skickas inte. En redan skickad begäran
 kan inte tas tillbaka från OpenAI, även om tränaren avbryter väntan.
 Funktionen använder befintlig transkriberingsfunktion och klubbens AI-kvot.
+
+## AI-förslag till gemensam överenskommelse
+
+Vid interna anteckningar finns **Föreslå gemensam överenskommelse**. Knappen
+skickar bara den aktuella anteckningstexten till OpenAI, inte profiluppgifter,
+simmarens formulärsvar eller den befintliga överenskommelsen. Avidentifiera
+texten och ta bort känsliga personuppgifter först. Kontroller i webbläsaren
+och servern stoppar vanliga fullständiga namn, e-postadresser och personnummer,
+men kan inte upptäcka alla personuppgifter.
+
+En laddningsindikator visas bara under anropet. Förslaget visas separat och
+kan redigeras eller kastas. Oklarheter visas som frågor att diskutera. Om
+anteckningarna ändras behöver ett nytt förslag tas fram. **Använd förslaget**
+lägger texten i Gemensam överenskommelse; befintlig text ersätts först efter
+bekräftelse. Tränaren granskar tillsammans med simmaren och väljer sedan
+**Spara ändringar**. Inga mål, samtalssvar eller anteckningar ändras automatiskt.
+
+Funktionen följer klubbens AI-inställning och månadstak. Den använder samma
+modellinställning som målförslag (`OPENAI_GOAL_MODEL`), med befintlig API-nyckel.
+Tokenförbrukning loggas, inte anteckningstexten. Ingen ny SQL eller miljövariabel behövs.
+Anropet följer [OpenAI:s dokumentation om strukturerade svar](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
