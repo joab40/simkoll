@@ -42,7 +42,10 @@ skickar bara den aktuella anteckningstexten till OpenAI, inte profiluppgifter,
 simmarens formulärsvar eller den befintliga överenskommelsen. Avidentifiera
 texten och ta bort känsliga personuppgifter först. Kontroller i webbläsaren
 och servern stoppar vanliga fullständiga namn, e-postadresser och personnummer,
-men kan inte upptäcka alla personuppgifter.
+men kan inte upptäcka alla personuppgifter. AI:n sorterar anteckningarna under
+relevanta rubriker och ska behålla uttryckliga mål, tider, distanser och
+träningsmängder. Den får inte göra önskemål till bekräftade beslut eller hitta
+på uppföljning.
 
 En laddningsindikator visas bara under anropet. Förslaget visas separat och
 kan redigeras eller kastas. Oklarheter visas som frågor att diskutera. Om
