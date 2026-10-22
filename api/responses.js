@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { dailySleep } from '../server/daily-sleep.js'
 import { checkinTraining, validCheckinActivity } from '../shared/checkin-activity.js'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
@@ -102,6 +103,11 @@ export default async function handler(request, response) {
   if (!role) return sendJson(response, 401, { error: 'Du behöver logga in igen.' })
 
   try {
+    if ((request.method === 'GET' && request.query?.sleep === 'true') || (request.method === 'POST' && request.body?.action === 'save-sleep')) {
+      response.setHeader('Cache-Control', 'private, no-store')
+      try { return sendJson(response, 200, await dailySleep(request, role)) }
+      catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+    }
     if (request.method === 'GET') {
       const wantsOwn = request.query?.mine === 'true'
       const sessionProfile = wantsOwn ? await getSessionProfile(request) : null

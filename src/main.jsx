@@ -15,6 +15,7 @@ import CoachControlPanel from './coach-control-panel.jsx'
 import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import { planningMonday } from '../shared/weekly-planning.js'
 import SwimmerTrainingTimesCard from './swimmer-training-times-card.jsx'
+import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import DevelopmentTalkEditor from './development-talk-editor.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
@@ -363,6 +364,9 @@ function App() {
       {screen === 'privacy-choice' && <PrivacyChoice profile={profile} lateEntry={checkinActivityDate !== todayKey()} onBack={() => setScreen('home')} onChoose={(value) => { setIdentified(value); setScreen('checkin') }} />}
       {screen === 'checkin' && (
         <CheckIn
+          code={auth.code}
+          activityDate={checkinActivityDate}
+          identified={identified}
           hasProfile={Boolean(profile)}
           lateEntry={checkinActivityDate !== todayKey()}
           followUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).followUp}
@@ -897,6 +901,7 @@ function Faq({ role, onBack }) {
       <p className="faq-intro">Här finns en uppdaterad guide till funktionerna. Svaren beskriver simmarens egen upplevelse och är ett stöd för träning, planering och samtal – inte ett prov eller en medicinsk bedömning.</p>
       <section className="faq-install"><p className="eyebrow">Gör Simkoll lätt att hitta</p><h2>Lägg till på hemskärmen</h2><p>En genväg gör det enklare att öppna rätt sida och använda din sparade profil.</p><details><summary>iPhone eller iPad<span>+</span></summary><ol><li>Öppna Simkoll i Safari.</li><li>Tryck på dela-symbolen.</li><li>Välj <strong>Lägg till på hemskärmen</strong>.</li><li>Tryck <strong>Lägg till</strong>.</li></ol></details><details><summary>Android<span>+</span></summary><ol><li>Öppna Simkoll i Chrome.</li><li>Tryck på de tre prickarna.</li><li>Välj <strong>Lägg till på startskärmen</strong> eller <strong>Installera app</strong>.</li><li>Bekräfta.</li></ol></details><small>Webbläsaren måste alltid fråga dig först — Simkoll kan inte skapa genvägen automatiskt.</small></section>
       <div className="faq-list">
+        <details><summary>Sömnkoll och återhämtning<span>+</span></summary><p>Efter ”Hur känns det idag?” kan du vid profilkopplad check-in frivilligt ange ungefärlig sovtid (0–14 timmar i kvartsteg) och om sömnen var dålig, okej eller bra. Svaret sparas direkt när du trycker Spara och fortsätt och är synligt för tränarna. Natten hör till dagen efter; vid efterregistrering svarar du om natten inför gårdagen. Du får frågan högst en gång per aktivitetsdag på dina enheter, även om du checkar in flera gånger. Hoppa över idag tar också bort frågan resten av dagen. Anonym check-in innehåller ingen profilkopplad sömnkoll.</p><p>I Min träningsdagbok → Sömn och återhämtning kan du följa sovtid och sömnkänsla tillsammans med dagens känsla och RPE. Tränaren ser historiken i simmarkortet. Minst två nätter med rapporterad dålig sömn senaste sju dagarna lyfts under Kontrollpanelen → Individuell uppföljning som underlag för samtal. Saknade svar räknas inte som noll, och sömnkollen gör ingen medicinsk bedömning eller automatisk ändring av träningen.</p></details>
         <details><summary>Tävlings-PM, klasser och grenanmälan<span>+</span></summary><p>Under Meny → Mina grenar kan simmaren välja en kommande tävling för sin grupp och öppna original-PM:et, även innan grenanmälan har öppnats. Saknas klass i grenlistan betyder det att uppgiften inte är angiven där. Kontrollera PM och fråga tränaren vid oklarheter.</p>{role === 'coach' && <p>I Tävlingskalender kan du bifoga PM när du skapar tävlingen eller senare med Bifoga PM. PDF och bilder på högst 3 MB stöds. Bilagan finns kvar när du läser in eller ändrar det tolkade grenprogrammet. Redigera tävling ändrar grunduppgifterna. Granska och spara grenprogrammet innan du väljer Öppna grenanmälan för simmare. Att stänga anmälan tar inte bort tidigare val. Om tävlingen sparas men bilagan misslyckas visas det i formuläret, och nästa försök uppdaterar samma tävling.</p>}</details>
         <details><summary>Hur fungerar Min träningsdagbok?<span>+</span></summary><p>Öppna Meny → Min träningsdagbok eller genvägen i Min profil. Välj vecka, månad, termin eller egna datum. Du kan jämföra träning, kontinuitet, RPE och känsla med föregående lika långa period. Tryck på en kalenderdag och öppna ett pass för upplägg, fokus, simsätt i passtexten, kommentarer och tävlingsresultat när de finns.</p><p>Rapporterade simmeter och minuter visas separat från uppskattningar som kommer från kopplade pass. Saknade värden betyder inte noll. Tävling räknas separat från simträning, cykelkilometer blir inte simmeter och morgonpass hålls isär från eftermiddagspass. Efterregistrering visas på aktivitetsdagen.</p><p>Under passet kan du skriva Vad fungerade? och Vad vill jag ta med till nästa pass? Tryck på Spara reflektion. Dessa anteckningar visas i din egen dagbok och skapar varken träningspass eller poäng. Anonyma svar kan inte kopplas tillbaka till dagboken. Att läsa dagboken eller spara anteckningar gör inga AI-anrop. Graferna visar uppgifter och jämförelser, inte bevis på att träningen orsakat en viss utveckling. Utvecklingsmål skapas fortsatt av tränaren tillsammans med dig.</p></details>
         <details><summary>Hur får jag veta att jag fått ett nytt utvecklingsmål?<span>+</span></summary><p>När tränaren skapar ett mål i samråd med dig visas ett kort på startsidan och en händelse i notislistan. Har du aktiverat webnotiser för utvecklingsmål och samtal på din enhet kan du också få en pushnotis. Öppna kortet och läs målet under Meny → Mina mål. Då försvinner startkortet, men målet ligger kvar i din profil.</p><p>Du kan skriva ett privat svar på målet om du har frågor eller vill berätta hur det går. Tränarna ser svaret under Utvecklingsmål och kan svara där. Se det som ett underlag för ert samtal; du kan inte själv ändra tränarens mål. Undvik känsliga personuppgifter i fritext.</p></details>
@@ -2184,16 +2189,27 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onDiary, on
   )
 }
 
-function CheckIn({ hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit }) {
+function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const typeQuestions = form.type ? getQuestions(form.type) : []
+  const [sleepStatus, setSleepStatus] = useState('loading')
+  const [sleepError, setSleepError] = useState('')
+  const [sleepRetry, setSleepRetry] = useState(0)
+  const [sleepSaved, setSleepSaved] = useState(false)
+  useEffect(() => {
+    if (!identified || !hasProfile) { setSleepStatus('done'); return }
+    let active = true
+    setSleepStatus('loading'); setSleepError('')
+    apiRequest(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code).then((data) => { if (active) setSleepStatus(data.records?.length ? 'done' : 'needed') }).catch((error) => { if (active) { setSleepError(error.message); setSleepStatus('error') } })
+    return () => { active = false }
+  }, [code, activityDate, identified, hasProfile, sleepRetry])
+  const typeQuestions = form.type ? getQuestions(form.type).filter((question) => question.key !== 'sleep') : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
-  const questions = form.competition === true ? raceQuestions : typeQuestions
+  const questions = [...(identified && hasProfile && sleepStatus !== 'done' ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
   const swimPlans = (Array.isArray(plannedWorkouts) ? plannedWorkouts : [plannedWorkouts]).filter(Boolean)
   const primarySwimPlan = swimPlans[0] || null
@@ -2278,6 +2294,7 @@ function CheckIn({ hasProfile, competitionToday, competitionStatusLoaded = true,
     const question = questions[step - questionOffset]
     content = (
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.hint}>
+        {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={apiRequest} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
         {question.kind === 'scale' && (
           <Scale
             count={question.count}
@@ -5083,6 +5100,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra överenskomna mål</summary><form onSubmit={(event) => { event.preventDefault(); saveTrainingGoals(profile, swimGoal, crossGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={trainingGoalDrafts[profile.id]?.swim ?? swimGoal?.target ?? ''} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), swim: event.target.value } }))} /></label><label>Land / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.dryland ?? crossGoal?.drylandTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), dryland: event.target.value } }))} /></label><label>Styrka / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.strength ?? crossGoal?.strengthTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), strength: event.target.value } }))} /></label><button type="submit">Spara mål</button>{trainingGoalStatus[profile.id] && <small>{trainingGoalStatus[profile.id]}</small>}</form><small>Ändras efter dialog med simmaren.</small></details></section>
             <SwimmerStrengthProgramCard profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
+            <SleepHistory profileId={profile.id} code={code} request={apiRequest} responses={responses.filter((item) => item.profileId === profile.id)} />
             {goalsEnabled && <SwimmerDevelopmentGoalsCard profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
             <SwimmerNotes profile={profile} code={code} />

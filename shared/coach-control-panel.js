@@ -5,7 +5,7 @@ const activityDay = (row) => String(row.activityDate || row.createdAt || '').sli
 const activityKey = (row) => `${activityDay(row)}:${row.activityType || 'unknown'}:${row.trainingSlot || 'day'}`
 const uniqueDays = (rows, predicate) => new Set(rows.filter(predicate).map(activityDay)).size
 
-export function buildCoachControlPanel(profiles, responses, asOf) {
+export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords = []) {
   const start = dayBefore(asOf, 13), recentStart = dayBefore(asOf, 6)
   const scopedIds = new Set(profiles.filter((profile) => !profile.isTestProfile).map((profile) => profile.id))
   const rows = responses.filter((row) => row.profileId && scopedIds.has(row.profileId) && activityDay(row) >= start && activityDay(row) <= asOf)
@@ -31,6 +31,8 @@ export function buildCoachControlPanel(profiles, responses, asOf) {
     const highRpeDays = uniqueDays(recent, (row) => row.type === 'after' && numeric(row.rpe) !== null && row.rpe >= 8)
     const sickDays = uniqueDays(recent, (row) => row.type === 'sick')
     const reasons = []
+    const poorSleepDays = new Set(sleepRecords.filter((row) => row.profile_id === profile.id && !row.skipped && row.quality === 1 && row.activity_date >= recentStart && row.activity_date <= asOf).map((row) => row.activity_date)).size
+    if (poorSleepDays >= 2) reasons.push(`Dålig sömn rapporterad ${poorSleepDays} nätter senaste veckan · se datum och sovtid i simmarkortet`)
     if (sickDays >= 2) reasons.push(`Sjukfrånvaro rapporterad ${sickDays} dagar senaste veckan`)
     if (lowBodyDays >= 2) reasons.push(`Låg kroppskänsla ${lowBodyDays} dagar senaste veckan`)
     if (lowFeelingDays >= 2) reasons.push(`Låg känsla ${lowFeelingDays} dagar senaste veckan`)
