@@ -23,7 +23,7 @@ const comparableStrengthValue = (value) => {
 
 async function loadTraining(profileId = null) {
   const profileFilter = profileId ? `&profile_id=eq.${profileId}` : ''
-  const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, afterResponsesResult, workoutsResult, strengthLogsResult] = await Promise.all([
+  const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, workoutsResult, strengthLogsResult] = await Promise.all([
     supabaseRequest(`season_swim_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`cross_training_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
@@ -31,39 +31,21 @@ async function loadTraining(profileId = null) {
     supabaseRequest(`program_assignments?select=*${profileFilter}&removed_at=is.null`),
     supabaseRequest('training_programs?select=*&order=created_at.desc'),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
-    supabaseRequest(`responses?day_type=eq.after${profileId ? `&profile_id=eq.${profileId}` : ''}&select=profile_id,created_at&order=created_at.asc&limit=10000`),
     supabaseRequest('daily_workouts?select=workout_date,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,created_at.asc&limit=1000'),
     supabaseRequest(`strength_program_logs?select=*${profileFilter}&order=session_date.desc,completed_at.desc&limit=2000`),
   ])
   if (![goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')
   const assignments = await assignmentsResult.json()
-  const existingSessions = await sessionsResult.json()
-  const afterResponses = afterResponsesResult.ok ? await afterResponsesResult.json() : []
-  if (profileId) {
-    const existingKeys = new Set(existingSessions.map((item) => `${item.profile_id}|${item.session_date}|${item.session_slot}`))
-    const missing = afterResponses.map((item) => {
-      const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at))
-      return { profile_id: profileId, activity_type: 'swim', session_slot: 'afternoon_swim', session_date: date, source: 'checkin' }
-    }).filter((item) => { const key = `${item.profile_id}|${item.session_date}|${item.session_slot}`; if (existingKeys.has(key)) return false; existingKeys.add(key); return true })
-    if (missing.length) {
-      // Komplettering av historiska svar får aldrig blockera veckovyn.
-      await Promise.all(missing.map((item) => supabaseRequest('personal_training_sessions', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify(item) }).catch(() => null)))
-    }
-  }
+  // Registreringar skapas vid check-in eller en uttrycklig närvaromarkering.
+  // En läsning får aldrig återskapa borttagna pass eller gissa eftermiddag
+  // utifrån ett gammalt svar: det kan avse morgon, tävling eller annan träning.
+  const sessionRows = await sessionsResult.json()
   const allowedAssignments = new Set(assignments.map((item) => item.id))
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
   const assignedPrograms = new Set(assignments.map((item) => item.program_id))
   await Promise.all(Object.values(programs).map(async (program) => {
     program.exercise_images = !profileId || assignedPrograms.has(program.id) ? await signedExerciseImages(program.exercise_images || []).catch(() => []) : []
   }))
-  const autoSessions = afterResponses.map((item) => ({
-    profile_id: item.profile_id || profileId,
-    activity_type: 'swim',
-    session_slot: 'afternoon_swim',
-    session_date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(item.created_at)),
-    source: 'checkin',
-  })).filter((item) => item.profile_id)
-  const sessionRows = existingSessions.concat(autoSessions).filter((item, index, all) => all.findIndex((other) => `${other.profile_id}|${other.session_date}|${other.session_slot}` === `${item.profile_id}|${item.session_date}|${item.session_slot}`) === index)
   const workoutRows = workoutsResult.ok ? await workoutsResult.json() : []
   const swimMetrics = new Map()
   sessionRows.filter((item) => item.activity_type === 'swim').forEach((session) => {
