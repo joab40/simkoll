@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
 import './private-chat-reply.css'
+import PrivateReplyAi from './private-reply-ai.jsx'
 
 export default function PrivateChatReply({ message, code, request, onClose, onSent }) {
   const input = useRef(null), sending = useRef(false)
@@ -35,6 +36,7 @@ export default function PrivateChatReply({ message, code, request, onClose, onSe
     <p id={hintId}>Bara {name} och tränarna kan läsa svaret.</p>
     {sent ? <div className="private-reply-success" role="status"><strong>✓ Privat svar skickat till {name}</strong><button type="button" className="primary-button" onClick={onClose}>Klart</button></div> : <form onSubmit={send} aria-busy={busy}>
       <label>Ditt privata svar<textarea ref={input} required maxLength={1000} rows={2} value={content} disabled={busy} onChange={(event) => { setContent(event.target.value); setError('') }} placeholder={`Skriv privat till ${name}…`} /></label>
+      <PrivateReplyAi draft={content} disabled={busy} onUse={(text)=>{setContent(text);setError('');input.current?.focus()}} onGenerate={(draft)=>request('/api/community',code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'propose-private-reply',messageId:message.id,draft})})} />
       <div className="private-reply-actions"><small>{content.length}/1000</small><button type="submit" className="primary-button" disabled={busy || !content.trim()}>{busy ? 'Skickar privat…' : 'Skicka privat →'}</button></div>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>}

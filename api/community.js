@@ -5,6 +5,7 @@ import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } f
 import { coachFromRequest } from '../server/coach-auth.js'
 import { queueMessagePush } from '../server/web-push.js'
 import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/private-chat-replies.js'
+import { proposePrivateReply } from '../server/private-reply-ai.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
@@ -219,6 +220,7 @@ async function getCoachFeed() {
 export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
+  if (request.method === 'POST' && request.body?.action === 'propose-private-reply' && role !== 'coach') return sendJson(response,403,{error:'Endast tränaren kan skapa svarsförslag.'})
 
   try {
     if (request.method === 'GET') {
@@ -410,6 +412,11 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
+      if (request.body?.action === 'propose-private-reply') {
+        response.setHeader('Cache-Control','private, no-store')
+        try {return sendJson(response,200,await proposePrivateReply(request,request.body))}
+        catch(error){return sendJson(response,error.status || 502,{error:error.message})}
+      }
       if (request.body?.action === 'delete-private-message') {
         const id = String(request.body?.id || '')
         if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })

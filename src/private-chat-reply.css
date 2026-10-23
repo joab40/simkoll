@@ -9,6 +9,16 @@
 .private-reply-actions small { color: var(--muted); }
 .private-reply-success { display: grid; gap: 22px; padding-top: 10px; }
 .private-chat-reply button:disabled { opacity: .6; cursor: default; }
+.private-reply-ai { display: grid; gap: 8px; margin-top: 12px; }
+.private-reply-ai > small { font-size: 12px; line-height: 1.45; color: var(--muted); }
+.private-reply-ai-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; font-size: 14px; }
+.private-reply-ai-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #bad4cb; border-top-color: var(--teal); border-radius: 50%; animation: private-reply-spin .8s linear infinite; }
+.private-reply-ai-preview { border: 1px solid #b9d2cc; border-radius: 12px; padding: 12px; background: white; min-width: 0; }
+.private-reply-ai-preview details, .private-reply-ai-preview p, .private-reply-ai-checks { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 12px; }
+.private-reply-ai-preview ul { padding-left: 18px; margin: 6px 0; overflow-wrap: anywhere; }
+.private-reply-ai-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+@keyframes private-reply-spin { to { transform: rotate(360deg); } }
+@media(prefers-reduced-motion: reduce) { .private-reply-ai-spinner { animation: none; } }
 .coach-open-chat .private-reply-message { cursor: pointer; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; display: block; }
 .private-question-content { display: block; white-space: pre-wrap; overflow-wrap: anywhere; margin: .2rem 0; }
 .coach-open-chat .private-thread-reply { border-left: 3px solid #d2f458; background: #042a5e66; border-radius: 0 10px 10px 0; padding: 10px 12px; margin-top: 12px; }
