@@ -16,6 +16,7 @@ import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import { planningMonday } from '../shared/weekly-planning.js'
 import SwimmerTrainingTimesCard from './swimmer-training-times-card.jsx'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
+import PrivateChatReply from './private-chat-reply.jsx'
 import DevelopmentTalkEditor from './development-talk-editor.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
@@ -901,6 +902,7 @@ function Faq({ role, onBack }) {
       <p className="faq-intro">Här finns en uppdaterad guide till funktionerna. Svaren beskriver simmarens egen upplevelse och är ett stöd för träning, planering och samtal – inte ett prov eller en medicinsk bedömning.</p>
       <section className="faq-install"><p className="eyebrow">Gör Simkoll lätt att hitta</p><h2>Lägg till på hemskärmen</h2><p>En genväg gör det enklare att öppna rätt sida och använda din sparade profil.</p><details><summary>iPhone eller iPad<span>+</span></summary><ol><li>Öppna Simkoll i Safari.</li><li>Tryck på dela-symbolen.</li><li>Välj <strong>Lägg till på hemskärmen</strong>.</li><li>Tryck <strong>Lägg till</strong>.</li></ol></details><details><summary>Android<span>+</span></summary><ol><li>Öppna Simkoll i Chrome.</li><li>Tryck på de tre prickarna.</li><li>Välj <strong>Lägg till på startskärmen</strong> eller <strong>Installera app</strong>.</li><li>Bekräfta.</li></ol></details><small>Webbläsaren måste alltid fråga dig först — Simkoll kan inte skapa genvägen automatiskt.</small></section>
       <div className="faq-list">
+        <details><summary>Privata svar i Info från tränarna<span>+</span></summary><p>Tränaren kan klicka på simmarens meddelande för att skriva ett privat svar direkt under det i samma chattfönster. Svaret märks med 🔒 och syns för mottagaren och tränarna. Övriga simmare ser inte svaret. Simmaren kan läsa svaret i samma chatt och under sina privata meddelanden. Tränarens vanliga skrivfält längst ner skickar fortfarande till gruppen.</p></details>
         <details><summary>Sömnkoll och återhämtning<span>+</span></summary><p>Efter ”Hur känns det idag?” kan du vid profilkopplad check-in frivilligt ange ungefärlig sovtid (0–14 timmar i kvartsteg) och om sömnen var dålig, okej eller bra. Svaret sparas direkt när du trycker Spara och fortsätt och är synligt för tränarna. Natten hör till dagen efter; vid efterregistrering svarar du om natten inför gårdagen. Du får frågan högst en gång per aktivitetsdag på dina enheter, även om du checkar in flera gånger. Hoppa över idag tar också bort frågan resten av dagen. Anonym check-in innehåller ingen profilkopplad sömnkoll.</p><p>I Min träningsdagbok → Sömn och återhämtning kan du följa sovtid och sömnkänsla tillsammans med dagens känsla och RPE. Tränaren ser historiken i simmarkortet. Minst två nätter med rapporterad dålig sömn senaste sju dagarna lyfts under Kontrollpanelen → Individuell uppföljning som underlag för samtal. Saknade svar räknas inte som noll, och sömnkollen gör ingen medicinsk bedömning eller automatisk ändring av träningen.</p></details>
         <details><summary>Tävlings-PM, klasser och grenanmälan<span>+</span></summary><p>Under Meny → Mina grenar kan simmaren välja en kommande tävling för sin grupp och öppna original-PM:et, även innan grenanmälan har öppnats. Saknas klass i grenlistan betyder det att uppgiften inte är angiven där. Kontrollera PM och fråga tränaren vid oklarheter.</p>{role === 'coach' && <p>I Tävlingskalender kan du bifoga PM när du skapar tävlingen eller senare med Bifoga PM. PDF och bilder på högst 3 MB stöds. Bilagan finns kvar när du läser in eller ändrar det tolkade grenprogrammet. Redigera tävling ändrar grunduppgifterna. Granska och spara grenprogrammet innan du väljer Öppna grenanmälan för simmare. Att stänga anmälan tar inte bort tidigare val. Om tävlingen sparas men bilagan misslyckas visas det i formuläret, och nästa försök uppdaterar samma tävling.</p>}</details>
         <details><summary>Hur fungerar Min träningsdagbok?<span>+</span></summary><p>Öppna Meny → Min träningsdagbok eller genvägen i Min profil. Välj vecka, månad, termin eller egna datum. Du kan jämföra träning, kontinuitet, RPE och känsla med föregående lika långa period. Tryck på en kalenderdag och öppna ett pass för upplägg, fokus, simsätt i passtexten, kommentarer och tävlingsresultat när de finns.</p><p>Rapporterade simmeter och minuter visas separat från uppskattningar som kommer från kopplade pass. Saknade värden betyder inte noll. Tävling räknas separat från simträning, cykelkilometer blir inte simmeter och morgonpass hålls isär från eftermiddagspass. Efterregistrering visas på aktivitetsdagen.</p><p>Under passet kan du skriva Vad fungerade? och Vad vill jag ta med till nästa pass? Tryck på Spara reflektion. Dessa anteckningar visas i din egen dagbok och skapar varken träningspass eller poäng. Anonyma svar kan inte kopplas tillbaka till dagboken. Att läsa dagboken eller spara anteckningar gör inga AI-anrop. Graferna visar uppgifter och jämförelser, inte bevis på att träningen orsakat en viss utveckling. Utvecklingsmål skapas fortsatt av tränaren tillsammans med dig.</p></details>
@@ -4470,6 +4472,9 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
 }
 
 function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = false }) {
+  const [privateReply, setPrivateReply] = useState(null)
+  const privateReplyTrigger = useRef(null)
+  const closePrivateReply = () => { setPrivateReply(null); privateReplyTrigger.current?.focus() }
   const [chat, setChat] = useState({ enabled: false, backgroundImage: '', messages: [] }); const [content, setContent] = useState(''); const [status, setStatus] = useState('')
   const panelActive = useRef(true)
   const chatPanelRef = useRef(null)
@@ -4540,11 +4545,28 @@ function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = fals
   return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${fitViewport ? ' swimmer-info-chat' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
     <div className="open-chat-heading">
       {coach && <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div>}
-      <small>{coach ? 'Synlig för alla simmare och tränare' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor syns bara för tränarna' : 'Gruppen kan läsa och skriva här'}</small>
+      <small>{coach ? 'Tränarinfo till gruppen · privata svar märks med 🔒' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor och privata svar syns bara för dig och tränarna' : 'Gruppchatt · svar märkta 🔒 är privata'}</small>
       {coach && <button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button>}
     </div>
-    <div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id}><span>{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span><div><strong>{item.sender?.displayName || 'Simmare'}</strong><p>{item.content}</p><small>{item.pending ? 'Skickar…' : formatFeedDate(item.createdAt)}</small></div>{!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}</article>) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
-    {(!chat.coachOnly || coach) && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}
+    <div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => {
+      const canReply = coach && item.senderRole === 'swimmer' && item.senderProfileId && !item.pending
+      const openReply = (event) => { privateReplyTrigger.current = event.currentTarget; setPrivateReply(item) }
+      const original = <><strong>{item.sender?.displayName || 'Simmare'}</strong><span className="private-question-content">{item.content}</span><small>{item.pending ? 'Skickar…' : formatFeedDate(item.createdAt)}</small>{canReply && <small className="private-reply-hint">↩ Svara privat till {item.sender?.displayName || 'simmaren'}</small>}</>
+      return <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id}>
+        <span>{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span>
+        <div>{canReply ? <button type="button" className="private-reply-message" onClick={openReply} aria-expanded={privateReply?.id === item.id}>{original}</button> : original}
+          {item.privateReplies?.map((reply) => <section className="private-thread-reply" key={reply.id}><strong>🔒 {coach ? `Privat svar till ${item.sender?.displayName || 'simmaren'}` : 'Tränarnas privata svar till dig'}</strong><p>{reply.content}</p><small>{formatFeedDate(reply.createdAt)}</small></section>)}
+          {privateReply?.id === item.id && <PrivateChatReply key={item.id} message={item} code={code} request={apiRequest} onClose={closePrivateReply} onSent={(reply) => {
+            if (reply) setChat((current) => ({...current,messages:current.messages.map((message) => message.id === item.id ? {...message,privateReplies:[...(message.privateReplies || []).filter((row) => row.id !== reply.id),reply]} : message)}))
+            window.dispatchEvent(new Event('simkoll-private-message-sent'))
+            load()
+          }} />}
+        </div>
+        {!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}
+      </article>
+    }) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
+    {(!chat.coachOnly || coach) && !privateReply && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}
+    {chat.privateRepliesWarning && <p className="private-replies-warning" role="status">{chat.privateRepliesWarning}</p>}
   </section>
 }
 
@@ -4562,6 +4584,11 @@ function CoachCommunity({ code, profiles, initialRecipientId = '' }) {
   const [loading, setLoading] = useState(true)
   useEffect(() => { if (initialRecipientId && !loading) privateMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [initialRecipientId, loading])
   const load = () => apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { setItems(data.items); setMessages(data.messages || []); setOpenChat(data.openChat || { enabled: false, messages: [] }) }).finally(() => setLoading(false))
+  useEffect(() => {
+    const refreshPrivate = () => { load().catch(() => {}) }
+    window.addEventListener('simkoll-private-message-sent', refreshPrivate)
+    return () => window.removeEventListener('simkoll-private-message-sent', refreshPrivate)
+  }, [code])
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   const publish = async (event) => {
     event.preventDefault(); setLoading(true)

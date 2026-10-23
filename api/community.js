@@ -4,6 +4,7 @@ import { writeAiUsage } from '../server/audit.js'
 import { awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { queueMessagePush } from '../server/web-push.js'
+import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/private-chat-replies.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
@@ -329,7 +330,8 @@ export default async function handler(request, response) {
       }
       const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
 const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches' || item.sender_profile_id === profile?.id).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, senderProfileId: item.sender_profile_id || null, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🧑‍🏫' } })).filter((item) => item.sender).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : []
-      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: openChatMessages } })
+      const threaded = await loadPrivateChatReplies(openChatMessages,role,profile?.id)
+      return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: threaded.messages, privateRepliesWarning: threaded.warning } })
     }
 
     if (request.method === 'POST' && ['coach', 'swimmer'].includes(role) && request.body?.action === 'toggle-reaction') {
@@ -463,6 +465,13 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         return sendJson(response, 200, await polishCommunityPost(request, content))
       }
       if (request.body?.action === 'message') {
+        if (request.body.replyToMessageId) {
+          try {
+            const reply = await saveLinkedPrivateReply(request.body)
+            queueMessagePush({kind:'private',id:reply.id,profileId:reply.recipientId})
+            return sendJson(response,201,{ok:true,privateReply:reply})
+          } catch(error) { return sendJson(response,error.status || 502,{error:error.message}) }
+        }
         const recipientId = String(request.body?.recipientId || ''), content = String(request.body?.content || '').trim()
         if (!recipientId || !content || content.length > 1000) return sendJson(response, 400, { error: 'Välj simmare och skriv ett meddelande på högst 1000 tecken.' })
         const recipient = await supabaseRequest(`profiles?id=eq.${recipientId}&active=eq.true&approval_status=eq.approved&select=id&limit=1`)

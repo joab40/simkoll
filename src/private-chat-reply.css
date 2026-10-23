@@ -1,0 +1,21 @@
+.private-chat-reply { width: 100%; min-width: 0; box-sizing: border-box; padding: 16px; margin-top: 14px; border: 1px solid #cdded9; border-radius: 14px; background: #f8fcfa; color: var(--ink); }
+.private-chat-reply header { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
+.private-chat-reply h3 { margin: 6px 0 0; font-size: 16px; }
+.private-chat-reply > p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.private-reply-close { flex: none; width: 32px; height: 32px; background: white; border: 1px solid #cdded9; border-radius: 50%; color: var(--ink); font: inherit; font-size: 24px; cursor: pointer; }
+.private-chat-reply label { display: grid; gap: 8px; font-weight: 700; }
+.private-chat-reply textarea { box-sizing: border-box; width: 100%; border: 1px solid #b9d2cc; border-radius: 12px; padding: 14px; background: white; color: var(--ink); font: inherit; font-weight: 400; font-size: 16px; resize: vertical; }
+.private-reply-actions { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 16px; }
+.private-reply-actions small { color: var(--muted); }
+.private-reply-success { display: grid; gap: 22px; padding-top: 10px; }
+.private-chat-reply button:disabled { opacity: .6; cursor: default; }
+.coach-open-chat .private-reply-message { cursor: pointer; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; display: block; }
+.private-question-content { display: block; white-space: pre-wrap; overflow-wrap: anywhere; margin: .2rem 0; }
+.coach-open-chat .private-thread-reply { border-left: 3px solid #d2f458; background: #042a5e66; border-radius: 0 10px 10px 0; padding: 10px 12px; margin-top: 12px; }
+.private-thread-reply strong { display: block; font-size: 13px; }
+.private-thread-reply p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.private-replies-warning { color: #fff1c2; font-size: 13px; }
+.coach-open-chat .private-reply-message:focus-visible { outline: 3px solid #d2f458; outline-offset: 4px; }
+.coach-open-chat .open-chat-messages .private-reply-hint { display: block; opacity: 1; margin-top: 8px; font-size: 13px; font-weight: 700; color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.coach-open-chat .private-reply-message:hover .private-reply-hint { color: #e4ff90; }
+@media(max-width: 480px) { .private-chat-reply { padding: 14px; } .private-reply-actions { align-items: stretch; flex-direction: column; } }
