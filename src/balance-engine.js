@@ -2,10 +2,10 @@
 // control tuning readable; no randomness or frame-rate-dependent scoring.
 export const BALANCE_STEP = 1 / 120
 export const BALANCE_DURATION = 120
-export const BALANCE_MAX_SCORE = 11000
+export const BALANCE_MAX_SCORE = 14000
 export const BALANCE_ZONE = [38, 58]
-export const BALANCE_START_SPEED = 24
-export const BALANCE_TOP_SPEED = 44
+export const BALANCE_START_SPEED = 30
+export const BALANCE_TOP_SPEED = 56
 export const BALANCE_SCENE_SCALE = 12
 export const BALANCE_LAUNCH_TIME = 6
 export const BALANCE_IMPACT_TIME = .28
@@ -21,12 +21,15 @@ const BUMP_SHAPES = [
   { offset: 218, height: -2.5, width: 7 },
   { offset: 270, height: 4.2, width: 18 },
 ]
-const COURSE_START = 180
+const COURSE_START = 220
 const COURSE_LENGTH = 340
-const MAX_HALF_WIDTH = 10
+const MAX_HALF_WIDTH = 12
 export function balanceBump(index) {
   const shape = BUMP_SHAPES[index % BUMP_SHAPES.length]
-  return { ...shape, index, kind: shape.height < 0 ? 'pothole' : 'hill', center: COURSE_START + Math.floor(index / BUMP_SHAPES.length) * COURSE_LENGTH + shape.offset }
+  // A clearly larger hill roughly every other course segment, not a
+  // surprise on every bump. Its whole shape is visible before contact.
+  const large = index % 12 === 5
+  return { ...shape, height: large ? 6.8 : shape.height, width: large ? 22 : shape.width, large, index, kind: shape.height < 0 ? 'pothole' : 'hill', center: COURSE_START + Math.floor(index / BUMP_SHAPES.length) * COURSE_LENGTH + shape.offset }
 }
 export function balanceBumpsBetween(from, to) {
   const first = Math.max(0, Math.floor((from - COURSE_START - MAX_HALF_WIDTH) / COURSE_LENGTH)) * BUMP_SHAPES.length
@@ -56,13 +59,13 @@ export function advanceBalance(game, seconds, lifting) {
   while (game.remainder + 1e-9 >= BALANCE_STEP && game.status === 'playing') {
     game.remainder = Math.max(0, game.remainder - BALANCE_STEP)
     game.elapsed += BALANCE_STEP
-    game.speed = Math.min(BALANCE_TOP_SPEED, BALANCE_START_SPEED + game.elapsed * .4)
+    game.speed = Math.min(BALANCE_TOP_SPEED, BALANCE_START_SPEED + game.elapsed * .6)
     const travelled = game.speed * BALANCE_STEP
     const previousDistance = game.distance
     game.distance += travelled
     game.impactTimer = Math.max(0, game.impactTimer - BALANCE_STEP)
-    const difficulty = 1 + Math.min(.6, game.elapsed / 75)
-    const acceleration = ((lifting ? 115 : -155) + (game.angle - 44) * 1.3) * difficulty - game.velocity * 2.5
+    const difficulty = 1 + Math.min(1.8, game.elapsed / 45)
+    const acceleration = ((lifting ? 140 : -230) + (game.angle - 44) * 1.6) * difficulty - game.velocity * 2.1
     game.velocity += acceleration * BALANCE_STEP
     // Following the uphill/downhill profile moves the rear wheel vertically
     // and disturbs balance continuously, rather than a barely visible nudge.

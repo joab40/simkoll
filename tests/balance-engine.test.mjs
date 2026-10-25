@@ -42,12 +42,12 @@ test('releasing brings the front wheel down promptly without changing the lift c
     advanceBalance(released, 1 / 120, false)
     advanceBalance(lifting, 1 / 120, true)
   }
-  assert.ok(released.velocity < -28)
+  assert.ok(released.velocity < -45)
   assert.ok(released.angle < initial.angle)
   assert.ok(lifting.angle > initial.angle)
   while (released.status === 'playing') advanceBalance(released, 1 / 120, false)
   assert.equal(released.reason, 'front')
-  assert.ok(released.elapsed - initial.elapsed < 1.1)
+  assert.ok(released.elapsed - initial.elapsed < .8)
 })
 
 test('same input produces exactly the same result at 30, 60 and 144 Hz', () => {
@@ -61,7 +61,7 @@ test('same input produces exactly the same result at 30, 60 and 144 Hz', () => {
 })
 
 test('deliberate balance earns bonus, bumps and increasing speed; round has a hard finish', () => {
-  const result = run((game) => game.angle < 46)
+  const result = run((game) => game.angle < 48)
   assert.equal(result.reason, 'finish')
   assert.ok(Math.abs(result.elapsed - BALANCE_DURATION) < 1e-6)
   assert.ok(result.bumps > 70)
@@ -79,15 +79,44 @@ test('lag cannot fast-forward the round; paused/non-finite/negative time adds no
   assert.deepEqual(game, initial)
   advanceBalance(game, 30, true)
   assert.ok(game.elapsed <= .101)
-  assert.ok(game.distance < 2.5)
+  assert.ok(game.distance < 3.1)
 })
 
-test('starts 50 percent faster than the previous release and accelerates within the score limit', () => {
-  assert.equal(createBalanceGame().speed, 24)
+test('starts 25 percent faster than the previous release and accelerates within the score limit', () => {
+  assert.equal(createBalanceGame().speed, 30)
   const result = run((game) => game.angle < 46, 120, 2)
-  assert.ok(result.distance > 48)
+  assert.ok(result.distance > 60)
   assert.ok(result.speed > BALANCE_START_SPEED)
   assert.ok(BALANCE_TOP_SPEED * BALANCE_DURATION * 2 <= BALANCE_MAX_SCORE)
+})
+
+test('large hills occur occasionally, are clearly larger, and stay discoverable at both edges', () => {
+  const course = Array.from({ length: 36 }, (_, index) => balanceBump(index))
+  const large = course.filter((bump) => bump.large)
+  assert.deepEqual(large.map((bump) => bump.index), [5, 17, 29])
+  const regularHeight = Math.max(...course.filter((bump) => !bump.large).map((bump) => bump.height))
+  for (const hill of large) {
+    assert.ok(hill.height > regularHeight * 1.5)
+    assert.ok(hill.width > 18)
+    const left = hill.center - hill.width / 2, right = hill.center + hill.width / 2
+    assert.ok(balanceBumpsBetween(left, left).some((feature) => feature.index === hill.index))
+    assert.ok(balanceBumpsBetween(right, right).some((feature) => feature.index === hill.index))
+    assert.equal(balanceRoadAt(hill.center).height, hill.height)
+  }
+  assert.ok(large[1].center - large[0].center > 600)
+})
+
+test('limited-precision balancing can no longer coast through the full course', () => {
+  const game = createBalanceGame()
+  let held = true
+  for (let tick = 0; tick < 120 * BALANCE_DURATION && game.status === 'playing'; tick++) {
+    // A reasonably responsive but simple 200 ms correction pattern.
+    if (tick % 24 === 0) held = game.angle < 46
+    advanceBalance(game, 1 / 120, held)
+  }
+  assert.notEqual(game.reason, 'finish')
+  assert.ok(game.elapsed > 10 && game.elapsed < 60)
+  assert.ok(validBalanceScore(game.score))
 })
 
 test('hills and potholes vary in height and width without overlapping or discontinuities', () => {

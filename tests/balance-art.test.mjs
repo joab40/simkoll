@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { drawBalance } from '../src/balance-art.js'
-import { BALANCE_IMPACT_TIME, createBalanceGame } from '../src/balance-engine.js'
+import { BALANCE_IMPACT_TIME, balanceBump, createBalanceGame } from '../src/balance-engine.js'
 import { BALANCE_BIKE, balanceRiderPose } from '../src/balance-rider.js'
 
 function drawing() {
@@ -73,4 +73,15 @@ test('feet stay on opposite pedals, both when pedalling and balancing on the rea
     assert.ok(Math.abs((near.foot[0] + far.foot[0]) / 2 - crank[0]) < 1e-8)
     assert.ok(Math.abs((near.foot[1] + far.foot[1]) / 2 - crank[1]) < 1e-8)
   }
+})
+
+test('the extra large hill is announced before the rear wheel reaches it', () => {
+  const hill = balanceBump(5)
+  const edge = hill.center - hill.width / 2
+  const ahead = drawing(), inside = drawing()
+  drawBalance(ahead.canvas, { ...createBalanceGame(), wheelieStarted: true, distance: edge - 30 })
+  drawBalance(inside.canvas, { ...createBalanceGame(), wheelieStarted: true, distance: edge + 2 })
+  const warned = (operations) => operations.some((op) => op.name === 'fillText' && op.args[0].includes('STORT GUPP'))
+  assert.equal(warned(ahead.operations), true)
+  assert.equal(warned(inside.operations), false)
 })
