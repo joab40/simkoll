@@ -454,9 +454,10 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       }
       if (request.body?.action === 'delete-open-chat-message') {
         const id = String(request.body?.id || '')
-        if (!id) return sendJson(response, 400, { error: 'Meddelandet saknar id.' })
-        const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return sendJson(response, 400, { error: 'Meddelandet saknar ett giltigt id.' })
+        const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}&deleted_at=is.null&limit=1`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Open chat delete failed: ${result.status}`)
+        if (!(await result.json()).some((item) => item.id === id)) return sendJson(response, 404, { error: 'Meddelandet finns inte längre i chatten.' })
         return sendJson(response, 200, { ok: true })
       }
       if (request.body?.action === 'clear-open-chat') {
@@ -548,8 +549,10 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       }
       if (request.body?.action === 'delete-open-chat-message') {
         const id = String(request.body?.id || '')
-        const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}&sender_profile_id=eq.${encodeURIComponent(profile.id)}&deleted_at=is.null`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return sendJson(response, 400, { error: 'Meddelandet saknar ett giltigt id.' })
+        const result = await supabaseRequest(`open_chat_messages?id=eq.${encodeURIComponent(id)}&sender_profile_id=eq.${encodeURIComponent(profile.id)}&sender_role=eq.swimmer&deleted_at=is.null&limit=1`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ deleted_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Open chat delete failed: ${result.status}`)
+        if (!(await result.json()).some((item) => item.id === id)) return sendJson(response, 404, { error: 'Meddelandet finns inte längre i chatten.' })
         return sendJson(response, 200, { ok: true })
       }
       if (request.body?.mode === 'coach') {

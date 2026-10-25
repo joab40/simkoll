@@ -4479,6 +4479,8 @@ function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = fals
   const privateReplyTrigger = useRef(null)
   const closePrivateReply = () => { setPrivateReply(null); privateReplyTrigger.current?.focus() }
   const [chat, setChat] = useState({ enabled: false, backgroundImage: '', messages: [] }); const [content, setContent] = useState(''); const [status, setStatus] = useState('')
+  const deletingMessage = useRef(false)
+  const [deletingMessageId, setDeletingMessageId] = useState(null)
   const panelActive = useRef(true)
   const chatPanelRef = useRef(null)
   const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => {
@@ -4541,7 +4543,23 @@ function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = fals
       setStatus(error.message)
     }
   }
-  const remove = async (id) => { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id }) }); await load() }
+  const remove = async (item) => {
+    if (deletingMessage.current) return
+    deletingMessage.current = true
+    const label = item.sender?.displayName || (item.senderRole === 'coach' ? 'Tränaren' : 'Simmaren')
+    const excerpt = item.content.length > 100 ? `${item.content.slice(0, 100)}…` : item.content
+    if (!window.confirm(`Ta bort just ${label}s inlägg?\n\n”${excerpt}”`)) { deletingMessage.current = false; return }
+    setDeletingMessageId(item.id)
+    try {
+      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id: item.id }) })
+      await load()
+    } catch (error) {
+      window.alert(error.message)
+    } finally {
+      deletingMessage.current = false
+      setDeletingMessageId(null)
+    }
+  }
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
   if (!chat.enabled) return null
   const chatBackground = chat.backgroundImage || '/assets/open-chat-bg-teal.png'
@@ -4565,7 +4583,7 @@ function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = fals
             load()
           }} />}
         </div>
-        {!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" onClick={() => remove(item.id)}>Ta bort</button>}
+        {!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" disabled={deletingMessageId !== null} onClick={() => remove(item)}>{deletingMessageId === item.id ? 'Tar bort…' : 'Ta bort'}</button>}
       </article>
     }) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
     {(!chat.coachOnly || coach) && !privateReply && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}
