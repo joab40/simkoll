@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { advanceBalance, BALANCE_LAUNCH_TIME, BALANCE_ZONE, balanceBumpsBetween, createBalanceGame } from './balance-engine.js'
 import { drawBalance } from './balance-art.js'
 import { enterBalanceFullscreen, exitBalanceFullscreen } from './balance-fullscreen.js'
+import { guardBalanceTouches } from './balance-touch.js'
 import './balance-game.css'
 
 const resultText = { front: 'Framhjulet landade', terrain: 'Framhjulet slog i terrängen!', tip: 'Lite för långt bak!', finish: 'Hela strandpromenaden klar!', launch: 'Håll för att lyfta framhjulet' }
@@ -28,6 +29,11 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
   const [boardError, setBoardError] = useState(false)
   const [fullscreenMode, setFullscreenMode] = useState(null)
   const fullscreen = fullscreenMode !== null
+
+  useEffect(() => {
+    if (phase !== 'playing') return
+    return guardBalanceTouches(playArea.current)
+  }, [phase])
 
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)')

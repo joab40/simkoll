@@ -5,6 +5,7 @@
 .balance-label{background:#e4f2e9;color:#326959;padding:10px 15px;border-radius:100px;font-size:.8rem;font-weight:700;white-space:nowrap}
 .balance-layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:24px;align-items:start}
 .balance-main{min-width:0;background:#fffef8;border:1px solid #d0e1dc;border-radius:24px;overflow:hidden}
+.balance-main,.balance-main *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .balance-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px;border-bottom:1px solid #e1e8dc}
 .balance-toolbar>span{font-size:.75rem;color:#61777a}
 .balance-toolbar button{min-height:40px;padding:8px 12px;white-space:nowrap;font-size:.8rem}
