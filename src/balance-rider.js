@@ -1,7 +1,7 @@
 // Bike-local coordinates: a conventional rear triangle and main diamond,
 // with the crank above the wheel axles and both feet attached to the pedals.
 export const BALANCE_BIKE = {
-  rear: [0, 0], front: [132, 0], crank: [58, -7],
+  rear: [0, 0], front: [132, 0], wheelRadius: 32, crank: [58, -7],
   seat: [42, -61], headTop: [98, -64], headBottom: [104, -46],
   hip: [43, -78], thighLength: 44, shinLength: 46, crankLength: 15,
 }

@@ -1,4 +1,4 @@
-import { BALANCE_IMPACT_TIME, BALANCE_SCENE_SCALE, BALANCE_ZONE, balanceBumpsBetween, balanceRoadAt } from './balance-engine.js'
+import { BALANCE_IMPACT_TIME, BALANCE_SCENE_SCALE, BALANCE_ZONE, balanceBumpsBetween, balanceRoadAt, balanceWheelGeometry } from './balance-engine.js'
 import { BALANCE_BIKE, balanceRiderPose } from './balance-rider.js'
 
 const line = (ctx, points, color, width = 5) => {
@@ -35,7 +35,7 @@ export function drawBalance(canvas, game, { reducedMotion = false } = {}) {
     line(ctx, [[x - 12, 357], [x - 20, 318], [x - 4, 338], [x, 310], [x + 9, 357]], '#6d9c79', 4)
   }
   const bumps = balanceBumpsBetween(game.distance - 290 / BALANCE_SCENE_SCALE, game.distance + 670 / BALANCE_SCENE_SCALE)
-  const largeAhead = bumps.some((bump) => bump.large && bump.center - bump.width / 2 > game.distance && bump.center - bump.width / 2 - game.distance <= 45)
+  const largeAhead = bumps.find((bump) => bump.large && bump.center - bump.width / 2 > game.distance && bump.center - bump.width / 2 - game.distance <= 45)
   const surface = []
   for (let x = 0; x <= 960; x += 4) surface.push([x, 374 - balanceRoadAt(game.distance + (x - 290) / BALANCE_SCENE_SCALE, bumps).height * BALANCE_SCENE_SCALE])
   ctx.fillStyle = '#e9dfc5'; ctx.beginPath(); ctx.moveTo(0, 500)
@@ -48,7 +48,7 @@ export function drawBalance(canvas, game, { reducedMotion = false } = {}) {
     const x = 290 + (bump.center - game.distance) * BALANCE_SCENE_SCALE
     const halfWidth = bump.width / 2 * BALANCE_SCENE_SCALE
     const hole = bump.kind === 'pothole'
-    ctx.fillStyle = hole ? '#705e49' : bump.large ? '#ce984e' : '#cfad76'; ctx.beginPath(); ctx.moveTo(x - halfWidth, 374)
+    ctx.fillStyle = hole ? '#705e49' : bump.rolling ? '#b48c52' : bump.large ? '#ce984e' : '#cfad76'; ctx.beginPath(); ctx.moveTo(x - halfWidth, 374)
     for (let px = -halfWidth; px <= halfWidth; px += 2) {
       const height = balanceRoadAt(bump.center + px / BALANCE_SCENE_SCALE, [bump]).height
       ctx.lineTo(x + px, 374 - height * BALANCE_SCENE_SCALE)
@@ -62,10 +62,10 @@ export function drawBalance(canvas, game, { reducedMotion = false } = {}) {
       for (const marker of markers) line(ctx, [[x + marker - 8, 383 - bump.height * BALANCE_SCENE_SCALE], [x + marker, 377 - bump.height * BALANCE_SCENE_SCALE], [x + marker + 8, 383 - bump.height * BALANCE_SCENE_SCALE]], '#8b683d', 3)
     }
   }
-  const wheelClearance = 33 * Math.sqrt(1 + game.roadSlope ** 2)
-  ctx.save(); ctx.translate(290, 374 - game.roadHeight * BALANCE_SCENE_SCALE - wheelClearance); ctx.rotate(-Math.max(0, Math.min(85, game.angle)) * Math.PI / 180)
-  for (const x of [0, 132]) {
-    circle(ctx, x, 0, 32, '#203f48'); circle(ctx, x, 0, 25, '#f6f7e9')
+  const geometry = balanceWheelGeometry(game)
+  ctx.save(); ctx.translate(290, 374 - geometry.rearHeight); ctx.rotate(-geometry.angle)
+  for (const x of [BALANCE_BIKE.rear[0], BALANCE_BIKE.front[0]]) {
+    circle(ctx, x, 0, geometry.radius, x > 0 && game.reason === 'terrain' ? '#bc4838' : '#203f48'); circle(ctx, x, 0, 25, '#f6f7e9')
     ctx.save(); ctx.translate(x, 0); ctx.rotate(game.distance * .38)
     for (let j = 0; j < 6; j++) { const a = j * Math.PI / 3; line(ctx, [[0, 0], [Math.cos(a) * 24, Math.sin(a) * 24]], '#afc7bf', 2) }
     ctx.restore(); circle(ctx, x, 0, 5, '#14747a')
@@ -101,7 +101,7 @@ export function drawBalance(canvas, game, { reducedMotion = false } = {}) {
   ctx.restore() // Only the world shakes, never the controls or gauge.
   ctx.fillStyle = '#245a60'; ctx.font = '600 16px system-ui, sans-serif'; ctx.textAlign = 'left'
   ctx.fillText('STRANDPROMENADEN', 30, 38)
-  ctx.textAlign = 'right'; ctx.fillText(game.impactTimer > 0 ? 'GROP! HÅLL BALANSEN' : !game.wheelieStarted ? 'Håll för att lyfta framhjulet' : largeAhead ? 'STORT GUPP FRAMFÖR DIG' : `${Math.floor(game.distance)} m`, 930, 38)
+  ctx.textAlign = 'right'; ctx.fillText(game.impactTimer > 0 ? 'GROP! HÅLL BALANSEN' : !game.wheelieStarted ? 'Håll för att lyfta framhjulet' : largeAhead ? largeAhead.rolling ? 'KULLE FRAMFÖR DIG' : 'STORT GUPP FRAMFÖR DIG' : `${Math.floor(game.distance)} m`, 930, 38)
   // Keep a gauge in the desktop scene. On phones the larger HTML gauge
   // below the scene is easier to read.
   if (canvas.clientWidth < 600) return

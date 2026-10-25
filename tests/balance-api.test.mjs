@@ -60,9 +60,9 @@ test('only a better result updates the personal weekly record', async () => {
 
 test('higher scores from the faster course can be saved above the old ceiling', async () => {
   const { writes } = db()
-  const response = await call({ action: 'submit-game-score', gameKey: 'balance', score: 12000 })
+  const response = await call({ action: 'submit-game-score', gameKey: 'balance', score: 14500 })
   assert.equal(response.code, 200)
-  assert.equal(writes.find((item) => item.path === 'game_scores').body.score, 12000)
+  assert.equal(writes.find((item) => item.path === 'game_scores').body.score, 14500)
 })
 
 test('impossible scores and unauthenticated submissions cannot write or award points', async () => {

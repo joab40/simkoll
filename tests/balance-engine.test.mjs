@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { advanceBalance, BALANCE_DURATION, BALANCE_IMPACT_TIME, BALANCE_LAUNCH_TIME, BALANCE_MAX_SCORE, BALANCE_START_SPEED, BALANCE_TOP_SPEED, balanceBump, balanceBumpsBetween, balanceRoadAt, createBalanceGame, validBalanceScore } from '../src/balance-engine.js'
+import { advanceBalance, BALANCE_DURATION, BALANCE_IMPACT_TIME, BALANCE_LAUNCH_TIME, BALANCE_MAX_SCORE, BALANCE_SCENE_SCALE, BALANCE_START_SPEED, BALANCE_TOP_SPEED, balanceBump, balanceBumpsBetween, balanceFrontContact, balanceRoadAt, balanceWheelGeometry, createBalanceGame, validBalanceScore } from '../src/balance-engine.js'
 
 function run(lifting, fps = 120, duration = 130) {
   const game = createBalanceGame()
@@ -66,7 +66,8 @@ test('deliberate balance earns bonus, bumps and increasing speed; round has a ha
   assert.ok(Math.abs(result.elapsed - BALANCE_DURATION) < 1e-6)
   assert.ok(result.bumps > 70)
   assert.equal(result.speed, BALANCE_TOP_SPEED)
-  assert.ok(result.bonus > result.distance * .9)
+  // Clearing terrain can temporarily require leaving the bonus zone.
+  assert.ok(result.bonus > result.wheelieDistance * .85)
   assert.ok(result.potholeHits > 20)
   assert.equal(result.score, Math.floor(result.wheelieDistance + result.bonus))
   assert.ok(result.score < BALANCE_MAX_SCORE)
@@ -79,15 +80,70 @@ test('lag cannot fast-forward the round; paused/non-finite/negative time adds no
   assert.deepEqual(game, initial)
   advanceBalance(game, 30, true)
   assert.ok(game.elapsed <= .101)
-  assert.ok(game.distance < 3.1)
+  assert.ok(game.distance < 3.5)
 })
 
-test('starts 25 percent faster than the previous release and accelerates within the score limit', () => {
-  assert.equal(createBalanceGame().speed, 30)
+test('higher starting speed reaches the new top speed in 25 seconds within the score limit', () => {
+  assert.equal(createBalanceGame().speed, 34)
   const result = run((game) => game.angle < 46, 120, 2)
-  assert.ok(result.distance > 60)
+  assert.ok(result.distance > 68)
   assert.ok(result.speed > BALANCE_START_SPEED)
   assert.ok(BALANCE_TOP_SPEED * BALANCE_DURATION * 2 <= BALANCE_MAX_SCORE)
+  assert.ok(Math.abs(run((game) => game.angle < 48, 120, 25).speed - BALANCE_TOP_SPEED) < 1e-8)
+})
+
+test('broad rolling hills appear less often than large bumps and have clear surrounding gaps', () => {
+  const features = Array.from({ length: 72 }, (_, index) => balanceBump(index))
+  const hills = features.filter((feature) => feature.rolling)
+  assert.deepEqual(hills.map((hill) => hill.index), [17, 41, 65])
+  for (const hill of hills) {
+    assert.equal(hill.large, true)
+    assert.ok(hill.width >= 44 && hill.height >= 9)
+    assert.equal(balanceRoadAt(hill.center).height, hill.height)
+    const previous = features[hill.index - 1], next = features[hill.index + 1]
+    assert.ok(previous.center + previous.width / 2 < hill.center - hill.width / 2)
+    assert.ok(hill.center + hill.width / 2 < next.center - next.width / 2)
+    assert.ok(balanceBumpsBetween(hill.center - hill.width / 2, hill.center - hill.width / 2).some((feature) => feature.index === hill.index))
+  }
+})
+
+test('front tyre contact with a bump ends the run, while a higher lift clears it', () => {
+  const bump = balanceBump(0), angle = 8
+  const distance = bump.center - 132 * Math.cos(angle * Math.PI / 180) / BALANCE_SCENE_SCALE
+  const low = { ...createBalanceGame(), distance, elapsed: 5, angle, wheelieStarted: true }
+  const high = { ...low, angle: 16 }
+  assert.equal(balanceFrontContact(low), true)
+  assert.equal(balanceFrontContact(high), false)
+  advanceBalance(low, 1 / 120, true)
+  assert.equal(low.status, 'over')
+  assert.equal(low.reason, 'terrain')
+  advanceBalance(high, 1 / 120, true)
+  assert.equal(high.status, 'playing')
+  const finished = structuredClone(low)
+  advanceBalance(low, 1, false)
+  assert.deepEqual(low, finished)
+})
+
+test('the side of the tyre can catch an approaching hillside even with clearance below its centre', () => {
+  const hill = balanceBump(5)
+  const game = { ...createBalanceGame(), distance: hill.center - 20, angle: 5, wheelieStarted: true }
+  const wheel = balanceWheelGeometry(game)
+  const roadBelowCentre = balanceRoadAt(game.distance + wheel.frontX / BALANCE_SCENE_SCALE).height * BALANCE_SCENE_SCALE
+  assert.ok(wheel.frontHeight - wheel.radius - roadBelowCentre > 1)
+  assert.equal(balanceFrontContact(game), true)
+})
+
+test('markstart is exempt from tyre collision, and clear air never gives a false terrain hit', () => {
+  const start = createBalanceGame()
+  assert.equal(balanceFrontContact(start), false)
+  const flat = { ...start, wheelieStarted: true, angle: 30 }
+  assert.equal(balanceFrontContact(flat), false)
+  for (const index of [0, 5, 17]) {
+    const hill = balanceBump(index)
+    const road = balanceRoadAt(hill.center)
+    const onCrest = { ...flat, angle: 48, distance: hill.center, roadHeight: road.height, roadSlope: road.slope }
+    assert.equal(balanceFrontContact(onCrest), false)
+  }
 })
 
 test('large hills occur occasionally, are clearly larger, and stay discoverable at both edges', () => {

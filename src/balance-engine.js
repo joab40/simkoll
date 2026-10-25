@@ -1,11 +1,13 @@
+import { BALANCE_BIKE } from './balance-rider.js'
+
 // Fixed-step simulation shared by rendering and tests. Degrees make the
 // control tuning readable; no randomness or frame-rate-dependent scoring.
 export const BALANCE_STEP = 1 / 120
 export const BALANCE_DURATION = 120
-export const BALANCE_MAX_SCORE = 14000
+export const BALANCE_MAX_SCORE = 16000
 export const BALANCE_ZONE = [38, 58]
-export const BALANCE_START_SPEED = 30
-export const BALANCE_TOP_SPEED = 56
+export const BALANCE_START_SPEED = 34
+export const BALANCE_TOP_SPEED = 64
 export const BALANCE_SCENE_SCALE = 12
 export const BALANCE_LAUNCH_TIME = 6
 export const BALANCE_IMPACT_TIME = .28
@@ -21,15 +23,16 @@ const BUMP_SHAPES = [
   { offset: 218, height: -2.5, width: 7 },
   { offset: 270, height: 4.2, width: 18 },
 ]
-const COURSE_START = 220
+const COURSE_START = 260
 const COURSE_LENGTH = 340
-const MAX_HALF_WIDTH = 12
+const MAX_HALF_WIDTH = 24
 export function balanceBump(index) {
   const shape = BUMP_SHAPES[index % BUMP_SHAPES.length]
   // A clearly larger hill roughly every other course segment, not a
   // surprise on every bump. Its whole shape is visible before contact.
   const large = index % 12 === 5
-  return { ...shape, height: large ? 6.8 : shape.height, width: large ? 22 : shape.width, large, index, kind: shape.height < 0 ? 'pothole' : 'hill', center: COURSE_START + Math.floor(index / BUMP_SHAPES.length) * COURSE_LENGTH + shape.offset }
+  const rolling = index % 24 === 17
+  return { ...shape, height: rolling ? 9 : large ? 6.8 : shape.height, width: rolling ? 44 : large ? 22 : shape.width, large, rolling, index, kind: shape.height < 0 ? 'pothole' : 'hill', center: COURSE_START + Math.floor(index / BUMP_SHAPES.length) * COURSE_LENGTH + shape.offset }
 }
 export function balanceBumpsBetween(from, to) {
   const first = Math.max(0, Math.floor((from - COURSE_START - MAX_HALF_WIDTH) / COURSE_LENGTH)) * BUMP_SHAPES.length
@@ -48,6 +51,30 @@ export function balanceRoadAt(distance, bumps = balanceBumpsBetween(distance, di
   return { height: bump.height * Math.cos(t * Math.PI / 2) ** 2, slope: -bump.height * Math.PI / bump.width * Math.sin(t * Math.PI) }
 }
 
+// Shared with the renderer so collision checks use exactly the drawn tyres,
+// including the rear wheel's rise on hills and the front wheel's rotation.
+export function balanceWheelGeometry(game) {
+  const angle = Math.max(0, Math.min(85, game.angle)) * Math.PI / 180
+  const radius = BALANCE_BIKE.wheelRadius
+  const rearHeight = game.roadHeight * BALANCE_SCENE_SCALE + (radius + 1) * Math.sqrt(1 + game.roadSlope ** 2)
+  return { radius, angle, rearHeight, frontX: BALANCE_BIKE.front[0] * Math.cos(angle), frontHeight: rearHeight + BALANCE_BIKE.front[0] * Math.sin(angle) }
+}
+
+export function balanceFrontContact(game) {
+  if (!game.wheelieStarted) return false
+  const wheel = balanceWheelGeometry(game)
+  const x = game.distance + wheel.frontX / BALANCE_SCENE_SCALE
+  const features = balanceBumpsBetween(x - wheel.radius / BALANCE_SCENE_SCALE, x + wheel.radius / BALANCE_SCENE_SCALE)
+  // Test the lower semicircle, not only the centre: a tyre can catch the
+  // approaching side of a hill while its lowest point is still clear.
+  for (let dx = -wheel.radius; dx <= wheel.radius; dx += 2) {
+    const tyreHeight = wheel.frontHeight - Math.sqrt(Math.max(0, wheel.radius ** 2 - dx ** 2))
+    const groundHeight = balanceRoadAt(x + dx / BALANCE_SCENE_SCALE, features).height * BALANCE_SCENE_SCALE
+    if (groundHeight >= tyreHeight) return true
+  }
+  return false
+}
+
 export function createBalanceGame() {
   return { elapsed: 0, remainder: 0, angle: 0, velocity: 0, distance: 0, wheelieDistance: 0, wheelieStarted: false, bonus: 0, score: 0, speed: BALANCE_START_SPEED, bumps: 0, potholeHits: 0, impactTimer: 0, impactStrength: 0, roadHeight: 0, roadSlope: 0, status: 'playing', reason: null }
 }
@@ -59,7 +86,7 @@ export function advanceBalance(game, seconds, lifting) {
   while (game.remainder + 1e-9 >= BALANCE_STEP && game.status === 'playing') {
     game.remainder = Math.max(0, game.remainder - BALANCE_STEP)
     game.elapsed += BALANCE_STEP
-    game.speed = Math.min(BALANCE_TOP_SPEED, BALANCE_START_SPEED + game.elapsed * .6)
+    game.speed = Math.min(BALANCE_TOP_SPEED, BALANCE_START_SPEED + game.elapsed * 1.2)
     const travelled = game.speed * BALANCE_STEP
     const previousDistance = game.distance
     game.distance += travelled
@@ -90,6 +117,9 @@ export function advanceBalance(game, seconds, lifting) {
     if (game.wheelieStarted && (game.angle <= 4 || game.angle >= 80)) {
       game.status = 'over'
       game.reason = game.angle <= 4 ? 'front' : 'tip'
+    }
+    if (game.status === 'playing' && balanceFrontContact(game)) {
+      game.status = 'over'; game.reason = 'terrain'
     }
     if (game.wheelieStarted && game.status === 'playing') {
       game.wheelieDistance += travelled
