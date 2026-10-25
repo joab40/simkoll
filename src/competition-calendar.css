@@ -7,7 +7,10 @@
 .competition-feedback { padding: 12px 15px; background: #edf8ef; border: 1px solid #bedfc7; border-radius: 12px; color: #28623a; line-height: 1.5; }
 .competition-calendar-v2 .competition-calendar-list > article > div { min-width: 0; flex: 1; }
 .competition-calendar-v2 .competition-calendar-list > article > .text-button { align-self: flex-start; white-space: nowrap; }
-.competition-calendar-v2 .competition-is-past { background: #f2f6f4; }
+.competition-calendar-v2 .competition-is-past { align-items: center; background: #eef2f1; opacity: .62; }
+.competition-calendar-v2 .competition-is-past > div > :not(.eyebrow):not(h2) { display: none; }
+.competition-calendar-v2 .competition-is-past > div > .eyebrow { margin: 0 0 2px; color: var(--muted); }
+.competition-calendar-v2 .competition-is-past h2 { margin: 0; color: var(--muted); }
 .competition-calendar-v2 button:disabled { opacity: .6; cursor: not-allowed; }
 .competition-calendar-v2 button[aria-busy="true"] { cursor: wait; }
 .competition-calendar-v2 .form-error { color: #9d4037; }
