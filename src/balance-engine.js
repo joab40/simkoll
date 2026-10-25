@@ -62,7 +62,7 @@ export function advanceBalance(game, seconds, lifting) {
     game.distance += travelled
     game.impactTimer = Math.max(0, game.impactTimer - BALANCE_STEP)
     const difficulty = 1 + Math.min(.6, game.elapsed / 75)
-    const acceleration = ((lifting ? 115 : -95) + (game.angle - 44) * 1.3) * difficulty - game.velocity * 2.5
+    const acceleration = ((lifting ? 115 : -155) + (game.angle - 44) * 1.3) * difficulty - game.velocity * 2.5
     game.velocity += acceleration * BALANCE_STEP
     // Following the uphill/downhill profile moves the rear wheel vertically
     // and disturbs balance continuously, rather than a barely visible nudge.

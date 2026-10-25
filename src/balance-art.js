@@ -1,4 +1,5 @@
 import { BALANCE_IMPACT_TIME, BALANCE_SCENE_SCALE, BALANCE_ZONE, balanceBumpsBetween, balanceRoadAt } from './balance-engine.js'
+import { BALANCE_BIKE, balanceRiderPose } from './balance-rider.js'
 
 const line = (ctx, points, color, width = 5) => {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
@@ -65,21 +66,33 @@ export function drawBalance(canvas, game, { reducedMotion = false } = {}) {
     for (let j = 0; j < 6; j++) { const a = j * Math.PI / 3; line(ctx, [[0, 0], [Math.cos(a) * 24, Math.sin(a) * 24]], '#afc7bf', 2) }
     ctx.restore(); circle(ctx, x, 0, 5, '#14747a')
   }
-  line(ctx, [[0, 0], [48, -53], [67, 0], [0, 0], [107, -53], [67, 0]], '#13777d', 6)
-  line(ctx, [[48, -53], [107, -53], [132, 0]], '#13777d', 6)
-  line(ctx, [[42, -60], [62, -60]], '#24454a', 7)
-  line(ctx, [[107, -53], [102, -69], [115, -73]], '#24454a', 5)
-  circle(ctx, 67, 0, 9, '#d2ed62')
-  // Original helmeted rider, drawn as articulated shapes (no external assets).
-  const pedal = game.wheelieStarted ? 0 : Math.sin(game.distance * .65) * 12
-  line(ctx, [[52, -65], [83, -37], [67 + pedal, pedal], [82 + pedal, 2 + pedal]], '#173f4c', 12)
-  line(ctx, [[51, -63], [34, -31], [59 - pedal, -12 - pedal]], '#286171', 11)
-  line(ctx, [[51, -70], [63, -110]], '#c8ed56', 25)
-  line(ctx, [[67, -105], [90, -83], [108, -73]], '#b97d60', 9)
-  circle(ctx, 70, -130, 17, '#dbab7d')
-  ctx.fillStyle = '#176873'; ctx.beginPath(); ctx.arc(69, -136, 20, Math.PI, Math.PI * 2); ctx.lineTo(93, -135); ctx.lineTo(49, -135); ctx.fill()
-  line(ctx, [[57, -147], [62, -149]], '#d2ed62', 3)
-  circle(ctx, 81, -131, 2, '#203f48')
+  const bike = BALANCE_BIKE, pose = balanceRiderPose(game)
+  const shoe = (foot, color) => {
+    line(ctx, [[foot[0] - 4, foot[1] - 2], [foot[0] + 10, foot[1] - 2]], color, 7)
+    line(ctx, [[foot[0] - 4, foot[1] + 2], [foot[0] + 10, foot[1] + 2]], '#b9d857', 2)
+  }
+  // Far leg sits behind the frame; both knees bend towards the handlebars.
+  line(ctx, [pose.hip, pose.far.knee, pose.far.foot], '#376170', 10)
+  shoe(pose.far.foot, '#31525e')
+  line(ctx, [bike.crank, pose.far.foot], '#6e9697', 4)
+  line(ctx, [bike.rear, bike.seat, bike.crank, bike.rear], '#13777d', 5)
+  line(ctx, [bike.seat, bike.headTop, bike.headBottom, bike.crank, bike.seat], '#13777d', 6)
+  line(ctx, [bike.headBottom, bike.front], '#175f69', 5)
+  line(ctx, [bike.seat, [40, -74]], '#24454a', 4)
+  line(ctx, [[30, -74], [53, -74]], '#24454a', 6)
+  line(ctx, [bike.headTop, [94, -80], [110, -85], [117, -81]], '#24454a', 5)
+  line(ctx, [[2, 3], [58, 2]], '#507b7c', 2)
+  circle(ctx, bike.crank[0], bike.crank[1], 9, '#d2ed62')
+  circle(ctx, bike.crank[0], bike.crank[1], 4, '#24555c')
+  line(ctx, [bike.crank, pose.near.foot], '#24454a', 4)
+  line(ctx, [pose.hip, pose.near.knee, pose.near.foot], '#173f4c', 11)
+  shoe(pose.near.foot, '#173f4c')
+  line(ctx, [[43, -79], [63, -116]], '#c8ed56', 25)
+  line(ctx, [[69, -112], [90, -94], [112, -83]], '#b97d60', 9)
+  circle(ctx, 75, -140, 17, '#dbab7d')
+  ctx.fillStyle = '#176873'; ctx.beginPath(); ctx.arc(74, -146, 20, Math.PI, Math.PI * 2); ctx.lineTo(98, -145); ctx.lineTo(54, -145); ctx.fill()
+  line(ctx, [[62, -157], [67, -159]], '#d2ed62', 3)
+  circle(ctx, 86, -141, 2, '#203f48')
   ctx.restore()
   ctx.restore() // Only the world shakes, never the controls or gauge.
   ctx.fillStyle = '#245a60'; ctx.font = '600 16px system-ui, sans-serif'; ctx.textAlign = 'left'

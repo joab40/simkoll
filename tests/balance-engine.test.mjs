@@ -35,6 +35,21 @@ test('holding lifts from the road; holding forever tips and lowering after lift 
   assert.equal(lifted.reason, 'front')
 })
 
+test('releasing brings the front wheel down promptly without changing the lift control', () => {
+  const initial = { ...createBalanceGame(), elapsed: 5, angle: 50, wheelieStarted: true }
+  const released = structuredClone(initial), lifting = structuredClone(initial)
+  for (let i = 0; i < 30; i++) {
+    advanceBalance(released, 1 / 120, false)
+    advanceBalance(lifting, 1 / 120, true)
+  }
+  assert.ok(released.velocity < -28)
+  assert.ok(released.angle < initial.angle)
+  assert.ok(lifting.angle > initial.angle)
+  while (released.status === 'playing') advanceBalance(released, 1 / 120, false)
+  assert.equal(released.reason, 'front')
+  assert.ok(released.elapsed - initial.elapsed < 1.1)
+})
+
 test('same input produces exactly the same result at 30, 60 and 144 Hz', () => {
   const results = [30, 60, 144].map((fps) => run((game, seconds) => Math.floor((seconds + 1e-9) * 2) % 2 === 0, fps))
   for (const result of results.slice(1)) {
