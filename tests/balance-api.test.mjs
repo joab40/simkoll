@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { BALANCE_MAX_SCORE } from '../src/balance-engine.js'
 process.env.SUPABASE_URL = 'https://balance-test.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
 process.env.SIMKOLL_SWIMMER_CODE = 'balance-fixture'
@@ -59,7 +60,7 @@ test('only a better result updates the personal weekly record', async () => {
 
 test('impossible scores and unauthenticated submissions cannot write or award points', async () => {
   let fixture = db()
-  for (const score of [0, -1, 6001, 2.5]) assert.equal((await call({ action: 'submit-game-score', gameKey: 'balance', score })).code, 400)
+  for (const score of [0, -1, BALANCE_MAX_SCORE + 1, 2.5]) assert.equal((await call({ action: 'submit-game-score', gameKey: 'balance', score })).code, 400)
   assert.equal(fixture.writes.length, 0)
   fixture = db({ session: false })
   assert.equal((await call({ action: 'submit-game-score', gameKey: 'balance', score: 400 })).code, 403)
@@ -98,7 +99,7 @@ test('combined leaderboard ignores impossible historical balance scores', async 
   assert.ok(reads.some((path) => path.includes('dino,balance)')))
   const lifetime = db()
   await call(null, { game: 'balance', lifetime: 'true' })
-  assert.ok(lifetime.reads.some((path) => path.includes('game_key=eq.balance&score=gt.0&score=lte.6000')))
+  assert.ok(lifetime.reads.some((path) => path.includes(`game_key=eq.balance&score=gt.0&score=lte.${BALANCE_MAX_SCORE}`)))
 })
 
 test('schedule only exposes the game during or after its published period', async () => {

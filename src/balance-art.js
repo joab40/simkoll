@@ -1,4 +1,4 @@
-import { BALANCE_ZONE } from './balance-engine.js'
+import { BALANCE_SCENE_SCALE, BALANCE_ZONE, balanceBumpsBetween, balanceRoadAt } from './balance-engine.js'
 
 const line = (ctx, points, color, width = 5) => {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
@@ -27,20 +27,28 @@ export function drawBalance(canvas, game) {
     const x = ((i * 185 - game.distance * 5) % 1295 + 1295) % 1295 - 160
     line(ctx, [[x - 12, 357], [x - 20, 318], [x - 4, 338], [x, 310], [x + 9, 357]], '#6d9c79', 4)
   }
-  ctx.fillStyle = '#e9dfc5'; ctx.fillRect(0, 370, 960, 130)
-  ctx.fillStyle = '#a9bc8a'; ctx.fillRect(0, 360, 960, 14)
-  line(ctx, [[0, 374], [960, 374]], '#839a71', 3)
-  ctx.setLineDash([35, 40]); ctx.lineDashOffset = game.distance * 12
+  const bumps = balanceBumpsBetween(game.distance - 290 / BALANCE_SCENE_SCALE, game.distance + 670 / BALANCE_SCENE_SCALE)
+  const surface = []
+  for (let x = 0; x <= 960; x += 4) surface.push([x, 374 - balanceRoadAt(game.distance + (x - 290) / BALANCE_SCENE_SCALE, bumps).height * BALANCE_SCENE_SCALE])
+  ctx.fillStyle = '#e9dfc5'; ctx.beginPath(); ctx.moveTo(0, 500)
+  surface.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(960, 500); ctx.fill()
+  line(ctx, surface.map(([x, y]) => [x, y - 6]), '#a9bc8a', 12)
+  line(ctx, surface, '#839a71', 3)
+  ctx.setLineDash([35, 40]); ctx.lineDashOffset = game.distance * BALANCE_SCENE_SCALE
   line(ctx, [[0, 442], [960, 442]], '#c6bca1', 3); ctx.setLineDash([])
-  // One metre of the course is 12 scene pixels. Bumps arrive at the rear wheel.
-  const nearest = Math.max(0, Math.floor((game.distance - 100) / 80))
-  for (let i = nearest; i < nearest + 3; i++) {
-    const x = 290 + (100 + i * 80 - game.distance) * 12
-    if (x < -40 || x > 1000) continue
-    ctx.fillStyle = '#b99a70'; ctx.beginPath(); ctx.moveTo(x - 22, 374); ctx.quadraticCurveTo(x, 358, x + 22, 374); ctx.fill()
-    line(ctx, [[x - 14, 371], [x - 2, 367]], '#ecddbc', 2)
+  for (const bump of bumps) {
+    const x = 290 + (bump.center - game.distance) * BALANCE_SCENE_SCALE
+    const halfWidth = bump.width / 2 * BALANCE_SCENE_SCALE
+    ctx.fillStyle = '#cfad76'; ctx.beginPath(); ctx.moveTo(x - halfWidth, 374)
+    for (let px = -halfWidth; px <= halfWidth; px += 2) {
+      const height = balanceRoadAt(bump.center + px / BALANCE_SCENE_SCALE, [bump]).height
+      ctx.lineTo(x + px, 374 - height * BALANCE_SCENE_SCALE)
+    }
+    ctx.lineTo(x + halfWidth, 374); ctx.closePath(); ctx.fill()
+    line(ctx, [[x - 10, 383 - bump.height * BALANCE_SCENE_SCALE], [x, 377 - bump.height * BALANCE_SCENE_SCALE], [x + 10, 383 - bump.height * BALANCE_SCENE_SCALE]], '#8b683d', 3)
   }
-  ctx.save(); ctx.translate(290, 341); ctx.rotate(-Math.max(0, Math.min(85, game.angle)) * Math.PI / 180)
+  const wheelClearance = 33 * Math.sqrt(1 + game.roadSlope ** 2)
+  ctx.save(); ctx.translate(290, 374 - game.roadHeight * BALANCE_SCENE_SCALE - wheelClearance); ctx.rotate(-Math.max(0, Math.min(85, game.angle)) * Math.PI / 180)
   for (const x of [0, 132]) {
     circle(ctx, x, 0, 32, '#203f48'); circle(ctx, x, 0, 25, '#f6f7e9')
     ctx.save(); ctx.translate(x, 0); ctx.rotate(game.distance * .38)
