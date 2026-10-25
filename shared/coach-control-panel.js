@@ -4,11 +4,18 @@ const numeric = (value) => typeof value === 'number' && Number.isFinite(value) ?
 const activityDay = (row) => String(row.activityDate || row.createdAt || '').slice(0, 10)
 const activityKey = (row) => `${activityDay(row)}:${row.activityType || 'unknown'}:${row.trainingSlot || 'day'}`
 const uniqueDays = (rows, predicate) => new Set(rows.filter(predicate).map(activityDay)).size
+const sleepSummary = (rows) => ({
+  nights: rows.length,
+  swimmers: new Set(rows.map((row) => row.profile_id)).size,
+  averageMinutes: rows.length ? Math.round(rows.reduce((sum, row) => sum + row.minutes, 0) / rows.length) : null,
+  poorNights: rows.filter((row) => row.quality === 1).length,
+})
 
 export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords = []) {
   const start = dayBefore(asOf, 13), recentStart = dayBefore(asOf, 6)
   const scopedIds = new Set(profiles.filter((profile) => !profile.isTestProfile).map((profile) => profile.id))
   const rows = responses.filter((row) => row.profileId && scopedIds.has(row.profileId) && activityDay(row) >= start && activityDay(row) <= asOf)
+  const sleep = [...new Map(sleepRecords.filter((row) => scopedIds.has(row.profile_id) && row.activity_date >= start && row.activity_date <= asOf && !row.skipped && numeric(row.minutes) !== null && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)).map((row) => [`${row.profile_id}:${row.activity_date}`, row])).values()]
   const after = rows.filter((row) => row.type === 'after' && row.competition !== true)
   const uniquePasses = new Map()
   after.slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))).forEach((row) => uniquePasses.set(`${row.profileId}:${activityKey(row)}`, row))
@@ -31,6 +38,7 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     const highRpeDays = uniqueDays(recent, (row) => row.type === 'after' && numeric(row.rpe) !== null && row.rpe >= 8)
     const sickDays = uniqueDays(recent, (row) => row.type === 'sick')
     const reasons = []
+    const ownSleep = sleep.filter((row) => row.profile_id === profile.id)
     const poorSleepDays = new Set(sleepRecords.filter((row) => row.profile_id === profile.id && !row.skipped && row.quality === 1 && row.activity_date >= recentStart && row.activity_date <= asOf).map((row) => row.activity_date)).size
     if (poorSleepDays >= 2) reasons.push(`Dålig sömn rapporterad ${poorSleepDays} nätter senaste veckan · se datum och sovtid i simmarkortet`)
     if (sickDays >= 2) reasons.push(`Sjukfrånvaro rapporterad ${sickDays} dagar senaste veckan`)
@@ -42,6 +50,8 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
       completed: completed.filter((row) => row.profileId === profile.id).length,
       rpe: mean(ownAfter.map((row) => numeric(row.rpe)).filter((value) => value !== null)),
       feedback: ownAfter.filter((row) => Boolean(row.comment?.trim()) || numeric(row.pass) !== null || numeric(row.setup) !== null).length,
+      sickDays: uniqueDays(own, (row) => row.type === 'sick'),
+      sleep: sleepSummary(ownSleep),
       speedCurrent: speedCurrent.length >= 2 ? mean(speedCurrent) : null,
       speedPrevious: speedPrevious.length >= 2 ? mean(speedPrevious) : null,
       reasons,
@@ -55,6 +65,9 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     feedbackCount: completed.filter((row) => Boolean(row.comment?.trim()) || numeric(row.pass) !== null || numeric(row.setup) !== null).length,
     load: knownLoads.length ? knownLoads.reduce((sum, value) => sum + value, 0) : null,
     loadAnswers: knownLoads.length,
+    sickSwimmers: swimmers.filter((swimmer) => swimmer.sickDays > 0).length,
+    sickDays: swimmers.reduce((sum, swimmer) => sum + swimmer.sickDays, 0),
+    sleep: sleepSummary(sleep),
     followUps: swimmers.filter((swimmer) => swimmer.reasons.length).sort((a, b) => b.reasons.length - a.reasons.length || a.displayName.localeCompare(b.displayName, 'sv')),
     swimmers,
   }

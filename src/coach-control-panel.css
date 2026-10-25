@@ -1,11 +1,20 @@
 .coach-control-panel { display: grid; gap: 18px; }
 .coach-panel-intro, .coach-panel-method, .coach-panel-roster > small { color: var(--muted); line-height: 1.5; font-size: 13px; }
 .coach-panel-intro { margin: 0; }
-.coach-panel-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.coach-panel-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.coach-panel-wellbeing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .coach-panel-metrics article, .coach-panel-followups, .coach-panel-roster { border: 1px solid var(--line); background: var(--paper); border-radius: 18px; padding: 19px; }
 .coach-panel-metrics article { display: grid; gap: 8px; align-content: start; }
 .coach-panel-metrics article small { font-weight: 700; }
 .coach-panel-metrics article strong { font-size: clamp(24px, 3vw, 34px); color: var(--teal); }
+.coach-panel-metrics article strong em { font: inherit; font-size: 14px; font-style: normal; }
+.coach-panel-metrics article .coach-panel-sleep-value { font-size: clamp(22px, 2.5vw, 30px); }
+.coach-panel-metrics details { font-size: 12px; line-height: 1.5; }
+.coach-panel-metrics summary { cursor: pointer; color: var(--teal); font-weight: 700; }
+.coach-panel-metrics details p { margin: 8px 0 0; color: var(--muted); }
+.coach-panel-metric-list { list-style: none; padding: 0; margin: 8px 0 0; }
+.coach-panel-metric-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.coach-panel-metric-list .text-button { padding: 4px 0; text-align: left; }
 .coach-panel-metrics article span, .coach-panel-followup-list small { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .coach-panel-followups header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .coach-panel-followups h2 { margin: 0; }
@@ -20,5 +29,6 @@
 .coach-panel-table-wrap { overflow-x: auto; margin: 12px 0; }
 .coach-panel-roster table { width: 100%; border-collapse: collapse; white-space: nowrap; font-size: 13px; }
 .coach-panel-roster th, .coach-panel-roster td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; }
-@media (max-width: 850px) { .coach-panel-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .coach-panel-followup-list article { grid-template-columns: auto minmax(0, 1fr); } .coach-panel-actions { grid-column: 2; justify-content: flex-start; } }
+@media (max-width: 850px) { .coach-panel-followup-list article { grid-template-columns: auto minmax(0, 1fr); } .coach-panel-actions { grid-column: 2; justify-content: flex-start; } }
+@media (max-width: 620px) { .coach-panel-metrics { grid-template-columns: 1fr; } }
 @media (max-width: 500px) { .coach-panel-metrics { gap: 8px; } .coach-panel-metrics article, .coach-panel-followups, .coach-panel-roster { padding: 14px; } .coach-panel-metrics article strong { font-size: 25px; } }

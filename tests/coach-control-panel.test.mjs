@@ -49,3 +49,31 @@ test('speed feeling development needs at least two answers in both weeks', () =>
   assert.equal(report.swimmers.find((item) => item.profileId === 'a').speedCurrent, 4.5)
   assert.equal(report.swimmers.find((item) => item.profileId === 'b').speedCurrent, null)
 })
+
+test('sickness counts swimmers and distinct days across the full overview period', () => {
+  const sick = (profileId, activityDate) => ({ profileId, activityDate, type: 'sick' })
+  const report = buildCoachControlPanel(profiles, [
+    sick('a', '2026-10-06'), sick('a', '2026-10-06'), sick('a', '2026-10-18'),
+    sick('b', '2026-10-18'), sick('test', '2026-10-18'), sick('outside', '2026-10-18'),
+    sick('b', '2026-10-05'), sick('b', '2026-10-20'),
+  ], '2026-10-19')
+  assert.equal(report.sickSwimmers, 2)
+  assert.equal(report.sickDays, 3)
+  assert.equal(report.swimmers.find((item) => item.profileId === 'a').sickDays, 2)
+  assert.equal(report.followUps.length, 0) // Older illness does not trigger the seven-day signal.
+})
+
+test('sleep overview excludes skipped, missing, duplicate and out-of-scope nights without treating them as zero', () => {
+  const night = (profile_id, activity_date, minutes, quality = 5) => ({ profile_id, activity_date, minutes, quality })
+  const report = buildCoachControlPanel(profiles, [], '2026-10-19', [
+    night('a', '2026-10-06', 420), night('a', '2026-10-06', 420),
+    night('a', '2026-10-18', 480, 1), night('b', '2026-10-19', 450),
+    { ...night('b', '2026-10-18', null, null), skipped: true },
+    night('b', '2026-10-17', null), night('b', '2026-10-05', 120),
+    night('b', '2026-10-20', 120), night('test', '2026-10-19', 120),
+    night('outside', '2026-10-19', 120),
+  ])
+  assert.deepEqual(report.sleep, { nights: 3, swimmers: 2, averageMinutes: 450, poorNights: 1 })
+  assert.equal(report.swimmers.find((item) => item.profileId === 'a').sleep.averageMinutes, 450)
+  assert.deepEqual(buildCoachControlPanel(profiles, [], '2026-10-19').sleep, { nights: 0, swimmers: 0, averageMinutes: null, poorNights: 0 })
+})
