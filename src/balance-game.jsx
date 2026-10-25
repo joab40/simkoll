@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { advanceBalance, BALANCE_ZONE, createBalanceGame } from './balance-engine.js'
+import { advanceBalance, BALANCE_LAUNCH_TIME, BALANCE_ZONE, createBalanceGame } from './balance-engine.js'
 import { drawBalance } from './balance-art.js'
 import './balance-game.css'
 
-const resultText = { front: 'Framhjulet landade', tip: 'Lite för långt bak!', finish: 'Hela strandpromenaden klar!' }
+const resultText = { front: 'Framhjulet landade', tip: 'Lite för långt bak!', finish: 'Hela strandpromenaden klar!', launch: 'Håll för att lyfta framhjulet' }
 
 export default function BalanceGame({ code, onBack, preview = false, request }) {
   const canvas = useRef(null)
+  const reducedMotion = useRef(false)
   const game = useRef(createBalanceGame())
   const input = useRef({ keys: new Set(), pointers: new Set() })
   const mounted = useRef(false)
@@ -21,6 +22,13 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
   const [boards, setBoards] = useState({ week: null, lifetime: null })
   const [period, setPeriod] = useState('week')
   const [boardError, setBoardError] = useState(false)
+
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => { reducedMotion.current = preference.matches }
+    update(); preference.addEventListener('change', update)
+    return () => preference.removeEventListener('change', update)
+  }, [])
 
   const release = useCallback(() => {
     input.current.keys.clear(); input.current.pointers.clear(); setHeld(false)
@@ -42,7 +50,7 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
   }, [code, preview, request])
 
   useEffect(() => {
-    mounted.current = true; loadBoards(); drawBalance(canvas.current, game.current)
+    mounted.current = true; loadBoards(); drawBalance(canvas.current, game.current, { reducedMotion: reducedMotion.current })
     return () => { mounted.current = false; boardVersion.current += 1 }
   }, [loadBoards])
 
@@ -70,7 +78,7 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
     const frame = (now) => {
       const dt = last === null ? 0 : (now - last) / 1000; last = now
       advanceBalance(game.current, dt, input.current.keys.size > 0 || input.current.pointers.size > 0)
-      drawBalance(canvas.current, game.current)
+      drawBalance(canvas.current, game.current, { reducedMotion: reducedMotion.current })
       if (now >= nextHud || game.current.status === 'over') { setView({ ...game.current }); nextHud = now + 80 }
       if (game.current.status === 'over') { release(); setPhase('over'); save(game.current.score); return }
       raf = requestAnimationFrame(frame)
@@ -101,6 +109,7 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
     updateHeld()
   }
   const inZone = view.angle >= BALANCE_ZONE[0] && view.angle <= BALANCE_ZONE[1]
+  const launchHint = phase === 'playing' ? `Lyft framhjulet · ${Math.max(0, Math.ceil(BALANCE_LAUNCH_TIME - view.elapsed))} s` : 'Håll för att lyfta framhjulet'
   const board = boards[period]
   return <section className="balance-page" onKeyDown={(event) => keyboard(event, true)} onKeyUp={(event) => keyboard(event, false)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) release() }}>
     <button className="back-button inline" onClick={onBack}>← Tillbaka</button>
@@ -109,16 +118,16 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
       <div className="balance-hud"><div><span>Poäng</span><strong>{view.score.toLocaleString('sv-SE')}</strong></div><div><span>Sträcka</span><strong>{Math.floor(view.distance)} <small>m</small></strong></div><div><span>Personbästa · alla tider</span><strong>{preview ? '—' : boards.lifetime?.ownBest?.toLocaleString('sv-SE') ?? '—'}</strong></div></div>
       <div className="balance-stage">
         <canvas ref={canvas} width="960" height="500" tabIndex="0" aria-label="Spelplan för Preppes balansjakt. Håll mellanslag eller pil upp för att lyfta framhjulet, släpp för att sänka." onPointerDown={press} onPointerUp={lift} onPointerCancel={lift} onLostPointerCapture={lift} />
-        {phase !== 'playing' && <div className="balance-overlay"><div><span className="balance-overlay-icon" aria-hidden="true">{phase === 'over' ? '🏁' : '🚲'}</span><h2>{phase === 'ready' ? 'Hitta din balans' : phase === 'paused' ? 'Spelet är pausat' : resultText[view.reason]}</h2><p>{phase === 'over' ? `${view.score} poäng · ${Math.floor(view.distance)} meter` : phase === 'paused' ? 'Ingen tid eller poäng räknas medan du pausar.' : 'Håll för att lyfta. Släpp för att sänka.'}</p><button className="primary-button" disabled={saving} onClick={phase === 'paused' ? () => { release(); setPhase('playing'); canvas.current?.focus({ preventScroll: true }) } : start}>{saving ? 'Sparar…' : phase === 'ready' ? 'Börja cykla →' : phase === 'paused' ? 'Fortsätt →' : 'Försök igen →'}</button></div></div>}
+        {phase !== 'playing' && <div className="balance-overlay"><div><span className="balance-overlay-icon" aria-hidden="true">{phase === 'over' ? '🏁' : '🚲'}</span><h2>{phase === 'ready' ? 'Hitta din balans' : phase === 'paused' ? 'Spelet är pausat' : resultText[view.reason]}</h2><p>{phase === 'over' ? `${view.score} poäng · ${Math.floor(view.distance)} meter` : phase === 'paused' ? 'Ingen tid eller poäng räknas medan du pausar.' : 'Du startar på båda hjulen. Håll för att lyfta framhjulet inom sex sekunder.'}</p><button className="primary-button" disabled={saving} onClick={phase === 'paused' ? () => { release(); setPhase('playing'); canvas.current?.focus({ preventScroll: true }) } : start}>{saving ? 'Sparar…' : phase === 'ready' ? 'Börja cykla →' : phase === 'paused' ? 'Fortsätt →' : 'Försök igen →'}</button></div></div>}
       </div>
       <div className="balance-controls">
-        <div className="balance-meter"><div><strong>{inZone && phase === 'playing' ? 'Fin balans! Dubbla poäng' : 'Hitta det gröna fältet'}</strong><span>{Math.round(view.angle)}°</span></div><div className="balance-meter-track" role="meter" aria-label="Cykelns lutning" aria-valuemin="0" aria-valuemax="85" aria-valuenow={Math.round(view.angle)}><span className="balance-meter-zone"/><span className="balance-meter-needle" style={{ left: `${Math.max(0, Math.min(100, view.angle / 85 * 100))}%` }}/></div><small>För lågt: framhjulet landar · För högt: du tippar</small></div>
+        <div className="balance-meter"><div><strong>{!view.wheelieStarted ? launchHint : view.impactTimer > 0 ? 'Grop! Håll balansen' : inZone && phase === 'playing' ? 'Fin balans! Dubbla poäng' : 'Hitta det gröna fältet'}</strong><span>{Math.round(view.angle)}°</span></div><div className="balance-meter-track" role="meter" aria-label="Cykelns lutning" aria-valuemin="0" aria-valuemax="85" aria-valuenow={Math.round(view.angle)}><span className="balance-meter-zone"/><span className="balance-meter-needle" style={{ left: `${Math.max(0, Math.min(100, view.angle / 85 * 100))}%` }}/></div><small>För lågt: framhjulet landar · För högt: du tippar</small></div>
         <div className="balance-buttons"><button className={`balance-hold ${held ? 'is-held' : ''}`} disabled={phase !== 'playing'} onPointerDown={press} onPointerUp={lift} onPointerCancel={lift} onLostPointerCapture={lift}>{held ? '↑ Lyfter framhjulet' : 'Håll för att lyfta ↑'}<small>Släpp för att sänka</small></button><button className="secondary-button" disabled={phase !== 'playing'} onClick={() => { release(); setPhase('paused') }} aria-label="Pausa spelet">Ⅱ</button></div>
       </div>
       <p className="balance-save" role="status">{preview ? 'Tränarens testläge: resultat och poäng sparas inte.' : message || 'Mobil: håll skärmen eller knappen. Dator: håll mellanslag eller pil upp.'}</p>
       {saveError && <button className="secondary-button" disabled={saving} onClick={() => save(view.score)}>Försök spara resultatet igen</button>}
-      <div className="balance-rules"><span><b>01</b> Hitta rytmen med håll / släpp.</span><span><b>02</b> Grönt fält ger dubbla poäng per meter.</span><span><b>03</b> Högre fart och varierade gupp. Större gupp påverkar balansen mer!</span></div>
-      <p className="balance-footnote">Samma bana för alla. En runda är högst två minuter. Landar framhjulet eller tippar du bakåt tar rundan slut.</p>
+      <div className="balance-rules"><span><b>01</b> Hitta rytmen med håll / släpp.</span><span><b>02</b> Grönt fält ger dubbla poäng per meter.</span><span><b>03</b> Högre tempo, gupp och gropar. Parera stöten när du kör över en grop!</span></div>
+      <p className="balance-footnote">Lyft framhjulet inom sex sekunder. Bara körning på bakhjulet ger poäng. När framhjulet landar igen eller du tippar tar rundan slut. Samma bana för alla, högst två minuter. Skärmskakning stängs av om du valt minskad rörelse på din enhet.</p>
     </div><aside className="balance-board"><p className="eyebrow">Preppes balansjakt</p><h2>Topplistan</h2><div className="balance-tabs" role="group" aria-label="Topplistans period"><button aria-pressed={period === 'week'} onClick={() => setPeriod('week')}>Denna vecka</button><button aria-pressed={period === 'lifetime'} onClick={() => setPeriod('lifetime')}>Alla tider</button></div>
       {preview ? <p className="empty">I simmarvyn visas veckans och alla tiders rekord här.</p> : !board ? <p role="status">{boardError ? 'Topplistan kunde inte hämtas.' : 'Hämtar topplistan…'}</p> : board.leaderboard?.length ? <ol>{board.leaderboard.map((entry) => <li key={entry.profileId}><span className="balance-rank">{entry.rank}</span><span aria-hidden="true">{entry.emoji}</span><strong>{entry.displayName}</strong><b>{entry.score.toLocaleString('sv-SE')}</b></li>)}</ol> : <p className="empty">Bli först att sätta ett rekord!</p>}
       {!preview && <p className="balance-own">Ditt bästa {period === 'week' ? 'denna vecka' : 'genom tiderna'}<strong>{board?.ownBest?.toLocaleString('sv-SE') ?? '—'} <small>poäng</small></strong></p>}

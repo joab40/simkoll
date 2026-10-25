@@ -1,4 +1,4 @@
-import { BALANCE_SCENE_SCALE, BALANCE_ZONE, balanceBumpsBetween, balanceRoadAt } from './balance-engine.js'
+import { BALANCE_IMPACT_TIME, BALANCE_SCENE_SCALE, BALANCE_ZONE, balanceBumpsBetween, balanceRoadAt } from './balance-engine.js'
 
 const line = (ctx, points, color, width = 5) => {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
@@ -6,10 +6,16 @@ const line = (ctx, points, color, width = 5) => {
 }
 const circle = (ctx, x, y, r, color) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill() }
 
-export function drawBalance(canvas, game) {
+export function drawBalance(canvas, game, { reducedMotion = false } = {}) {
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, 960, 500)
+  ctx.save()
+  if (game.impactTimer > 0 && !reducedMotion) {
+    const strength = game.impactStrength * (game.impactTimer / BALANCE_IMPACT_TIME)
+    ctx.translate(480 + Math.sin(game.elapsed * 43) * strength, 250 + Math.cos(game.elapsed * 57) * strength * .6)
+    ctx.scale(1.03, 1.03); ctx.translate(-480, -250)
+  }
   const sky = ctx.createLinearGradient(0, 0, 0, 350)
   sky.addColorStop(0, '#d8f0ed'); sky.addColorStop(1, '#fff9dc')
   ctx.fillStyle = sky; ctx.fillRect(0, 0, 960, 500)
@@ -39,13 +45,17 @@ export function drawBalance(canvas, game) {
   for (const bump of bumps) {
     const x = 290 + (bump.center - game.distance) * BALANCE_SCENE_SCALE
     const halfWidth = bump.width / 2 * BALANCE_SCENE_SCALE
-    ctx.fillStyle = '#cfad76'; ctx.beginPath(); ctx.moveTo(x - halfWidth, 374)
+    const hole = bump.kind === 'pothole'
+    ctx.fillStyle = hole ? '#705e49' : '#cfad76'; ctx.beginPath(); ctx.moveTo(x - halfWidth, 374)
     for (let px = -halfWidth; px <= halfWidth; px += 2) {
       const height = balanceRoadAt(bump.center + px / BALANCE_SCENE_SCALE, [bump]).height
       ctx.lineTo(x + px, 374 - height * BALANCE_SCENE_SCALE)
     }
     ctx.lineTo(x + halfWidth, 374); ctx.closePath(); ctx.fill()
-    line(ctx, [[x - 10, 383 - bump.height * BALANCE_SCENE_SCALE], [x, 377 - bump.height * BALANCE_SCENE_SCALE], [x + 10, 383 - bump.height * BALANCE_SCENE_SCALE]], '#8b683d', 3)
+    if (hole) {
+      line(ctx, [[x - halfWidth + 4, 379], [x - halfWidth + 12, 384]], '#ecd8ad', 3)
+      line(ctx, [[x + halfWidth - 4, 379], [x + halfWidth - 12, 384]], '#ecd8ad', 3)
+    } else line(ctx, [[x - 10, 383 - bump.height * BALANCE_SCENE_SCALE], [x, 377 - bump.height * BALANCE_SCENE_SCALE], [x + 10, 383 - bump.height * BALANCE_SCENE_SCALE]], '#8b683d', 3)
   }
   const wheelClearance = 33 * Math.sqrt(1 + game.roadSlope ** 2)
   ctx.save(); ctx.translate(290, 374 - game.roadHeight * BALANCE_SCENE_SCALE - wheelClearance); ctx.rotate(-Math.max(0, Math.min(85, game.angle)) * Math.PI / 180)
@@ -61,8 +71,9 @@ export function drawBalance(canvas, game) {
   line(ctx, [[107, -53], [102, -69], [115, -73]], '#24454a', 5)
   circle(ctx, 67, 0, 9, '#d2ed62')
   // Original helmeted rider, drawn as articulated shapes (no external assets).
-  line(ctx, [[52, -65], [83, -37], [67, 0], [82, 2]], '#173f4c', 12)
-  line(ctx, [[51, -63], [34, -31], [59, -12]], '#286171', 11)
+  const pedal = game.wheelieStarted ? 0 : Math.sin(game.distance * .65) * 12
+  line(ctx, [[52, -65], [83, -37], [67 + pedal, pedal], [82 + pedal, 2 + pedal]], '#173f4c', 12)
+  line(ctx, [[51, -63], [34, -31], [59 - pedal, -12 - pedal]], '#286171', 11)
   line(ctx, [[51, -70], [63, -110]], '#c8ed56', 25)
   line(ctx, [[67, -105], [90, -83], [108, -73]], '#b97d60', 9)
   circle(ctx, 70, -130, 17, '#dbab7d')
@@ -70,9 +81,10 @@ export function drawBalance(canvas, game) {
   line(ctx, [[57, -147], [62, -149]], '#d2ed62', 3)
   circle(ctx, 81, -131, 2, '#203f48')
   ctx.restore()
+  ctx.restore() // Only the world shakes, never the controls or gauge.
   ctx.fillStyle = '#245a60'; ctx.font = '600 16px system-ui, sans-serif'; ctx.textAlign = 'left'
   ctx.fillText('STRANDPROMENADEN', 30, 38)
-  ctx.textAlign = 'right'; ctx.fillText(game.elapsed < 3 ? 'Hitta balansen…' : `${Math.floor(game.distance)} m`, 930, 38)
+  ctx.textAlign = 'right'; ctx.fillText(game.impactTimer > 0 ? 'GROP! HÅLL BALANSEN' : !game.wheelieStarted ? 'Håll för att lyfta framhjulet' : `${Math.floor(game.distance)} m`, 930, 38)
   // Keep a gauge in the desktop scene. On phones the larger HTML gauge
   // below the scene is easier to read.
   if (canvas.clientWidth < 600) return

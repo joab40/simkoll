@@ -2,31 +2,35 @@
 // control tuning readable; no randomness or frame-rate-dependent scoring.
 export const BALANCE_STEP = 1 / 120
 export const BALANCE_DURATION = 120
-export const BALANCE_MAX_SCORE = 8000
+export const BALANCE_MAX_SCORE = 11000
 export const BALANCE_ZONE = [38, 58]
-export const BALANCE_START_SPEED = 16
-export const BALANCE_TOP_SPEED = 32
+export const BALANCE_START_SPEED = 24
+export const BALANCE_TOP_SPEED = 44
 export const BALANCE_SCENE_SCALE = 12
+export const BALANCE_LAUNCH_TIME = 6
+export const BALANCE_IMPACT_TIME = .28
 export const validBalanceScore = (score) => Number.isInteger(score) && score > 0 && score <= BALANCE_MAX_SCORE
 
-// A shared, repeating course: art and physics use the very same hills.
-// Heights/widths are course units; the first hill arrives after the warm-up.
+// A shared, repeating course: art and physics use the same hills and holes.
+// Signed heights distinguish potholes; none arrive during the launch window.
 const BUMP_SHAPES = [
   { offset: 0, height: 1.7, width: 10 },
-  { offset: 46, height: 2.8, width: 13 },
-  { offset: 84, height: 2.1, width: 9 },
-  { offset: 138, height: 3.6, width: 16 },
-  { offset: 180, height: 2.6, width: 12 },
-  { offset: 230, height: 4.2, width: 18 },
+  { offset: 65, height: -1.8, width: 6 },
+  { offset: 112, height: 3.4, width: 14 },
+  { offset: 155, height: 2.2, width: 9 },
+  { offset: 218, height: -2.5, width: 7 },
+  { offset: 270, height: 4.2, width: 18 },
 ]
-const COURSE_LENGTH = 270
+const COURSE_START = 180
+const COURSE_LENGTH = 340
+const MAX_HALF_WIDTH = 10
 export function balanceBump(index) {
   const shape = BUMP_SHAPES[index % BUMP_SHAPES.length]
-  return { ...shape, center: 70 + Math.floor(index / BUMP_SHAPES.length) * COURSE_LENGTH + shape.offset }
+  return { ...shape, index, kind: shape.height < 0 ? 'pothole' : 'hill', center: COURSE_START + Math.floor(index / BUMP_SHAPES.length) * COURSE_LENGTH + shape.offset }
 }
 export function balanceBumpsBetween(from, to) {
-  const first = Math.max(0, Math.floor((from - 80) / COURSE_LENGTH)) * BUMP_SHAPES.length
-  const last = Math.max(0, Math.floor((to - 60) / COURSE_LENGTH)) * BUMP_SHAPES.length + BUMP_SHAPES.length
+  const first = Math.max(0, Math.floor((from - COURSE_START - MAX_HALF_WIDTH) / COURSE_LENGTH)) * BUMP_SHAPES.length
+  const last = Math.max(0, Math.floor((to - COURSE_START + MAX_HALF_WIDTH) / COURSE_LENGTH)) * BUMP_SHAPES.length + BUMP_SHAPES.length
   const bumps = []
   for (let index = first; index < last; index++) {
     const bump = balanceBump(index)
@@ -42,7 +46,7 @@ export function balanceRoadAt(distance, bumps = balanceBumpsBetween(distance, di
 }
 
 export function createBalanceGame() {
-  return { elapsed: 0, remainder: 0, angle: 30, velocity: 0, distance: 0, bonus: 0, score: 0, speed: BALANCE_START_SPEED, bumps: 0, roadHeight: 0, roadSlope: 0, status: 'playing', reason: null }
+  return { elapsed: 0, remainder: 0, angle: 0, velocity: 0, distance: 0, wheelieDistance: 0, wheelieStarted: false, bonus: 0, score: 0, speed: BALANCE_START_SPEED, bumps: 0, potholeHits: 0, impactTimer: 0, impactStrength: 0, roadHeight: 0, roadSlope: 0, status: 'playing', reason: null }
 }
 
 export function advanceBalance(game, seconds, lifting) {
@@ -52,27 +56,43 @@ export function advanceBalance(game, seconds, lifting) {
   while (game.remainder + 1e-9 >= BALANCE_STEP && game.status === 'playing') {
     game.remainder = Math.max(0, game.remainder - BALANCE_STEP)
     game.elapsed += BALANCE_STEP
-    game.speed = Math.min(BALANCE_TOP_SPEED, BALANCE_START_SPEED + game.elapsed * .28)
+    game.speed = Math.min(BALANCE_TOP_SPEED, BALANCE_START_SPEED + game.elapsed * .4)
     const travelled = game.speed * BALANCE_STEP
+    const previousDistance = game.distance
     game.distance += travelled
-    const acceleration = (lifting ? 92 : -68) + (game.angle - 43) * .75 - game.velocity * 3.2
+    game.impactTimer = Math.max(0, game.impactTimer - BALANCE_STEP)
+    const difficulty = 1 + Math.min(.6, game.elapsed / 75)
+    const acceleration = ((lifting ? 115 : -95) + (game.angle - 44) * 1.3) * difficulty - game.velocity * 2.5
     game.velocity += acceleration * BALANCE_STEP
     // Following the uphill/downhill profile moves the rear wheel vertically
     // and disturbs balance continuously, rather than a barely visible nudge.
     const road = balanceRoadAt(game.distance)
-    game.velocity -= (road.slope - game.roadSlope) * 85 * (game.speed / 20)
+    game.velocity -= (road.slope - game.roadSlope) * 70 * (game.speed / 24)
     game.roadHeight = road.height; game.roadSlope = road.slope
+    for (const feature of balanceBumpsBetween(previousDistance, game.distance)) {
+      const edge = feature.center - feature.width / 2
+      if (feature.kind !== 'pothole' || previousDistance >= edge || game.distance < edge) continue
+      game.velocity += (feature.index % 2 ? 1 : -1) * Math.abs(feature.height) * (6 + game.speed * .12)
+      game.potholeHits += 1
+      game.impactTimer = BALANCE_IMPACT_TIME
+      game.impactStrength = Math.min(10, 4 + Math.abs(feature.height) * 1.3 + game.speed * .03)
+    }
     while (game.distance >= balanceBump(game.bumps).center) game.bumps += 1
     game.angle += game.velocity * BALANCE_STEP
-    if (game.elapsed < 3) {
-      if (game.angle < 15) { game.angle = 15; game.velocity = Math.max(0, game.velocity) }
-      if (game.angle > 65) { game.angle = 65; game.velocity = Math.min(0, game.velocity) }
-    } else if (game.angle <= 6 || game.angle >= 80) {
-      game.status = 'over'
-      game.reason = game.angle <= 6 ? 'front' : 'tip'
+    if (!game.wheelieStarted) {
+      if (game.angle < 0) { game.angle = 0; game.velocity = Math.max(0, game.velocity) }
+      if (game.angle >= 8) game.wheelieStarted = true
+      else if (game.elapsed >= BALANCE_LAUNCH_TIME) { game.status = 'over'; game.reason = 'launch' }
     }
-    if (game.angle >= BALANCE_ZONE[0] && game.angle <= BALANCE_ZONE[1]) game.bonus += travelled
-    game.score = Math.min(BALANCE_MAX_SCORE, Math.floor(game.distance + game.bonus))
+    if (game.wheelieStarted && (game.angle <= 4 || game.angle >= 80)) {
+      game.status = 'over'
+      game.reason = game.angle <= 4 ? 'front' : 'tip'
+    }
+    if (game.wheelieStarted && game.status === 'playing') {
+      game.wheelieDistance += travelled
+      if (game.angle >= BALANCE_ZONE[0] && game.angle <= BALANCE_ZONE[1]) game.bonus += travelled
+    }
+    game.score = Math.min(BALANCE_MAX_SCORE, Math.floor(game.wheelieDistance + game.bonus))
     if (game.elapsed + 1e-9 >= BALANCE_DURATION && game.status === 'playing') {
       game.status = 'over'
       game.reason = 'finish'
