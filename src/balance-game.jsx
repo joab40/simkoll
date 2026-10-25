@@ -24,8 +24,7 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [message, setMessage] = useState('')
-  const [boards, setBoards] = useState({ week: null, lifetime: null })
-  const [period, setPeriod] = useState('week')
+  const [boards, setBoards] = useState({ lifetime: null })
   const [boardError, setBoardError] = useState(false)
   const [fullscreenMode, setFullscreenMode] = useState(null)
   const fullscreen = fullscreenMode !== null
@@ -90,16 +89,10 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
     if (preview) return
     const version = ++boardVersion.current
     setBoardError(false)
-    const results = await Promise.allSettled([
-      request('/api/points?game=balance', code),
-      request('/api/points?game=balance&lifetime=true', code),
-    ])
+    const result = await request('/api/points?game=balance&lifetime=true', code).then((value) => ({ status: 'fulfilled', value }), () => ({ status: 'rejected' }))
     if (!mounted.current || version !== boardVersion.current) return
-    setBoards((previous) => ({
-      week: results[0].status === 'fulfilled' ? results[0].value : previous.week,
-      lifetime: results[1].status === 'fulfilled' ? results[1].value : previous.lifetime,
-    }))
-    setBoardError(results.some((result) => result.status === 'rejected'))
+    if (result.status === 'fulfilled') setBoards({ lifetime: result.value })
+    setBoardError(result.status === 'rejected')
   }, [code, preview, request])
 
   useEffect(() => {
@@ -114,7 +107,7 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
       await request('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit-game-score', gameKey: 'balance', score }) })
       if (mounted.current) {
         setMessage('✓ Resultatet är sparat. Ditt bästa resultat räknas i topplistan.')
-        setBoards((previous) => Object.fromEntries(Object.entries(previous).map(([key, value]) => [key, { ...value, ownBest: Math.max(value?.ownBest || 0, score) }])))
+        setBoards((previous) => ({ lifetime: { ...previous.lifetime, ownBest: Math.max(previous.lifetime?.ownBest || 0, score) } }))
         loadBoards()
       }
     } catch {
@@ -172,7 +165,7 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
   const inZone = view.angle >= BALANCE_ZONE[0] && view.angle <= BALANCE_ZONE[1]
   const largeAhead = balanceBumpsBetween(view.distance, view.distance + 45).find((bump) => bump.large && bump.center - bump.width / 2 > view.distance)
   const launchHint = phase === 'playing' ? `Lyft framhjulet · ${Math.max(0, Math.ceil(BALANCE_LAUNCH_TIME - view.elapsed))} s` : 'Håll för att lyfta framhjulet'
-  const board = boards[period]
+  const board = boards.lifetime
   return <section className="balance-page" onKeyDown={(event) => keyboard(event, true)} onKeyUp={(event) => keyboard(event, false)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) release() }}>
     <button className="back-button inline" onClick={onBack}>← Tillbaka</button>
     <header className="balance-heading"><div><p className="eyebrow">Veckans spel · balans & timing</p><h1>Preppes balansjakt <span aria-hidden="true">🚲</span></h1><p>En cykel. Ett bakhjul. Hur långt håller du balansen?</p></div><span className="balance-label">{preview ? 'Testläge · inget sparas' : 'Din egen rekordjakt'}</span></header>
@@ -192,9 +185,9 @@ export default function BalanceGame({ code, onBack, preview = false, request }) 
       {saveError && <button className="secondary-button" disabled={saving} onClick={() => save(view.score)}>Försök spara resultatet igen</button>}
       <div className="balance-rules"><span><b>01</b> Hitta rytmen med håll / släpp.</span><span><b>02</b> Grönt fält ger dubbla poäng per meter.</span><span><b>03</b> Farten och svårigheten ökar. Se upp för gropar, extra stora gupp och breda kullar!</span></div>
       <p className="balance-footnote">Lyft framhjulet inom sex sekunder. Bara körning på bakhjulet ger poäng. Om framhjulet nuddar terrängen efter lyftet eller du tippar tar rundan slut. Samma bana för alla, högst två minuter. Skärmskakning stängs av om du valt minskad rörelse på din enhet.</p>
-    </div><aside className="balance-board"><p className="eyebrow">Preppes balansjakt</p><h2>Topplistan</h2><div className="balance-tabs" role="group" aria-label="Topplistans period"><button aria-pressed={period === 'week'} onClick={() => setPeriod('week')}>Denna vecka</button><button aria-pressed={period === 'lifetime'} onClick={() => setPeriod('lifetime')}>Alla tider</button></div>
-      {preview ? <p className="empty">I simmarvyn visas veckans och alla tiders rekord här.</p> : !board ? <p role="status">{boardError ? 'Topplistan kunde inte hämtas.' : 'Hämtar topplistan…'}</p> : board.leaderboard?.length ? <ol>{board.leaderboard.map((entry) => <li key={entry.profileId}><span className="balance-rank">{entry.rank}</span><span aria-hidden="true">{entry.emoji}</span><strong>{entry.displayName}</strong><b>{entry.score.toLocaleString('sv-SE')}</b></li>)}</ol> : <p className="empty">Bli först att sätta ett rekord!</p>}
-      {!preview && <p className="balance-own">Ditt bästa {period === 'week' ? 'denna vecka' : 'genom tiderna'}<strong>{board?.ownBest?.toLocaleString('sv-SE') ?? '—'} <small>poäng</small></strong></p>}
+    </div><aside className="balance-board"><p className="eyebrow">Preppes balansjakt</p><h2>Topplista · alla tider</h2>
+      {preview ? <p className="empty">Topplistan visas i simmarvyn.</p> : !board ? <p role="status">{boardError ? 'Topplistan kunde inte hämtas.' : 'Hämtar topplistan…'}</p> : board.leaderboard?.length ? <ol>{board.leaderboard.map((entry) => <li key={entry.profileId}><span className="balance-rank">{entry.rank}</span><span aria-hidden="true">{entry.emoji}</span><strong>{entry.displayName}</strong><b>{entry.score.toLocaleString('sv-SE')}</b></li>)}</ol> : <p className="empty">Bli först att sätta ett rekord!</p>}
+      {!preview && <p className="balance-own">Ditt bästa resultat<strong>{board?.ownBest?.toLocaleString('sv-SE') ?? '—'} <small>poäng</small></strong></p>}
       {boardError && <button className="secondary-button" onClick={loadBoards}>Hämta topplistan igen</button>}
       <small>Ditt bästa resultat sparas automatiskt efter varje runda. Spelet ingår även i Simkolls sammanlagda rekordlista.</small>
     </aside></div>

@@ -44,9 +44,6 @@
 .balance-footnote{padding:0 24px;margin:14px 0;color:#718481;font-size:.73rem;line-height:1.5}
 .balance-board{padding:24px 20px;border:1px solid #d0e1dc;border-radius:24px;background:#fffef8}
 .balance-board h2{font-size:1.5rem;margin:10px 0 20px}
-.balance-tabs{display:flex;background:#edf3ed;border-radius:12px;padding:4px;gap:4px}
-.balance-tabs button{flex:1;border:0;background:transparent;font:inherit;font-size:.78rem;font-weight:700;padding:10px 5px;border-radius:9px;color:#627d7c}
-.balance-tabs button[aria-pressed=true]{background:#fff;box-shadow:0 1px 5px #194d4514;color:#146f75}
 .balance-board ol{list-style:none;padding:0;margin:16px 0}
 .balance-board li{display:flex;align-items:center;gap:8px;min-height:48px;border-bottom:1px solid #e6ece4;font-size:.85rem}
 .balance-rank{font-size:.7rem;color:#859893;width:15px}
