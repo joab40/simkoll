@@ -4,6 +4,17 @@ const numeric = (value) => typeof value === 'number' && Number.isFinite(value) ?
 const activityDay = (row) => String(row.activityDate || row.createdAt || '').slice(0, 10)
 const activityKey = (row) => `${activityDay(row)}:${row.activityType || 'unknown'}:${row.trainingSlot || 'day'}`
 const uniqueDays = (rows, predicate) => new Set(rows.filter(predicate).map(activityDay)).size
+export function sleepFollowUpReasons(rows) {
+  const unique = [...new Map(rows.filter((row) => !row.skipped && numeric(row.minutes) !== null && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)).map((row) => [row.activity_date, row])).values()]
+  const reasons = []
+  const poorNights = unique.filter((row) => row.quality === 1).length
+  if (poorNights >= 2) reasons.push(`Dålig sömn rapporterad ${poorNights} nätter senaste veckan`)
+  if (unique.length >= 3) {
+    const averageMinutes = Math.round(unique.reduce((sum, row) => sum + row.minutes, 0) / unique.length)
+    if (averageMinutes < 420) reasons.push(`Kort sovtid i snitt (${Math.floor(averageMinutes / 60)} h ${String(averageMinutes % 60).padStart(2, '0')} min) under ${unique.length} rapporterade nätter senaste veckan`)
+  }
+  return reasons
+}
 const sleepSummary = (rows) => ({
   nights: rows.length,
   swimmers: new Set(rows.map((row) => row.profile_id)).size,
@@ -39,8 +50,8 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     const sickDays = uniqueDays(recent, (row) => row.type === 'sick')
     const reasons = []
     const ownSleep = sleep.filter((row) => row.profile_id === profile.id)
-    const poorSleepDays = new Set(sleepRecords.filter((row) => row.profile_id === profile.id && !row.skipped && row.quality === 1 && row.activity_date >= recentStart && row.activity_date <= asOf).map((row) => row.activity_date)).size
-    if (poorSleepDays >= 2) reasons.push(`Dålig sömn rapporterad ${poorSleepDays} nätter senaste veckan · se datum och sovtid i simmarkortet`)
+    const recentSleep = ownSleep.filter((row) => row.activity_date >= recentStart && row.activity_date <= asOf)
+    reasons.push(...sleepFollowUpReasons(recentSleep))
     if (sickDays >= 2) reasons.push(`Sjukfrånvaro rapporterad ${sickDays} dagar senaste veckan`)
     if (lowBodyDays >= 2) reasons.push(`Låg kroppskänsla ${lowBodyDays} dagar senaste veckan`)
     if (lowFeelingDays >= 2) reasons.push(`Låg känsla ${lowFeelingDays} dagar senaste veckan`)
