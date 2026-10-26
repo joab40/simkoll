@@ -1,5 +1,6 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
+import { loadWorkoutChoices } from '../server/workout-choice.js'
 import { interpretCompetitionProgram } from '../server/competition-program.js'
 import { interpretStrengthProgram } from '../server/strength-import.js'
 import { ensureStrengthImageStorage, decodeExerciseImage, generateExerciseImage, storeExerciseImage } from '../server/strength-images.js'
@@ -644,6 +645,15 @@ export default async function handler(request, response) {
         } catch (error) {
           return sendJson(response, 502, { error: error.message || 'Google Drive-mappen kunde inte läsas.' })
         }
+      }
+      if (request.query?.checkinChoices === 'true') {
+        const date = String(request.query.date || stockholmDate())
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Ogiltigt datum.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        // Metadata only: this does not unlock the workout instructions.
+        const choiceProfile = profile || await getSessionProfile(request)
+        if (!choiceProfile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att välja pass.' })
+        return sendJson(response, 200, { options: await loadWorkoutChoices(date, choiceProfile.training_group) })
       }
       if (request.query?.planning === 'true') {
         const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')

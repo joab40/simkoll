@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { dailySleep } from '../server/daily-sleep.js'
+import { loadWorkoutChoices } from '../server/workout-choice.js'
+import { validWorkoutOption } from '../shared/swim-workout-options.js'
 import { checkinTraining, validCheckinActivity } from '../shared/checkin-activity.js'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
@@ -48,6 +50,7 @@ export function toDatabase(response, profileId, activityDate, lateEntryKey = nul
     planned_completion: response.plannedCompletion || null,
     session_slot: response.competition !== true && ['before', 'after'].includes(response.type) && (!response.activityType || response.activityType === 'swim') ? response.trainingSlot || null : null,
     training_registered: response.registerTraining ?? null,
+    ...(response.workoutReference ? { workout_reference: response.workoutReference } : {}),
   }
 }
 
@@ -74,6 +77,7 @@ export function fromDatabase(response, includeDetails) {
     activityMinutes: response.activity_minutes ?? null,
     activityDistanceMeters: response.activity_distance_meters ?? null,
     plannedCompletion: response.planned_completion || null,
+    workoutReference: response.workout_reference || null,
     trainingSlot: response.session_slot || null,
     registerTraining: response.training_registered ?? null,
   }
@@ -142,6 +146,11 @@ export default async function handler(request, response) {
       if (lateEntry && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på din simmarprofil för att efterregistrera gårdagen.' })
       const profile = request.body?.identified ? sessionProfile : null
       if (request.body?.identified && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på profilen igen eller svara anonymt.' })
+      if (request.body.workoutReference) {
+        const options = await loadWorkoutChoices(activityDate, sessionProfile?.training_group)
+        const option = options.find((item) => item.workoutReference === request.body.workoutReference)
+        if (request.body.type !== 'after' || request.body.competition === true || request.body.activityType !== 'swim' || !validWorkoutOption(option, { date: activityDate, slot: request.body.trainingSlot, trainingGroup: sessionProfile?.training_group })) return sendJson(response, 400, { error: 'Passvalet stämmer inte med datum, grupp eller morgon/eftermiddag. Välj passet igen.' })
+      }
       const hmacSecret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
       const lateEntryKey = lateEntry ? createHmac('sha256', hmacSecret).update(`${sessionProfile.id}:${activityDate}`).digest('hex') : null
       const result = await supabaseRequest('responses', {
@@ -152,7 +161,7 @@ export default async function handler(request, response) {
       if (lateEntry && result.status === 409) return sendJson(response, 409, { error: 'Du har redan efterregistrerat gårdagens check-in.' })
       if (!result.ok) {
         const detail = await result.json().catch(() => ({}))
-        if (['PGRST204', '42703'].includes(detail.code)) return sendJson(response, 503, { error: 'Incheckningen behöver en databasuppdatering. Be administratören köra migration 087. Inget svar har sparats.' })
+        if (['PGRST204', '42703'].includes(detail.code)) return sendJson(response, 503, { error: `Incheckningen behöver en databasuppdatering. Be administratören köra migration ${request.body.workoutReference ? '103_checkin_workout_choice' : '087'}. Inget svar har sparats.` })
         throw new Error(`Supabase POST failed: ${result.status}`)
       }
       const [created] = await result.json()

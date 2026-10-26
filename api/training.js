@@ -10,6 +10,7 @@ import { isTimeId } from '../shared/swim-times.js'
 import { writeAuditLog } from '../server/audit.js'
 import { loadCoachWeek } from '../server/coach-week.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
+import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -23,7 +24,7 @@ const comparableStrengthValue = (value) => {
 
 async function loadTraining(profileId = null) {
   const profileFilter = profileId ? `&profile_id=eq.${profileId}` : ''
-  const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, workoutsResult, strengthLogsResult] = await Promise.all([
+  const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, workoutsResult, strengthLogsResult, metricResponsesResult, metricPlansResult, metricProfilesResult] = await Promise.all([
     supabaseRequest(`season_swim_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`cross_training_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
@@ -31,8 +32,11 @@ async function loadTraining(profileId = null) {
     supabaseRequest(`program_assignments?select=*${profileFilter}&removed_at=is.null`),
     supabaseRequest('training_programs?select=*&order=created_at.desc'),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
-    supabaseRequest('daily_workouts?select=workout_date,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,created_at.asc&limit=1000'),
+    supabaseRequest('daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,created_at.asc&limit=1000'),
     supabaseRequest(`strength_program_logs?select=*${profileFilter}&order=session_date.desc,completed_at.desc&limit=2000`),
+    supabaseRequest(`responses?select=profile_id,activity_date,created_at,day_type,activity_type,session_slot,competition,planned_completion,activity_distance_meters,activity_minutes,workout_reference${profileFilter}&day_type=eq.after&order=created_at.desc&limit=10000`),
+    supabaseRequest('training_plans?select=id,source_workout_id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=plan_date.asc&limit=1000'),
+    supabaseRequest(`profiles?select=id,training_group${profileId ? `&id=eq.${profileId}` : ''}&limit=1000`),
   ])
   if (![goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')
   const assignments = await assignmentsResult.json()
@@ -47,22 +51,13 @@ async function loadTraining(profileId = null) {
     program.exercise_images = !profileId || assignedPrograms.has(program.id) ? await signedExerciseImages(program.exercise_images || []).catch(() => []) : []
   }))
   const workoutRows = workoutsResult.ok ? await workoutsResult.json() : []
-  const swimMetrics = new Map()
-  sessionRows.filter((item) => item.activity_type === 'swim').forEach((session) => {
-    const expectedTime = session.session_slot === 'morning_swim' ? 'morning' : session.session_slot === 'afternoon_swim' ? 'afternoon' : ''
-    const sameDay = workoutRows.filter((workout) => workout.workout_date === session.session_date)
-    const timeMatches = expectedTime ? sameDay.filter((workout) => !workout.time_of_day || workout.time_of_day === expectedTime) : sameDay
-    const candidates = timeMatches.length ? timeMatches : sameDay
-    // En session motsvarar ett pass. Om flera rader finns samma tid väljs den
-    // senast synkade/skapade raden i stället för att räkna meter flera gånger.
-    const workout = candidates[candidates.length - 1]
-    swimMetrics.set(`${session.session_date}|${session.session_slot}`, { distanceMeters: Number(workout?.distance_meters || 0) || null, durationMinutes: Number(workout?.duration_minutes || 0) || null })
-  })
+  if (![metricResponsesResult, metricPlansResult, metricProfilesResult].every((result) => result.ok)) throw new Error('Passval och träningsmängd kunde inte hämtas. Kontrollera databasuppdatering 103.')
+  const swimMetrics = sessionSwimMetrics({ sessions: sessionRows, responses: await metricResponsesResult.json(), workouts: workoutRows, plans: await metricPlansResult.json(), profiles: await metricProfilesResult.json() })
   const mappedPrograms = Object.values(programs).map((program) => ({ ...mapProgram(program), assignedCount: assignments.filter((item) => item.program_id === program.id).length }))
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
-    sessions: sessionRows.map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at, ...(item.activity_type === 'swim' ? (swimMetrics.get(`${item.session_date}|${item.session_slot}`) || {}) : {}) })),
+    sessions: sessionRows.map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at, ...(item.activity_type === 'swim' ? (swimMetrics.get(`${item.profile_id}|${item.session_date}|${item.session_slot}`) || {}) : {}) })),
     plannedSessions: (await plannedResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, weekStart: item.week_start, date: item.planned_date, slot: item.session_slot })),
     programs: mappedPrograms,
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),

@@ -72,6 +72,7 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
   const passes = buildSwimmerPasses({ sessions: swimEntries.map((item) => ({ session_date: item.date, session_slot: item.slot, activity_type: 'swim' })), responses: responses.filter((row) => row.competition !== true), workouts, plans, trainingGroup })
   swimEntries.forEach((entry) => {
     const pass = passes.find((item) => item.date === entry.date && item.sessionSlot === entry.slot)
+    if (pass?.matchStatus === 'ambiguous') entry.workoutChoiceMissing = true
     if (!pass || !['slot', 'day_only'].includes(pass.matchStatus)) return
     Object.assign(entry, { title: pass.title, focus: pass.focus || '', plannedMeters: pass.distanceMeters, plannedMinutes: pass.durationMinutes, linked: true, content: entry.date < today || unlockedToday ? pass.content : '', note: entry.date < today || unlockedToday ? pass.note : '', contentLocked: entry.date === today && !unlockedToday })
   })

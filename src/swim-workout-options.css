@@ -1,0 +1,15 @@
+.swim-occasion { margin-block: 12px; border: 1px solid #cce1dd; border-radius: 20px; overflow: hidden; background: #f4faf8; }
+.swim-occasion > header { padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+.swim-occasion > header strong { color: #126e73; font-size: 1.05rem; }
+.swim-occasion > header small { color: #627c80; }
+.swim-occasion-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; padding: 0 12px 12px; }
+.swim-occasion-options > .planning-workout { margin: 0; padding: 16px; min-width: 0; }
+.swim-occasion-options > article { margin: 0; min-width: 0; }
+.swim-occasion-options h2 { font-size: 1.1rem; overflow-wrap: anywhere; }
+.swim-occasion-options .workout-library-stats { flex-wrap: wrap; }
+.swim-occasion-options p { font-size: .9rem; overflow-wrap: anywhere; }
+.workout-choice-amounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-block: 20px; }
+.workout-choice-amounts label { display: grid; gap: 6px; min-width: 0; }
+.workout-choice-amounts small { color: #627c80; font-weight: normal; }
+.workout-choice-amounts input { width: 100%; min-width: 0; box-sizing: border-box; padding: 12px; border: 1px solid #b8d3cf; border-radius: 12px; font: inherit; }
+@media (max-width: 540px) { .workout-choice-amounts { grid-template-columns: 1fr; } .swim-occasion > header { padding: 14px; } }

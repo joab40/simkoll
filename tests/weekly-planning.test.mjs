@@ -41,7 +41,7 @@ function fixture() {
       return json(awards.has(query.get('source_key')?.slice(3)) ? [{ id: 'awarded' }] : [])
     }
     if (path === 'artifact_catalog') return json([])
-    if (['season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'program_assignments', 'training_programs', 'program_goals', 'responses', 'daily_workouts', 'strength_program_logs'].includes(path)) return json([])
+    if (['season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'program_assignments', 'training_programs', 'program_goals', 'responses', 'daily_workouts', 'training_plans', 'strength_program_logs'].includes(path)) return json([])
     throw new Error(`Unexpected fixture path: ${path}`)
   }
   return { plans, awards, requests }

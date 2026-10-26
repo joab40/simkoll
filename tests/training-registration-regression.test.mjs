@@ -14,7 +14,7 @@ async function call(handler, method, body, code = 'registration-swimmer') {
   assert.ok(response.code < 300, JSON.stringify(response.data))
   return response.data
 }
-function fixture() {
+function fixture({ workouts = [] } = {}) {
   const sessions = [], responses = [], writes = []
   globalThis.fetch = async (raw,options = {}) => {
     const url = new URL(raw), table = url.pathname.split('/').at(-1), params = url.searchParams
@@ -22,7 +22,9 @@ function fixture() {
     const method = options.method || 'GET'
     if (method !== 'GET') writes.push({ table, method })
     if (table === 'profile_sessions') return json([{profile_id:profileId}])
-    if (table === 'profiles') return json([{id:profileId}])
+    if (table === 'profiles') return json([{id:profileId,training_group:'junior'}])
+    if (table === 'daily_workouts') return json(workouts)
+    if (table === 'training_plans') return json([])
     if (table === 'responses') {
       if (method === 'POST') { const row = {...JSON.parse(options.body),id:`r${responses.length}`,created_at:new Date().toISOString()}; responses.push(row); return json([row]) }
       return json(responses)
@@ -64,4 +66,31 @@ test('legacy responses without an explicit registration never synthesize PM or c
   for (const code of ['registration-swimmer','registration-coach']) assert.deepEqual((await call(training,'GET',null,code)).sessions,[])
   assert.equal(data.sessions.length,0)
   assert.equal(data.writes.some((row) => row.table === 'personal_training_sessions'),false)
+})
+
+test('selected alternative survives check-in and is used in the weekly training summary', async(t) => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-22T10:00:00Z')})
+  const a = '11111111-1111-4111-8111-111111111111', b = '22222222-2222-4222-8222-222222222222'
+  const data = fixture({ workouts: [
+    { id:a,workout_date:'2026-10-22',title:'First',time_of_day:'morning',distance_meters:4700,duration_minutes:110,target_groups:['junior'] },
+    { id:b,workout_date:'2026-10-22',title:'Second',time_of_day:'morning',distance_meters:4000,duration_minutes:120,target_groups:['junior'] },
+  ] })
+  await call(checkin,'POST',{type:'after',feeling:4,identified:true,activityType:'swim',trainingSlot:'morning_swim',registerTraining:true,plannedCompletion:'full',workoutReference:`workout:${a}`})
+  assert.equal(data.responses[0].workout_reference,`workout:${a}`)
+  const result = await call(training,'GET',null)
+  assert.equal(result.sessions.length,1)
+  assert.equal(result.sessions[0].distanceMeters,4700)
+  assert.equal(result.sessions[0].durationMinutes,110)
+})
+
+test('server rejects a choice from another group, date or slot before saving', async(t) => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-22T10:00:00Z')})
+  const id = '22222222-2222-4222-8222-222222222222'
+  for (const extra of [{target_groups:['other']},{workout_date:'2026-10-21'},{time_of_day:'afternoon'}]) {
+    const data = fixture({workouts:[{id,workout_date:'2026-10-22',title:'Choice',time_of_day:'morning',target_groups:['junior'],...extra}]})
+    const response = {setHeader(){},status(code){this.code=code;return this},json(body){this.body=body;return this}}
+    await checkin({method:'POST',query:{},headers:{'x-simkoll-code':'registration-swimmer',cookie:'simkoll_session=fixture'},body:{type:'after',feeling:4,identified:true,activityType:'swim',trainingSlot:'morning_swim',workoutReference:`workout:${id}`}},response)
+    assert.equal(response.code,400)
+    assert.equal(data.writes.length,0)
+  }
 })

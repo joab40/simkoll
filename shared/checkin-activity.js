@@ -16,6 +16,7 @@ export function checkinTraining(body) {
   return { activity_type: type, session_slot: type === 'swim' ? (body.trainingSlot === 'morning_swim' ? 'morning_swim' : 'afternoon_swim') : type }
 }
 export function validCheckinActivity(body) {
+  if (body.workoutReference != null && (typeof body.workoutReference !== 'string' || !/^(workout|plan):[0-9a-f-]{36}$/i.test(body.workoutReference))) return false
   if (body.trainingSlot != null && !['morning_swim', 'afternoon_swim'].includes(body.trainingSlot)) return false
   if (body.registerTraining != null && typeof body.registerTraining !== 'boolean') return false
   if (body.activityType != null && !CHECKIN_ACTIVITIES.some((item) => item.key === body.activityType)) return false
