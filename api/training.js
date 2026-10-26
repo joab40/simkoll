@@ -35,7 +35,7 @@ async function loadTraining(profileId = null) {
     supabaseRequest('daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,created_at.asc&limit=1000'),
     supabaseRequest(`strength_program_logs?select=*${profileFilter}&order=session_date.desc,completed_at.desc&limit=2000`),
     supabaseRequest(`responses?select=profile_id,activity_date,created_at,day_type,activity_type,session_slot,competition,planned_completion,activity_distance_meters,activity_minutes,workout_reference${profileFilter}&day_type=eq.after&order=created_at.desc&limit=10000`),
-    supabaseRequest('training_plans?select=id,source_workout_id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=plan_date.asc&limit=1000'),
+    supabaseRequest('training_plans?select=id,source_workout_id,calendar_link,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=plan_date.asc&limit=1000'),
     supabaseRequest(`profiles?select=id,training_group${profileId ? `&id=eq.${profileId}` : ''}&limit=1000`),
   ])
   if (![goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')

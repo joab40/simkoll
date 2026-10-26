@@ -1,6 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { loadWorkoutChoices } from '../server/workout-choice.js'
+import { calendarActivityKey, calendarFormValues, validateCalendarLink } from '../shared/planning-calendar.js'
 import { interpretCompetitionProgram } from '../server/competition-program.js'
 import { interpretStrengthProgram } from '../server/strength-import.js'
 import { ensureStrengthImageStorage, decodeExerciseImage, generateExerciseImage, storeExerciseImage } from '../server/strength-images.js'
@@ -20,7 +21,7 @@ export function publicWorkout(item, { includeDetails = true } = {}) {
   return includeDetails ? { ...workout, content: item.content, note: item.note || '' } : workout
 }
 function publicPlan(item) {
-  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
+  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, calendarLink: item.calendar_link || null, time: item.calendar_link?.mode === 'linked' ? item.calendar_link.time || '' : '', syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
 }
 function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
@@ -414,6 +415,7 @@ function parseSportAdminIcs(source) {
     if (!event) continue
     const separator = line.indexOf(':'); if (separator < 0) continue
     const key = line.slice(0, separator).split(';')[0], value = line.slice(separator + 1).replace(/\\n/g, '\n').replace(/\\,/g, ',').trim()
+    if (key === 'UID') event.uid = value
     if (key === 'SUMMARY') event.title = value
     if (key === 'LOCATION') event.location = value
     if (key === 'DESCRIPTION') event.notes = value
@@ -921,12 +923,37 @@ export default async function handler(request, response) {
         const activityType = String(body.activityType || '')
         const title = String(body.title || '').trim()
         const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
+        if ((body.id && !competitionUuid.test(body.id)) || !validateCalendarLink(body.calendarLink)) return sendJson(response, 400, { error: 'Ogiltig aktivitet eller kalenderkoppling.' })
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['swim', 'strength', 'dryland', 'competition'].includes(activityType) || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, aktivitet, rubrik och minst en grupp.' })
         const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, time_of_day: ['morning', 'afternoon'].includes(body.timeOfDay) ? body.timeOfDay : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, sync_status: 'manual', updated_at: new Date().toISOString() }
+        if (Object.hasOwn(body, 'calendarLink')) {
+          payload.calendar_link = body.calendarLink?.mode === 'none' ? { mode: 'none' } : null
+          if (body.calendarLink?.mode === 'linked') {
+            const activities = await configuredSportAdminCalendars().then(readSportAdminCalendars)
+            const activity = activities.find((item) => item.date === date && calendarActivityKey(item) === body.calendarLink.key)
+            if (!activity) return sendJson(response, 400, { error: 'Kalenderaktiviteten kunde inte hittas för den här dagen. Välj en aktivitet igen eller välj Ingen koppling.' })
+            if (activity.targetGroups?.length && !targetGroups.some((group) => activity.targetGroups.includes(group))) return sendJson(response, 400, { error: 'Välj minst en grupp som tillhör kalenderaktiviteten.' })
+            const values = calendarFormValues(activity)
+            payload.calendar_link = values.calendarLink
+            payload.time_of_day = values.timeOfDay || payload.time_of_day
+            payload.location = values.location || null
+          }
+        }
+        if (body.sourceWorkoutId) {
+          if (!competitionUuid.test(body.sourceWorkoutId)) return sendJson(response, 400, { error: 'Ogiltig passkoppling.' })
+          const linked = await supabaseRequest(`daily_workouts?id=eq.${encodeURIComponent(body.sourceWorkoutId)}&workout_date=eq.${date}&select=id&limit=1`)
+          if (!linked.ok || !(await linked.json()).length) return sendJson(response, 400, { error: 'Det upplagda passet kunde inte hittas för dagen.' })
+          payload.source_workout_id = body.sourceWorkoutId
+          payload.sync_status = 'linked'
+        }
         await updatePlanningHiddenDate(date, false)
         const endpoint = body.id ? `training_plans?id=eq.${body.id}` : 'training_plans'
         const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
-        if (!result.ok) throw new Error(`Training plan save failed: ${result.status} ${await result.text()}`)
+        if (!result.ok) {
+          const detail = await result.json().catch(() => ({}))
+          if (['PGRST204', '42703'].includes(detail.code)) return sendJson(response, 503, { error: 'Kalenderkopplingen behöver databasuppdatering 104_planning_calendar_link. Inget har sparats.' })
+          throw new Error(`Training plan save failed: ${result.status}`)
+        }
         return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
       }
       if (request.body?.action === 'detach-plan') {
