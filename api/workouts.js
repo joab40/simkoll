@@ -477,13 +477,18 @@ async function syncPlanningFromWorkout(workout) {
   const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&order=updated_at.asc&limit=100`)
   if (!existing.ok) return
   const plans = await existing.json()
+  // A coach can explicitly detach a published workout from its planning row.
+  // Keep a small tombstone in calendar_link so the read-time backfill below
+  // does not silently recreate that link after a page refresh.
+  if (plans.some((item) => item.calendar_link?.detachedWorkoutId === workout.id)) return
   const distance = Number(workout.distance_meters || 0)
-  const sameTime = plans.filter((item) => item.time_of_day && workout.time_of_day && item.time_of_day === workout.time_of_day)
+  const eligible = plans.filter((item) => !item.calendar_link?.detachedWorkoutId)
+  const sameTime = eligible.filter((item) => item.time_of_day && workout.time_of_day && item.time_of_day === workout.time_of_day)
   const sameFocus = (item) => workout.focus && item.focus && item.focus === workout.focus
   const closeDistance = (item) => distance > 0 && Number(item.distance_meters || 0) > 0 && Math.abs(Number(item.distance_meters) - distance) <= Math.max(500, distance * 0.2)
   const sameGroup = (item) => (workout.target_groups || []).some((group) => (item.target_groups || []).includes(group))
-  const unlinked = (item) => !item.source_workout_id
-  const current = sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || plans.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || plans.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => sameFocus(item) && sameGroup(item)) || plans.find((item) => sameFocus(item) && sameGroup(item)) || plans.find(unlinked)
+  const unlinked = (item) => !item.source_workout_id && !item.calendar_link?.detachedWorkoutId
+  const current = sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => item.source_workout_id && sameFocus(item) && sameGroup(item)) || eligible.find((item) => item.source_workout_id && sameFocus(item) && sameGroup(item)) || eligible.find(unlinked)
   const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
   else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
@@ -663,7 +668,7 @@ export default async function handler(request, response) {
         const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
         const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [])
-        const visiblePlans = role === 'coach' ? plans : plans.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
+        const visiblePlans = plans.filter((item) => !item.calendar_link?.detachedWorkoutId && (role === 'coach' || !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
         const [workoutsResult, sportAdminActivities, cyclesResult] = await Promise.all([
           supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000'),
           configuredSportAdminCalendars().then(readSportAdminCalendars),
@@ -927,7 +932,7 @@ export default async function handler(request, response) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['swim', 'strength', 'dryland', 'competition'].includes(activityType) || !title || !targetGroups.length) return sendJson(response, 400, { error: 'Fyll i datum, aktivitet, rubrik och minst en grupp.' })
         const payload = { plan_date: date, activity_type: activityType, title: title.slice(0, 100), focus: String(body.focus || '').slice(0, 80) || null, distance_meters: body.distanceMeters ? Number(body.distanceMeters) : null, duration_minutes: body.durationMinutes ? Number(body.durationMinutes) : null, time_of_day: ['morning', 'afternoon'].includes(body.timeOfDay) ? body.timeOfDay : null, target_groups: targetGroups, location: String(body.location || '').slice(0, 120) || null, notes: String(body.notes || '').slice(0, 500) || null, sync_status: 'manual', updated_at: new Date().toISOString() }
         if (Object.hasOwn(body, 'calendarLink')) {
-          payload.calendar_link = body.calendarLink?.mode === 'none' ? { mode: 'none' } : null
+          payload.calendar_link = body.calendarLink?.mode === 'none' ? (body.calendarLink.detachedWorkoutId ? body.calendarLink : { mode: 'none' }) : null
           if (body.calendarLink?.mode === 'linked') {
             const activities = await configuredSportAdminCalendars().then(readSportAdminCalendars)
             const selected = calendarLinkKeys(body.calendarLink).map((key) => activities.find((item) => item.date === date && calendarActivityKey(item) === key))
@@ -960,7 +965,13 @@ export default async function handler(request, response) {
       if (request.body?.action === 'detach-plan') {
         const id = String(request.body.id || '')
         if (!id) return sendJson(response, 400, { error: 'Planeringsaktivitet saknas.' })
-        const result = await supabaseRequest(`training_plans?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ source_workout_id: null, sync_status: 'manual', synced_at: null, updated_at: new Date().toISOString() }) })
+        const current = await supabaseRequest(`training_plans?id=eq.${encodeURIComponent(id)}&select=id,source_workout_id,calendar_link&limit=1`)
+        if (!current.ok) throw new Error(`Training plan lookup failed: ${current.status} ${await current.text()}`)
+        const [plan] = await current.json()
+        if (!plan?.source_workout_id) return sendJson(response, 409, { error: 'Passet är redan frikopplat. Uppdatera planeringen.' })
+        if (!competitionUuid.test(String(plan.source_workout_id))) return sendJson(response, 409, { error: 'Passet har en ogiltig koppling. Uppdatera planeringen.' })
+        const link = plan.calendar_link && typeof plan.calendar_link === 'object' ? plan.calendar_link : { mode: 'none', detachedCalendarAuto: true }
+        const result = await supabaseRequest(`training_plans?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ source_workout_id: null, calendar_link: { ...link, detachedWorkoutId: plan.source_workout_id }, sync_status: 'manual', synced_at: null, updated_at: new Date().toISOString() }) })
         if (!result.ok) throw new Error(`Training plan detach failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { plan: publicPlan((await result.json())[0]) })
       }

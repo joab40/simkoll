@@ -19,7 +19,7 @@ export const analysisResponse = (row) => {
 export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], trainingGroup }) {
   const inGroup = (row) => !row.target_groups?.length || Boolean(trainingGroup && row.target_groups.includes(trainingGroup))
   const candidates = workouts.filter(inGroup).map((row) => ({ ...row, time_of_day: plans.find((plan) => plan.source_workout_id === row.id && plan.calendar_link?.mode === 'linked' && inGroup(plan))?.time_of_day || row.time_of_day, source: 'published', note: [row.note, ...plans.filter((plan) => plan.source_workout_id === row.id && inGroup(plan)).map((plan) => plan.notes)].filter(Boolean).join('\n').slice(0, 2500) }))
-  plans.filter((row) => row.activity_type === 'swim' && (!row.source_workout_id || !workouts.some((workout) => workout.id === row.source_workout_id)) && inGroup(row)).forEach((row) => candidates.push({ ...row, workout_date: row.plan_date, note: row.notes, source: 'plan' }))
+  plans.filter((row) => row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && (!row.source_workout_id || !workouts.some((workout) => workout.id === row.source_workout_id)) && inGroup(row)).forEach((row) => candidates.push({ ...row, workout_date: row.plan_date, note: row.notes, source: 'plan' }))
   const seen = new Set()
   sessions = sessions.filter((row) => { if (!row.session_slot || row.session_slot === 'legacy') return true; const key = `${row.session_date}|${row.session_slot}`; if (seen.has(key)) return false; seen.add(key); return true })
   const swimSessions = sessions.filter((row) => row.activity_type === 'swim')

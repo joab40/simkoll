@@ -6,7 +6,7 @@ export function swimWorkoutOptions(workouts = [], plans = []) {
     const linked = plans.find((plan) => plan.sourceWorkoutId === item.id && plan.calendarLink?.mode === 'linked')
     return { ...item, ...(linked ? { timeOfDay: linked.timeOfDay || item.timeOfDay, time: linked.calendarLink.time || '', location: linked.calendarLink.location || '' } : {}), activityType: 'swim', workoutReference: `workout:${item.id}` }
   })
-  const manual = plans.filter((item) => item.activityType === 'swim' && !workouts.some((workout) => workout.id === item.sourceWorkoutId)).map((item) => ({ ...item, workoutReference: `plan:${item.id}` }))
+  const manual = plans.filter((item) => item.activityType === 'swim' && !item.calendarLink?.detachedWorkoutId && !workouts.some((workout) => workout.id === item.sourceWorkoutId)).map((item) => ({ ...item, workoutReference: `plan:${item.id}` }))
   return [...published, ...manual]
 }
 

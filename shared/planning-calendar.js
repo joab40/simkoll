@@ -9,6 +9,7 @@ export function calendarActivityKey(item) {
 
 export function explicitCalendarMatches(plan, activities) {
   if (!plan.calendarLink) return null // legacy automatic matching
+  if (plan.calendarLink.detachedCalendarAuto) return null // workout detached while legacy calendar matching stays automatic
   if (plan.calendarLink.mode === 'none') return []
   const keys = calendarLinkKeys(plan.calendarLink)
   return activities.filter((item) => item.date === plan.date &&
@@ -43,6 +44,6 @@ export function validateCalendarLink(value) {
   if (value == null) return true
   const validKey = (key) => typeof key === 'string' && key.length > 0 && key.length <= 2000
   return typeof value === 'object' && !Array.isArray(value) &&
-    (value.mode === 'none' || (value.mode === 'linked' && validKey(value.key) &&
+    ((value.mode === 'none' && (value.detachedWorkoutId === undefined || (typeof value.detachedWorkoutId === 'string' && /^[0-9a-f-]{36}$/i.test(value.detachedWorkoutId)))) || (value.mode === 'linked' && validKey(value.key) &&
       (value.keys === undefined || (Array.isArray(value.keys) && value.keys.length >= 1 && value.keys.length <= 20 && value.keys.every(validKey) && value.keys.includes(value.key)))))
 }
