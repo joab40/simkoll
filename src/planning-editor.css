@@ -1,0 +1,75 @@
+/* Keep activity form controls consistent, including native select menus. */
+.planning-editor-backdrop { padding: 20px; overflow: hidden; backdrop-filter: blur(3px); }
+.planning-editor {
+  width: min(100%, 680px);
+  max-height: calc(100dvh - 40px);
+  gap: 20px;
+  padding: 26px;
+  border: 1px solid #d9e8e3;
+  border-radius: 24px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.planning-editor-head { align-items: flex-start; padding-bottom: 4px; }
+.planning-editor-head h2 { font-size: 1.45rem; line-height: 1.2; }
+.planning-editor-head .text-button { min-height: 40px; padding: 7px 12px; border: 1px solid #d9e8e3; border-radius: 10px; font-size: .9rem; }
+.planning-editor legend { margin-bottom: 10px; font-size: .9rem; font-weight: 700; }
+.planning-editor .planning-type-buttons { gap: 8px; }
+.planning-editor .planning-type-buttons button { min-height: 44px; padding: 10px 12px; font: inherit; font-size: .95rem; font-weight: 700; }
+.planning-editor .planning-type-buttons button.active { box-shadow: inset 0 0 0 1px var(--teal); }
+.planning-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 16px; min-width: 0; }
+.planning-editor-wide { grid-column: 1 / -1; }
+.planning-editor-fields > label { display: grid; align-content: start; gap: 7px; min-width: 0; margin: 0; font-size: .9rem; font-weight: 700; }
+.planning-editor input:not([type="checkbox"]), .planning-editor select, .planning-editor textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid #c9dcd7;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  font: 400 16px/1.4 'DM Sans', sans-serif;
+  box-shadow: 0 1px 2px rgba(16, 45, 55, .025);
+}
+.planning-editor select {
+  appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234b7475' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+}
+.planning-editor textarea { min-height: 84px; resize: vertical; }
+.planning-editor input::placeholder, .planning-editor textarea::placeholder { color: #819492; }
+.planning-editor :is(input, select, textarea, button):focus-visible { outline: 3px solid #a3dfd6; outline-offset: 2px; }
+.planning-editor :is(input, select, textarea):focus { border-color: var(--teal); }
+.planning-editor .planning-calendar-choice { gap: 12px; padding: 14px; border: 1px solid #d5e6e0; border-radius: 14px; background: #f1f7f4; }
+.planning-editor .planning-calendar-choice legend { padding: 0 5px; margin: 0; }
+.planning-editor .planning-calendar-choice > p { font-size: .82rem; line-height: 1.5; }
+.planning-editor .planning-calendar-modes button { min-height: 38px; font-size: .82rem; }
+.planning-editor .planning-calendar-list { max-height: 190px; }
+.planning-editor .planning-calendar-option { padding: 10px 12px; }
+.planning-editor .planning-calendar-option:has(input:checked) { border-color: #82b8a9; background: #ecf6ef; }
+.planning-editor .competition-group-checkboxes { gap: 8px; }
+.planning-editor .competition-group-checkboxes label { display: flex; align-items: center; gap: 8px; min-height: 42px; margin: 0; padding: 9px 12px; border: 1px solid #d5e6e0; border-radius: 10px; background: #fff; font-size: .9rem; cursor: pointer; }
+.planning-editor .competition-group-checkboxes label:has(input:checked) { border-color: #82b8a9; background: #ecf6ef; }
+.planning-editor input[type="checkbox"] { width: 19px; height: 19px; flex: none; margin: 0; accent-color: var(--teal); }
+.planning-editor > .primary-button { min-height: 48px; margin: 0; padding: 12px 18px; border-radius: 12px; font-size: 1rem; font-weight: 700; }
+.planning-editor > .primary-button:disabled { cursor: wait; opacity: .65; }
+.planning-editor .form-error { margin: 0; font-size: .9rem; }
+@media (max-width: 540px) {
+  .planning-editor-backdrop { padding: 10px; }
+  .planning-editor { max-height: calc(100dvh - 20px); gap: 18px; padding: 20px 16px; border-radius: 20px; scrollbar-gutter: auto; }
+  .planning-editor-head h2 { font-size: 1.25rem; }
+  .planning-editor-fields { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .planning-editor .planning-calendar-choice { padding: 12px; }
+  .planning-editor .planning-calendar-list { max-height: 175px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .planning-editor :is(input, select, textarea, button) { transition: border-color .15s, background-color .15s, box-shadow .15s; }
+}

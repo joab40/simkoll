@@ -28,6 +28,7 @@ import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { coachMetricDetails } from './coach-metric-details.js'
 import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
 import './styles.css'
+import './planning-editor.css'
 import CompetitionProgramReview from './competition-program-review.jsx'
 import CompetitionCalendarView from './competition-calendar.jsx'
 import CompetitionPm from './competition-pm.jsx'
@@ -4127,12 +4128,12 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
           <div className="planning-calendar-list">{dayCalendar.map((item) => <label className="planning-calendar-option" key={calendarActivityKey(item)}><input type="checkbox" checked={calendarLinkKeys(form.calendarLink).includes(calendarActivityKey(item))} onChange={() => selectCalendar(calendarActivityKey(item))} /><span><strong>{item.time || 'Tid saknas'} · {item.title}</strong><small>{[item.location, item.targetGroups?.map((value) => ({ junior: 'Junior', ungdom_svart: 'Svart', ungdom_orange: 'Orange' }[value] || value)).join(', ')].filter(Boolean).join(' · ')}</small></span></label>)}{calendarLinkKeys(form.calendarLink).filter((key) => !dayCalendar.some((item) => calendarActivityKey(item) === key)).map((key) => <label className="planning-calendar-option" key={key}><input type="checkbox" checked onChange={() => selectCalendar(key)} /><span><strong>{form.calendarLink.title}</strong><small>Tidigare vald aktivitet saknas i kalendern. Avmarkera för att ta bort kopplingen.</small></span></label>)}</div>
           {!dayCalendar.length && <p>Inga kalenderaktiviteter hittades för dagen.</p>}
         </fieldset>
-        {!calendarOnly && <>
+        {!calendarOnly && <div className="planning-editor-fields">
         {form.activityType === 'swim' && <>
           <label>Huvudinriktning<select value={form.focus} onChange={(event) => setForm({ ...form, focus: event.target.value })}><option value="">Välj inriktning</option>{WORKOUT_FOCUSES.map(([value, text]) => <option value={value} key={value}>{text}</option>)}</select></label>
           <label>Tid på dagen<select value={form.timeOfDay} onChange={(event) => setForm({ ...form, timeOfDay: event.target.value, durationMinutes: event.target.value === 'morning' ? 90 : event.target.value === 'afternoon' ? 120 : form.durationMinutes })}><option value="">Välj tid</option><option value="morning">Förmiddag / morgon</option><option value="afternoon">Eftermiddag / kväll</option></select></label>
         </>}
-        <label>Rubrik<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+        <label className="planning-editor-wide">Rubrik<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
         {form.activityType === 'swim' && <>
           <label>Distans<select value={customDistance ? 'custom' : form.distanceMeters} onChange={(event) => {
             if (event.target.value === 'custom') { setCustomDistance(true); setForm((current) => ({ ...current, distanceMeters: '' })) }
@@ -4141,8 +4142,8 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
           {customDistance && <label>Egen distans<input type="number" min="1" max="50000" step="1" required inputMode="numeric" value={form.distanceMeters} onChange={(event) => setForm((current) => ({ ...current, distanceMeters: event.target.value ? Number(event.target.value) : '' }))} placeholder="Ange meter" /></label>}
         </>}
         <label>Tidsåtgång<select value={form.durationMinutes} onChange={(event) => setForm({ ...form, durationMinutes: event.target.value })}><option value="">Välj tid</option><option value="60">1 timme</option><option value="90">1,5 timmar</option><option value="120">2 timmar</option></select></label>
-        <fieldset><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, text]) => <label key={value}><input type="checkbox" checked={form.targetGroups.includes(value)} onChange={(event) => setForm({ ...form, targetGroups: event.target.checked ? [...form.targetGroups, value] : form.targetGroups.filter((item) => item !== value) })} />{text}</label>)}</div></fieldset>
-        <label>Kommentar eller plats<input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label></>}
+        <fieldset className="planning-editor-wide"><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, text]) => <label key={value}><input type="checkbox" checked={form.targetGroups.includes(value)} onChange={(event) => setForm({ ...form, targetGroups: event.target.checked ? [...form.targetGroups, value] : form.targetGroups.filter((item) => item !== value) })} />{text}</label>)}</div></fieldset>
+        <label className="planning-editor-wide">Kommentar eller plats<textarea rows={2} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label></div>}
         {saveError && <p className="form-error" role="alert">{saveError}</p>}
         <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Sparar planering…' : 'Spara planering'}</button>
       </form>
