@@ -6,8 +6,9 @@ import { hasTrendValue, trendSegments, smoothTrendPath } from './trend-curve.js'
 import { withTrendSwimMeters } from './trend-swim-meters.js'
 import { CHECKIN_ACTIVITIES, activityLabel } from '../shared/checkin-activity.js'
 import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
-import { calendarActivityKey, calendarFormValues, explicitCalendarMatches } from '../shared/planning-calendar.js'
+import { calendarActivityKey, calendarFormValues, calendarLinkKeys, sameCalendarOccasion, explicitCalendarMatches } from '../shared/planning-calendar.js'
 import './swim-workout-options.css'
+import './planning-calendar.css'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
 import { sleepFollowUpReasons } from '../shared/coach-control-panel.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
@@ -4080,15 +4081,27 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
     const distance = Number(plan?.distanceMeters) || ''
     setCustomDistance(Boolean(distance && !swimDistanceOptions.includes(distance)))
     setForm({ activityType, title: plan?.title || suggestions[activityType], focus: plan?.focus || '', distanceMeters: distance, durationMinutes: plan?.durationMinutes || (activityType === 'swim' ? 120 : ''), timeOfDay: plan?.timeOfDay || '', targetGroups: plan?.targetGroups?.length ? plan.targetGroups : group === 'all' ? ['ungdom_orange', 'ungdom_svart', 'junior'] : Array.isArray(group) ? group : [group], location: plan?.location || '', notes: plan?.originalNotes ?? plan?.notes ?? '' })
-    setForm((current) => ({ ...current, calendarLink: plan?.calendarLink || null, ...(calendarActivity ? calendarFormValues(calendarActivity) : {}), targetGroups: calendarActivity ? (calendarActivity.targetGroups?.length ? calendarActivity.targetGroups : current.targetGroups) : current.targetGroups }))
+    setForm((current) => {
+      const activities = calendarActivity ? calendarActivity.calendarItems?.length ? calendarActivity.calendarItems : [calendarActivity] : []
+      const values = activities.length ? calendarFormValues(activities) : null
+      return { ...current, calendarLink: plan?.calendarLink || null, ...values, targetGroups: [...new Set([...(current.targetGroups || []), ...(values?.targetGroups || [])])] }
+    })
     setSaveError('')
     setOpen(true)
   }
   const selectType = (activityType) => setForm((current) => ({ ...current, activityType, title: current.title === suggestions[current.activityType] || !current.title ? suggestions[activityType] : current.title, durationMinutes: activityType === 'swim' && !current.durationMinutes ? 120 : current.durationMinutes }))
   if (plan?.linkedWorkout) label = 'Öppna upplagt pass →'
-  const selectCalendar = (value) => {
-    const activity = dayCalendar.find((item) => calendarActivityKey(item) === value)
-    setForm((current) => activity ? { ...current, ...calendarFormValues(activity), targetGroups: activity.targetGroups?.length ? activity.targetGroups : current.targetGroups } : { ...current, calendarLink: value === 'none' ? { mode: 'none' } : null, location: '', timeOfDay: '' })
+  const selectCalendar = (key) => {
+    const keys = calendarLinkKeys(form.calendarLink)
+    const nextKeys = keys.includes(key) ? keys.filter((value) => value !== key) : [...keys, key]
+    const selected = nextKeys.map((value) => dayCalendar.find((item) => calendarActivityKey(item) === value))
+    if (selected.some((item) => !item)) { setSaveError('En tidigare vald kalenderaktivitet saknas. Avmarkera den innan du väljer nya aktiviteter.'); return }
+    if (selected.length && !sameCalendarOccasion(selected)) { setSaveError('Välj kalenderaktiviteter med samma datum, starttid och plats för ett gemensamt pass.'); return }
+    setSaveError('')
+    setForm((current) => {
+      const values = selected.length ? calendarFormValues(selected) : { calendarLink: { mode: 'none' } }
+      return { ...current, ...values, targetGroups: [...new Set([...(current.targetGroups || []), ...(values.targetGroups || [])])] }
+    })
   }
   const save = async (event) => {
     event.preventDefault(); if (saving) return
@@ -4099,7 +4112,7 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
     } catch (error) { setSaveError(error.message || 'Planeringen kunde inte sparas.') }
     finally { setSaving(false) }
   }
-  if (plan?.source === 'SportAdmin') return <div className="sportadmin-planning-meta">{plan.time || plan.location ? <small>{plan.time ? `⏰ ${plan.time}` : ''}{plan.location ? ` · ${plan.location}` : ''}</small> : null}<div className="planning-group-pills">{plan.targetGroups?.length ? plan.targetGroups.map((value) => <span className="planning-type" key={value}>{({ ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }[value] || value)}</span>) : <span className="planning-type">Alla grupper</span>}</div><PlanningEditButton code={code} date={date} group={group} calendarActivities={calendarActivities} calendarActivity={plan.calendarItems?.[0] || plan} onSaved={onSaved} label="＋ Lägg till pass här" /></div>
+  if (plan?.source === 'SportAdmin') return <div className="sportadmin-planning-meta">{plan.time || plan.location ? <small>{plan.time ? `⏰ ${plan.time}` : ''}{plan.location ? ` · ${plan.location}` : ''}</small> : null}<div className="planning-group-pills">{plan.targetGroups?.length ? plan.targetGroups.map((value) => <span className="planning-type" key={value}>{({ ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }[value] || value)}</span>) : <span className="planning-type">Alla grupper</span>}</div><PlanningEditButton code={code} date={date} group={group} calendarActivities={calendarActivities} calendarActivity={plan} onSaved={onSaved} label="＋ Lägg till pass här" /></div>
   return <>
     <div className="planning-group-pills">{plan?.targetGroups?.length ? plan.targetGroups.map((value) => <span className="planning-type" key={value}>{({ ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }[value] || value)}</span>) : null}</div>
     <button type="button" className="text-button" onClick={() => openEditor()}>{label}</button>
@@ -4108,7 +4121,12 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
       <form className="planning-editor" onSubmit={save}>
         <div className="planning-editor-head"><h2>{plan ? 'Redigera aktivitet' : 'Lägg till aktivitet'}</h2><button type="button" className="text-button" onClick={() => setOpen(false)}>Stäng</button></div>
         {!calendarOnly && <fieldset><legend>Vad planeras?</legend><div className="planning-type-buttons">{types.map(([value, text]) => <button type="button" className={form.activityType === value ? 'active' : ''} key={value} onClick={() => selectType(value)}>{text}</button>)}</div></fieldset>}
-        <label>Koppla till kalenderaktivitet<select value={form.calendarLink?.mode === 'linked' ? form.calendarLink.key : form.calendarLink?.mode === 'none' ? 'none' : 'auto'} onChange={(event) => selectCalendar(event.target.value)}><option value="auto">Automatiskt om det finns en entydig aktivitet</option><option value="none">Ingen koppling</option>{form.calendarLink?.mode === 'linked' && !dayCalendar.some((item) => calendarActivityKey(item) === form.calendarLink.key) && <option value={form.calendarLink.key}>{form.calendarLink.title} · tidigare vald aktivitet</option>}{dayCalendar.map((item) => <option key={calendarActivityKey(item)} value={calendarActivityKey(item)}>{[item.time || 'Tid saknas', item.title, item.location, item.targetGroups?.map((value) => ({ junior: 'Junior', ungdom_svart: 'Svart', ungdom_orange: 'Orange' }[value] || value)).join(', ')].filter(Boolean).join(' · ')}</option>)}</select><small>Tid, plats och grupper fylls i från aktiviteten du väljer.</small></label>
+        <fieldset className="planning-calendar-choice"><legend>Koppla till kalenderaktiviteter</legend>
+          <div className="planning-calendar-modes"><button type="button" aria-pressed={!form.calendarLink} onClick={() => { setSaveError(''); setForm((current) => ({ ...current, calendarLink: null, location: '', timeOfDay: '' })) }}>Automatisk koppling</button><button type="button" aria-pressed={form.calendarLink?.mode === 'none'} onClick={() => { setSaveError(''); setForm((current) => ({ ...current, calendarLink: { mode: 'none' }, location: '', timeOfDay: '' })) }}>Ingen koppling</button></div>
+          <p>Välj en eller flera gruppers kalenderaktiviteter för samma träning. Starttid och plats ska vara samma. Grupperna läggs till utan att dina tidigare gruppval tas bort.</p>
+          <div className="planning-calendar-list">{dayCalendar.map((item) => <label className="planning-calendar-option" key={calendarActivityKey(item)}><input type="checkbox" checked={calendarLinkKeys(form.calendarLink).includes(calendarActivityKey(item))} onChange={() => selectCalendar(calendarActivityKey(item))} /><span><strong>{item.time || 'Tid saknas'} · {item.title}</strong><small>{[item.location, item.targetGroups?.map((value) => ({ junior: 'Junior', ungdom_svart: 'Svart', ungdom_orange: 'Orange' }[value] || value)).join(', ')].filter(Boolean).join(' · ')}</small></span></label>)}{calendarLinkKeys(form.calendarLink).filter((key) => !dayCalendar.some((item) => calendarActivityKey(item) === key)).map((key) => <label className="planning-calendar-option" key={key}><input type="checkbox" checked onChange={() => selectCalendar(key)} /><span><strong>{form.calendarLink.title}</strong><small>Tidigare vald aktivitet saknas i kalendern. Avmarkera för att ta bort kopplingen.</small></span></label>)}</div>
+          {!dayCalendar.length && <p>Inga kalenderaktiviteter hittades för dagen.</p>}
+        </fieldset>
         {!calendarOnly && <>
         {form.activityType === 'swim' && <>
           <label>Huvudinriktning<select value={form.focus} onChange={(event) => setForm({ ...form, focus: event.target.value })}><option value="">Välj inriktning</option>{WORKOUT_FOCUSES.map(([value, text]) => <option value={value} key={value}>{text}</option>)}</select></label>

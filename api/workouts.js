@@ -1,7 +1,7 @@
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage } from '../server/audit.js'
 import { loadWorkoutChoices } from '../server/workout-choice.js'
-import { calendarActivityKey, calendarFormValues, validateCalendarLink } from '../shared/planning-calendar.js'
+import { calendarActivityKey, calendarFormValues, calendarLinkKeys, sameCalendarOccasion, validateCalendarLink } from '../shared/planning-calendar.js'
 import { interpretCompetitionProgram } from '../server/competition-program.js'
 import { interpretStrengthProgram } from '../server/strength-import.js'
 import { ensureStrengthImageStorage, decodeExerciseImage, generateExerciseImage, storeExerciseImage } from '../server/strength-images.js'
@@ -930,10 +930,11 @@ export default async function handler(request, response) {
           payload.calendar_link = body.calendarLink?.mode === 'none' ? { mode: 'none' } : null
           if (body.calendarLink?.mode === 'linked') {
             const activities = await configuredSportAdminCalendars().then(readSportAdminCalendars)
-            const activity = activities.find((item) => item.date === date && calendarActivityKey(item) === body.calendarLink.key)
-            if (!activity) return sendJson(response, 400, { error: 'Kalenderaktiviteten kunde inte hittas för den här dagen. Välj en aktivitet igen eller välj Ingen koppling.' })
-            if (activity.targetGroups?.length && !targetGroups.some((group) => activity.targetGroups.includes(group))) return sendJson(response, 400, { error: 'Välj minst en grupp som tillhör kalenderaktiviteten.' })
-            const values = calendarFormValues(activity)
+            const selected = calendarLinkKeys(body.calendarLink).map((key) => activities.find((item) => item.date === date && calendarActivityKey(item) === key))
+            if (selected.some((item) => !item)) return sendJson(response, 400, { error: 'En kalenderaktivitet kunde inte hittas för den här dagen. Välj aktiviteter igen eller välj Ingen koppling.' })
+            if (!sameCalendarOccasion(selected)) return sendJson(response, 400, { error: 'Kalenderaktiviteterna måste ha samma datum, starttid och plats för att kopplas till ett gemensamt pass.' })
+            if (selected.some((activity) => activity.targetGroups?.length && !targetGroups.some((group) => activity.targetGroups.includes(group)))) return sendJson(response, 400, { error: 'Välj berörda grupper för alla kalenderaktiviteter som du kopplar till passet.' })
+            const values = calendarFormValues(selected)
             payload.calendar_link = values.calendarLink
             payload.time_of_day = values.timeOfDay || payload.time_of_day
             payload.location = values.location || null

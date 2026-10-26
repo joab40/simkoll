@@ -1,0 +1,12 @@
+.planning-calendar-choice { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 16px; border: 1px solid #cce1dd; border-radius: 14px; }
+.planning-calendar-choice legend { padding-inline: 6px; font-weight: 700; }
+.planning-calendar-modes { display: flex; gap: 8px; flex-wrap: wrap; }
+.planning-calendar-modes button { padding: 8px 12px; border: 1px solid #cce1dd; border-radius: 10px; background: white; color: #126e73; font: inherit; font-size: .9rem; }
+.planning-calendar-modes button[aria-pressed="true"] { background: #e0f0eb; border-color: #126e73; }
+.planning-calendar-choice > p { margin: 0; font-size: .9rem; color: #627c80; }
+.planning-calendar-list { display: grid; gap: 8px; max-height: 260px; overflow-y: auto; }
+.planning-calendar-choice .planning-calendar-option { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 12px; border: 1px solid #d5e6e2; border-radius: 10px; background: white; cursor: pointer; }
+.planning-calendar-option > input[type="checkbox"] { flex: 0 0 auto; width: 20px; height: 20px; margin: 2px 0 0; accent-color: #147b7b; }
+.planning-calendar-option > span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.planning-calendar-option strong { font-size: .95rem; }
+.planning-calendar-option small { display: block; color: #627c80; font-size: .85rem; }
