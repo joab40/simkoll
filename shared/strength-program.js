@@ -9,7 +9,7 @@ const strokePassNames = (title, number) => {
 export function strengthPasses(program) {
   const content = String(program.content || '')
   const title = String(program.title || '')
-  const headings = [...content.matchAll(/(?:^|\n)Pass\s+([123])\s*[·–-]\s*([^\r\n]+)\r?\n/g)]
+  const headings = [...content.matchAll(/(?:^|\n)Pass\s+([1-5])\s*[·–-]\s*([^\r\n]+)\r?\n/g)]
   if (headings.length && headings.every((match, index) => Number(match[1]) === index + 1)) {
     const commonInstructions = content.slice(0, headings[0].index).trim()
     return headings.map((match, index) => {
@@ -18,13 +18,13 @@ export function strengthPasses(program) {
       return { passNumber: index + 1, title: match[2].trim(), content: [commonInstructions, content.slice(start, end).trim()].filter(Boolean).join('\n\n') }
     })
   }
-  const isWeekly = /Veckoprogram|3\s*pass/i.test(title)
+  const isWeekly = /Veckoprogram|\d+\s*pass/i.test(title)
   if (!isWeekly) return [{ passNumber: 1, title: 'Styrkepass', content }]
 
   // Accept the separator format used by existing weekly programs.
   const sections = content.split(/\n={10,}\n/).filter((section) => /^\s*\d+\.\s/m.test(section))
   if (sections.length >= 3) {
-    return sections.slice(0, 3).map((section, index) => ({
+    return sections.slice(0, 5).map((section, index) => ({
       passNumber: index + 1,
       title: strokePassNames(title, index + 1),
       content: section.trim(),

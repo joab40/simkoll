@@ -42,7 +42,7 @@ export function validateStrengthDraft(draft) {
   const errors = []
   if (!draft.title || draft.title.length > 100) errors.push('Ange ett programnamn med högst 100 tecken.')
   if (!draft.description || draft.description.length > 1000) errors.push('Ange en beskrivning med högst 1 000 tecken.')
-  if (draft.passes.length < 1 || draft.passes.length > 3) errors.push('Ett program kan innehålla 1–3 pass. Dela större program i flera importer.')
+  if (draft.passes.length < 1 || draft.passes.length > 5) errors.push('Ett program kan innehålla 1–5 pass. Dela större program i flera importer.')
   draft.passes.forEach((pass, index) => {
     if (!pass.title || /[\r\n]/.test(pass.title)) errors.push(`Ange en rubrik på en rad för pass ${index + 1}.`)
     if (!pass.exercises.length || pass.exercises.length > 30) errors.push(`Pass ${index + 1} behöver 1–30 övningar.`)

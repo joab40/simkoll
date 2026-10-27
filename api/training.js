@@ -228,7 +228,7 @@ export default async function handler(request, response) {
         const sessionDate = String(request.body.sessionDate || stockholmDate())
         const weights = request.body.weights && typeof request.body.weights === 'object' && !Array.isArray(request.body.weights) ? request.body.weights : {}
         if (!assignment || assignment.profile_id !== profile.id) return sendJson(response, 403, { error: 'Programmet tillhör inte din profil.' })
-        if (assignment.training_programs?.program_type !== 'strength' || !Number.isInteger(passNumber) || passNumber < 1 || passNumber > 3 || !/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) || sessionDate > stockholmDate()) return sendJson(response, 400, { error: 'Kontrollera passet och datumet.' })
+        if (assignment.training_programs?.program_type !== 'strength' || !Number.isInteger(passNumber) || passNumber < 1 || passNumber > 5 || !/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) || sessionDate > stockholmDate()) return sendJson(response, 400, { error: 'Kontrollera passet och datumet.' })
         const safeWeights = Object.fromEntries(Object.entries(weights).slice(0, 40).map(([key, value]) => [String(key).slice(0, 120), String(value).trim().slice(0, 40)]).filter(([, value]) => value))
         const previousResult = await supabaseRequest(`strength_program_logs?assignment_id=eq.${assignment.id}&pass_number=eq.${passNumber}&session_date=lt.${sessionDate}&select=session_date,weights&order=session_date.desc&limit=1`)
         const previousLog = previousResult.ok ? (await previousResult.json())[0] : null
@@ -317,7 +317,7 @@ export default async function handler(request, response) {
       const title = String(request.body.title || '').trim()
       const description = String(request.body.description || '').trim()
       const requestedPasses = request.body.passes
-      if (!title || title.length > 100 || !description || description.length > 1000 || !Array.isArray(requestedPasses) || requestedPasses.length < 1 || requestedPasses.length > 3) return sendJson(response, 422, { error: 'Ange namn, beskrivning och 1–3 pass.' })
+      if (!title || title.length > 100 || !description || description.length > 1000 || !Array.isArray(requestedPasses) || requestedPasses.length < 1 || requestedPasses.length > 5) return sendJson(response, 422, { error: 'Ange namn, beskrivning och 1–5 pass.' })
       const selections = requestedPasses.flatMap((pass) => Array.isArray(pass?.exercises) ? pass.exercises : [])
       const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
       const validSelection = (item) => item && typeof item.prescription === 'string' && item.prescription.length <= 160 && !/[\r\n]/.test(item.prescription) && (item.kind === 'custom'

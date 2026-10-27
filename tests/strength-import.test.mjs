@@ -24,10 +24,13 @@ test('imported two-pass program survives storage and displays dosage and techniq
   assert.doesNotMatch(passes[0].content, /Latsdrag/)
 })
 
-test('unsupported number of passes is flagged without silently discarding sessions', () => {
-  const larger = { ...draft, passes: [...draft.passes, ...draft.passes] }
-  assert.equal(larger.passes.length, 4)
-  assert.match(validateStrengthDraft(larger).join(' '), /1–3 pass/)
+test('programs allow up to five passes and flag larger drafts without discarding sessions', () => {
+  const allowed = { ...draft, passes: [...draft.passes, ...draft.passes, draft.passes[0]] }
+  assert.equal(allowed.passes.length, 5)
+  assert.equal(validateStrengthDraft(allowed).some((error) => /pass/.test(error)), false)
+  const larger = { ...allowed, passes: [...allowed.passes, draft.passes[0]] }
+  assert.equal(larger.passes.length, 6)
+  assert.match(validateStrengthDraft(larger).join(' '), /1–5 pass/)
 })
 test('repeated exercises retain separate result fields and multiline instructions remain readable', () => {
   const repeated = { ...draft, passes: [{ ...draft.passes[0], exercises: [draft.passes[0].exercises[0], { ...draft.passes[0].exercises[0], instructions: 'Steg ett.\nSteg två.' }] }] }

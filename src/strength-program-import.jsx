@@ -36,7 +36,7 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
   const issues = draft ? validateStrengthDraft(draft) : []
   return <section className="coach-card strength-import">
     <div className="period-heading"><div><p className="eyebrow">Från fil till program</p><h3>Importera styrkeprogram</h3></div><span className="strength-import-model">GPT-6.1 Sol som standard</span></div>
-    <p>Ladda upp Excel, PDF eller en bild. Granska och redigera tolkningen innan den sparas. Ett program kan innehålla 1–3 separata pass.</p>
+    <p>Ladda upp Excel, PDF eller en bild. Granska och redigera tolkningen innan den sparas. Ett program kan innehålla 1–5 separata pass.</p>
     {!draft ? <div className="strength-import-upload">
       <label>Programfil<input type="file" accept=".xls,.xlsx,.pdf,.png,.jpg,.jpeg,.webp" disabled={!!busy} onChange={(event) => { setFile(event.target.files?.[0] || null); setStatus('') }} /></label>
       <label className="strength-import-check"><input type="checkbox" checked={generateInstructions} disabled={!!busy} onChange={(event) => setGenerateInstructions(event.target.checked)} /><span>Skapa korta teknik-instruktioner till övningarna</span></label>
@@ -65,7 +65,7 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
         </div>)}
         <div className="strength-import-actions"><button type="button" className="secondary-button" onClick={() => editPass(passIndex, (current) => ({ ...current, exercises: [...current.exercises, { name: '', prescription: '', instructions: '', source: '', uncertain: false }] }))}>Lägg till övning</button><button type="button" className="text-button danger-text" onClick={() => update((current) => ({ ...current, passes: current.passes.filter((_, i) => i !== passIndex) }))}>Ta bort pass</button></div>
       </fieldset>)}
-      {draft.passes.length < 3 && <button type="button" className="secondary-button" disabled={!!busy} onClick={() => update((current) => ({ ...current, passes: [...current.passes, { title: '', instructions: '', exercises: [] }] }))}>Lägg till pass</button>}
+      {draft.passes.length < 5 && <button type="button" className="secondary-button" disabled={!!busy} onClick={() => update((current) => current.passes.length < 5 ? ({ ...current, passes: [...current.passes, { title: '', instructions: '', exercises: [] }] }) : current)}>Lägg till pass</button>}
       {issues.length > 0 && <ul className="strength-import-warnings">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
       <label className="strength-import-check"><input type="checkbox" checked={reviewed} disabled={!!busy} onChange={(event) => setReviewed(event.target.checked)} /><span>Jag har granskat alla pass, övningar och instruktioner.</span></label>
       <div className="strength-import-actions"><button type="button" className="primary-button" disabled={!reviewed || !!issues.length || !!busy} onClick={save}>{busy === 'save' ? 'Sparar…' : 'Spara i programbiblioteket'}</button><button type="button" className="secondary-button" disabled={!!busy} onClick={() => { setDraft(null); setStatus('') }}>Välj en annan fil</button></div>
