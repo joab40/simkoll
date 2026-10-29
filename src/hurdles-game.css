@@ -1,0 +1,12 @@
+.hurdles-shell, .hurdles-shell * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.hurdles-shell canvas, .hurdles-controls { touch-action: none; }
+.hurdles-controls .hurdles-jump { background: #ffe194; color: #183342; border-color: #bc9356; border-bottom-color: #70502d; }
+.hurdles-controls button:disabled { opacity: .5; cursor: default; }
+.hurdles-shell .sprint-stage canvas { object-fit: contain; }
+.hurdles-feedback { position: absolute; left: 12px; right: 12px; top: 12px; text-align: center; color: #ffe194; font: 700 13px ui-monospace, monospace; pointer-events: none; }
+.hurdles-distance { padding: 8px 16px; display: flex; justify-content: space-between; gap: 8px; background: #102434; font: 12px ui-monospace, monospace; color: #b8d3d3; }
+.hurdles-rhythm { display: flex; gap: 5px; }
+.hurdles-rhythm i { display: block; width: 10px; height: 10px; border: 1px solid #62818c; border-radius: 50%; }
+.hurdles-rhythm i.clear { background: #b9e585; border-color: #b9e585; }
+.hurdles-rhythm i.hit { background: #ed9481; border-color: #ed9481; }
+@media (max-width: 460px) { .hurdles-distance { font-size: 10px; } .hurdles-rhythm { gap: 3px; } .hurdles-rhythm i { width: 8px; height: 8px; } }
