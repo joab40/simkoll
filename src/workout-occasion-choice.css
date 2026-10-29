@@ -1,0 +1,12 @@
+.workout-occasion-choice { min-width: 0; margin: 0; padding: 16px; border: 1px solid #cfe2db; border-radius: 14px; background: #f3f9f6; }
+.workout-occasion-choice legend { padding-inline: 6px; font-weight: 700; font-size: .92rem; }
+.workout-occasion-modes { display: flex; flex-wrap: wrap; gap: 10px; }
+.workout-occasion-modes > button { flex: 1 1 220px; display: grid; gap: 6px; text-align: left; padding: 14px; border: 1px solid #d3e2dd; border-radius: 11px; background: white; color: var(--ink); font: inherit; }
+.workout-occasion-modes > button[aria-pressed=true] { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); background: #e5f3ec; }
+.workout-occasion-modes > button:focus-visible { outline: 3px solid #b7dfd1; outline-offset: 2px; }
+.workout-occasion-modes strong { font-size: .9rem; }
+.workout-occasion-modes small, .workout-occasion-target p { font-size: .81rem; color: var(--muted); line-height: 1.5; margin: 0; }
+.workout-occasion-target { display: grid; gap: 10px; margin-top: 16px; }
+.workout-editor .workout-occasion-target label { font-size: .87rem; }
+.workout-occasion-target select { width: 100%; max-width: 100%; padding: 12px; border: 1px solid #bfd5cc; border-radius: 10px; background: white; color: var(--ink); font: inherit; font-size: 1rem; }
+@media (max-width: 540px) { .workout-occasion-choice { padding: 13px; } .workout-occasion-modes > button { flex-basis: 100%; } }

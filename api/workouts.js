@@ -13,7 +13,8 @@ import { assistantScheduleLabels, buildAssistantSwimCalendar, addScheduleWeekday
 import { assistantSystemPrompt } from '../server/assistant-style.js'
 import { buildCoachAssistantFeatureSnapshot, COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
 import { queueCategoryPush } from '../server/web-push.js'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { loadWorkoutOccasions, workoutOccasionChoices, prepareWorkoutOccasion, persistWorkoutOccasion } from '../server/workout-occasions.js'
 import { importDriveWorkbook } from '../server/drive-workout-import.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
 import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
@@ -467,7 +468,7 @@ async function readSportAdminCalendars(calendars) {
   return results.flat().slice(0, 1000)
 }
 
-async function syncPlanningFromWorkout(workout) {
+async function syncPlanningFromWorkout(workout, occasionPlan = null) {
   const date = workout.workout_date
   const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&order=updated_at.asc&limit=100`)
   if (!existing.ok) return
@@ -489,7 +490,9 @@ async function syncPlanningFromWorkout(workout) {
   const current = own || (workout.alternative_group_id
     ? sameTime.find((item) => unlinked(item) && !item.alternative_group_id && sameGroup(item))
     : sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find(unlinked))
-  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], ...(workout.alternative_group_id ? { alternative_group_id: workout.alternative_group_id } : {}), source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+  const sibling = workout.alternative_group_id && plans.find((item) => item.alternative_group_id === workout.alternative_group_id && item.calendar_link?.mode === 'linked')
+  const calendar = occasionPlan || (!current && sibling ? { calendar_link: sibling.calendar_link, location: sibling.location } : {})
+  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], ...(Object.hasOwn(workout, 'alternative_group_id') ? { alternative_group_id: workout.alternative_group_id || null } : {}), ...calendar, source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
   else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
   else if (!current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload }) })
@@ -652,6 +655,14 @@ export default async function handler(request, response) {
         } catch (error) {
           return sendJson(response, 502, { error: error.message || 'Google Drive-mappen kunde inte läsas.' })
         }
+      }
+      if (request.query?.occasionChoices === 'true') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan välja befintliga träningstillfällen.' })
+        const date = String(request.query.date || '')
+        const exclude = String(request.query.exclude || '')
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (exclude && !competitionUuid.test(exclude))) return sendJson(response, 400, { error: 'Välj ett giltigt datum och pass.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        return sendJson(response, 200, { occasions: workoutOccasionChoices(await loadWorkoutOccasions(date), exclude) })
       }
       if (request.query?.checkinChoices === 'true') {
         const date = String(request.query.date || stockholmDate())
@@ -1021,7 +1032,13 @@ export default async function handler(request, response) {
           const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`
           payload.push({ id, alternative_group_id: groupId, workout_date: date, time_of_day: timeOfDay, target_groups: groups, title, content, note: note || null, focus: focus || null, distance_meters: meters, duration_minutes: minutes })
         }
-        const groupPath = `daily_workouts?alternative_group_id=eq.${groupId}&select=*&order=created_at.asc&limit=20`
+        const mode = body.occasionMode || 'new'
+        if (!['new', 'existing'].includes(mode) || (mode === 'existing' && !competitionUuid.test(String(body.alternativeToWorkoutId || '')))) return sendJson(response, 400, { error: 'Välj nytt träningstillfälle eller ett giltigt befintligt pass.' })
+        const link = mode === 'existing' ? prepareWorkoutOccasion(await loadWorkoutOccasions(date), { targetId: body.alternativeToWorkoutId, timeOfDay, targetGroups: groups }) : null
+        if (link) payload.forEach((workout) => { workout.alternative_group_id = link.groupId })
+        // Query only this import's stable IDs: the shared occasion may contain
+        // other workouts published earlier, including earlier workbook imports.
+        const groupPath = `daily_workouts?id=in.(${payload.map((workout) => workout.id).join(',')})&select=*&order=created_at.asc&limit=20`
         const previousResult = await supabaseRequest(groupPath)
         if (!previousResult.ok) {
           const detail = await previousResult.text()
@@ -1029,19 +1046,25 @@ export default async function handler(request, response) {
           throw new Error('Workout alternatives could not be checked')
         }
         const previous = await previousResult.json()
-        if (previous.length && (previous.length !== payload.length || payload.some((item) => !previous.some((saved) => saved.id === item.id && ['workout_date', 'time_of_day', 'title', 'content', 'note', 'focus', 'distance_meters', 'duration_minutes'].every((key) => (saved[key] ?? null) === (item[key] ?? null)) && JSON.stringify(saved.target_groups) === JSON.stringify(item.target_groups))))) return sendJson(response, 409, { error: 'Den här importen har redan publicerats. Avbryt importen och öppna de sparade passen om du vill ändra dem.' })
+        if (previous.length && (previous.length !== payload.length || payload.some((item) => !previous.some((saved) => saved.id === item.id && ['alternative_group_id', 'workout_date', 'time_of_day', 'title', 'content', 'note', 'focus', 'distance_meters', 'duration_minutes'].every((key) => (saved[key] ?? null) === (item[key] ?? null)) && JSON.stringify(saved.target_groups) === JSON.stringify(item.target_groups))))) return sendJson(response, 409, { error: 'Den här importen har redan publicerats. Avbryt importen och öppna de sparade passen om du vill ändra dem.' })
         let inserted = [], saved = previous
+        if (link) for (const member of await persistWorkoutOccasion(link)) await syncPlanningFromWorkout(member)
         if (!previous.length) {
           // One database statement publishes all selected tabs atomically.
           const result = await supabaseRequest('daily_workouts?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(payload) })
-          if (!result.ok) throw new Error(`Workout alternatives failed: ${result.status}`)
+          if (!result.ok) {
+            const detail = await result.text()
+            if (/alternative_group_id|schema cache/i.test(detail)) return sendJson(response, 503, { error: 'Kör först databasuppdatering 107 för passalternativ. Inga nya pass har publicerats.' })
+            throw new Error(`Workout alternatives failed: ${result.status}`)
+          }
           inserted = await result.json()
           const persisted = await supabaseRequest(groupPath)
           if (!persisted.ok) throw new Error('Published alternatives could not be read')
           saved = await persisted.json()
         }
         await updatePlanningHiddenDate(date, false)
-        for (const workout of saved) await syncPlanningFromWorkout(workout)
+        const occasionPlan = link ? { calendar_link: link.calendarPlan?.calendar_link || { mode: 'none' }, location: link.calendarPlan?.location || null } : null
+        for (const workout of saved) await syncPlanningFromWorkout(workout, occasionPlan)
         if (inserted.length) queueCategoryPush({ category: 'publishedWorkouts', id: groupId, targetGroups: groups, date, timeOfDay, workoutCount: saved.length })
         return sendJson(response, 200, { workouts: saved.map((workout) => publicWorkout(workout)) })
       }
@@ -1129,15 +1152,29 @@ export default async function handler(request, response) {
       }
       const payload = { workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, time_of_day: timeOfDay || null, target_groups: targetGroups, updated_at: new Date().toISOString() }
       const workoutId = String(request.body?.id || '')
+      const mode = request.body?.occasionMode
+      if ((workoutId && !competitionUuid.test(workoutId)) || (mode && !['keep', 'new', 'existing'].includes(mode)) || (mode === 'keep' && !workoutId) || (mode === 'existing' && !competitionUuid.test(String(request.body.alternativeToWorkoutId || '')))) return sendJson(response, 400, { error: 'Välj ett giltigt pass och träningstillfälle.' })
+      let link = null
+      if (mode === 'new') payload.alternative_group_id = randomUUID()
+      if (mode === 'existing') {
+        link = prepareWorkoutOccasion(await loadWorkoutOccasions(date), { targetId: request.body.alternativeToWorkoutId, workoutId, timeOfDay, targetGroups })
+        payload.alternative_group_id = link.groupId
+        for (const member of await persistWorkoutOccasion(link)) await syncPlanningFromWorkout(member)
+      }
       await updatePlanningHiddenDate(date, false)
       const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : 'daily_workouts', {
         method: workoutId ? 'PATCH' : 'POST',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(payload),
       })
-      if (!result.ok) throw new Error(`Workout POST failed: ${result.status} ${await result.text()}`)
+      if (!result.ok) {
+        const detail = await result.text()
+        if (/alternative_group_id|schema cache/i.test(detail)) return sendJson(response, 503, { error: 'Kör först databasuppdatering 107 för passalternativ och försök igen. Passet har inte sparats.' })
+        throw new Error(`Workout POST failed: ${result.status} ${detail}`)
+      }
       const savedWorkout = (await result.json())[0]
-      await syncPlanningFromWorkout(savedWorkout)
+      if (!savedWorkout) return sendJson(response, 409, { error: 'Passet finns inte längre. Hämta dagens pass igen.' })
+      await syncPlanningFromWorkout(savedWorkout, link ? { calendar_link: link.calendarPlan?.calendar_link || { mode: 'none' }, location: link.calendarPlan?.location || null } : null)
       // A newly-created daily workout is published immediately. Updates to an
       // existing pass are intentionally quiet to avoid notifying on every edit.
       if (!workoutId && savedWorkout) queueCategoryPush({ category: 'publishedWorkouts', id: savedWorkout.id, targetGroups: savedWorkout.target_groups || [], date: savedWorkout.workout_date, timeOfDay: savedWorkout.time_of_day || '' })
@@ -1180,6 +1217,7 @@ export default async function handler(request, response) {
 
     return sendJson(response, 405, { error: 'Method not allowed' })
   } catch (error) {
+    if ([400, 409, 503].includes(error.status)) return sendJson(response, error.status, { error: error.message })
     console.error(error)
     return sendJson(response, 500, { error: 'Kunde inte hämta dagens pass. Försök igen.' })
   }
