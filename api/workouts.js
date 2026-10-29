@@ -13,15 +13,18 @@ import { assistantScheduleLabels, buildAssistantSwimCalendar, addScheduleWeekday
 import { assistantSystemPrompt } from '../server/assistant-style.js'
 import { buildCoachAssistantFeatureSnapshot, COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
 import { queueCategoryPush } from '../server/web-push.js'
+import { createHash } from 'node:crypto'
+import { importDriveWorkbook } from '../server/drive-workout-import.js'
+import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
 import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 
 export function publicWorkout(item, { includeDetails = true } = {}) {
   if (!item) return null
-  const workout = { id: item.id, date: item.workout_date, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], updatedAt: item.updated_at }
+  const workout = { id: item.id, date: item.workout_date, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || ['ungdom_orange', 'ungdom_svart', 'junior'], alternativeGroupId: item.alternative_group_id || null, updatedAt: item.updated_at }
   return includeDetails ? { ...workout, content: item.content, note: item.note || '' } : workout
 }
 function publicPlan(item) {
-  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, calendarLink: item.calendar_link || null, time: item.calendar_link?.mode === 'linked' ? item.calendar_link.time || '' : '', syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
+  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], alternativeGroupId: item.alternative_group_id || null, location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, calendarLink: item.calendar_link || null, time: item.calendar_link?.mode === 'linked' ? item.calendar_link.time || '' : '', syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
 }
 function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
@@ -59,14 +62,6 @@ async function listGoogleDriveFolder(folderId) {
     const timeDifference = (Date.parse(b.modifiedTime || '') || 0) - (Date.parse(a.modifiedTime || '') || 0)
     return timeDifference || a.name.localeCompare(b.name, 'sv')
   })
-}
-async function readGoogleDriveSheet(fileId) {
-  const { apiKey } = driveConfig()
-  if (!apiKey) throw new Error('Google Drive API-nyckel saknas i Vercel.')
-  const params = new URLSearchParams({ mimeType: 'text/csv', key: apiKey })
-  const result = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?${params.toString()}`)
-  if (!result.ok) throw new Error(`Google Drive-filen kunde inte läsas (${result.status}).`)
-  return result.text()
 }
 async function cachedAssistantRows(path) {
   const hit = assistantRowsCache.get(path)
@@ -488,8 +483,13 @@ async function syncPlanningFromWorkout(workout) {
   const closeDistance = (item) => distance > 0 && Number(item.distance_meters || 0) > 0 && Math.abs(Number(item.distance_meters) - distance) <= Math.max(500, distance * 0.2)
   const sameGroup = (item) => (workout.target_groups || []).some((group) => (item.target_groups || []).includes(group))
   const unlinked = (item) => !item.source_workout_id && !item.calendar_link?.detachedWorkoutId
-  const current = sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => item.source_workout_id && sameFocus(item) && sameGroup(item)) || eligible.find((item) => item.source_workout_id && sameFocus(item) && sameGroup(item)) || eligible.find(unlinked)
-  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+  // Prefer its own row. Each imported alternative needs a separate row and may
+  // never overwrite another alternative merely because focus/groups match.
+  const own = eligible.find((item) => item.source_workout_id === workout.id)
+  const current = own || (workout.alternative_group_id
+    ? sameTime.find((item) => unlinked(item) && !item.alternative_group_id && sameGroup(item))
+    : sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find(unlinked))
+  const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], ...(workout.alternative_group_id ? { alternative_group_id: workout.alternative_group_id } : {}), source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
   else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
   else if (!current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload }) })
@@ -947,9 +947,11 @@ export default async function handler(request, response) {
         }
         if (body.sourceWorkoutId) {
           if (!competitionUuid.test(body.sourceWorkoutId)) return sendJson(response, 400, { error: 'Ogiltig passkoppling.' })
-          const linked = await supabaseRequest(`daily_workouts?id=eq.${encodeURIComponent(body.sourceWorkoutId)}&workout_date=eq.${date}&select=id&limit=1`)
-          if (!linked.ok || !(await linked.json()).length) return sendJson(response, 400, { error: 'Det upplagda passet kunde inte hittas för dagen.' })
+          const linked = await supabaseRequest(`daily_workouts?id=eq.${encodeURIComponent(body.sourceWorkoutId)}&workout_date=eq.${date}&select=id,alternative_group_id&limit=1`)
+          const [linkedWorkout] = linked.ok ? await linked.json() : []
+          if (!linkedWorkout) return sendJson(response, 400, { error: 'Det upplagda passet kunde inte hittas för dagen.' })
           payload.source_workout_id = body.sourceWorkoutId
+          payload.alternative_group_id = linkedWorkout.alternative_group_id || null
           payload.sync_status = 'linked'
         }
         await updatePlanningHiddenDate(date, false)
@@ -989,18 +991,59 @@ export default async function handler(request, response) {
       }
       if (request.body?.action === 'import-drive-file') {
         if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa in pass från Google Drive.' })
-        const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const fileId = String(request.body.fileId || '').trim()
         if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) return sendJson(response, 400, { error: 'Ogiltigt Google Drive-fil-ID.' })
-        if (request.body.mimeType !== 'application/vnd.google-apps.spreadsheet') return sendJson(response, 400, { error: 'Välj ett Google Kalkylark. Andra filformat kan läggas till senare.' })
         try {
-          const text = await readGoogleDriveSheet(fileId)
-          const fallback = parseWorkoutCsv(text)
-          const draft = await improveWorkoutWithAi(request, text.slice(0, 50000), fallback)
-          return sendJson(response, 200, { draft })
+          return sendJson(response, 200, await importDriveWorkbook(fileId, driveConfig().apiKey))
         } catch (error) {
           return sendJson(response, 502, { error: error.message || 'Google Drive-filen kunde inte läsas.' })
         }
+      }
+      if (request.body?.action === 'publish-workout-alternatives') {
+        const body = request.body
+        const groupId = String(body.publicationId || '')
+        const date = String(body.date || '')
+        const timeOfDay = String(body.timeOfDay || '')
+        const groups = [...new Set(Array.isArray(body.targetGroups) ? body.targetGroups.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()) : [])]
+        const drafts = body.workouts
+        if (!competitionUuid.test(groupId) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`)) || new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date || !['morning', 'afternoon'].includes(timeOfDay) || !groups.length || groups.length > 20 || !Array.isArray(drafts) || !drafts.length || drafts.length > SWIM_WORKBOOK_MAX_SHEETS) return sendJson(response, 400, { error: 'Välj giltigt datum, morgon/eftermiddag, grupper och 1–20 pass.' })
+        const keys = new Set()
+        const payload = []
+        for (const draft of drafts) {
+          const key = typeof draft?.key === 'string' ? draft.key : ''
+          const title = String(draft?.title || '').trim(), content = String(draft?.content || '').trim(), note = String(draft?.note || '').trim(), focus = String(draft?.focus || '').trim()
+          const meters = draft?.distanceMeters === '' || draft?.distanceMeters == null ? null : Number(draft.distanceMeters)
+          const minutes = draft?.durationMinutes === '' || draft?.durationMinutes == null ? null : Number(draft.durationMinutes)
+          if (!key || key.length > 100 || keys.has(key) || !title || title.length > 80 || !content || content.length > 5000 || note.length > 500 || !WORKOUT_FOCUS_VALUES.includes(focus) || (meters !== null && (!Number.isInteger(meters) || meters < 1 || meters > 50000)) || (minutes !== null && (!Number.isInteger(minutes) || minutes < 1 || minutes > 600))) return sendJson(response, 400, { error: 'Kontrollera varje valt pass: rubrik, innehåll, inriktning, meter och minuter.' })
+          keys.add(key)
+          // Stable IDs make a retry safe if publication succeeded but its response was lost.
+          const hash = createHash('sha256').update(`${groupId}:${key}`).digest('hex')
+          const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+          payload.push({ id, alternative_group_id: groupId, workout_date: date, time_of_day: timeOfDay, target_groups: groups, title, content, note: note || null, focus: focus || null, distance_meters: meters, duration_minutes: minutes })
+        }
+        const groupPath = `daily_workouts?alternative_group_id=eq.${groupId}&select=*&order=created_at.asc&limit=20`
+        const previousResult = await supabaseRequest(groupPath)
+        if (!previousResult.ok) {
+          const detail = await previousResult.text()
+          if (/alternative_group_id|schema cache/i.test(detail)) return sendJson(response, 503, { error: 'Kör först databasuppdatering 107 för passalternativ. Inga pass har publicerats.' })
+          throw new Error('Workout alternatives could not be checked')
+        }
+        const previous = await previousResult.json()
+        if (previous.length && (previous.length !== payload.length || payload.some((item) => !previous.some((saved) => saved.id === item.id && ['workout_date', 'time_of_day', 'title', 'content', 'note', 'focus', 'distance_meters', 'duration_minutes'].every((key) => (saved[key] ?? null) === (item[key] ?? null)) && JSON.stringify(saved.target_groups) === JSON.stringify(item.target_groups))))) return sendJson(response, 409, { error: 'Den här importen har redan publicerats. Avbryt importen och öppna de sparade passen om du vill ändra dem.' })
+        let inserted = [], saved = previous
+        if (!previous.length) {
+          // One database statement publishes all selected tabs atomically.
+          const result = await supabaseRequest('daily_workouts?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(payload) })
+          if (!result.ok) throw new Error(`Workout alternatives failed: ${result.status}`)
+          inserted = await result.json()
+          const persisted = await supabaseRequest(groupPath)
+          if (!persisted.ok) throw new Error('Published alternatives could not be read')
+          saved = await persisted.json()
+        }
+        await updatePlanningHiddenDate(date, false)
+        for (const workout of saved) await syncPlanningFromWorkout(workout)
+        if (inserted.length) queueCategoryPush({ category: 'publishedWorkouts', id: groupId, targetGroups: groups, date, timeOfDay, workoutCount: saved.length })
+        return sendJson(response, 200, { workouts: saved.map((workout) => publicWorkout(workout)) })
       }
       if (request.body?.action === 'generate-from-library') {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })

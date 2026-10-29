@@ -233,9 +233,9 @@ export async function deliverCategoryPush(event, send) {
     return !targetGroups.length || targetGroups.includes(profile.training_group)
   })
   const payload = {
-    title: notification.title,
+    title: event.category === 'publishedWorkouts' && event.workoutCount > 1 ? 'Simkoll · Nya passalternativ' : notification.title,
     body: event.category === 'publishedWorkouts' && /^\d{4}-\d{2}-\d{2}$/.test(event.date || '')
-      ? `Ett nytt simpass har publicerats för ${new Intl.DateTimeFormat('sv-SE', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${event.date}T12:00:00Z`))}${event.timeOfDay === 'morning' ? ' · morgonpass' : event.timeOfDay === 'afternoon' ? ' · eftermiddag / kväll' : ''}. Öppna veckoplaneringen i Simkoll.`
+      ? `${event.workoutCount > 1 ? `${event.workoutCount} nya passalternativ har publicerats` : 'Ett nytt simpass har publicerats'} för ${new Intl.DateTimeFormat('sv-SE', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${event.date}T12:00:00Z`))}${event.timeOfDay === 'morning' ? ' · morgonpass' : event.timeOfDay === 'afternoon' ? ' · eftermiddag / kväll' : ''}. Öppna veckoplaneringen i Simkoll.`
       : notification.body,
     screen: notification.screen,
     talkId: event.category === 'developmentTalks' ? event.id : undefined,

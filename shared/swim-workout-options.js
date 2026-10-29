@@ -10,16 +10,18 @@ export function swimWorkoutOptions(workouts = [], plans = []) {
   return [...published, ...manual]
 }
 
-// Only a known, shared clock time and location establish alternatives.
-// AM/PM alone must never merge two separate training occasions.
+// Workbook alternatives have an explicit shared ID. Otherwise only a known,
+// shared clock time and location establish alternatives; AM/PM is insufficient.
 export function groupSwimOccasions(items) {
   const groups = new Map()
   items.forEach((item, index) => {
     const time = item.time || item.calendarItems?.[0]?.time || ''
     const location = String(item.location || '').trim().toLowerCase()
-    const key = item.activityType === 'swim' && /^\d{2}:\d{2}$/.test(time) && time !== '00:00' && location
-      ? `${item.date}|${time}|${location}` : `single:${index}`
-    if (!groups.has(key)) groups.set(key, { key, time, location: item.location, items: [] })
+    const key = item.activityType === 'swim' && item.alternativeGroupId
+      ? `alternatives:${item.alternativeGroupId}|${item.date}|${item.timeOfDay || ''}`
+      : item.activityType === 'swim' && /^\d{2}:\d{2}$/.test(time) && time !== '00:00' && location
+        ? `${item.date}|${time}|${location}` : `single:${index}`
+    if (!groups.has(key)) groups.set(key, { key, time, timeOfDay: item.timeOfDay || '', location: item.location, items: [] })
     groups.get(key).items.push(item)
   })
   return [...groups.values()]
