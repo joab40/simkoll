@@ -706,6 +706,10 @@ button { cursor: pointer; }
 .checkin-feedback-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 9px; }
 .checkin-feedback-options button { min-height: 64px; border: 1.5px solid #d6e2df; border-radius: 15px; background: white; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
 .checkin-feedback-options button:hover, .checkin-feedback-options button:focus-visible { border-color: var(--teal); background: #e9f7f2; transform: translateY(-2px); }
+.checkin-feedback-options.strength-feel-options { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.strength-feel-options button { min-width: 0; min-height: 92px; padding: 10px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
+.strength-feel-options button span { font-size: clamp(24px, 5vw, 32px); line-height: 1; }
+.strength-feel-options button strong { font-size: 14px; line-height: 1.2; text-align: center; }
 .concern-choice { display: grid; gap: 10px; }
 .concern-choice button { width: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: var(--ink); font-weight: 700; text-align: left; cursor: pointer; }
 .concern-choice button:first-child { border-color: #e6b5a6; background: #fff5f0; }
@@ -723,6 +727,10 @@ button { cursor: pointer; }
 .feeling-grid small, .thumb-grid small { color: var(--muted); font-weight: 600; }
 .thumb-grid { grid-template-columns: repeat(3, 1fr); }
 .thumb-grid button { padding: 25px 10px 18px; }
+@media (max-width: 560px) {
+  .checkin-feedback-options.strength-feel-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .strength-feel-options button:last-child { grid-column: 1 / -1; width: calc(50% - 5px); justify-self: center; }
+}
 .scale-grid { display: grid; gap: 7px; }
 .scale-5 { grid-template-columns: repeat(5, 1fr); }
 .scale-10 { grid-template-columns: repeat(10, 1fr); }

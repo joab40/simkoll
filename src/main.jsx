@@ -2308,7 +2308,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
             onChange={(value) => { update(question.key, value); next() }}
           />
         )}
-        {question.kind === 'options' && <div className="checkin-feedback-options">{question.options.map((option, index) => <button type="button" key={option} onClick={() => { update(question.key, index + 1); next() }}>{option}</button>)}</div>}
+        {question.kind === 'options' && <div className={`checkin-feedback-options${question.options.some((option) => typeof option !== 'string') ? ' strength-feel-options' : ''}`}>{question.options.map((option, index) => { const label = typeof option === 'string' ? option : option.label; return <button type="button" key={label} aria-label={label} onClick={() => { update(question.key, index + 1); next() }}>{typeof option === 'string' ? label : <><span aria-hidden="true">{option.emoji}</span><strong>{label}</strong></>}</button> })}</div>}
         {question.kind === 'rating' && (
           <div className="thumb-grid">
             {[{ value: 1, icon: '👎', label: 'Inte bra' }, { value: 3, icon: '😐', label: 'Helt okej' }, { value: 5, icon: '👍', label: 'Bra' }].map((option) => (
@@ -2360,7 +2360,7 @@ function getQuestions(type, activityType = null) {
   const comment = { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt. Tränaren ser inte vem som har skrivit.', kind: 'comment' }
   if (type === 'after') {
     const activityFeel = activityType === 'strength'
-      ? { key: 'body', title: 'Hur kändes kroppen på gymmet idag?', hint: 'Välj det som bäst beskriver kroppens kraft och spänst.', kind: 'options', options: ['Kraftlös', 'Seg', 'Normal', 'Stark', 'Explosiv'] }
+      ? { key: 'body', title: 'Hur kändes kroppen på gymmet idag?', hint: 'Välj det som bäst beskriver kroppens kraft och spänst.', kind: 'options', options: [{ emoji: '😩', label: 'Kraftlös' }, { emoji: '😕', label: 'Seg' }, { emoji: '😐', label: 'Normal' }, { emoji: '💪', label: 'Stark' }, { emoji: '🔥', label: 'Explosiv' }] }
       : { key: 'speedFeeling', title: 'Hur var fartkänslan?', hint: 'Din egen känsla av fart i passet.', kind: 'scale', count: 5, left: 'Trög', right: 'Riktigt bra fart' }
     return [
       { key: 'rpe', title: 'Hur jobbigt var passet?', hint: '1 är väldigt lätt. 10 är maxjobbigt.', kind: 'scale', count: 10, left: 'Väldigt lätt', right: 'Maxjobbigt' },
