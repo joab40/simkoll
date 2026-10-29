@@ -2230,7 +2230,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     apiRequest(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code).then((data) => { if (active) setSleepStatus(data.records?.length ? 'done' : 'needed') }).catch((error) => { if (active) { setSleepError(error.message); setSleepStatus('error') } })
     return () => { active = false }
   }, [code, activityDate, identified, hasProfile, sleepRetry])
-  const typeQuestions = form.type ? getQuestions(form.type).filter((question) => question.key !== 'sleep') : []
+  const typeQuestions = form.type ? getQuestions(form.type, form.activityType).filter((question) => question.key !== 'sleep') : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
   const questions = [...(identified && hasProfile && sleepStatus !== 'done' ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
@@ -2343,6 +2343,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
             onChange={(value) => { update(question.key, value); next() }}
           />
         )}
+        {question.kind === 'options' && <div className="checkin-feedback-options">{question.options.map((option, index) => <button type="button" key={option} onClick={() => { update(question.key, index + 1); next() }}>{option}</button>)}</div>}
         {question.kind === 'rating' && (
           <div className="thumb-grid">
             {[{ value: 1, icon: '👎', label: 'Inte bra' }, { value: 3, icon: '😐', label: 'Helt okej' }, { value: 5, icon: '👍', label: 'Bra' }].map((option) => (
@@ -2390,17 +2391,22 @@ function Scale({ count, left, right, onChange }) {
   )
 }
 
-function getQuestions(type) {
+function getQuestions(type, activityType = null) {
   const comment = { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt. Tränaren ser inte vem som har skrivit.', kind: 'comment' }
-  if (type === 'after') return [
-    { key: 'rpe', title: 'Hur jobbigt var passet?', hint: '1 är väldigt lätt. 10 är maxjobbigt.', kind: 'scale', count: 10, left: 'Väldigt lätt', right: 'Maxjobbigt' },
-    { key: 'speedFeeling', title: 'Hur var fartkänslan?', hint: 'Din egen känsla av fart i passet.', kind: 'scale', count: 5, left: 'Trög', right: 'Riktigt bra fart' },
-    { key: 'temperature', title: 'Hur kändes temperaturen?', hint: 'Tänk på helheten i träningsmiljön, inne eller ute.', kind: 'scale', count: 5, left: 'Väldigt kallt', right: 'För varmt' },
-    { key: 'pass', title: 'Hur var passet?', hint: 'Din upplevelse – det finns inget rätt svar.', kind: 'rating' },
-    { key: 'setup', title: 'Funkade upplägget för dig?', hint: 'Tänk på passet som helhet.', kind: 'rating' },
-    { key: 'body', title: 'Hur känns kroppen nu?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' },
-    comment,
-  ]
+  if (type === 'after') {
+    const activityFeel = activityType === 'strength'
+      ? { key: 'body', title: 'Hur kändes kroppen på gymmet idag?', hint: 'Välj det som bäst beskriver kroppens kraft och spänst.', kind: 'options', options: ['Kraftlös', 'Seg', 'Normal', 'Stark', 'Explosiv'] }
+      : { key: 'speedFeeling', title: 'Hur var fartkänslan?', hint: 'Din egen känsla av fart i passet.', kind: 'scale', count: 5, left: 'Trög', right: 'Riktigt bra fart' }
+    return [
+      { key: 'rpe', title: 'Hur jobbigt var passet?', hint: '1 är väldigt lätt. 10 är maxjobbigt.', kind: 'scale', count: 10, left: 'Väldigt lätt', right: 'Maxjobbigt' },
+      activityFeel,
+      { key: 'temperature', title: 'Hur kändes temperaturen?', hint: 'Tänk på helheten i träningsmiljön, inne eller ute.', kind: 'scale', count: 5, left: 'Väldigt kallt', right: 'För varmt' },
+      { key: 'pass', title: 'Hur var passet?', hint: 'Din upplevelse – det finns inget rätt svar.', kind: 'rating' },
+      { key: 'setup', title: 'Funkade upplägget för dig?', hint: 'Tänk på passet som helhet.', kind: 'rating' },
+      ...(activityType === 'strength' ? [] : [{ key: 'body', title: 'Hur känns kroppen nu?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' }]),
+      comment,
+    ]
+  }
   if (type === 'before') return [
     { key: 'energy', title: 'Hur mycket energi har du?', hint: 'Gå på känslan just nu.', kind: 'scale', count: 5, left: 'Ingen energi', right: 'Full fart' },
     { key: 'body', title: 'Hur känns kroppen?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' },

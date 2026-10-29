@@ -703,6 +703,9 @@ button { cursor: pointer; }
 .question h1 { font-size: clamp(36px, 7vw, 57px); line-height: 1.04; margin-bottom: 14px; }
 .question > p:not(.eyebrow) { color: var(--muted); font-size: 16px; margin-bottom: 38px; }
 .choice-stack { display: grid; gap: 10px; }
+.checkin-feedback-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 9px; }
+.checkin-feedback-options button { min-height: 64px; border: 1.5px solid #d6e2df; border-radius: 15px; background: white; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.checkin-feedback-options button:hover, .checkin-feedback-options button:focus-visible { border-color: var(--teal); background: #e9f7f2; transform: translateY(-2px); }
 .concern-choice { display: grid; gap: 10px; }
 .concern-choice button { width: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: var(--ink); font-weight: 700; text-align: left; cursor: pointer; }
 .concern-choice button:first-child { border-color: #e6b5a6; background: #fff5f0; }
