@@ -3,7 +3,7 @@ import webpush from 'web-push'
 import { waitUntil } from '@vercel/functions'
 import { supabaseRequest } from './supabase.js'
 
-export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true, checkinReminders: { missingCheckin: false, afterTraining: false } }
+export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true, publishedWorkouts: true, checkinReminders: { missingCheckin: false, afterTraining: false } }
 export const endpointHash = (endpoint) => createHash('sha256').update(endpoint).digest('hex')
 
 // Subscription endpoints cause outbound server requests. Accept only known push
@@ -203,6 +203,10 @@ const categoryNotifications = {
     column: 'competition_entries', screen: 'competition-entries', title: 'Simkoll · Tävlingsanmälan',
     body: 'En tävling är öppen för anmälan. Öppna Simkoll för att välja grenar.',
   },
+  publishedWorkouts: {
+    column: 'published_workouts', screen: 'planning', title: 'Simkoll · Nytt simpass',
+    body: 'Ett nytt simpass har publicerats. Öppna veckoplaneringen i Simkoll.',
+  },
 }
 
 export async function deliverCategoryPush(event, send) {
@@ -230,7 +234,9 @@ export async function deliverCategoryPush(event, send) {
   })
   const payload = {
     title: notification.title,
-    body: notification.body,
+    body: event.category === 'publishedWorkouts' && /^\d{4}-\d{2}-\d{2}$/.test(event.date || '')
+      ? `Ett nytt simpass har publicerats för ${new Intl.DateTimeFormat('sv-SE', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${event.date}T12:00:00Z`))}${event.timeOfDay === 'morning' ? ' · morgonpass' : event.timeOfDay === 'afternoon' ? ' · eftermiddag / kväll' : ''}. Öppna veckoplaneringen i Simkoll.`
+      : notification.body,
     screen: notification.screen,
     talkId: event.category === 'developmentTalks' ? event.id : undefined,
     tag: `simkoll-${event.category}-${event.id}`,

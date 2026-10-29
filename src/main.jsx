@@ -153,7 +153,7 @@ function App() {
   usePushSession(auth, profile, (target) => {
     if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
     else if (target.screen === 'talks') { setSelectedDevelopmentTalkId(target.talkId || null); setScreen('talks') }
-    else setScreen(target.screen === 'goals' ? 'goals' : target.screen === 'coach-info' ? 'coach-info' : target.screen === 'private' ? 'private-messages' : target.screen === 'community' ? 'community' : target.screen === 'competition-entries' ? 'competition-entries' : 'home')
+    else setScreen(target.screen === 'goals' ? 'goals' : target.screen === 'coach-info' ? 'coach-info' : target.screen === 'private' ? 'private-messages' : target.screen === 'community' ? 'community' : target.screen === 'competition-entries' ? 'competition-entries' : target.screen === 'planning' ? 'planning' : 'home')
   })
 
   useEffect(() => {

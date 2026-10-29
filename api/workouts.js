@@ -1095,6 +1095,9 @@ export default async function handler(request, response) {
       if (!result.ok) throw new Error(`Workout POST failed: ${result.status} ${await result.text()}`)
       const savedWorkout = (await result.json())[0]
       await syncPlanningFromWorkout(savedWorkout)
+      // A newly-created daily workout is published immediately. Updates to an
+      // existing pass are intentionally quiet to avoid notifying on every edit.
+      if (!workoutId && savedWorkout) queueCategoryPush({ category: 'publishedWorkouts', id: savedWorkout.id, targetGroups: savedWorkout.target_groups || [], date: savedWorkout.workout_date, timeOfDay: savedWorkout.time_of_day || '' })
       return sendJson(response, 200, { workout: publicWorkout(savedWorkout) })
     }
 
