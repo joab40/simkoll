@@ -22,7 +22,7 @@ const comparableStrengthValue = (value) => {
   return { unit, value: Number(match[1]) }
 }
 
-async function loadTraining(profileId = null) {
+async function loadTraining(profileId = null, { summary = false } = {}) {
   const profileFilter = profileId ? `&profile_id=eq.${profileId}` : ''
   const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, workoutsResult, strengthLogsResult, metricResponsesResult, metricPlansResult, metricProfilesResult] = await Promise.all([
     supabaseRequest(`season_swim_goals?select=*${profileFilter}&order=start_date.desc`),
@@ -30,7 +30,7 @@ async function loadTraining(profileId = null) {
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
     supabaseRequest(`planned_training_sessions?select=*${profileFilter}&planned_date=gte.${currentWeekStart()}&planned_date=lt.${addDays(currentWeekStart(), 14)}&order=planned_date.asc&limit=1000`),
     supabaseRequest(`program_assignments?select=*${profileFilter}&removed_at=is.null`),
-    supabaseRequest('training_programs?select=*&order=created_at.desc'),
+    supabaseRequest(`training_programs?select=${summary ? 'id,program_type,title,description,start_date,end_date,active' : '*'}&order=created_at.desc`),
     supabaseRequest('program_goals?select=*&order=created_at.desc'),
     supabaseRequest('daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,created_at.asc&limit=1000'),
     supabaseRequest(`strength_program_logs?select=*${profileFilter}&order=session_date.desc,completed_at.desc&limit=2000`),
@@ -47,7 +47,7 @@ async function loadTraining(profileId = null) {
   const allowedAssignments = new Set(assignments.map((item) => item.id))
   const programs = Object.fromEntries((await programsResult.json()).map((item) => [item.id, item]))
   const assignedPrograms = new Set(assignments.map((item) => item.program_id))
-  await Promise.all(Object.values(programs).map(async (program) => {
+  if (!summary) await Promise.all(Object.values(programs).map(async (program) => {
     program.exercise_images = !profileId || assignedPrograms.has(program.id) ? await signedExerciseImages(program.exercise_images || []).catch(() => []) : []
   }))
   const workoutRows = workoutsResult.ok ? await workoutsResult.json() : []
@@ -185,7 +185,7 @@ export default async function handler(request, response) {
       if (role === 'coach') return sendJson(response, 200, await loadTraining())
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Träningsplanering visas bara för profiler.' })
-      return sendJson(response, 200, await loadTraining(profile.id))
+      return sendJson(response, 200, await loadTraining(profile.id, { summary: request.query?.summary === 'true' }))
     }
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })

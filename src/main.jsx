@@ -1,5 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { apiRequest } from './api-request.js'
+import { chatBackgroundUrl } from './chat-background.js'
+import { deferredPanel } from './deferred-panel.jsx'
+import { createVisibleRefresh, startVisiblePolling } from './visible-refresh.js'
 import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
 import { hasTrendValue, trendSegments, smoothTrendPath, trendDateLayout } from './trend-curve.js'
@@ -12,38 +16,38 @@ import './planning-calendar.css'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
 import { sleepFollowUpReasons } from '../shared/coach-control-panel.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
-import StrengthProgramImport from './strength-program-import.jsx'
-import StrengthProgramBuilder from './strength-program-builder.jsx'
-import WorkoutWorkbookReview from './workout-workbook-review.jsx'
 import WorkoutOccasionChoice from './workout-occasion-choice.jsx'
 import { SWIM_WORKBOOK_TYPES } from '../shared/swim-workbook.js'
 import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-exercise-images.jsx'
 import CoachMetricDetails from './coach-metric-details.jsx'
-import CoachControlPanel from './coach-control-panel.jsx'
 import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import { planningMonday } from '../shared/weekly-planning.js'
 import SwimmerTrainingTimesCard from './swimmer-training-times-card.jsx'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import PrivateChatReply from './private-chat-reply.jsx'
-import DevelopmentTalkEditor from './development-talk-editor.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { coachMetricDetails } from './coach-metric-details.js'
 import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
 import './styles.css'
 import './planning-editor.css'
-import CompetitionProgramReview from './competition-program-review.jsx'
-import CompetitionCalendarView from './competition-calendar.jsx'
 import CompetitionPm from './competition-pm.jsx'
-import SprintGame from './sprint-game.jsx'
-import LongJumpGame from './long-jump-game.jsx'
-import HurdlesGame from './hurdles-game.jsx'
-import DinoRunner from './dino-runner.jsx'
-import BalanceGame from './balance-game.jsx'
 import PeppChannelPanel from './pepp-channel.jsx'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
 const TrainingDiary = React.lazy(() => import('./training-diary.jsx'))
+const StrengthProgramImport = deferredPanel(() => import('./strength-program-import.jsx'))
+const StrengthProgramBuilder = deferredPanel(() => import('./strength-program-builder.jsx'))
+const WorkoutWorkbookReview = deferredPanel(() => import('./workout-workbook-review.jsx'))
+const CoachControlPanel = deferredPanel(() => import('./coach-control-panel.jsx'))
+const DevelopmentTalkEditor = deferredPanel(() => import('./development-talk-editor.jsx'))
+const CompetitionProgramReview = deferredPanel(() => import('./competition-program-review.jsx'))
+const CompetitionCalendarView = deferredPanel(() => import('./competition-calendar.jsx'))
+const SprintGame = deferredPanel(() => import('./sprint-game.jsx'), 'Öppnar spelet…')
+const LongJumpGame = deferredPanel(() => import('./long-jump-game.jsx'), 'Öppnar spelet…')
+const HurdlesGame = deferredPanel(() => import('./hurdles-game.jsx'), 'Öppnar spelet…')
+const DinoRunner = deferredPanel(() => import('./dino-runner.jsx'), 'Öppnar spelet…')
+const BalanceGame = deferredPanel(() => import('./balance-game.jsx'), 'Öppnar spelet…')
 
 const APP_VERSION = __APP_VERSION__
 const BUILD_TIME = __BUILD_TIME__
@@ -193,35 +197,26 @@ function App() {
 
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
+    let active = true
+    setTraining(null); setPoints(null); setWorkout(null); setActivityDates([])
     setCompetitionsLoaded(false)
-    const loadProfileData = async () => {
-      // Tävlingsstatusen behövs direkt i check-in. Hämta kalendern parallellt
-      // med startsidans data i stället för att lägga den efter den första laddningen.
-      const competitionPromise = apiRequest('/api/workouts?calendar=true', auth.code)
-        .catch(() => ({ competitions: [] }))
-        .then((data) => {
-          const nextCompetitions = data.competitions || []
-          setCompetitions(nextCompetitions)
-          setCompetitionsLoaded(true)
-          return nextCompetitions
-        })
-      // Starta alla oberoende hämtningar samtidigt. Tidigare blockerade
-      // /api/training resten av simmarvyn eftersom det hämtades först.
-      const [trainingData, workoutData, activityData] = await Promise.all([apiRequest('/api/training', auth.code), apiRequest('/api/workouts', auth.code), apiRequest('/api/activity?streak=true', auth.code)])
-      setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout); setWorkoutLocked(workoutData.locked); setActiveProfilesToday(activityData.activeProfilesToday); setActivityDates(activityData.activityDates || []); setTraining(trainingData)
-      // Sekundärdata laddas efter att startsidans viktigaste kort redan kan visas.
-      const [pointsData, notificationData, , gamesData] = await Promise.all([apiRequest('/api/points', auth.code).catch(() => null), apiRequest('/api/notifications', auth.code).catch(() => ({ notifications: [] })), competitionPromise, apiRequest('/api/points?games=true', auth.code).catch(() => ({ catalog: [] }))])
-      if (pointsData) setPoints(pointsData)
-      setNotifications(notificationData.notifications || [])
-      setAvailableGames(Array.isArray(gamesData.catalog) ? gamesData.catalog : [])
-      setPreviousGames(Array.isArray(gamesData.previousGames) ? gamesData.previousGames : [])
-    }
-    loadProfileData().catch(() => { setWorkout(null); setWorkoutLocked(false) })
-    const refreshOnFocus = () => { if (document.visibilityState === 'visible') loadProfileData().catch(() => {}) }
+    // Each card can render as soon as its own request completes.
+    const load = (url, apply) => apiRequest(url, auth.code).then((data) => { if (active) apply(data) })
+    const loadProfileData = () => Promise.allSettled([
+      load('/api/training?summary=true', setTraining),
+      load('/api/workouts', (data) => { setWorkout(data.workouts?.length ? data.workouts : data.workout); setWorkoutLocked(data.locked) }),
+      load('/api/activity?streak=true', (data) => { setActiveProfilesToday(data.activeProfilesToday); setActivityDates(data.activityDates || []) }),
+      load('/api/workouts?calendar=true', (data) => { setCompetitions(data.competitions || []); setCompetitionsLoaded(true) }).catch(() => { if (active) { setCompetitions([]); setCompetitionsLoaded(true) } }),
+      load('/api/points', setPoints),
+      load('/api/points?games=true', (data) => { setAvailableGames(data.catalog || []); setPreviousGames(data.previousGames || []) }),
+    ])
+    const refresh = createVisibleRefresh(loadProfileData, { minInterval: 15000 })
+    const refreshOnFocus = () => { void refresh.refresh().catch(() => {}) }
+    refreshOnFocus()
     window.addEventListener('focus', refreshOnFocus)
     document.addEventListener('visibilitychange', refreshOnFocus)
-    return () => { window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus) }
-  }, [auth, profile])
+    return () => { active = false; refresh.dispose(); window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus) }
+  }, [auth, profile?.id])
 
   // The first swimmer response fetch is intentionally anonymized for the
   // group view. Once a profile is restored, merge the profile's detailed
@@ -231,6 +226,7 @@ function App() {
     let active = true
     setOwnResponsesLoaded(false)
     apiRequest('/api/responses?mine=true', auth.code).then((data) => {
+      if (!active) return
       setResponses((current) => {
         const own = new Map((data.responses || []).map((item) => [item.id, item]))
         const merged = current.map((item) => own.get(item.id) || item)
@@ -243,21 +239,23 @@ function App() {
   }, [auth, profile?.id])
 
   useEffect(() => {
+    if (screen === 'home') window.dispatchEvent(new Event('simkoll-home-open'))
+  }, [screen])
+
+  useEffect(() => {
     if (!auth || !profile) return undefined
-    const refresh = () => apiRequest('/api/notifications', auth.code).then((data) => setNotifications(data.notifications || [])).catch(() => {})
-    refresh()
-    const timer = window.setInterval(refresh, 30000)
-    return () => window.clearInterval(timer)
-  }, [auth, profile?.id, screen])
+    let active = true
+    const stop = startVisiblePolling(() => apiRequest('/api/notifications', auth.code).then((data) => { if (active) setNotifications(data.notifications || []) }))
+    return () => { active = false; stop() }
+  }, [auth, profile?.id])
 
   useEffect(() => {
     if (!auth || !profile) { setNewDevelopmentGoals([]); return undefined }
     let active = true
     const refresh = () => apiRequest('/api/goals?home=true', auth.code).then((data) => { if (active) setNewDevelopmentGoals(data.goals || []) }).catch(() => {})
-    refresh()
-    const timer = window.setInterval(refresh, 30000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [auth, profile?.id, screen])
+    const stop = startVisiblePolling(refresh)
+    return () => { active = false; stop() }
+  }, [auth, profile?.id])
 
   useEffect(() => {
     if (!auth || !profile) { setDevelopmentTalks([]); setTalksEnabled(false); return }
@@ -267,10 +265,9 @@ function App() {
       setTalksEnabled(data.globalEnabled !== false)
       setDevelopmentTalks(data.globalEnabled === false ? [] : (data.talks || []).filter((talk) => talk.enabled !== false))
     }).catch(() => { if (active) { setTalksEnabled(false); setDevelopmentTalks([]) } })
-    refreshTalks()
-    const timer = window.setInterval(refreshTalks, 30000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [auth, profile?.id, screen])
+    const stop = startVisiblePolling(refreshTalks)
+    return () => { active = false; stop() }
+  }, [auth, profile?.id])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setAiEnabled(savedSettings.aiEnabled !== false); setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setOpenChatEnabled(savedSettings.openChat?.enabled === true); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setAiEnabled(true); setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setOpenChatEnabled(false); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
   if (checkingSession) return null
@@ -410,8 +407,7 @@ function App() {
             setScreen('thanks')
             if (profile && checkinActivityDate === todayKey()) {
               void (async () => {
-                const trainingData = await apiRequest('/api/training', auth.code)
-                const [workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
+                const [trainingData, workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/training?summary=true', auth.code), apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
                 setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout)
                 setWorkoutLocked(workoutData.locked)
                 setActiveProfilesToday(activityData.activeProfilesToday)
@@ -440,25 +436,6 @@ function App() {
       {screen !== 'coach-info' && <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>}
     </Shell>
   )
-}
-
-async function apiRequest(url, code, options = {}) {
-  const canRetry = !options.method || options.method.toUpperCase() === 'GET'
-  let lastError
-  for (let attempt = 0; attempt < (canRetry ? 3 : 1); attempt += 1) {
-    try {
-      const result = await fetch(url, { ...options, headers: { ...options.headers, 'x-simkoll-code': code } })
-      const data = await result.json().catch(() => ({}))
-      if (result.ok) return data
-      lastError = new Error(data.error || 'Något gick fel. Försök igen.')
-      if (!canRetry || result.status < 500) throw lastError
-    } catch (error) {
-      lastError = error
-      if (!canRetry || attempt === 2) throw error
-    }
-    await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)))
-  }
-  throw lastError || new Error('Något gick fel. Försök igen.')
 }
 
 async function fetchResponses(code) {
@@ -1016,11 +993,19 @@ function StarProgress({ stars }) {
 }
 
 function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = false, profile, points, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
-  const [chatVisible, setChatVisible] = useState(openChatEnabled === true)
+  const [communityPreview, setCommunityPreview] = useState(null)
+  const [communityPreviewError, setCommunityPreviewError] = useState(false)
+  const chatVisible = communityPreview?.openChat?.enabled ?? (openChatEnabled === true)
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
   const pendingDevelopmentTalk = latestPendingDevelopmentTalk(developmentTalks)
-  useEffect(() => { if (!profile) return; apiRequest('/api/goals?settings=true', code).then((data) => setChatVisible(data.settings?.openChat?.enabled === true)).catch(() => setChatVisible(false)) }, [code, profile?.id, openChatEnabled])
+  useEffect(() => {
+    if (!profile) return
+    let active = true
+    setCommunityPreview(null); setCommunityPreviewError(false)
+    const stop = startVisiblePolling(() => apiRequest('/api/community?preview=true', code).then((data) => { if (active) { setCommunityPreview(data); setCommunityPreviewError(false) } }).catch(() => { if (active) setCommunityPreviewError(true) }), 15000)
+    return () => { active = false; stop() }
+  }, [code, profile?.id])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const todayResponseIds = todayResponses.map((response) => response.id).join('|')
   const knownMoodResponseIds = useRef(null)
@@ -1068,7 +1053,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         <p className="eyebrow light">Idag i gruppen</p>
-        {profile && chatVisible && <CoachLetterBadge code={code} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
+        {profile && chatVisible && <CoachLetterBadge code={code} chat={communityPreview?.openChat} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
         {profile && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
@@ -1085,8 +1070,8 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
           {streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         </div>}
       </section>
-      {profile && chatVisible && <OpenChatCard key="coach-info" code={code} onOpen={onCommunityChat || onCommunity} />}
-      {profile && <OpenChatCard key="pep-feed" code={code} channel="pep" onOpen={onCommunity} />}
+      {profile && chatVisible && <OpenChatCard key="coach-info" data={communityPreview} error={communityPreviewError} onOpen={onCommunityChat || onCommunity} />}
+      {profile && <OpenChatCard key="pep-feed" data={communityPreview} error={communityPreviewError} channel="pep" onOpen={onCommunity} />}
       </SwimmerHeroCarousel>
       {profile && points?.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}
 
@@ -1199,27 +1184,12 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
   </div>
 }
 
-function OpenChatCard({ code, onOpen, channel = 'coach' }) {
-  const [chat, setChat] = useState(null)
-  const [feed, setFeed] = useState([])
-  const [error, setError] = useState(false)
-  useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      if (document.hidden) return
-      try {
-        const data = await apiRequest(`/api/community?feed=${Date.now()}`, code)
-        if (mounted) { setChat(data.openChat || { messages: [] }); setFeed(data.items || []); setError(false) }
-      } catch { if (mounted) setError(true) }
-    }
-    load()
-    const interval = window.setInterval(load, 15000)
-    window.addEventListener('focus', load)
-    return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', load) }
-  }, [code])
+function OpenChatCard({ data, error = false, onOpen, channel = 'coach' }) {
+  const chat = data?.openChat
+  const feed = data?.items || []
   const isPep = channel === 'pep'
   const messages = isPep ? feed.slice(0, 2) : (chat?.messages || []).filter((item) => item.senderRole === 'coach').slice(-2).reverse()
-  const background = chat?.backgroundImage || '/assets/open-chat-bg-teal.png'
+  const background = chatBackgroundUrl(chat?.backgroundImage || '/assets/open-chat-bg-teal.png')
   return <section className="open-chat-card hero-coach-preview" style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}>
     <div><p className="eyebrow">{isPep ? 'Tillsammans i gruppen' : 'Från tränarna'}</p><h2>{isPep ? 'Peppflödet 🙌' : 'Info från tränarna 💬'}</h2><p>{isPep ? 'Peppa varandra, fråga och snacka simning.' : 'Träningsinfo, samlingar och hälsningar.'}</p></div>
     {messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={`${item.type || 'chat'}-${item.id}`}><span aria-hidden="true">{isPep ? (item.sender?.emoji || '🧑‍🏫') : '🧑‍🏫'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty" role="status">{error ? 'Kunde inte hämta meddelanden just nu.' : !chat ? 'Laddar meddelanden…' : isPep ? 'Bli först med en hälsning till gruppen!' : 'Inga meddelanden från tränarna ännu.'}</p>}
@@ -1228,29 +1198,16 @@ function OpenChatCard({ code, onOpen, channel = 'coach' }) {
   </section>
 }
 
-function CoachLetterBadge({ code, profileId, onOpen }) {
+function CoachLetterBadge({ code, chat, profileId, onOpen }) {
   const [hasMessage, setHasMessage] = useState(false)
   const [messageKey, setMessageKey] = useState('')
   const [readKey, setReadKey] = useState('')
   const opened = Boolean(messageKey && messageKey === readKey)
   useEffect(() => {
-    let mounted = true
-    const refresh = async () => {
-      if (document.hidden) return
-      try {
-        const data = await apiRequest(`/api/community?feed=${Date.now()}`, code)
-        if (!mounted) return
-        const latest = latestCoachMessageId(data.openChat?.messages)
-        setHasMessage(Boolean(latest)); setMessageKey(latest)
-        try { setReadKey(localStorage.getItem(coachInfoReadKey(profileId)) || '') } catch { setReadKey('') }
-      } catch {}
-    }
-    setHasMessage(false); setReadKey(''); refresh()
-    const interval = window.setInterval(refresh, 15000)
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', refresh)
-    return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
-  }, [code, profileId])
+    const latest = latestCoachMessageId(chat?.messages)
+    setHasMessage(Boolean(latest)); setMessageKey(latest)
+    try { setReadKey(localStorage.getItem(coachInfoReadKey(profileId)) || '') } catch { setReadKey('') }
+  }, [chat, profileId])
   if (!hasMessage || opened) return null
   const open = () => {
     if (!opened && messageKey) {
@@ -2661,7 +2618,16 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   const [coachProfile, setCoachProfile] = useState(null)
   const coachMessageSeenKey = `simkoll-coach-messages-seen-${String(code || '').slice(-12)}`
   useEffect(() => { if (view !== 'community') return; try { localStorage.setItem(coachMessageSeenKey, String(Date.now())) } catch {} setCoachMessageCount(0) }, [view, coachMessageSeenKey])
-  useEffect(() => { const loadMessageCount = () => { let seenAt = 0; try { seenAt = Number(localStorage.getItem(coachMessageSeenKey) || 0) } catch {} apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { const isNew = (createdAt) => !seenAt || new Date(createdAt).getTime() > seenAt; const privateIncoming = (data.messages || []).filter((item) => item.toCoach && !item.fromCoach && isNew(item.createdAt)).length; const swimmerQuestions = (data.openChat?.messages || []).filter((item) => item.senderRole === 'swimmer' && isNew(item.createdAt)).length; setCoachMessageCount(privateIncoming + swimmerQuestions) }).catch(() => {}) }; loadMessageCount(); const timer = window.setInterval(loadMessageCount, 15000); return () => window.clearInterval(timer) }, [code, coachMessageSeenKey, view])
+  useEffect(() => {
+    if (view === 'community') return
+    let active = true
+    const stop = startVisiblePolling(() => {
+      let seenAt = 0
+      try { seenAt = Number(localStorage.getItem(coachMessageSeenKey) || 0) || 0 } catch {}
+      return apiRequest(`/api/community?messageCount=true&since=${seenAt}`, code).then((data) => { if (active) setCoachMessageCount(data.count || 0) })
+    }, 15000)
+    return () => { active = false; stop() }
+  }, [code, coachMessageSeenKey, view === 'community'])
   useEffect(() => { apiRequest('/api/goals?talks=true', code).then((data) => setTalksGlobalEnabled(data.globalEnabled !== false)).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setGlobalNavigationSettings(data.settings || { overview: {}, coach: {} })).catch(() => {}) }, [code])
   useEffect(() => { apiRequest('/api/auth', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-profile' }) }).then((data) => { const account = data.account || {}; setCoachProfile(account); if (Array.isArray(account.managed_groups) && account.managed_groups.length) setSelectedGroups(account.managed_groups) }).catch(() => {}) }, [code])
@@ -3863,18 +3829,18 @@ function WebappSettingsContent({ code }) {
 }
 
 function OpenChatSettings({ code }) {
-  const presets = [['/assets/open-chat-bg-teal.png', 'Ljust poolvatten · rekommenderad'], ['/assets/open-chat-bg.png', 'Poolblå'], ['/assets/open-chat-bg-navy.png', 'Navy med limeaccent']]
+  const presets = [['/assets/open-chat-bg-teal.jpg', 'Ljust poolvatten · rekommenderad'], ['/assets/open-chat-bg.jpg', 'Poolblå'], ['/assets/open-chat-bg-navy.jpg', 'Navy med limeaccent']]
   const [settings, setSettings] = useState({ enabled: false, coachOnly: false, swimmerPrivate: true, backgroundImage: presets[0][0] })
   const [saved, setSaved] = useState(false)
-  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => { const savedBackground = data.settings?.openChat?.backgroundImage; const backgroundImage = presets.some(([path]) => path === savedBackground) ? savedBackground : presets[0][0]; setSettings({ enabled: data.settings?.openChat?.enabled === true, coachOnly: data.settings?.openChat?.coachOnly === true, swimmerPrivate: data.settings?.openChat?.swimmerPrivate !== false, backgroundImage }) }).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => { const savedBackground = chatBackgroundUrl(data.settings?.openChat?.backgroundImage); const backgroundImage = presets.some(([path]) => path === savedBackground) ? savedBackground : presets[0][0]; setSettings({ enabled: data.settings?.openChat?.enabled === true, coachOnly: data.settings?.openChat?.coachOnly === true, swimmerPrivate: data.settings?.openChat?.swimmerPrivate !== false, backgroundImage }) }).catch(() => {}) }, [code])
   const save = async () => { const current = await apiRequest('/api/goals?settings=true', code); const next = { ...(current.settings || {}), openChat: settings }; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-settings', settings: next }) }); window.dispatchEvent(new CustomEvent('simkoll-settings-updated', { detail: next })); setSaved(true); setTimeout(() => setSaved(false), 1800) }
   return <section className="settings-card open-chat-settings"><h2>Info från tränarna</h2><p className="settings-help">En gemensam informationskanal för tränare och simmare. Den öppnas via kuvertet i “Idag i gruppen”.</p><label className="settings-toggle-row"><span><strong>Aktivera info från tränarna</strong><small>{settings.enabled ? (settings.coachOnly ? 'Endast tränare kan skriva' : 'Simmare och tränare kan skriva') : 'Avstängd för alla'}</small></span><input type="checkbox" checked={settings.enabled} onChange={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} /></label>{settings.enabled && <label className="settings-toggle-row"><span><strong>Endast tränare kan skriva</strong><small>Simmare kan läsa kanalen men kan inte skicka nya meddelanden.</small></span><input type="checkbox" checked={settings.coachOnly} onChange={() => setSettings((current) => ({ ...current, coachOnly: !current.coachOnly }))} /></label>}<label className="settings-field"><span><strong>Chattema</strong><small>Välj en färdig, responsiv Simkoll-bakgrund. Egna bilder stöds inte för att hålla chatten snabb och säker.</small></span><select value={settings.backgroundImage} onChange={(event) => setSettings((current) => ({ ...current, backgroundImage: event.target.value }))}>{presets.map(([path, label]) => <option value={path} key={path}>{label}</option>)}</select></label><div className="chat-background-swatches">{presets.map(([path, label]) => <button type="button" key={path} aria-label={label} className={settings.backgroundImage === path ? 'selected' : ''} style={{ backgroundImage: `url(${path})` }} onClick={() => setSettings((current) => ({ ...current, backgroundImage: path }))} />)}</div><div className="settings-actions"><button type="button" className="primary-button" onClick={save}>Spara inställning</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div></section>
 }
 
 function ChatBackgroundSettings({ code }) {
-  const presets = [['/assets/open-chat-bg.png', 'Poolblå · standard'], ['/assets/open-chat-bg-teal.png', 'Turkos lagkänsla'], ['/assets/open-chat-bg-navy.png', 'Navy med limeaccent']]
+  const presets = [['/assets/open-chat-bg.jpg', 'Poolblå · standard'], ['/assets/open-chat-bg-teal.jpg', 'Turkos lagkänsla'], ['/assets/open-chat-bg-navy.jpg', 'Navy med limeaccent']]
   const [value, setValue] = useState(presets[0][0]); const [saved, setSaved] = useState(false)
-  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setValue(data.settings?.openChat?.backgroundImage || presets[0][0])).catch(() => {}) }, [code])
+  useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => setValue(chatBackgroundUrl(data.settings?.openChat?.backgroundImage) || presets[0][0])).catch(() => {}) }, [code])
   const save = async () => { const current = await apiRequest('/api/goals?settings=true', code); const next = { ...(current.settings || {}), openChat: { ...(current.settings?.openChat || {}), backgroundImage: value } }; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-settings', settings: next }) }); setSaved(true); setTimeout(() => setSaved(false), 1800) }
   return <section className="settings-card"><h2>Chattbakgrund</h2><p className="settings-help">Välj en förberedd bakgrund som fungerar på mobil, surfplatta och dator och har tillräcklig kontrast för texten.</p><label className="settings-field"><span><strong>Bakgrund</strong><small>Simkoll-bilderna är optimerade för chatten.</small></span><select value={value} onChange={(event) => setValue(event.target.value)}>{presets.map(([path, label]) => <option value={path} key={path}>{label}</option>)}</select></label><div className="chat-background-swatches">{presets.map(([path, label]) => <button type="button" key={path} aria-label={label} className={value === path ? 'selected' : ''} style={{ backgroundImage: `url(${path})` }} onClick={() => setValue(path)} />)}</div><div className="settings-actions"><button type="button" className="primary-button" onClick={save}>Spara bakgrund</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div></section>
 }
@@ -4716,7 +4682,7 @@ function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = fals
   }
   const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
   if (!chat.enabled) return null
-  const chatBackground = chat.backgroundImage || '/assets/open-chat-bg-teal.png'
+  const chatBackground = chatBackgroundUrl(chat.backgroundImage || '/assets/open-chat-bg-teal.png')
   return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${fitViewport ? ' swimmer-info-chat' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
     <div className="open-chat-heading">
       {coach && <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div>}

@@ -1,6 +1,7 @@
 import React, {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react'
 import {pepKey,pepDay,pepTime,pepTimeline} from './pep-chat.js'
 import './pepp-channel.css'
+import { chatBackgroundUrl } from './chat-background.js'
 
 export default function PeppChannelPanel({items,profileId,backgroundImage,customPepEnabled,onSend,onReact,reactionBusy,templates,EmojiPicker}) {
   const [content,setContent]=useState(''),[templateKey,setTemplateKey]=useState(''),[reply,setReply]=useState(null),[sending,setSending]=useState(false),[status,setStatus]=useState(''),[unread,setUnread]=useState(0),[burst,setBurst]=useState(0),[picker,setPicker]=useState(false)
@@ -29,7 +30,7 @@ export default function PeppChannelPanel({items,profileId,backgroundImage,custom
   }
   const chooseReply=item=>{setReply(item);setStatus('');composer.current?.focus({preventScroll:true})}
   const dayLabel=day=>day===pepDay(new Date())?'Idag':new Date(`${day}T12:00:00Z`).toLocaleDateString('sv-SE',{day:'numeric',month:'long',timeZone:'Europe/Stockholm'})
-  return <section ref={panel} className="pep-modern" style={{backgroundImage:`linear-gradient(#eef9f5b8,#eef9f5d9),url(${backgroundImage||'/assets/open-chat-bg-teal.png'})`}}>
+  return <section ref={panel} className="pep-modern" style={{backgroundImage:`linear-gradient(#eef9f5b8,#eef9f5d9),url(${chatBackgroundUrl(backgroundImage||'/assets/open-chat-bg-teal.png')})`}}>
     <header className="pep-modern-heading"><span aria-hidden="true">🙌</span><div><strong>Öppen kanal</strong><small>Alla i klubben kan läsa och skriva</small></div></header>
     {burst>0&&<div className="high-five-burst" key={burst} aria-hidden="true">{Array.from({length:10},(_,i)=><span key={i} style={{left:`${7+i*9}%`,animationDelay:`${i%5*.07}s`,'--high-five-drift':`${(i%2?1:-1)*(14+i*3)}px`}}>🙌</span>)}</div>}
     <div className="pep-modern-messages" ref={messages} role="log" aria-label="Gruppens pepp och frågor" aria-live="polite" onScroll={event=>{const el=event.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<60;if(follow.current)setUnread(0)}}>

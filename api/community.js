@@ -6,6 +6,7 @@ import { coachFromRequest } from '../server/coach-auth.js'
 import { queueMessagePush } from '../server/web-push.js'
 import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/private-chat-replies.js'
 import { proposePrivateReply } from '../server/private-reply-ai.js'
+import { loadCommunityPreview, loadCoachMessageCount } from '../server/community-preview.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
@@ -224,6 +225,7 @@ export default async function handler(request, response) {
 
   try {
     if (request.method === 'GET') {
+      if (request.query?.messageCount === 'true' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se meddelandeantalet.' })
       if (role === 'coach' && request.query?.coachFeed === 'true') return sendJson(response, 200, { events: await getCoachFeed() })
       if (request.query?.pepStatus) {
         if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in som simmare för att se meddelandestatus.' })
@@ -244,6 +246,12 @@ export default async function handler(request, response) {
       const openChatEnabled = webappSettings.openChat?.enabled === true
       const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
       const openChatSwimmerPrivate = webappSettings.openChat?.swimmerPrivate !== false
+      if (request.query?.messageCount === 'true') {
+        const since = Number(request.query.since || 0)
+        if (!Number.isFinite(since) || since < 0 || Number.isNaN(new Date(since).getTime())) return sendJson(response, 400, { error: 'Ogiltig lästid.' })
+        return sendJson(response, 200, await loadCoachMessageCount(since, openChatEnabled))
+      }
+      if (request.query?.preview === 'true') return sendJson(response, 200, await loadCommunityPreview(webappSettings, GROUP_TEMPLATES))
       if (role === 'coach' && request.query?.appFeedback === 'true') {
         const superadmin = isSuperadminRequest(request)
         const columns = superadmin ? 'id,profile_id,submitted_by_role,rating,best_area,improve_area,feature_request,comment,created_at,workflow_status,admin_note,admin_reply,admin_reply_sent_at,archived_at,updated_at' : 'rating,best_area,improve_area,feature_request,comment,created_at'
