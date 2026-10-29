@@ -5,6 +5,7 @@ import { buildGroupTrend } from '../server/group-trend.js'
 import { buildSwimmerTrend } from '../server/swimmer-trend.js'
 import { analysisResponse, responseDay, buildSwimmerPasses, individualSignals, normalizeIndividualInsight, swimmerVisibleInsight } from '../server/individual-analysis.js'
 import { requestSwimmerInsight } from '../server/swimmer-ai.js'
+import { analyticsRows } from '../server/analytics-rows.js'
 
 const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 const addDays = (date, days) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10) }
@@ -279,9 +280,9 @@ export default async function handler(request, response) {
   try {
     const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
   const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, plansResult, notesResult, competitionResultsResult, olderResponsesResult, olderSessionsResult, strengthLogsResult, assignmentsResult, swimmerNotesResult, plannedPersonalResult, olderStrengthLogsResult, swimmerProfileResult] = await Promise.all([
-      supabaseRequest(`responses?select=profile_id,activity_date,late_entry,activity_type,activity_minutes,activity_distance_meters,planned_completion,workout_reference,session_slot,competition,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${profileId ? `&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}` : timestampRange}&order=activity_date.asc,created_at.asc&limit=10000`),
-      supabaseRequest(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date,session_slot${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&limit=10000`),
-      supabaseRequest(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&limit=10000`),
+      analyticsRows(`responses?select=profile_id,activity_date,late_entry,activity_type,activity_minutes,activity_distance_meters,planned_completion,workout_reference,session_slot,competition,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${profileId ? `&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}` : timestampRange}&order=activity_date.asc,created_at.asc,id.asc`),
+      analyticsRows(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date,session_slot${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&order=session_date.asc,id.asc`),
+      analyticsRows(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&order=activity_date.asc,profile_id.asc`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       supabaseRequest(`daily_workouts?select=id,workout_date,title,content,note,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc&limit=1000`),
@@ -315,7 +316,7 @@ export default async function handler(request, response) {
     const swimmerProfile = swimmerProfileResult?.ok ? (await swimmerProfileResult.json())[0] || {} : {}
     const assignedPrograms = assignments.length ? await supabaseRequest(`training_programs?id=in.(${[...new Set(assignments.map((item) => item.program_id))].join(',')})&select=id,program_type,title,description,content,start_date,end_date`) : null
     const programRows = assignedPrograms?.ok ? await assignedPrograms.json() : []
-    const truncated = responses.length >= 10000 || sessions.length >= 10000
+    const truncated = Boolean(responsesResult.truncated || sessionsResult.truncated || activityResult.truncated)
     let reportProfiles = []
     if (!profileId) {
       const profilesResult = await supabaseRequest('profiles?select=id,is_test_profile,created_at,training_group&limit=10000')
