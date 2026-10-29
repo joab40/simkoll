@@ -1,5 +1,24 @@
 export const hasTrendValue = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
 
+// Multiple workouts on a day need distinct x coordinates for interpolation.
+// Keep them inside that day, with a single centered calendar label.
+export function trendDateLayout(items) {
+  const days = items.map((item) => Date.parse(`${item.date}T12:00:00Z`))
+  const first = Math.min(...days), dayMs = 86400000
+  const span = Math.max(dayMs, Math.max(...days) - first + dayMs)
+  const counts = new Map(), seen = new Map()
+  days.forEach((day) => counts.set(day, (counts.get(day) || 0) + 1))
+  return {
+    dayWidth: dayMs / span,
+    positions: days.map((day) => {
+      const index = seen.get(day) || 0
+      seen.set(day, index + 1)
+      return (day - first + dayMs * (index + 1) / (counts.get(day) + 1)) / span
+    }),
+    labels: [...counts.keys()].map((day) => ({ date: new Date(day).toISOString().slice(0, 10), position: (day - first + dayMs / 2) / span })),
+  }
+}
+
 export function trendSegments(items, key) {
   return items.reduce((segments, item, index) => {
     if (!hasTrendValue(item[key])) return segments

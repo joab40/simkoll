@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { hasTrendValue, trendSegments, smoothTrendPath } from '../src/trend-curve.js'
+import { hasTrendValue, trendSegments, smoothTrendPath, trendDateLayout } from '../src/trend-curve.js'
 
 for (const value of [null, undefined, '', NaN, Infinity]) assert.equal(hasTrendValue(value), false)
 assert.equal(hasTrendValue(0), true)
@@ -24,4 +24,22 @@ for (const values of [[1, 5, 1], [3, 3, 3], [1, 2, 5, 4], [5, 4, 1], [0, 1000, 1
     assert(x1 > a.x && x2 < b.x)
   })
 }
-console.log('PASS smooth trends: original points, no overshoot, sparse gaps, true zero and isolated observations')
+const repeatedDays = ['2026-10-26', '2026-10-27', '2026-10-27', '2026-10-28', '2026-10-28', '2026-10-29'].map((date) => ({ date }))
+const layout = trendDateLayout(repeatedDays)
+assert.equal(layout.labels.length, 4, 'one date label per calendar day')
+layout.positions.forEach((position, index) => {
+  assert(Number.isFinite(position))
+  if (index) assert(position > layout.positions[index - 1], 'same-day workouts must have distinct ordered x coordinates')
+  const center = layout.labels.find((label) => label.date === repeatedDays[index].date).position
+  assert(Math.abs(position - center) < layout.dayWidth / 2, 'workout stays inside its calendar day')
+})
+for (const values of [[3.2, 3.1, 3.1, 3, 3, 3.1], [5, 4.7, 3, 5, 2.4, 3.3]]) {
+  const path = smoothTrendPath(values.map((y, index) => ({ x: layout.positions[index] * 1000, y })))
+  assert(!/NaN|Infinity/.test(path), 'ratings and meter lines must remain drawable across repeated dates')
+  assert.equal(path.split(' C ').length - 1, values.length - 1)
+}
+const singleDay = trendDateLayout([{ date: '2026-10-29' }])
+assert.deepEqual(singleDay.positions, [0.5])
+const spacedDays = trendDateLayout([{ date: '2026-10-23' }, { date: '2026-10-25' }])
+assert(Math.abs(spacedDays.positions[1] - spacedDays.positions[0] - spacedDays.dayWidth * 2) < 1e-12, 'missing days retain their calendar spacing')
+console.log('PASS smooth trends: original points, no overshoot, sparse gaps, true zero, isolated observations and multiple workouts per day')

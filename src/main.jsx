@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createRoot } from 'react-dom/client'
 import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
-import { hasTrendValue, trendSegments, smoothTrendPath } from './trend-curve.js'
+import { hasTrendValue, trendSegments, smoothTrendPath, trendDateLayout } from './trend-curve.js'
 import { withTrendSwimMeters } from './trend-swim-meters.js'
 import { CHECKIN_ACTIVITIES, activityLabel } from '../shared/checkin-activity.js'
 import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
@@ -3317,12 +3317,10 @@ function TrendLineChart({ items }) {
   const metrics = [{ key: 'feeling', label: 'Känsla', color: '#26b7b0', max: 5 }, { key: 'body', label: 'Kropp', color: '#a9d33e', max: 5 }, { key: 'rpe', label: 'RPE', color: '#f59e9e', max: 10 }, { key: 'speedFeeling', label: 'Fartkänsla', color: '#9b8cff', max: 5 }, { key: 'passRating', label: 'Passet', color: '#f0b45b', max: 5 }]
   metrics.push({ key: 'swimMeterScale', label: 'Simmeter (streckad)', color: '#145f75', max: meterScaleMax, dashed: true })
   const width = Math.max(560, items.length * 92), height = 230, left = 34, right = 92, top = 16, bottom = 34, chartWidth = width - left - right, chartHeight = height - top - bottom
-  const dates = items.map((item) => Date.parse(`${item.date}T12:00:00Z`))
-  const dateSpan = Math.max(...dates) - Math.min(...dates)
-  const dayMs = 86400000
-  const dateDomain = Math.max(dayMs, dateSpan + dayMs)
-  const dayWidth = chartWidth * dayMs / dateDomain
-  const x = (index) => left + ((dates[index] - Math.min(...dates) + dayMs / 2) / dateDomain) * chartWidth
+  const dateLayout = trendDateLayout(items)
+  const dayWidth = chartWidth * dateLayout.dayWidth
+  const x = (index) => left + dateLayout.positions[index] * chartWidth
+  const dayX = (date) => left + dateLayout.labels.find((label) => label.date === date).position * chartWidth
   const y = (value, max) => top + chartHeight - (Number(value) / max) * chartHeight
   const lineSegments = (metric) => visible[metric.key] ? trendSegments(items, metric.key) : []
   const slotLabels = { morning_swim: 'Förmiddag', afternoon_swim: 'Eftermiddag' }
@@ -3332,10 +3330,10 @@ function TrendLineChart({ items }) {
       {[0, 1, 2, 3, 4, 5].map((tick) => <g key={tick}><line x1={left} x2={width - right} y1={y(tick, 5)} y2={y(tick, 5)} /><text x={left - 8} y={y(tick, 5) + 3}>{tick}</text></g>)}
       {[0, 2, 4, 6, 8, 10].map((tick) => <text className="trend-rpe-axis" key={`rpe-${tick}`} x={width - right + 8} y={y(tick, 10) + 3}>{tick}</text>)}
       {visible.swimMeterScale && [0, 1, 2, 3, 4, 5].map((tick) => <text key={`meter-${tick}`} x={width - right + 30} y={y(tick, 5) + 3}>{(tick / 5 * meterScaleMax).toLocaleString('sv-SE', { maximumFractionDigits: 1 })}k m</text>)}
-      {items.map((item, index) => item.competition && <g key={`competition-${item.date}`} className="trend-competition-marker" role="button" tabIndex="0" aria-label={`Tävlingsdag ${new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE')}${item.competitionReportDelayDays > 0 ? `, återkoppling registrerad ${item.competitionReportDelayDays} dagar senare` : ''}`} onMouseEnter={() => setHoverIndex(index)} onMouseLeave={() => setHoverIndex(null)} onFocus={() => setHoverIndex(index)} onBlur={() => setHoverIndex(null)} onClick={() => setHoverIndex((current) => current === index ? null : index)}><rect x={x(index) - dayWidth / 2} y={top} width={dayWidth} height={chartHeight} fill="rgba(240, 180, 91, 0.18)" /><circle cx={x(index)} cy={top + 8} r="5" fill="#bd7412" /><title>{`Tävlingsdag${item.competitionReportDelayDays > 0 ? ` · återkoppling registrerad ${item.competitionReportDelayDays} dagar senare` : ''}`}</title></g>)}
+      {items.map((item, index) => item.competition && <g key={`competition-${item.date}-${index}`} className="trend-competition-marker" role="button" tabIndex="0" aria-label={`Tävlingsdag ${new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE')}${item.competitionReportDelayDays > 0 ? `, återkoppling registrerad ${item.competitionReportDelayDays} dagar senare` : ''}`} onMouseEnter={() => setHoverIndex(index)} onMouseLeave={() => setHoverIndex(null)} onFocus={() => setHoverIndex(index)} onBlur={() => setHoverIndex(null)} onClick={() => setHoverIndex((current) => current === index ? null : index)}><rect x={dayX(item.date) - dayWidth / 2} y={top} width={dayWidth} height={chartHeight} fill="rgba(240, 180, 91, 0.18)" /><circle cx={x(index)} cy={top + 8} r="5" fill="#bd7412" /><title>{`Tävlingsdag${item.competitionReportDelayDays > 0 ? ` · återkoppling registrerad ${item.competitionReportDelayDays} dagar senare` : ''}`}</title></g>)}
       {metrics.map((metric) => lineSegments(metric).map((segment, segmentIndex) => <path key={`${metric.key}-${segmentIndex}`} className={`trend-line-${metric.key}`} d={smoothTrendPath(segment.map((point) => ({ x: x(point.index), y: y(point.value, metric.max) })))} fill="none" stroke={metric.color} strokeDasharray={metric.dashed ? '7 5' : undefined} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />))}
       {metrics.map((metric) => visible[metric.key] && items.map((item, index) => hasTrendValue(item[metric.key]) ? <circle key={`${metric.key}-${index}`} className={`trend-dot-${metric.key}`} cx={x(index)} cy={y(Number(item[metric.key]), metric.max)} r="4" fill={metric.color} onMouseEnter={() => setHoverIndex(index)} onMouseLeave={() => setHoverIndex(null)} /> : null))}
-      {items.map((item, index) => <text className="trend-x-label" key={`${item.date}-${index}`} x={x(index)} y={height - 10}>{new Date(`${item.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</text>)}
+      {dateLayout.labels.map((label) => <text className="trend-x-label" key={label.date} x={dayX(label.date)} y={height - 10}>{new Date(`${label.date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</text>)}
     </svg></div>
     {hoverIndex != null && <div className="trend-hover-card"><strong>{new Date(`${items[hoverIndex].date}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong>{metrics.filter((metric) => visible[metric.key]).map((metric) => hasTrendValue(items[hoverIndex][metric.key]) && <span key={metric.key}><i style={{ background: metric.color }} />{metric.dashed ? `Simmeter: ${items[hoverIndex].swimMeters.toLocaleString('sv-SE')} m · ${items[hoverIndex].swimMeterSource}` : `${metric.label}: ${items[hoverIndex][metric.key]}`}</span>)}{items[hoverIndex].competition && <span className="trend-competition-detail"><i style={{ background: '#bd7412' }} />Tävlingsdag{items[hoverIndex].competitionReportDelayDays > 0 ? ` · återkoppling registrerad ${items[hoverIndex].competitionReportDelayDays} dagar senare` : ''}</span>}</div>}
     <p className="trend-curve-note">Punkterna visar registrerade värden; linjen är bara en visuell förbindelse. Vänster skala: skattningar 0–5. Höger: RPE 0–10 och simmeter i tusental (1k m = 1 000 m). Streckad linje: rapporterade simmeter per dag, annars uppskattade planerade meter från kopplade registrerade simpass. Saknade värden visas som luckor, inte noll. Gul markering visar en tävlingsincheckning; återkoppling utan RPE eller passbetyg lämnas tom. {meterScaleMax > 10 && 'Meterskalan har utökats för dagar över 10 000 m.'}</p>
