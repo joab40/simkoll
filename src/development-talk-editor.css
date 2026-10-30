@@ -2,6 +2,16 @@
 .talk-ai-tools { padding: 12px 14px; margin: 12px 0; border: 1px solid #cce1d9; border-radius: 12px; background: #f2f8f5; }
 .talk-ai-tools p, .talk-ai-tools li { font-size: 13px; line-height: 1.5; }
 .talk-ai-privacy { color: var(--muted); }
+.talk-ai-tools h5 { margin: 0 0 6px; font-size: 15px; }
+.talk-editor .talk-ai-source-choices { display: grid; gap: 8px; margin: 12px 0; padding: 0; border: 0; }
+.talk-ai-source-choices legend { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.talk-editor .talk-ai-source-choices label { display: flex; align-items: flex-start; gap: 10px; padding: 10px; margin: 0; border: 1px solid #d6e4df; border-radius: 10px; background: white; cursor: pointer; }
+.talk-editor .talk-ai-source-choices input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; margin: 0; padding: 0; accent-color: var(--teal); }
+.talk-ai-source-choices span { display: grid; gap: 3px; min-width: 0; }
+.talk-ai-source-choices strong { font-size: 13px; }.talk-ai-source-choices small { color: var(--muted); font-weight: 400; line-height: 1.4; }
+.talk-ai-context { margin: 14px 0; padding: 12px; border: 1px solid #cce1d9; border-radius: 10px; background: white; }
+.talk-ai-context details { padding: 9px 0; border-top: 1px solid var(--line); }.talk-ai-context summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+.talk-ai-context pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; line-height: 1.5; max-height: 340px; overflow-y: auto; }
 .talk-ai-button { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; max-width: 100%; font-size: 14px; white-space: normal; }
 .talk-ai-review { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 14px; }
 .talk-ai-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: talk-ai-spin .8s linear infinite; }

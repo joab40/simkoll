@@ -37,22 +37,44 @@ Funktionen använder befintlig transkriberingsfunktion och klubbens AI-kvot.
 
 ## AI-förslag till gemensam överenskommelse
 
-Vid interna anteckningar finns **Föreslå gemensam överenskommelse**. Knappen
-skickar bara den aktuella anteckningstexten till OpenAI, inte profiluppgifter,
-simmarens formulärsvar eller den befintliga överenskommelsen. Avidentifiera
-texten och ta bort känsliga personuppgifter först. Kontroller i webbläsaren
-och servern stoppar vanliga fullständiga namn, e-postadresser och personnummer,
-men kan inte upptäcka alla personuppgifter. AI:n sorterar anteckningarna under
+Vid interna anteckningar finns **Visa underlag**, följt av
+**Föreslå gemensam överenskommelse**. Tränarens aktuella anteckningar ingår
+alltid. Simmarens förberedelser (även osparade ändringar under mötet) och en
+sammanfattning av senaste åtta veckornas träningshistorik är förvalda och kan
+väljas bort. Historiken omfattar registrerad simning/styrka/övrig träning,
+kontinuitet, rapporterad respektive uppskattad mängd, RPE med svarstäckning,
+utvecklingsmål och registrerade tävlingsresultat. Saknade registreringar är
+inte bevis för utebliven träning, och resultatlistan är inte en komplett
+tävlings- eller PB-historik. Privata check-in-kommentarer och styrkeloggarnas
+fritext bifogas inte.
+
+Dagboksreflektioner och sömnkoll är separata, avstängda tillval. Reflektioner
+begränsas till de tolv senaste under perioden och 600 tecken per svar; detta
+syns i underlaget. Sömnkollen sammanfattas för samma åtta veckor utan att
+räkna överhoppade svar som noll.
+
+Visa underlag hämtar data enbart för det öppnade samtalets aktiva, godkända
+simmare. Inget skickas till OpenAI förrän tränaren granskat underlaget och
+väljer Föreslå gemensam överenskommelse. Profilens id, namn och grupp ingår
+inte automatiskt i modellunderlaget. Avidentifiera fritexten och ta bort
+känsliga personuppgifter som inte behövs. Kontroller i webbläsaren och
+servern stoppar vanliga fullständiga namn, e-postadresser och personnummer,
+men kan inte upptäcka alla personuppgifter. AI:n sorterar underlaget under
 relevanta rubriker, skiljer mellan tidsmål, teknik, mentala utmaningar och
 långsiktiga ambitioner och fångar simmarens egna reflektioner om motivation
 och trivsel. Den ska behålla uttryckliga mål, tider, distanser och
 träningsmängder samt föreslå uppföljningsbara mål när anteckningarna ger stöd
-för det. Den får inte göra önskemål till bekräftade beslut eller hitta på
-fakta, mätvärden eller uppföljning.
+för det. Den skiljer uttryckliga överenskommelser i samtalsanteckningarna från
+simmarens egna önskemål och observationer från historiken. Data får ge ett
+nuläge och frågor att diskutera, aldrig skapa beslut, förklaringar till
+resultat eller nya målvärden. Motsägelser ska bli klargörande frågor.
 
 En laddningsindikator visas bara under anropet. Förslaget visas separat och
 kan redigeras eller kastas. Oklarheter visas som frågor att diskutera. Om
-anteckningarna ändras behöver ett nytt förslag tas fram. **Använd förslaget**
+anteckningar, formulärsvar eller källval ändras behöver underlaget uppdateras.
+Servern kontrollerar även att historik och samtalsversion fortfarande stämmer
+med den granskade förhandsvisningen innan något skickas till OpenAI.
+**Använd förslaget**
 lägger texten i Gemensam överenskommelse; befintlig text ersätts först efter
 bekräftelse. Tränaren granskar tillsammans med simmaren och väljer sedan
 **Spara ändringar**. Inga mål, samtalssvar eller anteckningar ändras automatiskt.

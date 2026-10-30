@@ -18,7 +18,7 @@ async function rows(query, { optional = false, warnings, label }) {
   return all
 }
 
-export async function loadTrainingDiary(profile, start, end) {
+export async function loadTrainingDiary(profile, start, end, { includeReflections = true } = {}) {
   const range = diaryRange(start, end, stockholmDate())
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${range.previousStart}&${field}=lt.${range.endExclusive}`
@@ -34,7 +34,7 @@ export async function loadTrainingDiary(profile, start, end) {
     read(`program_assignments?${owner}&select=id,training_programs(title,content)&order=id.asc`, 'styrkeprogram', true),
     read(`competition_results?${owner}&${within('result_date')}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`, 'tävlingsresultat', true),
     read(`development_goals?${owner}&start_date=lte.${end}&select=id,title,description,next_step,start_date,target_date,status&order=start_date.desc,id.asc`, 'utvecklingsmål', true),
-    read(`training_diary_reflections?${owner}&${within('activity_date')}&select=entry_key,activity_date,what_worked,next_time,updated_at&order=activity_date.asc,id.asc`, 'dagboksanteckningar (kräver migration 095)', true),
+    includeReflections ? read(`training_diary_reflections?${owner}&${within('activity_date')}&select=entry_key,activity_date,what_worked,next_time,updated_at&order=activity_date.asc,id.asc`, 'dagboksanteckningar (kräver migration 095)', true) : Promise.resolve([]),
     read(`workout_unlocks?${owner}&workout_date=eq.${stockholmDate()}&select=profile_id&order=profile_id.asc`, 'dagens passåtkomst'),
   ])
   // Older coach attendance may predate personal_training_sessions. Merge it
@@ -53,7 +53,7 @@ export async function loadTrainingDiary(profile, start, end) {
     entries: entries.filter((entry) => entry.date >= start && entry.date <= end),
     current: summarizeDiary(entries, responses, start, end),
     previous: summarizeDiary(entries, responses, range.previousStart, range.previousEnd),
-    raceResults: results.map((row) => ({ date: row.result_date, event: row.event, pool: row.pool, time: row.swim_time, resultTime: row.result_time })),
+    raceResults: results.map((row) => ({ date: row.result_date, event: row.event, pool: row.pool, time: row.swim_time, resultTime: row.result_time, source: row.source || 'unknown' })),
     goals: goals.filter((goal) => !goal.target_date || goal.target_date >= start || goal.status === 'active'),
     warnings: [...new Set(warnings)],
     reflectionsAvailable: !warnings.some((warning) => warning.startsWith('dagboksanteckningar')),
