@@ -40,6 +40,17 @@ function fixture({ workouts = [] } = {}) {
   }
   return {sessions,responses,writes}
 }
+test('strength before-checkin saves intent without a swim slot or completed session', async(t) => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-30T10:00:00Z')})
+  const data = fixture()
+  const saved = await call(checkin, 'POST', { type: 'before', feeling: 4, activityType: 'strength', trainingSlot: null, registerTraining: false, identified: true })
+  assert.equal(saved.response.activityType, 'strength')
+  assert.equal(saved.response.trainingSlot, null)
+  assert.equal(data.responses.length, 1)
+  assert.equal(data.sessions.length, 0)
+  assert.equal(data.writes.some(({table}) => table === 'personal_training_sessions'), false)
+})
+
 test('removing yesterday PM survives a new check-in and repeated swimmer/coach reads',async(t) => {
   t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-22T10:00:00Z')})
   const data = fixture()

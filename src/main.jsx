@@ -8,7 +8,7 @@ import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
 import { hasTrendValue, trendSegments, smoothTrendPath, trendDateLayout } from './trend-curve.js'
 import { withTrendSwimMeters } from './trend-swim-meters.js'
-import { CHECKIN_ACTIVITIES, activityLabel } from '../shared/checkin-activity.js'
+import { CHECKIN_ACTIVITIES, activityLabel, BEFORE_TRAINING_CHOICES, selectBeforeTraining } from '../shared/checkin-activity.js'
 import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
 import { calendarActivityKey, calendarFormValues, calendarLinkKeys, sameCalendarOccasion, explicitCalendarMatches } from '../shared/planning-calendar.js'
 import './swim-workout-options.css'
@@ -2217,14 +2217,15 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   const swimPlans = hasProfile ? workoutOptions : (Array.isArray(plannedWorkouts) ? plannedWorkouts : [plannedWorkouts]).filter(Boolean)
   const primarySwimPlan = swimPlans[0] || null
   const hasPlannedSwim = Boolean(primarySwimPlan || plannedSwimSlots.length)
-  const needsSwimSlot = form.competition !== true && (form.type === 'before' || (needsActivity && form.activityType === 'swim'))
+  const needsPassChoice = form.competition !== true && (form.type === 'before' || (needsActivity && form.activityType === 'swim'))
+  const needsSwimSlot = needsPassChoice && form.activityType === 'swim'
   const slotStep = needsActivity ? 2 : 1
   const needsWorkoutChoice = needsActivity && form.activityType === 'swim'
   const workoutStep = slotStep + 1
   const slotTime = form.trainingSlot === 'morning_swim' ? 'morning' : 'afternoon'
   const slotOptions = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === slotTime)
   const selectedOption = slotOptions.find((plan) => workoutReference(plan) === form.workoutReference)
-  const questionOffset = (needsActivity ? 3 : 2) + (needsSwimSlot ? 1 : 0) + (needsWorkoutChoice ? 1 : 0)
+  const questionOffset = (needsActivity ? 3 : 2) + (needsPassChoice ? 1 : 0) + (needsWorkoutChoice ? 1 : 0)
   const total = questionOffset + questions.length
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
@@ -2283,6 +2284,10 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
       {form.activityType === 'strength' && <p className="checkin-selection-note">Styrkepasset registreras utan att du behöver ange tid.</p>}
       {form.activityType === 'swim' && !hasPlannedSwim && <p className="checkin-selection-note">Simpasset registreras. Du behöver inte ange tid eller distans.</p>}
       {(!hasPlannedSwim || form.plannedCompletion === 'no') && <button type="button" className="primary-button" disabled={!form.activityType || (form.activityMinutes != null && (form.activityMinutes <= 0 || form.activityMinutes > 1440))} onClick={next}>Fortsätt →</button>}
+    </Question>
+  } else if (needsPassChoice && step === slotStep && form.type === 'before') {
+    content = <Question eyebrow="Din träning" title="Vilket pass ska du träna?" hint="Välj passet du planerar. Det räknas som genomfört först när du rapporterar efteråt.">
+      <div className="choice-stack">{BEFORE_TRAINING_CHOICES.map((option) => <button type="button" key={option.slot || option.activityType} className={`choice-card choice-card-with-description${form.activityType === option.activityType && form.trainingSlot === option.slot ? ' selected' : ''}`} onClick={() => { setForm((current) => selectBeforeTraining(current, option)); next() }}><span>{option.label}<small>{option.activityType === 'strength' ? 'Jag ska träna på gymmet' : swimPlans.filter((plan) => plan.timeOfDay === option.time).map((plan) => plan.title).join(' · ') || (plannedSwimSlots.includes(option.slot) ? 'Finns i din veckoplan' : 'Välj om detta är passet du menar')}</small></span><span>›</span></button>)}</div>
     </Question>
   } else if (needsSwimSlot && step === slotStep) {
     content = <Question eyebrow="Vilket simpass?" title={form.type === 'before' ? 'Vilket pass ska du träna?' : 'Vilket pass tränade du?'} hint="Svaret kopplas bara till det pass du väljer. Rapportera båda separat om du tränat två simpass.">
@@ -3132,7 +3137,7 @@ function TodayWorkoutSummary({ workouts = [], selectedGroups = [], hasCompetitio
   const answeredIds = new Set(latestByProfile.keys())
   const notReported = profiles.filter((profile) => !answeredIds.has(profile.id))
   const rows = [
-    { title: 'Ska träna idag', items: intending, icon: '→', tone: 'planned', detail: () => 'Planerat simpass' },
+    { title: 'Ska träna idag', items: intending, icon: '→', tone: 'planned', detail: ({ item }) => item.activityType === 'strength' ? 'Planerad styrketräning' : 'Planerat simpass' },
     { title: 'Har tränat idag', items: completed, icon: '✓', tone: 'done', detail: ({ item }) => item.lateEntry ? 'Efterregistrerat' : item.activityType === 'swim' ? 'Simträning rapporterad' : 'Träning rapporterad' },
     { title: 'Tävling, vila eller annan aktivitet', items: otherResponses, icon: 'ℹ', tone: 'other', detail: ({ item }) => item.competition ? (item.type === 'after' ? 'Har tävlat idag' : 'Ska tävla idag') : item.type === 'sick' ? 'Har anmält sjukdom' : item.type === 'rest' ? 'Har anmält vila' : item.activityType ? `${activityLabel(item.activityType)} · räknas inte som simpass` : item.type === 'before' ? 'Ska träna · simpass ej bekräftat' : 'Aktivitet ej angiven' },
     { title: 'Ingen incheckning idag', items: notReported.map((profile) => ({ profile, item: null })), icon: '…', tone: 'not-reported', detail: () => 'Ej rapporterat' },

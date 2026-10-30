@@ -6,6 +6,14 @@ export const CHECKIN_ACTIVITIES = [
   { key: 'other', label: 'Annat', emoji: '👟' },
 ]
 export function activityLabel(type) { return CHECKIN_ACTIVITIES.find((item) => item.key === type)?.label || 'Träning (typ ej angiven)' }
+export const BEFORE_TRAINING_CHOICES = [
+  { slot: 'morning_swim', time: 'morning', activityType: 'swim', label: '🌅 Morgonpass – simning' },
+  { slot: null, activityType: 'strength', label: '🏋️ Styrketräning' },
+  { slot: 'afternoon_swim', time: 'afternoon', activityType: 'swim', label: '🌇 Eftermiddag / kväll – simning' },
+]
+export function selectBeforeTraining(form, choice) {
+  return { ...form, activityType: choice.activityType, trainingSlot: choice.slot, workoutReference: null, activityDistanceMeters: null, activityMinutes: null, registerTraining: false }
+}
 export function checkinTraining(body) {
   if (!['before', 'after'].includes(body.type) || (body.type === 'before' && body.competition !== true)) return null
   if (body.registerTraining === false || !(body.type === 'after' || body.registerTraining === true)) return null
