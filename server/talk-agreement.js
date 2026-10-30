@@ -33,6 +33,9 @@ Skriv vid behov Nuläge från träningshistoriken, Simmarens önskemål och Geme
 
 För inte automatiskt över känsliga privata reflektioner eller uppgifter om sömn, hälsa, familj, skola och andra personer till den simmarsynliga överenskommelsen. Använd sådant varsamt som underlag för högst fem frågor att diskutera tillsammans. Även ett datastött utvecklingsområde är ett förslag att bekräfta, inte ett fattat beslut. Texten ska fortsatt vara i du-form, vanlig text utan Markdown och högst 5000 tecken.`
 
+const HISTORY_PROMPT = `
+Historiken kan omfatta upp till tolv månader med en månadsöversikt och senaste åtta veckorna mer detaljerat. Tidigare daterad överenskommelse är underlag för uppföljning, aldrig ett automatiskt nytt beslut. Testlopp och träningstider är manuellt registrerade och får bara jämföras inom angiven serie med samma distans, simsätt, bassäng, start, övning, hjälpmedel, övriga förutsättningar och tidtagning. Jämför inte dessa direkt med tävlingsresultat. Snabbaste registrerade tid under perioden är inte ett påstående om officiellt personbästa. Bevara datum och källor, synliga antal och begränsningar.`
+
 export async function proposeTalkAgreement(request, notes, deps = {}) {
   if (typeof notes !== 'string' || !notes.trim() || notes.length > 10000) throw new Error('Skriv interna anteckningar först, högst 10 000 tecken.')
   const personalData = detectGoalPersonalData(notes)
@@ -46,7 +49,7 @@ export async function proposeTalkAgreement(request, notes, deps = {}) {
       method: 'POST', signal: AbortSignal.timeout(110000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       body: JSON.stringify({ model, store: false, max_output_tokens: 3000, input: [
-        { role: 'system', content: SYSTEM_PROMPT + (deps.context ? CONTEXT_PROMPT : '') },
+        { role: 'system', content: SYSTEM_PROMPT + (deps.context ? CONTEXT_PROMPT + HISTORY_PROMPT : '') },
         { role: 'user', content: JSON.stringify(deps.context ? { notes: notes.trim(), period: deps.context.period, sources: deps.context.sections.filter((section) => section.key !== 'notes'), warnings: deps.context.warnings } : { notes: notes.trim() }) },
       ], text: { format: {
         type: 'json_schema', name: 'talk_agreement_draft', strict: true,

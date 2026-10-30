@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { detectGoalPersonalData } from '../shared/goal-privacy.js'
+import { TalkHistoryPeriod, TalkContextPreview } from './talk-ai-context.jsx'
 
 export default function DevelopmentTalkAi({ talkId, swimmerAnswers, notes, agreement, swimmerName, code, request, disabled, onBusyChange, onPendingChange, onUse }) {
   const [working, setWorking] = useState(''), [proposal, setProposal] = useState(null), [message, setMessage] = useState('')
   const [sources, setSources] = useState({ preparations: true, history: true, reflections: false, sleep: false })
   const [preview, setPreview] = useState(null)
-  const input = { talkId, notes, swimmerAnswers, sources }, sourceKey = JSON.stringify(input)
+  const [period, setPeriod] = useState('since-last')
+  const input = { talkId, notes, swimmerAnswers, sources, period }, sourceKey = JSON.stringify(input)
   const previewStale = preview && preview.sourceKey !== sourceKey
   const active = useRef(true), busy = useRef(false), controller = useRef(null)
   useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort() } }, [])
@@ -45,10 +47,11 @@ export default function DevelopmentTalkAi({ talkId, swimmerAnswers, notes, agree
   }
   return <section className="talk-ai-tools" aria-label="AI-stöd för gemensam överenskommelse" aria-busy={Boolean(working)}>
     <h5>Underlag för AI-förslaget</h5><p>Tränarens aktuella anteckningar ingår alltid. Välj vad mer du vill väga in och granska underlaget innan du skapar förslaget.</p>
-    <fieldset className="talk-ai-source-choices" disabled={disabled || Boolean(working) || Boolean(proposal)}><legend>Välj underlag</legend>{[['preparations', 'Simmarens förberedelser', 'Svaren i formuläret, inklusive osparade ändringar från mötet.'], ['history', 'Träningshistorik · senaste åtta veckorna', 'Registrerade pass, simning och styrka, kontinuitet, mängd, RPE, mål och registrerade tävlingsresultat.'], ['reflections', 'Ta med dagboksreflektioner', 'Frivilligt: de senaste tolv reflektionerna under perioden, med förkortade svar.'], ['sleep', 'Ta med sömnkoll', 'Frivilligt: sammanfattning av registrerad sovtid och upplevd sömn under perioden.']].map(([key, title, hint]) => <label key={key}><input type="checkbox" checked={sources[key]} onChange={(event) => { setSources((current) => ({ ...current, [key]: event.target.checked })); setMessage('') }} /><span><strong>{title}</strong><small>{hint}</small></span></label>)}</fieldset>
+    <TalkHistoryPeriod value={period} onChange={setPeriod} disabled={disabled || Boolean(working) || Boolean(proposal)} />
+    <fieldset className="talk-ai-source-choices" disabled={disabled || Boolean(working) || Boolean(proposal)}><legend>Välj underlag</legend>{[['preparations', 'Simmarens förberedelser', 'Svaren i formuläret, inklusive osparade ändringar från mötet.'], ['history', 'Träningshistorik och utveckling', 'Registrerade pass, simning och styrka, kontinuitet, mängd, RPE, mål, testlopp, träningstider och registrerade tävlingsresultat.'], ['reflections', 'Ta med dagboksreflektioner', 'Frivilligt: de senaste tolv reflektionerna under perioden, med förkortade svar.'], ['sleep', 'Ta med sömnkoll', 'Frivilligt: sammanfattning av registrerad sovtid och upplevd sömn under perioden.']].map(([key, title, hint]) => <label key={key}><input type="checkbox" checked={sources[key]} onChange={(event) => { setSources((current) => ({ ...current, [key]: event.target.checked })); setMessage('') }} /><span><strong>{title}</strong><small>{hint}</small></span></label>)}</fieldset>
     {!notes.trim() && <p>Skriv tränarens anteckningar innan du hämtar underlaget.</p>}
     <button type="button" className="secondary-button talk-ai-button" disabled={disabled || Boolean(working) || Boolean(proposal) || !notes.trim()} onClick={prepare}>{working === 'preview' ? <><span className="talk-ai-spinner" aria-hidden="true" /> Hämtar underlag…</> : preview ? 'Uppdatera underlag' : 'Visa underlag'}</button>
-    {preview && <div className="talk-ai-context"><strong>Underlag att granska</strong><p>Historikperiod: {preview.context.period.start}–{preview.context.period.end}</p>{preview.context.warnings.length > 0 && <p role="status">Begränsningar: {preview.context.warnings.join(' · ')}</p>}{preview.context.sections.map((section) => <details key={section.key}><summary>{section.title}</summary><pre>{section.text}</pre></details>)}{previewStale && <p role="alert">Anteckningarna, förberedelserna eller valet av underlag har ändrats. Uppdatera underlaget först.</p>}</div>}
+    {preview && <TalkContextPreview preview={preview} stale={previewStale} />}
     <p className="talk-ai-privacy">När du väljer Föreslå gemensam överenskommelse skickas det granskade underlaget till OpenAI. Granska och ta bort namn, kontaktuppgifter och känslig information som inte behövs. Textkontrollen kan inte upptäcka allt. Förslaget sparas först när du själv använder det och sparar samtalet.</p>
     {preview && <button type="button" className="secondary-button talk-ai-button" disabled={disabled || Boolean(working) || Boolean(proposal) || previewStale} onClick={generate}>{working === 'generate' ? <><span className="talk-ai-spinner" aria-hidden="true" /> Skapar förslag…</> : '✨ Föreslå gemensam överenskommelse'}</button>}
     {message && <p role="status" aria-live="polite">{message}</p>}

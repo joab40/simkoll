@@ -40,17 +40,17 @@ Funktionen använder befintlig transkriberingsfunktion och klubbens AI-kvot.
 Vid interna anteckningar finns **Visa underlag**, följt av
 **Föreslå gemensam överenskommelse**. Tränarens aktuella anteckningar ingår
 alltid. Simmarens förberedelser (även osparade ändringar under mötet) och en
-sammanfattning av senaste åtta veckornas träningshistorik är förvalda och kan
+sammanfattning av träningshistoriken är förvalda och kan
 väljas bort. Historiken omfattar registrerad simning/styrka/övrig träning,
 kontinuitet, rapporterad respektive uppskattad mängd, RPE med svarstäckning,
-utvecklingsmål och registrerade tävlingsresultat. Saknade registreringar är
+utvecklingsmål, testlopp/träningstider och registrerade tävlingsresultat. Saknade registreringar är
 inte bevis för utebliven träning, och resultatlistan är inte en komplett
 tävlings- eller PB-historik. Privata check-in-kommentarer och styrkeloggarnas
 fritext bifogas inte.
 
 Dagboksreflektioner och sömnkoll är separata, avstängda tillval. Reflektioner
 begränsas till de tolv senaste under perioden och 600 tecken per svar; detta
-syns i underlaget. Sömnkollen sammanfattas för samma åtta veckor utan att
+syns i underlaget. Sömnkollen sammanfattas för samma valda period utan att
 räkna överhoppade svar som noll.
 
 Visa underlag hämtar data enbart för det öppnade samtalets aktiva, godkända
@@ -81,5 +81,48 @@ bekräftelse. Tränaren granskar tillsammans med simmaren och väljer sedan
 
 Funktionen följer klubbens AI-inställning och månadstak. Den använder samma
 modellinställning som målförslag (`OPENAI_GOAL_MODEL`), med befintlig API-nyckel.
-Tokenförbrukning loggas, inte anteckningstexten. Ingen ny SQL eller miljövariabel behövs.
+Tokenförbrukning loggas, inte anteckningstexten. Ingen ny miljövariabel behövs.
 Anropet följer [OpenAI:s dokumentation om strukturerade svar](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
+
+## Längre historik och samtalsunderlag inför mötet
+
+Historikperioden är förvald till sedan förra genomförda samtalet, högst tolv
+månader. Tränaren kan också välja tre, sex eller tolv månader. Tidigare
+överenskommelse bifogas som daterad tidigare källa, inte som ett nytt beslut.
+Längre historik sammanfattas per månad; senaste åtta veckorna även veckovis.
+Första/sista registrering, RPE-täckning och begränsade källor framgår. Vi
+påstår inte att två registreringar betyder obruten historik däremellan.
+
+Testlopp och träningstider grupperas efter samma distans, simsätt, bassäng,
+starttyp, övning, hjälpmedel, övriga förutsättningar och tidtagning. Högst tjugo
+serier visas med första, senaste och snabbaste registrerade tid under perioden;
+antal och begränsning syns. Kommentarer bifogas inte. Tävlingsresultat hålls
+isär efter gren, bassäng och källa, med motsvarande periodöversikt för högst
+tjugo kombinationer och de senaste tio resultaten. Dessa listor är aldrig ett
+påstående om komplett tävlingshistorik eller officiella personbästan.
+
+När simmaren valt **Redo för samtal** visas **Inför samtalet** i tränarens
+öppnade samtal. Tränaren kan hämta och granska källorna och därefter välja
+**Skapa och spara samtalsunderlag**, även utan interna anteckningar. Det
+bygger på de sparade förberedelserna, historiken och tidigare överenskommelse.
+Sömn och reflektioner förblir avstängda frivilliga tillval. Osparade ändringar
+i samtalsformuläret måste sparas innan underlaget hämtas eller uppdateras.
+
+Analysen sparas med period, källval, begränsningar och tidsstämpel. Tränaren
+ser den igen när samtalet öppnas. Uppdatering sker genom aktivt knapptryck,
+inte automatiskt vid öppning eller när simmaren skickar sina svar. Samtalets
+version kontrolleras före modellkörning och vid sparning; ett ändrat samtal
+stoppar sparningen. Modellen får formulera observationer och dialogfrågor,
+inte skapa gemensamma beslut eller förklara prestationer med orsakssamband.
+Analysen ersätter inga svar, anteckningar, mål eller överenskommelser.
+
+Kör **108_development_talk_preparation.sql** för att spara coach_preparation.
+Kolumnen följer samma åtkomst som samtalet; simmarens API-svar utesluter både
+den och interna tränaranteckningar. Saknas kolumnen visas ett fel innan ett
+betalt modell-anrop görs. Funktionen använder befintlig AI-inställning/kvot.
+
+I **Mina utvecklingssamtal** visas sparad överenskommelse först i ett eget
+avsnitt med samtalsdatum och uppföljningsdatum. Radbrytningar bevaras. Egna
+förberedelser kan fällas ut i formulärets avsnitt och ordning. Överenskommelsen
+är synlig när tränaren sparat den, även innan samtalet markerats genomfört;
+det förberedande AI-underlaget visas bara för tränare.

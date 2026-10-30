@@ -1,4 +1,12 @@
 .talk-editor { scroll-margin-top: 24px; }
+.talk-preparation h4 { margin: 0 0 8px; font-size: 19px; }
+.talk-preparation-saved { background: white; padding: 14px; border: 1px solid var(--line); border-radius: 10px; margin: 12px 0; }
+.talk-preparation-meta { display: grid; gap: 5px; }
+.talk-preparation-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.talk-preparation-settings > summary { font-weight: 700; font-size: 14px; cursor: pointer; padding: 10px 0; }
+.talk-editor .talk-history-period { margin: 12px 0; font-size: 14px; }
+.talk-history-period select { width: 100%; min-width: 0; padding: 11px; border: 1px solid #caddd6; border-radius: 10px; font: inherit; font-size: 16px; background: white; color: var(--ink); }
+.talk-history-period small { font-weight: 400; }
 .talk-ai-tools { padding: 12px 14px; margin: 12px 0; border: 1px solid #cce1d9; border-radius: 12px; background: #f2f8f5; }
 .talk-ai-tools p, .talk-ai-tools li { font-size: 13px; line-height: 1.5; }
 .talk-ai-privacy { color: var(--muted); }

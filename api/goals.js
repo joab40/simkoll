@@ -7,6 +7,7 @@ import { writeAuditLog } from '../server/audit.js'
 import { TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import { proposeTalkAgreement } from '../server/talk-agreement.js'
 import { loadTalkAgreementContext } from '../server/talk-agreement-context.js'
+import { generateTalkPreparation } from '../server/talk-preparation.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
@@ -29,14 +30,14 @@ const mapGoal = (goal, updates = [], imageUrl = null) => ({
   })),
 })
 
-const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerSeenAt: item.swimmer_seen_at || null, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
+const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerSeenAt: item.swimmer_seen_at || null, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, coachPreparation: item.coach_preparation || null, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
 async function loadTalks(profileId = null) {
   const filter = profileId ? `&swimmer_id=eq.${profileId}` : ''
   const result = await supabaseRequest(`development_talks?select=*&${filter.slice(1)}&order=meeting_date.desc,created_at.desc&limit=200`)
   if (!result.ok) throw new Error(`Development talks GET failed: ${result.status}`)
   return (await result.json()).map(mapTalk)
 }
-const swimmerTalk = (talk) => { const { coachNotes, ...visible } = talk; return visible }
+const swimmerTalk = (talk) => { const { coachNotes, coachPreparation, ...visible } = talk; return visible }
 async function talksEnabled() {
   const result = await supabaseRequest("app_settings?setting_key=eq.development_talks&select=setting_value&limit=1")
   if (!result.ok) return true
@@ -67,7 +68,7 @@ export default async function handler(request, response) {
   const coachAccount = role === 'coach' ? coachFromRequest(request) : null
   const isSuperadmin = coachAccount?.role === 'superadmin'
   const isHeadCoach = coachAccount?.role === 'head_coach'
-  if (request.method === 'POST' && ['polish-goal', 'propose-talk-agreement', 'talk-agreement-context', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål och överenskommelser.' })
+  if (request.method === 'POST' && ['polish-goal', 'propose-talk-agreement', 'talk-agreement-context', 'talk-preparation-context', 'generate-talk-preparation', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål och överenskommelser.' })
   try {
     if (request.method === 'GET') {
       if (request.query?.home === 'true') {
@@ -108,6 +109,26 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach') {
+      if (['talk-preparation-context', 'generate-talk-preparation'].includes(request.body?.action)) {
+        try {
+          // Check schema before the paid model call, with a useful migration message.
+          const schema = await supabaseRequest('development_talks?select=coach_preparation&limit=0')
+          if (!schema.ok) return sendJson(response, 503, { error: 'Samtalsunderlag behöver databasuppdatering 108_development_talk_preparation. Be administratören köra den först.' })
+          const prepared = await loadTalkAgreementContext(request.body, { purpose: 'preparation' })
+          if (request.body.action === 'talk-preparation-context') return sendJson(response, 200, prepared)
+          if (prepared.contextHash !== request.body.contextHash) return sendJson(response, 409, { error: 'Underlaget har ändrats. Uppdatera och granska underlaget först.' })
+          const availability = await aiAvailability()
+          if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'Klubbens månadstak för AI är nått.' : 'AI-stöd är avstängt.' })
+          const draft = await generateTalkPreparation(request, prepared.context)
+          const generatedAt = new Date().toISOString()
+          const preparation = { ...draft, generatedAt, period: prepared.context.period, periodChoice: request.body.period || 'since-last', sources: request.body.sources, warnings: prepared.context.warnings, contextHash: prepared.contextHash, sourceVersion: prepared.talkVersion }
+          const saved = await supabaseRequest(`development_talks?id=eq.${encodeURIComponent(request.body.talkId)}&updated_at=eq.${encodeURIComponent(prepared.talkVersion)}&status=in.(prepared,completed)`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ coach_preparation: preparation, updated_at: generatedAt }) })
+          if (!saved.ok) throw new Error('Underlaget kunde inte sparas. Försök igen.')
+          const [row] = await saved.json()
+          if (!row) return sendJson(response, 409, { error: 'Samtalet ändrades medan analysen skapades. Uppdatera samtalet och försök igen.' })
+          return sendJson(response, 200, { talk: mapTalk(row) })
+        } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+      }
       if (request.body?.action === 'talk-agreement-context') {
         try { return sendJson(response, 200, await loadTalkAgreementContext(request.body)) }
         catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }

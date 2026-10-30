@@ -18,10 +18,10 @@ async function rows(query, { optional = false, warnings, label }) {
   return all
 }
 
-export async function loadTrainingDiary(profile, start, end, { includeReflections = true } = {}) {
+export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true } = {}) {
   const range = diaryRange(start, end, stockholmDate())
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
-  const within = (field) => `${field}=gte.${range.previousStart}&${field}=lt.${range.endExclusive}`
+  const within = (field) => `${field}=gte.${includeComparison ? range.previousStart : start}&${field}=lt.${range.endExclusive}`
   const read = (query, label, optional = false) => rows(query, { label, optional, warnings })
   const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks] = await Promise.all([
     read(`personal_training_sessions?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'registrerade pass'),
