@@ -8,6 +8,7 @@ import { TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import { proposeTalkAgreement } from '../server/talk-agreement.js'
 import { loadTalkAgreementContext } from '../server/talk-agreement-context.js'
 import { generateTalkPreparation } from '../server/talk-preparation.js'
+import { beginGoalVideo, finishGoalVideo, cancelGoalVideo, replaceGoalImage, clearGoalMedia, signedGoalVideo, cleanupGoalVideo } from '../server/goal-video.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
 const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
@@ -19,11 +20,13 @@ const FEEDBACK = {
   goal_complete: { points: 20, event: 'goal_complete' },
 }
 
-const mapGoal = (goal, updates = [], imageUrl = null) => ({
+const mapGoal = (goal, updates = [], imageUrl = null, videoPosterUrl = null) => ({
   id: goal.id, profileId: goal.profile_id, title: goal.title, description: goal.description,
   nextStep: goal.next_step || '', startDate: goal.start_date, targetDate: goal.target_date,
   status: goal.status, createdAt: goal.created_at, updatedAt: goal.updated_at, swimmerSeenAt: goal.swimmer_seen_at || null,
   imageUrl, hasImage: Boolean(goal.image_path),
+  hasVideo: Boolean(goal.video_path), videoPosterUrl, videoDurationMs: goal.video_duration_ms || null, videoBytes: goal.video_bytes || null, videoCodec: goal.video_codec || null,
+  videoVersion: goal.video_path?.split('/').at(-1) || null,
   updates: updates.filter((item) => item.goal_id === goal.id).map((item) => ({
     id: item.id, authorRole: item.author_role, content: item.content,
     feedbackType: item.feedback_type, points: item.points, createdAt: item.created_at, coachSeenAt: item.coach_seen_at || null,
@@ -53,11 +56,11 @@ async function loadGoals(profileId = null) {
   const updatesResult = await supabaseRequest(`goal_updates?goal_id=in.(${goals.map((goal) => goal.id).join(',')})&select=*&order=created_at.desc`)
   if (!updatesResult.ok) throw new Error(`Goal updates GET failed: ${updatesResult.status}`)
   const updates = await updatesResult.json()
-  return Promise.all(goals.map(async (goal) => mapGoal(goal, updates, await goalImageUrl(goal).catch(() => null))))
+  return Promise.all(goals.map(async (goal) => { const [image, poster] = await Promise.all([goalImageUrl(goal).catch(() => null), signedGoalVideo(goal, true).catch(() => null)]); return mapGoal(goal, updates, image, poster) }))
 }
 
-async function findGoal(id) {
-  const result = await supabaseRequest(`development_goals?id=eq.${encodeURIComponent(id)}&select=*&limit=1`)
+async function findGoal(id, profileId = null) {
+  const result = await supabaseRequest(`development_goals?id=eq.${encodeURIComponent(id)}${profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''}&select=*&limit=1`)
   if (!result.ok) throw new Error(`Goal lookup failed: ${result.status}`)
   return (await result.json())[0] || null
 }
@@ -68,9 +71,21 @@ export default async function handler(request, response) {
   const coachAccount = role === 'coach' ? coachFromRequest(request) : null
   const isSuperadmin = coachAccount?.role === 'superadmin'
   const isHeadCoach = coachAccount?.role === 'head_coach'
-  if (request.method === 'POST' && ['polish-goal', 'propose-talk-agreement', 'talk-agreement-context', 'talk-preparation-context', 'generate-talk-preparation', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål och överenskommelser.' })
+  if (request.method === 'POST' && ['begin-goal-video', 'finish-goal-video', 'cancel-goal-video', 'replace-goal-image', 'clear-goal-media', 'polish-goal', 'propose-talk-agreement', 'talk-agreement-context', 'talk-preparation-context', 'generate-talk-preparation', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål och överenskommelser.' })
   try {
     if (request.method === 'GET') {
+      if (request.query?.video === 'true') {
+        response.setHeader('Cache-Control', 'private, no-store')
+        const profile = role === 'coach' ? null : await getSessionProfile(request)
+        if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Logga in på din profil för att se videon.' })
+        const id = String(request.query.goalId || '')
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return sendJson(response, 400, { error: 'Välj ett giltigt utvecklingsmål.' })
+        const goal = await findGoal(id, profile?.id)
+        if (!goal?.video_path || (profile && goal.profile_id !== profile.id)) return sendJson(response, 404, { error: 'Videon kunde inte hittas i dina utvecklingsmål.' })
+        const url = await signedGoalVideo(goal)
+        if (!url) return sendJson(response, 502, { error: 'Videon kunde inte öppnas. Försök igen.' })
+        return sendJson(response, 200, { url })
+      }
       if (request.query?.home === 'true') {
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil först.' })
@@ -109,6 +124,18 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST' && role === 'coach') {
+      if (['begin-goal-video', 'finish-goal-video', 'cancel-goal-video', 'replace-goal-image', 'clear-goal-media'].includes(request.body?.action)) {
+        try {
+          const id = String(request.body.goalId || '')
+          if (!/^[0-9a-f-]{36}$/i.test(id)) return sendJson(response, 400, { error: 'Spara utvecklingsmålet först.' })
+          const goal = await findGoal(id)
+          if (!goal) return sendJson(response, 404, { error: 'Utvecklingsmålet kunde inte hittas.' })
+          if (request.body.action === 'begin-goal-video') return sendJson(response, 200, await beginGoalVideo(goal, request.body))
+          if (request.body.action === 'cancel-goal-video') return sendJson(response, 200, await cancelGoalVideo(goal, request.body))
+          const saved = await (request.body.action === 'finish-goal-video' ? finishGoalVideo : request.body.action === 'replace-goal-image' ? replaceGoalImage : clearGoalMedia)(goal, request.body)
+          return sendJson(response, 200, { goal: mapGoal(saved, [], await goalImageUrl(saved).catch(() => null), await signedGoalVideo(saved, true).catch(() => null)) })
+        } catch (error) { return sendJson(response, error.status || 422, { error: error.message }) }
+      }
       if (['talk-preparation-context', 'generate-talk-preparation'].includes(request.body?.action)) {
         try {
           // Check schema before the paid model call, with a useful migration message.
@@ -391,6 +418,7 @@ export default async function handler(request, response) {
       const result = await supabaseRequest(`development_goals?id=eq.${encodeURIComponent(request.query?.id || '')}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Goal delete failed: ${result.status}`)
       if (goal?.image_path && goal.image_path.startsWith(`${goal.profile_id}/`)) await removeUnattachedGoalImage(goal.image_path).catch(() => {})
+      if (goal) await cleanupGoalVideo(goal, { includeIncoming: true }).catch(() => {})
       return sendJson(response, 200, { ok: true })
     }
     return sendJson(response, 405, { error: 'Method not allowed' })

@@ -1,0 +1,21 @@
+.goal-video-picker { display: grid; gap: 8px; margin: 10px 0; min-width: 0; }
+.goal-video-picker > small { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.goal-video-picker .exercise-image-upload { justify-self: start; }
+.goal-video-preview, .goal-video-player { margin: 14px 0; min-width: 0; }
+.goal-video-preview video, .goal-video-player video { display: block; width: 100%; max-height: 460px; object-fit: contain; background: #102c35; border-radius: 12px; }
+.goal-video-preview figcaption, .goal-video-player figcaption { margin: 7px 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.goal-video-player figcaption { display: grid; gap: 3px; }
+.goal-video-player figcaption strong { color: var(--ink); }
+.goal-video-player .goal-video-open { display: grid; width: 100%; padding: 0; overflow: hidden; background: #e9f3ef; border: 1px solid #c5dbd2; border-radius: 12px; cursor: pointer; }
+.goal-video-open img { display: block; width: 100%; max-height: 280px; object-fit: contain; background: #102c35; }
+.goal-video-open > span { display: block; padding: 14px; font-size: 15px; font-weight: 700; color: var(--teal); }
+.goal-video-controls, .goal-media-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 10px 0; }
+.goal-video-controls label { display: grid; gap: 5px; margin: 0; font-size: 13px; }
+.goal-video-controls select { min-height: 42px; padding: 8px; border: 1px solid #c5dbd2; border-radius: 9px; font: inherit; font-size: 16px; background: white; color: var(--ink); }
+.goal-media-editor { padding: 12px; margin: 14px 0; border: 1px solid #c5dbd2; border-radius: 12px; background: #f5f9f7; }
+.goal-media-editor > summary { font-size: 14px; font-weight: 700; cursor: pointer; }
+.goal-media-editor p { font-size: 13px; line-height: 1.5; }
+.goal-media-editor input[type=file] { max-width: 100%; }
+.goal-video-picker .is-disabled { opacity: .6; cursor: default; }
+.goal-video-progress { padding: 12px; border-radius: 10px; background: #e9f5ed; color: #256b51; }
+@media (max-width: 600px) { .goal-video-controls { align-items: stretch; } .goal-video-controls > * { flex: 1 1 130px; } .goal-video-controls button { padding: 10px; } }

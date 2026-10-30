@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { detectGoalPersonalData } from '../shared/goal-privacy.js'
+import { GoalVideoPicker, GoalVideoPlayer } from './goal-video.jsx'
 
-export function GoalAnalysisImage({ goal }) {
+export function GoalAnalysisImage({ goal, code }) {
   const [failed, setFailed] = useState(false)
   useEffect(() => { setFailed(false) }, [goal.imageUrl])
+  if (goal.hasVideo) return <GoalVideoPlayer goal={goal} code={code} />
   if (!goal.hasImage) return null
   return <figure className="goal-analysis-image">{goal.imageUrl && !failed ? <a href={goal.imageUrl} target="_blank" rel="noreferrer"><img src={goal.imageUrl} alt={`Analysunderlag för ${goal.title}`} onError={() => setFailed(true)} /></a> : <p>Bilden kunde inte visas. Öppna målvyn igen för att hämta en ny bildlänk.</p>}<figcaption>Analysunderlag från tränaren · klicka för större bild</figcaption></figure>
 }
@@ -14,11 +16,12 @@ export default function GoalCreationTools({ code, request, form, onChange, aiEna
   const [message, setMessage] = useState('')
   const [transcript, setTranscript] = useState(null)
   const [draft, setDraft] = useState(null)
+  const [videoBusy, setVideoBusy] = useState(false)
   const recorderRef = useRef(null)
   const mounted = useRef(true)
   const timer = useRef(null)
   const controller = useRef(null)
-  const working = !!busy || recording
+  const working = !!busy || recording || videoBusy
   const blocked = working || disabled
   useEffect(() => { onBusyChange(working) }, [working, onBusyChange])
   useEffect(() => {
@@ -64,7 +67,7 @@ export default function GoalCreationTools({ code, request, form, onChange, aiEna
     try {
       const mime = /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : 'image/jpeg'
       const data = (await readDataUrl(file)).replace(/^data:[^;]*;/, `data:${mime};`)
-      if (mounted.current) { onChange((current) => ({ ...current, imageData: data })); setDraft(null); setMessage('Bilden är vald. Den sparas först när du skapar målet.') }
+      if (mounted.current) { onChange((current) => ({ ...current, imageData: data, videoAttachment: null })); setDraft(null); setMessage('Bilden är vald. Den sparas först när du skapar målet.') }
     } catch (error) { if (mounted.current) setMessage(error.message) } finally { if (mounted.current) setBusy('') }
   }
   const improve = async () => {
@@ -78,8 +81,10 @@ export default function GoalCreationTools({ code, request, form, onChange, aiEna
     } catch (error) { if (mounted.current) setMessage(error.message) } finally { if (mounted.current) setBusy('') }
   }
   return <section className="goal-creation-tools goal-inline-tools wide" aria-label="AI-stöd och bilaga för utvecklingsmål">
-<div className="goal-tool-actions"><button type="button" className={recording ? 'recording-button' : 'secondary-button'} disabled={!aiEnabled || !!busy || disabled} onClick={recording ? stop : record}>{recording ? '⏹ Stoppa inspelning' : busy === 'transcribe' ? 'Transkriberar…' : '🎙️ Prata in beskrivning'}</button><label className="exercise-image-upload">📷 Bifoga analysbild<input type="file" accept=".png,.jpg,.jpeg,.webp" disabled={blocked} onChange={chooseImage} /></label><button type="button" className={`secondary-button goal-ai-button${busy === 'polish' ? ' analyzing' : ''}`} disabled={!aiEnabled || blocked || (!form.title.trim() && !form.description.trim() && !form.nextStep.trim() && !form.imageData)} onClick={improve}><span aria-hidden="true">✨</span>{busy === 'polish' ? 'Analyserar måltext…' : 'Skapa målförslag med AI'}</button></div>
+<div className="goal-tool-actions"><button type="button" className={recording ? 'recording-button' : 'secondary-button'} disabled={!aiEnabled || !!busy || disabled || videoBusy} onClick={recording ? stop : record}>{recording ? '⏹ Stoppa inspelning' : busy === 'transcribe' ? 'Transkriberar…' : '🎙️ Prata in beskrivning'}</button><label className="exercise-image-upload">📷 Bifoga analysbild<input type="file" accept=".png,.jpg,.jpeg,.webp" disabled={blocked} onChange={chooseImage} /></label><button type="button" className={`secondary-button goal-ai-button${busy === 'polish' ? ' analyzing' : ''}`} disabled={!aiEnabled || blocked || (!form.title.trim() && !form.description.trim() && !form.nextStep.trim() && !form.imageData)} onClick={improve}><span aria-hidden="true">✨</span>{busy === 'polish' ? 'Analyserar måltext…' : 'Skapa målförslag med AI'}</button></div>
     {!aiEnabled && <small>AI-stöd är avstängt. Du kan skriva målet och bifoga en bild utan AI.</small>}
+    <GoalVideoPicker attachment={form.videoAttachment} onChange={(value) => onChange((current) => ({ ...current, videoAttachment: value, ...(value ? { imageData: null } : {}) }))} disabled={disabled || Boolean(busy) || recording} onBusyChange={setVideoBusy} />
+    {form.videoAttachment && <small>Videon kopplas till målet när det skapas. Den ingår inte i AI-anropet.</small>}
     <p className="goal-privacy-warning"><span aria-hidden="true">🔒</span><span><strong>Avidentifiera texten innan du använder AI.</strong> Ange inte för- och efternamn, personnummer, e-post, kontaktuppgifter, hälsouppgifter eller annan information som kan identifiera simmaren. Skriv exempelvis ”simmaren”. Kontrollen försöker upptäcka fullständiga namn, e-post och personnummer, men ersätter inte tränarens egen kontroll.</span></p>
     <small>Ljud skickas för transkribering men sparas inte i Simkoll. AI får måltexten och eventuell bild och använder klubbens AI-kvot. Bifoga inte identifierande personuppgifter i bilden.</small>
     {form.imageData && <figure className="goal-analysis-image"><img src={form.imageData} alt="Valt analysunderlag för målet" /><figcaption>Syns för tränaren och simmaren när målet sparas.</figcaption><button type="button" className="text-button" disabled={blocked} onClick={() => { onChange((current) => ({ ...current, imageData: null })); setDraft(null) }}>Ta bort vald bild</button></figure>}

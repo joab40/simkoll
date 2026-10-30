@@ -28,6 +28,8 @@ import PrivateChatReply from './private-chat-reply.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import DevelopmentTalkRoster from './development-talk-roster.jsx'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
+import { GoalMediaEditor } from './goal-video.jsx'
+import { uploadGoalVideo } from './goal-video-upload.js'
 import { coachMetricDetails } from './coach-metric-details.js'
 import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
 import './styles.css'
@@ -2130,7 +2132,7 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   return <div className="goals-page"><button className="back-button" onClick={onBack}>← Tillbaka</button><div className="goals-content"><p className="eyebrow">Ditt ansvar · din utveckling</p><h1>Min träning och mina mål</h1>{loading ? <p className="empty">Hämtar mål…</p> : <>
     <section className="season-goal-section"><div className="section-title"><div><p className="eyebrow">Simmål per vecka</p><h2>Mitt terminsmål</h2></div>{activeSeason && <span>{weekCount} / {activeSeason.target} den här veckan</span>}</div>{activeSeason ? <div className="season-active"><div className="big-session-count"><strong>{weekCount}</strong><span>av {activeSeason.target} simpass</span></div><div><h3>{activeSeason.title}</h3><p>Du har själv valt {activeSeason.target} pass per vecka.</p><div className="session-dots">{Array.from({ length: activeSeason.target }, (_, index) => <i className={index < weekCount ? 'done' : ''} key={index} />)}</div><small>{activeSeason.startDate} – {activeSeason.endDate}</small></div></div> : <form className="season-form" onSubmit={saveSeasonGoal}><label>Vad kallar du målet?<input required value={seasonForm.title} onChange={(event) => setSeasonForm({ ...seasonForm, title: event.target.value })} /></label><label>Antal simpass per vecka<input type="number" min="1" max="14" required value={seasonForm.target} onChange={(event) => setSeasonForm({ ...seasonForm, target: event.target.value })} /></label><label>Från<input type="date" required value={seasonForm.startDate} onChange={(event) => setSeasonForm({ ...seasonForm, startDate: event.target.value })} /></label><label>Till<input type="date" required value={seasonForm.endDate} onChange={(event) => setSeasonForm({ ...seasonForm, endDate: event.target.value })} /></label><label className="wide">Min tanke efter utvecklingssamtalet<textarea maxLength="1000" value={seasonForm.reflection} onChange={(event) => setSeasonForm({ ...seasonForm, reflection: event.target.value })} /></label><button className="primary-button">Spara mitt mål →</button></form>}</section>
     <section className="assigned-programs"><p className="eyebrow">Från tränarna</p><h2>Mina program</h2>{training?.assignments?.length ? training.assignments.map((assignment) => { const programGoals = training.programGoals.filter((goal) => goal.assignmentId === assignment.id); return <article key={assignment.id}><header><span>{assignment.program.type === 'strength' ? '🏋️' : '🤸'}</span><div><strong>{assignment.program.title}</strong><small>{assignment.program.type === 'strength' ? 'Styrketräning' : 'Landträning'}</small></div></header><p>{assignment.program.description}</p>{assignment.program.type === 'strength' ? <StrengthProgramRunner assignment={assignment} logs={training.strengthLogs || []} code={code} onSaved={load} /> : <><pre>{assignment.program.content}</pre><button onClick={() => completeProgram(assignment)}>✓ Markera ett pass genomfört</button></>}{programGoals.map((goal) => <div className="program-goal" key={goal.id}><strong>🎯 {goal.title} · {goal.rewardPoints} poäng</strong><p>{goal.description}</p><span>{goal.status === 'approved' ? `Godkänt! ${goal.coachFeedback}` : goal.status === 'submitted' ? 'Väntar på tränaren' : goal.status === 'continue' ? `Fortsätt jobba · ${goal.coachFeedback}` : ''}</span>{['active', 'continue'].includes(goal.status) && <button onClick={() => submitProgramGoal(goal.id)}>Redo för godkännande →</button>}</div>)}</article> }) : <p className="empty">Inga styrke- eller landträningsprogram ännu.</p>}</section>
-<section className="development-section"><p className="eyebrow">Privat mellan dig och tränarna</p><h2>Mina utvecklingsmål</h2><p className="development-guidance">Läs målet och skriv gärna vad du tänker eller undrar. Ditt svar går till tränarna här på målet. De kan svara med återkoppling, och ni kan fortsätta prata om det tillsammans.</p>{goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p><GoalAnalysisImage goal={goal} />{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Mitt svar'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Vad tänker du om målet?" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button type="button" disabled={Boolean(sendingReflection)} onClick={() => addReflection(goal.id)}>{sendingReflection === goal.id ? 'Skickar…' : 'Skicka till tränarna'}</button></div>}</article>)}</div> : <p className="empty">Inga utvecklingsmål ännu.</p>}</section>
+<section className="development-section"><p className="eyebrow">Privat mellan dig och tränarna</p><h2>Mina utvecklingsmål</h2><p className="development-guidance">Läs målet och skriv gärna vad du tänker eller undrar. Ditt svar går till tränarna här på målet. De kan svara med återkoppling, och ni kan fortsätta prata om det tillsammans.</p>{goals.length ? <div className="goal-list">{goals.map((goal) => <article className="goal-card" key={goal.id}><header><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status]}</span><small>{goal.targetDate ? `Mål: ${new Date(`${goal.targetDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : 'Inget slutdatum'}</small></header><h2>{goal.title}</h2><p>{goal.description}</p><GoalAnalysisImage goal={goal} code={code} />{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : 'Mitt svar'} {update.points > 0 && <b>+{update.points} poäng</b>}</strong><small>{update.content}</small></p></div>)}</div>{goal.status !== 'complete' && <div className="reflection-box"><input maxLength="1000" placeholder="Vad tänker du om målet?" value={reflection[goal.id] || ''} onChange={(event) => setReflection({ ...reflection, [goal.id]: event.target.value })} /><button type="button" disabled={Boolean(sendingReflection)} onClick={() => addReflection(goal.id)}>{sendingReflection === goal.id ? 'Skickar…' : 'Skicka till tränarna'}</button></div>}</article>)}</div> : <p className="empty">Inga utvecklingsmål ännu.</p>}</section>
   </>}</div></div>
 }
 
@@ -4498,10 +4500,11 @@ const FEEDBACK_OPTIONS = [
   ['milestone', 'Delmål klart · +10'], ['goal_complete', 'Utvecklingsmål klart · +20'],
 ]
 
-function CoachGoalCard({ goal, owner, entry, setFeedback, updateGoal, updateStatus, sendFeedback, remove, onRead, initiallyExpanded = false }) {
+function CoachGoalCard({ goal, code, owner, entry, setFeedback, updateGoal, updateStatus, sendFeedback, remove, onRead, onMediaSaved, initialAttachment, externalBusy = false, initiallyExpanded = false }) {
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [editing, setEditing] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [mediaBusy, setMediaBusy] = useState(false)
   const [editDraft, setEditDraft] = useState({ title: goal.title, description: goal.description, nextStep: goal.nextStep || '' })
   const panelId = `coach-goal-${goal.id}`
   useEffect(() => { if (initiallyExpanded) setExpanded(true) }, [initiallyExpanded])
@@ -4515,7 +4518,7 @@ function CoachGoalCard({ goal, owner, entry, setFeedback, updateGoal, updateStat
   const visiblyUpdated = goal.updatedAt && goal.createdAt && new Date(goal.updatedAt) - new Date(goal.createdAt) > 60000
   const unreadReplies = goal.updates.filter((update) => update.authorRole === 'swimmer' && !update.coachSeenAt).length
   return <article id={`coach-goal-card-${goal.id}`} className={`coach-goal-card${expanded ? ' expanded' : ''}`}>
-    <button type="button" className="coach-goal-toggle" aria-expanded={expanded} aria-controls={panelId} onClick={() => { if (!expanded && unreadReplies) onRead(goal.id); setExpanded((current) => !current) }}>
+    <button type="button" className="coach-goal-toggle" disabled={mediaBusy || externalBusy} aria-expanded={expanded} aria-controls={panelId} onClick={() => { if (!expanded && unreadReplies) onRead(goal.id); setExpanded((current) => !current) }}>
       <span className="coach-goal-owner-emoji">{owner?.emoji}</span>
       <span className="coach-goal-heading"><strong>{goal.title}</strong><small>{owner?.displayName || 'Okänd profil'}</small></span>
       {unreadReplies > 0 && <span className="goal-reply-badge">{unreadReplies} {unreadReplies === 1 ? 'nytt svar' : 'nya svar'}</span>}
@@ -4523,13 +4526,14 @@ function CoachGoalCard({ goal, owner, entry, setFeedback, updateGoal, updateStat
       <span className="coach-goal-chevron" aria-hidden="true">⌄</span>
     </button>
     {expanded && <div className="coach-goal-content" id={panelId}>
-      <div className="coach-goal-controls"><label className="coach-goal-status-control">Status<select value={goal.status} disabled={savingEdit} onChange={(event) => updateStatus(goal.id, event.target.value)}>{Object.entries(GOAL_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>{!editing && <button type="button" className="secondary-button" onClick={beginEdit}>Redigera mål</button>}</div>
+      <div className="coach-goal-controls"><label className="coach-goal-status-control">Status<select value={goal.status} disabled={savingEdit || mediaBusy || externalBusy} onChange={(event) => updateStatus(goal.id, event.target.value)}>{Object.entries(GOAL_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>{!editing && <button type="button" className="secondary-button" disabled={mediaBusy || externalBusy} onClick={beginEdit}>Redigera mål</button>}</div>
       {editing ? <form className="coach-goal-edit-form" onSubmit={saveEdit}><label>Rubrik<input required maxLength="100" value={editDraft.title} onChange={(event) => setEditDraft({ ...editDraft, title: event.target.value })} /></label><label>Beskrivning<textarea required maxLength="2000" value={editDraft.description} onChange={(event) => setEditDraft({ ...editDraft, description: event.target.value })} /></label><label>Nästa steg<input maxLength="500" value={editDraft.nextStep} onChange={(event) => setEditDraft({ ...editDraft, nextStep: event.target.value })} /></label><div><button type="button" className="text-button" disabled={savingEdit} onClick={() => setEditing(false)}>Avbryt</button><button className="primary-button" disabled={savingEdit || !editDraft.title.trim() || !editDraft.description.trim()}>{savingEdit ? 'Sparar…' : 'Spara ändringar'}</button></div></form> : <><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}</>}
-      <GoalAnalysisImage goal={goal} />
+      <GoalAnalysisImage goal={goal} code={code} />
+      <GoalMediaEditor goal={goal} code={code} onSaved={onMediaSaved} initialAttachment={initialAttachment} disabled={savingEdit || editing || externalBusy} onBusyChange={setMediaBusy} />
       {visiblyUpdated && <small className="coach-goal-updated">Senast uppdaterat {new Date(goal.updatedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })}</small>}
       <details><summary>Historik och återkoppling ({goal.updates.length})</summary><div className="goal-timeline">{goal.updates.map((update) => <div key={update.id}><span>{update.authorRole === 'coach' ? '🎯' : '💭'}</span><p><strong>{update.authorRole === 'coach' ? 'Tränarna' : owner?.displayName} {update.points > 0 && <b>+{update.points} p</b>}</strong><small>{update.content}</small></p></div>)}</div></details>
-      <div className="feedback-form"><select value={entry.type} onChange={(event) => setFeedback((current) => ({ ...current, [goal.id]: { ...entry, type: event.target.value } }))}>{FEEDBACK_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><input maxLength="1000" placeholder="Skriv privat återkoppling…" value={entry.content} onChange={(event) => setFeedback((current) => ({ ...current, [goal.id]: { ...entry, content: event.target.value } }))} /><button type="button" onClick={() => sendFeedback(goal.id)}>Skicka</button></div>
-      <button type="button" className="delete-goal" onClick={() => remove(goal)}>Radera mål</button>
+      <div className="feedback-form"><select value={entry.type} onChange={(event) => setFeedback((current) => ({ ...current, [goal.id]: { ...entry, type: event.target.value } }))}>{FEEDBACK_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><input maxLength="1000" placeholder="Skriv privat återkoppling…" value={entry.content} onChange={(event) => setFeedback((current) => ({ ...current, [goal.id]: { ...entry, content: event.target.value } }))} /><button type="button" disabled={mediaBusy || externalBusy} onClick={() => sendFeedback(goal.id)}>Skicka</button></div>
+      <button type="button" className="delete-goal" disabled={savingEdit || mediaBusy || externalBusy} onClick={() => remove(goal)}>Radera mål</button>
     </div>}
   </article>
 }
@@ -4542,6 +4546,9 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
   const [goalToolsBusy, setGoalToolsBusy] = useState(false)
   const [creating, setCreating] = useState(false)
   const [focusedGoalId, setFocusedGoalId] = useState('')
+  const [createMessage, setCreateMessage] = useState(''), [retryVideos, setRetryVideos] = useState({})
+  const creationController = useRef(null), active = useRef(true), creatingGuard = useRef(false)
+  useEffect(() => { active.current = true; return () => { active.current = false; creationController.current?.abort() } }, [])
   const load = () => apiRequest('/api/goals', code).then((data) => setGoals(data.goals))
   useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
   useEffect(() => {
@@ -4555,13 +4562,25 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
   }, [goals, initialGoalId, navigationKey])
   const create = async (event) => {
     event.preventDefault()
-    if (creating || goalToolsBusy) return
-    setCreating(true)
+    if (creatingGuard.current || goalToolsBusy) return
+    creatingGuard.current = true; setCreating(true); setCreateMessage('Sparar utvecklingsmålet…')
+    creationController.current = new AbortController()
     try {
-      await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', ...form }) })
-      setForm({ profileId: '', title: '', description: '', nextStep: '', startDate: localDateValue(), targetDate: '' }); setShowCreate(false); await load()
-    } catch (error) { window.alert(error.message) } finally { setCreating(false) }
+      const { videoAttachment, ...values } = form
+      const result = await apiRequest('/api/goals', code, { method: 'POST', signal: creationController.current.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', ...values }) })
+      if (!active.current) return
+      setGoals((current) => [result.goal, ...current]); setFocusedGoalId(result.goal.id)
+      setForm({ profileId: '', title: '', description: '', nextStep: '', startDate: localDateValue(), targetDate: '' }); setShowCreate(false)
+      if (videoAttachment) {
+        try {
+          const uploaded = await uploadGoalVideo(apiRequest, code, result.goal.id, videoAttachment, { signal: creationController.current.signal, onProgress: (message) => { if (active.current) setCreateMessage(message) } })
+          if (active.current) { setGoals((current) => current.map((goal) => goal.id === result.goal.id ? { ...goal, ...uploaded.goal } : goal)); setCreateMessage('✓ Målet och videon är sparade.') }
+        } catch (error) { if (active.current) { setRetryVideos((current) => ({ ...current, [result.goal.id]: videoAttachment })); setCreateMessage(`Målet är sparat, men videon kunde inte kopplas: ${error.message} Öppna målets bilaga nedan för att försöka igen.`) } }
+      } else setCreateMessage('✓ Målet är sparat.')
+    } catch (error) { if (active.current && error.name !== 'AbortError') setCreateMessage(error.message) }
+    finally { creatingGuard.current = false; if (active.current) setCreating(false) }
   }
+  const mediaSaved = (saved) => { setGoals((current) => current.map((goal) => goal.id === saved.id ? { ...goal, ...saved, updates: goal.updates } : goal)); setRetryVideos((current) => { const next = { ...current }; delete next[saved.id]; return next }) }
   const updateStatus = async (goalId, status) => {
     try { await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', goalId, status }) }); await load() } catch (error) { window.alert(error.message) }
   }
@@ -4591,9 +4610,10 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
   }, [initialGoalId, goals])
   const openReply = (goalId) => { setFocusedGoalId(goalId); markRepliesRead(goalId); window.setTimeout(() => document.getElementById(`coach-goal-card-${goalId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80) }
   return <section className="coach-goals"><div className="period-heading"><div><p className="eyebrow">Privat tränare + simmare</p><h2>Utvecklingsmål</h2></div><button type="button" className="primary-button" disabled={creating || goalToolsBusy} onClick={() => setShowCreate(!showCreate)}>{showCreate ? 'Stäng' : 'Nytt mål +'}</button></div>
+    {createMessage && <p className="goal-video-progress" role="status" aria-live="polite">{createMessage}</p>}
     {unreadGoals.length > 0 && <section className="goal-replies-notice"><strong>💬 Nya svar från simmare</strong><p>Öppna ett mål för att läsa svaret och ge återkoppling.</p><div>{unreadGoals.map(({ goal, count }) => <button type="button" key={goal.id} onClick={() => openReply(goal.id)}>{profileFor(goal.profileId)?.displayName || 'Simmare'} · {goal.title} <b>{count} {count === 1 ? 'svar' : 'svar'} →</b></button>)}</div></section>}
     {showCreate && <form className="goal-form" onSubmit={create}><fieldset className="goal-fields wide" disabled={creating || goalToolsBusy}><label>Simmare<select required value={form.profileId} onChange={(event) => setForm({ ...form, profileId: event.target.value })}><option value="">Välj profil…</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Rubrik<input required maxLength="100" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="wide">Beskrivning<textarea required maxLength="2000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Skriv stödord eller en påbörjad måltext…" /></label><label className="wide">Nästa steg<input maxLength="500" value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label><label>Startdatum<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label><label>Måldatum<input type="date" value={form.targetDate} onChange={(event) => setForm({ ...form, targetDate: event.target.value })} /></label></fieldset><GoalCreationTools code={code} request={apiRequest} form={form} onChange={setForm} aiEnabled={aiEnabled} swimmerName={profileFor(form.profileId)?.displayName || ''} disabled={creating} onBusyChange={setGoalToolsBusy} /><button type="submit" className="primary-button" disabled={creating || goalToolsBusy}>{creating ? 'Sparar…' : 'Skapa mål →'}</button></form>}
-    {goals.length ? <div className="coach-goal-list">{goals.map((goal) => <CoachGoalCard key={goal.id} goal={goal} owner={profileFor(goal.profileId)} entry={feedback[goal.id] || { type: 'progress', content: '' }} setFeedback={setFeedback} updateGoal={updateGoal} updateStatus={updateStatus} sendFeedback={sendFeedback} remove={remove} onRead={markRepliesRead} initiallyExpanded={goal.id === initialGoalId || goal.id === focusedGoalId} />)}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
+    {goals.length ? <div className="coach-goal-list">{goals.map((goal) => <CoachGoalCard code={code} onMediaSaved={mediaSaved} initialAttachment={retryVideos[goal.id]} externalBusy={creating} key={goal.id} goal={goal} owner={profileFor(goal.profileId)} entry={feedback[goal.id] || { type: 'progress', content: '' }} setFeedback={setFeedback} updateGoal={updateGoal} updateStatus={updateStatus} sendFeedback={sendFeedback} remove={remove} onRead={markRepliesRead} initiallyExpanded={goal.id === initialGoalId || goal.id === focusedGoalId} />)}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
 }
 
 function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = false }) {
@@ -5046,14 +5066,14 @@ function SwimmerNotes({ profile, code }) {
   )
 }
 
-function SwimmerDevelopmentGoalsCard({ profile, goals = [], onOpenGoal, onCreateGoal }) {
+function SwimmerDevelopmentGoalsCard({ profile, code, goals = [], onOpenGoal, onCreateGoal }) {
   const sortedGoals = [...goals].sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')))
   const activeGoals = sortedGoals.filter((goal) => goal.status !== 'complete')
   const previousGoals = sortedGoals.filter((goal) => goal.status === 'complete')
   const dateLabel = (value) => value ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }) : ''
   const goalRow = (goal) => <details className="swimmer-development-goal" key={goal.id}>
     <summary><span><strong>{goal.title}</strong><small><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status] || goal.status}</span>{goal.targetDate ? ` · mål ${dateLabel(goal.targetDate)}` : ''}</small></span><span aria-hidden="true">⌄</span></summary>
-    <div className="swimmer-development-goal-content"><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="swimmer-development-goal-image"><GoalAnalysisImage goal={goal} /></div><button type="button" className="secondary-button" onClick={() => onOpenGoal?.(profile.id, goal.id)}>Öppna och redigera →</button></div>
+    <div className="swimmer-development-goal-content"><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="swimmer-development-goal-image"><GoalAnalysisImage goal={goal} code={code} /></div><button type="button" className="secondary-button" onClick={() => onOpenGoal?.(profile.id, goal.id)}>Öppna och redigera →</button></div>
   </details>
   return <section className="swimmer-development-goals-card">
     <header><div><p className="eyebrow">Tränare + {profile.displayName}</p><h3>Utvecklingsmål</h3><small>{activeGoals.length ? `${activeGoals.length} ${activeGoals.length === 1 ? 'aktivt mål' : 'aktiva mål'}` : 'Inget aktivt mål just nu'}</small></div><button type="button" className="text-button" onClick={() => onCreateGoal?.(profile.id)}>Nytt mål +</button></header>
@@ -5300,7 +5320,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             <SwimmerStrengthProgramCard profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
             <SleepHistory profileId={profile.id} code={code} request={apiRequest} responses={responses.filter((item) => item.profileId === profile.id)} />
-            {goalsEnabled && <SwimmerDevelopmentGoalsCard profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
+            {goalsEnabled && <SwimmerDevelopmentGoalsCard code={code} profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
             <SwimmerNotes profile={profile} code={code} />
             {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.temperature ? ` · 🌡️ ${TEMPERATURE_LABELS[Number(item.temperature) - 1] || `${item.temperature}/5`}` : ''}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
