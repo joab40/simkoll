@@ -20,5 +20,5 @@ export const COACH_MENU_SECTIONS = [
   ['Arbeta', ['workout', 'swimmers', 'groups', 'community']],
   ['Följa upp', ['control-panel', 'meeting', 'trends', 'history', 'week', 'coach-feed', 'competition', 'rewards']],
   ['Planera & stötta', ['planning', 'competition-calendar', 'talks', 'goals', 'programs', 'strength-programs', 'workout-library', 'games']],
-  ['Övrigt', ['push-settings', 'app-feedback', 'faq', 'legal']],
+  ['Övrigt', ['push-settings', 'app-feedback', 'faq', 'legal', 'storage']],
 ]

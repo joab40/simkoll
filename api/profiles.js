@@ -3,6 +3,7 @@ import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from 
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import { estimatedCostUsd } from '../server/ai-costs.js'
 import { coachFromRequest } from '../server/coach-auth.js'
+import { handleStorageAdmin } from '../server/storage-admin.js'
 import { fetchTempusResults, tempusResultRows, storeTempusRows, newTempusBests } from '../server/tempus-results.js'
 import { getSessionDays } from '../server/session-settings.js'
 import {
@@ -115,6 +116,7 @@ async function updateProfile(id, values) {
 
 export default async function handler(request, response) {
   try {
+    if (request.query?.storage === 'true') return handleStorageAdmin(request, response)
     if (request.method === 'GET' && request.query?.cron === 'tempus') {
       const secret = process.env.CRON_SECRET
       if (secret && request.headers.authorization !== `Bearer ${secret}`) return sendJson(response, 401, { error: 'Unauthorized' })

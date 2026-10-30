@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { storageMutationEvent, recordStorageEvent } from './storage-events.js'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -9,7 +10,12 @@ export function isDatabaseConfigured() {
 
 export async function supabaseStorageRequest(path, options = {}) {
   if (!isDatabaseConfigured()) throw new Error('Supabase is not configured')
-  return fetch(`${supabaseUrl}/storage/v1/${path}`, { ...options, headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, ...options.headers } })
+  const event = storageMutationEvent(path, options)
+  let response
+  try { response = await fetch(`${supabaseUrl}/storage/v1/${path}`, { ...options, headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, ...options.headers } }) }
+  catch (error) { await recordStorageEvent(supabaseRequest, event); throw error }
+  await recordStorageEvent(supabaseRequest, event, response)
+  return response
 }
 
 export function supabaseStorageUrl(path) {
