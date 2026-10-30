@@ -22,6 +22,11 @@ Interna tränaranteckningar lämnas inte ut i simmarens API-svar. Den gemensamma
 Ett genomfört samtal ligger kvar i historiken och simmaren kan bokas på nytt.
 Ingen ny databasmigrering behövs för detta flöde.
 
+Gruppens förberedelselista har en egen komponent och stilmall som laddas med
+huvudvyn. Layouten är därför likadan vid första besöket, omladdning och när
+tränaren återvänder från ett öppnat samtal. Namn/datum, status och Öppna har
+egna ytor; på de smalaste mobilerna visas status/Öppna under namn och datum.
+
 ## Valfria röstanteckningar
 
 Tränaren kan spela in en kort anteckning, högst två minuter. Alla som hörs ska

@@ -1,0 +1,29 @@
+/* The roster is visible before the lazy-loaded editor is opened. Keep all
+   roster layout here so navigation history cannot change its appearance. */
+.talk-roster-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.talk-roster-heading h3 { margin: 0 0 4px; }
+.talk-roster-heading p, .talk-bulk-hint { margin: 0; color: var(--muted); }
+.talk-roster { display: grid; gap: 7px; max-height: 390px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.talk-roster-row.talk-roster-row-v3 { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 64px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+.talk-roster-row-v3 .talk-roster-person { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.talk-roster-person > div { display: grid; gap: 3px; min-width: 0; }
+.talk-roster-person strong { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.talk-roster-person .talk-roster-date { font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; }
+.talk-roster-person .talk-roster-check { display: flex; align-items: center; flex: 0 0 20px; margin: 0; padding: 0; cursor: pointer; }
+.talk-roster-check input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--teal); }
+.talk-roster-person .talk-roster-avatar { flex: 0 0 26px; font-size: 22px; text-align: center; }
+.talk-roster-row-v3 .talk-status-pill { max-width: 220px; font-size: 12px; line-height: 1.35; white-space: normal; text-align: center; overflow-wrap: anywhere; }
+.talk-roster-row-v3 .talk-roster-open { display: inline-flex; align-items: center; justify-content: center; gap: 7px; justify-self: end; width: auto; min-height: 40px; margin: 0; padding: 8px 12px; font-size: 14px; line-height: 1.3; white-space: nowrap; }
+@media (max-width: 700px) {
+  .talk-roster-heading { align-items: flex-start; flex-direction: column; }
+  .talk-roster-heading .secondary-button { min-height: 40px; padding: 8px 12px; font-size: 13px; white-space: normal; }
+  .talk-roster-row.talk-roster-row-v3 { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; padding: 10px; }
+  .talk-roster-row-v3 .talk-roster-person { grid-column: 1; grid-row: 1 / 3; gap: 7px; }
+  .talk-roster-row-v3 .talk-status-pill { grid-column: 2; grid-row: 1; justify-self: end; max-width: 140px; }
+  .talk-roster-row-v3 .talk-roster-open { grid-column: 2; grid-row: 2; }
+}
+@media (max-width: 380px) {
+  .talk-roster-row-v3 .talk-roster-person { grid-column: 1 / -1; grid-row: 1; }
+  .talk-roster-row-v3 .talk-status-pill { grid-column: 1; grid-row: 2; max-width: 100%; justify-self: start; font-size: 11px; }
+  .talk-roster-row-v3 .talk-roster-open { padding: 7px 9px; }
+}
