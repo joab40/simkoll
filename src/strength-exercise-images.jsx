@@ -62,7 +62,7 @@ export function StrengthProgramImagesEditor({ program, code, request, aiEnabled,
         const pass = passes.find((pass) => pass.passNumber === image.passNumber)
         return pass && strengthExercises(pass.content)[image.exerciseIndex]?.name === image.exerciseName
       })
-      await request('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-strength-images', programId: program.id, images: applicable, reviewed }) })
+      await request('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-strength-images', type: program.type || 'strength', programId: program.id, images: applicable, reviewed }) })
       await onSaved()
     } catch (error) { setStatus(error.message) } finally { setSaving(false) }
   }

@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { STRENGTH_FILE_TYPES, STRENGTH_FILE_MAX_BYTES, normalizeStrengthDraft, validateStrengthDraft } from '../shared/strength-import.js'
 import { ExerciseImageControl } from './strength-exercise-images.jsx'
 
-export default function StrengthProgramImport({ code, request, onSaved, aiEnabled }) {
+export default function StrengthProgramImport({ code, request, onSaved, aiEnabled, programType = 'strength' }) {
+  const land = programType === 'dryland'
   const [file, setFile] = useState(null)
   const [draft, setDraft] = useState(null)
   const [generateInstructions, setGenerateInstructions] = useState(true)
@@ -20,7 +21,7 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
     setBusy('analyze'); setStatus('Läser alla pass och övningar…')
     try {
       const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).replace(/^data:[^;]*;/, `data:${mime};`)); reader.onerror = () => reject(new Error('Filen kunde inte läsas.')); reader.readAsDataURL(file) })
-      const result = await request('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-strength-program', fileData: data, fileName: file.name, generateInstructions }) })
+      const result = await request('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-strength-program', type: programType, fileData: data, fileName: file.name, generateInstructions }) })
       setDraft(normalizeStrengthDraft(result.draft)); setGeneratedInstructions(result.generatedInstructions === true); setReviewed(false)
       setStatus('Utkastet är klart. Kontrollera passindelning, övningar och dosering mot filen.')
     } catch (error) { setStatus(error.message) } finally { setBusy('') }
@@ -28,14 +29,14 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
   const save = async () => {
     setBusy('save'); setStatus('Sparar programmet…')
     try {
-      await request('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-strength-import', draft, reviewed }) })
-      setDraft(null); setFile(null); setStatus('Programmet är sparat i styrkeprogrambiblioteket. Tilldela det på simmarens kort → Styrkeprogram.')
+      await request('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-strength-import', type: programType, draft, reviewed }) })
+      setDraft(null); setFile(null); setStatus(land ? 'Programmet är sparat i landträningsbiblioteket. Tilldela det i listan nedan.' : 'Programmet är sparat i styrkeprogrambiblioteket. Tilldela det på simmarens kort → Styrkeprogram.')
       onSaved?.()
     } catch (error) { setStatus(error.message) } finally { setBusy('') }
   }
   const issues = draft ? validateStrengthDraft(draft) : []
   return <section className="coach-card strength-import">
-    <div className="period-heading"><div><p className="eyebrow">Från fil till program</p><h3>Importera styrkeprogram</h3></div><span className="strength-import-model">GPT-6.1 Sol som standard</span></div>
+    <div className="period-heading"><div><p className="eyebrow">Från fil till program</p><h3>Importera {land ? 'landträningsprogram' : 'styrkeprogram'}</h3></div><span className="strength-import-model">GPT-6.1 Sol som standard</span></div>
     <p>Ladda upp Excel, PDF eller en bild. Granska och redigera tolkningen innan den sparas. Ett program kan innehålla 1–5 separata pass.</p>
     {!draft ? <div className="strength-import-upload">
       <label>Programfil<input type="file" accept=".xls,.xlsx,.pdf,.png,.jpg,.jpeg,.webp" disabled={!!busy} onChange={(event) => { setFile(event.target.files?.[0] || null); setStatus('') }} /></label>
@@ -55,7 +56,7 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
         <label>Passrubrik<input value={pass.title} onChange={(event) => editPass(passIndex, (current) => ({ ...current, title: event.target.value }))} /></label>
         <label>Passinstruktioner<textarea value={pass.instructions} onChange={(event) => editPass(passIndex, (current) => ({ ...current, instructions: event.target.value }))} /></label>
         {pass.exercises.map((exercise, index) => <div key={index} className={`strength-import-exercise${exercise.uncertain ? ' uncertain' : ''}`}>
-          <div className="strength-import-exercise-row"><label>Övning {index + 1}<input value={exercise.name} onChange={(event) => editExercise(passIndex, index, 'name', event.target.value)} /></label><label>Set / reps / vikt / vila<input value={exercise.prescription} onChange={(event) => editExercise(passIndex, index, 'prescription', event.target.value)} /></label></div>
+          <div className="strength-import-exercise-row"><label>Övning {index + 1}<input value={exercise.name} onChange={(event) => editExercise(passIndex, index, 'name', event.target.value)} /></label><label>{land ? 'Repetitioner / tid / sträcka / vila' : 'Set / reps / vikt / vila'}<input value={exercise.prescription} onChange={(event) => editExercise(passIndex, index, 'prescription', event.target.value)} /></label></div>
           <label>Instruktion till simmaren<textarea rows={2} value={exercise.instructions} onChange={(event) => editExercise(passIndex, index, 'instructions', event.target.value)} /></label>
           <ExerciseImageControl code={code} request={request} name={exercise.name} instructions={exercise.instructions} image={exercise} aiEnabled={aiEnabled} uncertain={exercise.uncertain} disabled={!!busy} onBusyChange={(active) => setBusy(active ? 'image' : '')} onChange={(image) => editPass(passIndex, (current) => ({ ...current, exercises: current.exercises.map((item, i) => i === index ? { ...item, ...image } : item) }))} />
           {exercise.uncertain && <label className="strength-import-check"><input type="checkbox" onChange={(event) => event.target.checked && editExercise(passIndex, index, 'uncertain', false)} />Övningsnamnet är kontrollerat mot originalet.</label>}

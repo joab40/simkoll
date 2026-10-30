@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { programKind } from '../shared/program-kind.js'
 
 test('swimmer details keep compact strength assignment while full management has its own page', async () => {
   const source = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8')
@@ -12,8 +13,11 @@ test('swimmer details keep compact strength assignment while full management has
   assert.match(source, /Byt eller ta bort program/)
   assert.match(swimmerSection, /<SwimmerStrengthProgramCard profile=\{profile\}/)
   assert.match(source, /function CoachStrengthPrograms/)
-  assert.match(source, /<h2>Styrkeprogram<\/h2>/)
-  assert.match(source, /Tilldela styrkeprogram/)
+  assert.match(source, /<h2>\{kind\.title\}<\/h2>/)
+  assert.match(source, /Tilldela \{kind\.name\}/)
+  assert.equal(programKind('strength').title, 'Styrkeprogram')
+  assert.equal(programKind('strength').name, 'styrkeprogram')
+  assert.match(swimmerSection, /<SwimmerStrengthProgramCard programType="dryland"/)
   assert.doesNotMatch(source, /<details className="profile-tools strength-program-picker">/)
 })
 

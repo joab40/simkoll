@@ -19,19 +19,19 @@ export function strengthPasses(program) {
     })
   }
   const isWeekly = /Veckoprogram|\d+\s*pass/i.test(title)
-  if (!isWeekly) return [{ passNumber: 1, title: 'Styrkepass', content }]
+  if (!isWeekly) return [{ passNumber: 1, title: program.type === 'dryland' || program.program_type === 'dryland' ? 'Landpass' : 'Styrkepass', content }]
 
   // Accept the separator format used by existing weekly programs.
   const sections = content.split(/\n={10,}\n/).filter((section) => /^\s*\d+\.\s/m.test(section))
   if (sections.length >= 3) {
     return sections.slice(0, 5).map((section, index) => ({
       passNumber: index + 1,
-      title: strokePassNames(title, index + 1),
+      title: program.type === 'dryland' || program.program_type === 'dryland' ? `Landpass ${index + 1}` : strokePassNames(title, index + 1),
       content: section.trim(),
     }))
   }
 
-  return [{ passNumber: 1, title: strokePassNames(title, 1), content }]
+  return [{ passNumber: 1, title: program.type === 'dryland' || program.program_type === 'dryland' ? 'Landpass' : strokePassNames(title, 1), content }]
 }
 
 export function strengthExercises(content) {

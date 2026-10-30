@@ -5,7 +5,9 @@ import { diaryRange, buildDiaryEntries, summarizeDiary } from '../shared/trainin
 async function rows(query, { optional = false, warnings, label }) {
   const all = []
   for (let offset = 0; offset < 6000; offset += 500) {
-    const result = await supabaseRequest(`${query}&limit=500&offset=${offset}`)
+    let result
+    try { result = await supabaseRequest(`${query}&limit=500&offset=${offset}`) }
+    catch (error) { if (optional) { warnings.push(label); return [] }; throw error }
     if (!result.ok) {
       if (optional) { warnings.push(label); return [] }
       throw new Error(`Dagbokens ${label} kunde inte hämtas.`)
@@ -23,7 +25,7 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${includeComparison ? range.previousStart : start}&${field}=lt.${range.endExclusive}`
   const read = (query, label, optional = false) => rows(query, { label, optional, warnings })
-  const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks] = await Promise.all([
+  const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks, drylandLogs] = await Promise.all([
     read(`personal_training_sessions?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'registrerade pass'),
     read(`responses?${owner}&${within('activity_date')}&select=*&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
     read(`daily_workouts?${within('workout_date')}&select=*&order=workout_date.asc,id.asc`, 'upplagda pass'),
@@ -36,6 +38,7 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     read(`development_goals?${owner}&start_date=lte.${end}&select=id,title,description,next_step,start_date,target_date,status&order=start_date.desc,id.asc`, 'utvecklingsmål', true),
     includeReflections ? read(`training_diary_reflections?${owner}&${within('activity_date')}&select=entry_key,activity_date,what_worked,next_time,updated_at&order=activity_date.asc,id.asc`, 'dagboksanteckningar (kräver migration 095)', true) : Promise.resolve([]),
     read(`workout_unlocks?${owner}&workout_date=eq.${stockholmDate()}&select=profile_id&order=profile_id.asc`, 'dagens passåtkomst'),
+    read(`dryland_program_logs?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'landträningsloggar (kräver SQL 111)', true),
   ])
   // Older coach attendance may predate personal_training_sessions. Merge it
   // into the same completed-session stream; the diary builder deduplicates by
@@ -47,7 +50,7 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     activity_type: 'swim',
     source: 'coach-attendance',
   }))
-  const entries = buildDiaryEntries({ sessions: [...sessions, ...attendanceSessions], responses, workouts, plans, personalPlans, strengthLogs, assignments, results, reflections, trainingGroup: profile.training_group || profile.trainingGroup, today: stockholmDate(), unlockedToday: unlocks.length > 0 })
+  const entries = buildDiaryEntries({ sessions: [...sessions, ...attendanceSessions], responses, workouts, plans, personalPlans, strengthLogs, drylandLogs, assignments, results, reflections, trainingGroup: profile.training_group || profile.trainingGroup, today: stockholmDate(), unlockedToday: unlocks.length > 0 })
   return {
     range,
     entries: entries.filter((entry) => entry.date >= start && entry.date <= end),

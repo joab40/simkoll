@@ -16,11 +16,11 @@ export function diaryRange(start, end, today) {
 
 // One entry per explicitly linked activity/slot. Unknown AM/PM feedback stays
 // separate rather than attaching itself to both sessions on the same day.
-export function buildDiaryEntries({ sessions = [], responses = [], workouts = [], plans = [], personalPlans = [], strengthLogs = [], assignments = [], results = [], reflections = [], trainingGroup, today, unlockedToday = false }) {
+export function buildDiaryEntries({ sessions = [], responses = [], workouts = [], plans = [], personalPlans = [], strengthLogs = [], drylandLogs = [], assignments = [], results = [], reflections = [], trainingGroup, today, unlockedToday = false }) {
   const entries = new Map()
   const keyFor = (date, type, slot) => `${date}:${type}:${slot || 'day'}`
   const ensure = (key, date, type, slot, state = 'completed') => {
-    if (!entries.has(key)) entries.set(key, { key, date, type, slot: slot || null, state, title: '', source: 'reported', responses: [], strengthLogs: [], results: [], content: '', note: '', focus: '', reportedMeters: null, reportedMinutes: null, plannedMeters: null, plannedMinutes: null, linked: false })
+    if (!entries.has(key)) entries.set(key, { key, date, type, slot: slot || null, state, title: '', source: 'reported', responses: [], strengthLogs: [], drylandLogs: [], results: [], content: '', note: '', focus: '', reportedMeters: null, reportedMinutes: null, plannedMeters: null, plannedMinutes: null, linked: false })
     return entries.get(key)
   }
   const afterOnDay = (day) => responses.filter((row) => responseDay(row) === day && row.day_type === 'after' && row.competition !== true)
@@ -60,6 +60,15 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     const program = assignments.find((item) => item.id === log.assignment_id)?.training_programs
     entry.strengthLogs.push({ pass: log.pass_number, weights: log.weights || {}, notes: log.notes || '', title: program?.title || 'Styrkepass', content: program?.content || '' })
     entry.title = program?.title || 'Styrkepass'
+  })
+  drylandLogs.forEach((log) => {
+    // A retained result log is not authority to recreate a manually unmarked
+    // completed day. Keep the results visible without counting another pass.
+    const registered = sessions.some((session) => session.activity_type === 'dryland' && session.session_date === log.session_date)
+    const entry = ensure(keyFor(log.session_date, 'dryland', 'dryland'), log.session_date, 'dryland', 'dryland', registered ? 'completed' : 'feedback')
+    if (!registered) entry.state = 'feedback'
+    entry.drylandLogs.push({ pass: log.pass_number, results: log.results || {}, notes: log.notes || '', title: log.program_title || 'Landträningsprogram', passTitle: log.pass_title || `Pass ${log.pass_number}`, content: log.pass_content || '' })
+    entry.title = log.program_title || 'Landträningsprogram'
   })
   results.filter((row) => row.result_date).forEach((row) => {
     const entry = ensure(keyFor(row.result_date, 'competition', 'day'), row.result_date, 'competition', 'day')

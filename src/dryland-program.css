@@ -1,0 +1,13 @@
+.dryland-pass-form { margin-top: 20px; min-width: 0; }
+.coach-strength-programs h2, .strength-program-library h3, .strength-program-card h2 { overflow-wrap: anywhere; }
+.dryland-pass-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 18px; }
+.dryland-pass-form label { display: grid; gap: 7px; font-size: 15px; }
+.dryland-pass-form input:not([type=checkbox]), .dryland-pass-form textarea { width: 100%; min-height: 44px; padding: 12px; border: 1px solid #c5d9d5; border-radius: 12px; font: inherit; font-size: 16px; background: #fff; color: var(--ink); }
+.dryland-pass-form .dryland-completed { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; }
+.dryland-completed input[type=checkbox] { flex: 0 0 22px; width: 22px; height: 22px; accent-color: #137c7a; }
+.dryland-exercises { display: grid; gap: 14px; }.dryland-exercises article { display: grid; gap: 9px; border: 1px solid #d9e6e2; border-radius: 16px; padding: 18px; background: #f5faf7; min-width: 0; }
+.dryland-exercises h4, .dryland-exercises p { margin: 0; }.dryland-exercises h4 { font-size: 18px; }.dryland-exercises p, .dryland-runner small { color: var(--muted); line-height: 1.5; }
+.dryland-note, .dryland-status { padding: 14px; border-radius: 12px; background: #e4f1eb; color: #275d50; line-height: 1.5; }
+.program-bulk-assign summary { cursor: pointer; font-weight: 650; }.program-bulk-assign fieldset { border: 0; padding: 18px 0 0; display: grid; gap: 16px; min-width: 0; }.program-bulk-assign select { display: block; min-height: 44px; width: 100%; font: inherit; font-size: 16px; padding: 10px; border: 1px solid #c5d9d5; border-radius: 10px; }
+.dryland-history { margin: 20px 0; }.dryland-history summary { cursor: pointer; font-weight: 650; }.dryland-history article { padding: 16px 0; border-bottom: 1px solid #d9e6e2; overflow-wrap: anywhere; }.dryland-history h4 { margin: 0 0 8px; }.dryland-history p { margin: 8px 0; }.dryland-history pre, .dryland-pass-form pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 14px; }
+@media(max-width:600px) { .dryland-exercises article { padding: 14px; }.dryland-pass-form .primary-button { width: 100%; }.dryland-program-page h1 { font-size: 29px; }.dryland-pass-form .strength-pass-form-heading { gap: 10px; flex-wrap: wrap; } }

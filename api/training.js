@@ -11,6 +11,9 @@ import { writeAuditLog } from '../server/audit.js'
 import { loadCoachWeek } from '../server/coach-week.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
 import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
+import { validProgramType } from '../shared/program-kind.js'
+import { mapDrylandLog } from '../shared/dryland-program.js'
+import { saveDrylandLog, authorizeDrylandCoach } from '../server/dryland-program.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -24,7 +27,7 @@ const comparableStrengthValue = (value) => {
 
 async function loadTraining(profileId = null, { summary = false } = {}) {
   const profileFilter = profileId ? `&profile_id=eq.${profileId}` : ''
-  const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, workoutsResult, strengthLogsResult, metricResponsesResult, metricPlansResult, metricProfilesResult] = await Promise.all([
+  const [goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult, workoutsResult, strengthLogsResult, metricResponsesResult, metricPlansResult, metricProfilesResult, drylandLogsResult] = await Promise.all([
     supabaseRequest(`season_swim_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`cross_training_goals?select=*${profileFilter}&order=start_date.desc`),
     supabaseRequest(`personal_training_sessions?select=*${profileFilter}&order=completed_at.desc&limit=1000`),
@@ -37,6 +40,7 @@ async function loadTraining(profileId = null, { summary = false } = {}) {
     supabaseRequest(`responses?select=profile_id,activity_date,created_at,day_type,activity_type,session_slot,competition,planned_completion,activity_distance_meters,activity_minutes,workout_reference${profileFilter}&day_type=eq.after&order=created_at.desc&limit=10000`),
     supabaseRequest('training_plans?select=id,source_workout_id,calendar_link,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=plan_date.asc&limit=1000'),
     supabaseRequest(`profiles?select=id,training_group${profileId ? `&id=eq.${profileId}` : ''}&limit=1000`),
+    summary ? Promise.resolve({ ok: true, json: async () => [] }) : supabaseRequest(`dryland_program_logs?select=*${profileFilter}&order=session_date.desc,completed_at.desc&limit=2000`).catch(() => ({ ok: false })),
   ])
   if (![goalsResult, crossGoalsResult, sessionsResult, plannedResult, assignmentsResult, programsResult, programGoalsResult].every((item) => item.ok)) throw new Error('Training data lookup failed')
   const assignments = await assignmentsResult.json()
@@ -53,7 +57,7 @@ async function loadTraining(profileId = null, { summary = false } = {}) {
   const workoutRows = workoutsResult.ok ? await workoutsResult.json() : []
   if (![metricResponsesResult, metricPlansResult, metricProfilesResult].every((result) => result.ok)) throw new Error('Passval och träningsmängd kunde inte hämtas. Kontrollera databasuppdatering 103.')
   const swimMetrics = sessionSwimMetrics({ sessions: sessionRows, responses: await metricResponsesResult.json(), workouts: workoutRows, plans: await metricPlansResult.json(), profiles: await metricProfilesResult.json() })
-  const mappedPrograms = Object.values(programs).map((program) => ({ ...mapProgram(program), assignedCount: assignments.filter((item) => item.program_id === program.id).length }))
+  const mappedPrograms = Object.values(programs).filter((program) => program.program_type !== 'dryland' || !profileId || assignedPrograms.has(program.id)).map((program) => ({ ...mapProgram(program), assignedCount: assignments.filter((item) => item.program_id === program.id).length }))
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
@@ -62,6 +66,8 @@ async function loadTraining(profileId = null, { summary = false } = {}) {
     programs: mappedPrograms,
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     strengthLogs: strengthLogsResult.ok ? (await strengthLogsResult.json()).map((item) => ({ id: item.id, assignmentId: item.assignment_id, profileId: item.profile_id, passNumber: item.pass_number, sessionDate: item.session_date, weights: item.weights || {}, notes: item.notes || '', completedAt: item.completed_at })) : [],
+    drylandLogs: drylandLogsResult.ok ? (await drylandLogsResult.json()).map(mapDrylandLog) : [],
+    drylandLogsAvailable: drylandLogsResult.ok,
     programGoals: (await programGoalsResult.json()).filter((item) => !profileId || allowedAssignments.has(item.assignment_id)).map((item) => ({ id: item.id, assignmentId: item.assignment_id, title: item.title, description: item.description, rewardPoints: item.reward_points, status: item.status, coachFeedback: item.coach_feedback || '', submittedAt: item.submitted_at, approvedAt: item.approved_at })),
   }
   await awardCompletedWeeks(data, profileId)
@@ -190,6 +196,14 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
     const action = request.body?.action
+    const programType = request.body?.type ?? 'strength'
+    const typedProgramActions = ['save-strength-import', 'create-strength-from-library', 'save-strength-images', 'assign', 'archive-program', 'delete-program', 'update-program']
+    if (typedProgramActions.includes(action) && !validProgramType(programType)) return sendJson(response, 400, { error: 'Välj styrka eller landträning.' })
+    if ((typedProgramActions.includes(action) || action === 'create-program') && programType === 'dryland' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan hantera landträningsprogram.' })
+    if (role === 'coach' && (typedProgramActions.includes(action) && programType === 'dryland' || action === 'create-program' && request.body.type === 'dryland')) {
+      try { await authorizeDrylandCoach(request, action !== 'assign') } catch (error) { return sendJson(response, error.status || 503, { error: error.message }) }
+    }
+    if (action === 'log-dryland-pass' && role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din egen simmarprofil för att registrera landträning.' })
     const coachAccount = role === 'coach' ? coachFromRequest(request) : null
     // The legacy shared coach code has no account role attached. Keep it
     // backwards compatible, while signed-in ordinary coaches cannot manage
@@ -199,6 +213,9 @@ export default async function handler(request, response) {
     if (role !== 'coach') {
       const profile = await getSessionProfile(request)
       if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil.' })
+      if (action === 'log-dryland-pass') {
+        try { return sendJson(response, 201, { log: await saveDrylandLog(profile.id, request.body) }) } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+      }
       if (action === 'season-goal') {
         return sendJson(response, 403, { error: 'Tränaren sätter simmålet i dialog med simmaren.' })
         /* Kept below as documentation of the original validation contract. */
@@ -218,6 +235,7 @@ export default async function handler(request, response) {
         if (!assignment || assignment.profile_id !== profile.id) return sendJson(response, 403, { error: 'Programmet tillhör inte din profil.' })
         const type = assignment.training_programs?.program_type
         if (!['strength', 'dryland'].includes(type)) return sendJson(response, 400, { error: 'Ogiltig programtyp.' })
+        if (type === 'dryland' && assignment.removed_at) return sendJson(response, 403, { error: 'Landträningsprogrammet är inte längre tilldelat dig.' })
         const result = await supabaseRequest('personal_training_sessions', { method: 'POST', body: JSON.stringify({ profile_id: profile.id, activity_type: type, session_slot: type, session_date: stockholmDate(), source: 'program' }) })
         if (!result.ok && result.status !== 409) throw new Error(`Program completion failed: ${result.status}`)
         return sendJson(response, 201, { ok: true })
@@ -308,7 +326,7 @@ export default async function handler(request, response) {
       const references = draftExerciseImages(draft)
       let images
       try { images = await resolveExerciseImages(coachFromRequest(request).sub, references) } catch (error) { return sendJson(response, 422, { error: error.message }) }
-      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title: draft.title, description: draft.description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
+      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: programType, title: draft.title, description: draft.description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
       if (!result.ok) throw new Error('Strength import save failed')
       return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })
     }
@@ -327,7 +345,7 @@ export default async function handler(request, response) {
       const sourceIds = [...new Set(selections.filter((item) => item.kind !== 'custom').map((item) => item.sourceProgramId))]
       let sourcePrograms = []
       if (sourceIds.length) {
-        const lookup = await supabaseRequest(`training_programs?id=in.(${sourceIds.join(',')})&program_type=eq.strength&active=eq.true&select=id,title,content,exercise_images`)
+        const lookup = await supabaseRequest(`training_programs?id=in.(${sourceIds.join(',')})&program_type=eq.${programType}&active=eq.true&select=id,title,content,exercise_images`)
         if (!lookup.ok) throw new Error('Strength exercise source lookup failed')
         sourcePrograms = await lookup.json()
       }
@@ -364,7 +382,7 @@ export default async function handler(request, response) {
         ])
         images = [...inherited, ...own]
       } catch (error) { return sendJson(response, 422, { error: error.message }) }
-      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: 'strength', title, description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
+      const result = await supabaseRequest('training_programs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ program_type: programType, title, description, content: strengthDraftContent(draft), start_date: stockholmDate(), ...(images.length ? { exercise_images: images } : {}) }) })
       if (!result.ok) throw new Error('Strength library program save failed')
       return sendJson(response, 201, { program: mapProgram((await result.json())[0]) })
     }
@@ -373,7 +391,7 @@ export default async function handler(request, response) {
       if (!['head_coach', 'superadmin'].includes(account?.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan ändra övningsbilder.' })
       if (request.body.reviewed !== true || !Array.isArray(request.body.images)) return sendJson(response, 400, { error: 'Granska övningsbilderna innan du sparar.' })
       const programId = encodeURIComponent(String(request.body.programId || ''))
-      const lookup = await supabaseRequest(`training_programs?id=eq.${programId}&program_type=eq.strength&select=*&limit=1`)
+      const lookup = await supabaseRequest(`training_programs?id=eq.${programId}&program_type=eq.${programType}&select=*&limit=1`)
       const program = lookup.ok ? (await lookup.json())[0] : null
       if (!program) return sendJson(response, 404, { error: 'Programmet kunde inte hittas.' })
       const passes = strengthPasses(program)
@@ -387,7 +405,7 @@ export default async function handler(request, response) {
       }
       let images
       try { images = await resolveExerciseImages(account.sub, request.body.images, program.exercise_images || []) } catch (error) { return sendJson(response, 422, { error: error.message }) }
-      const result = await supabaseRequest(`training_programs?id=eq.${programId}&program_type=eq.strength`, { method: 'PATCH', body: JSON.stringify({ exercise_images: images, updated_at: new Date().toISOString() }) })
+      const result = await supabaseRequest(`training_programs?id=eq.${programId}&program_type=eq.${programType}`, { method: 'PATCH', body: JSON.stringify({ exercise_images: images, updated_at: new Date().toISOString() }) })
       if (!result.ok) return sendJson(response, 422, { error: 'Bilderna kunde inte sparas. Kontrollera att migration 086 är körd.' })
       return sendJson(response, 200, { ok: true })
     }
@@ -429,11 +447,17 @@ export default async function handler(request, response) {
     }
     if (action === 'assign') {
       const programId = String(request.body.programId || ''), profileId = String(request.body.profileId || '')
-      const programResult = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength&active=eq.true&select=id,program_type&limit=1`)
+      if (programType === 'dryland') {
+        if (![programId, profileId].every((value) => /^[0-9a-f-]{36}$/i.test(value))) return sendJson(response, 400, { error: 'Välj en simmare och ett landträningsprogram.' })
+        const assigned = await supabaseRequest('rpc/assign_dryland_program', { method: 'POST', body: JSON.stringify({ p_profile_id: profileId, p_program_id: programId }) })
+        if (!assigned.ok) return sendJson(response, 503, { error: 'Programmet kunde inte tilldelas. Kontrollera simmaren, programmet och SQL 111_dryland_program_logs.' })
+        return sendJson(response, 201, { ok: true })
+      }
+      const programResult = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.${programType}&active=eq.true&select=id,program_type&limit=1`)
       if (!programResult.ok || !(await programResult.json()).length) return sendJson(response, 404, { error: 'Programmet finns inte eller är arkiverat.' })
       const existing = await supabaseRequest(`program_assignments?profile_id=eq.${encodeURIComponent(profileId)}&removed_at=is.null&select=id,training_programs!inner(program_type)`)
       if (!existing.ok) throw new Error('Existing assignment lookup failed')
-      const oldStrength = (await existing.json()).filter((item) => item.training_programs?.program_type === 'strength')
+      const oldStrength = (await existing.json()).filter((item) => item.training_programs?.program_type === programType)
       if (oldStrength.length) await Promise.all(oldStrength.map((item) => supabaseRequest(`program_assignments?id=eq.${encodeURIComponent(item.id)}`, { method: 'PATCH', body: JSON.stringify({ removed_at: new Date().toISOString() }) })))
       const result = await supabaseRequest('program_assignments?on_conflict=program_id,profile_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ program_id: programId, profile_id: profileId, removed_at: null }) })
       if (!result.ok) throw new Error(`Assignment failed: ${result.status}`)
@@ -442,6 +466,11 @@ export default async function handler(request, response) {
     if (action === 'remove-assignment') {
       const assignmentId = String(request.body.assignmentId || '')
       if (!assignmentId) return sendJson(response, 400, { error: 'Tilldelningen saknas.' })
+      const assignment = await findAssignment(assignmentId)
+      if (!assignment) return sendJson(response, 404, { error: 'Tilldelningen finns inte.' })
+      if (assignment.training_programs?.program_type === 'dryland') {
+        try { await authorizeDrylandCoach(request) } catch (error) { return sendJson(response, error.status || 503, { error: error.message }) }
+      }
       const result = await supabaseRequest(`program_assignments?id=eq.${encodeURIComponent(assignmentId)}`, { method: 'PATCH', body: JSON.stringify({ removed_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error(`Assignment removal failed: ${result.status}`)
       return sendJson(response, 200, { ok: true })
@@ -450,7 +479,7 @@ export default async function handler(request, response) {
       if (!canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan arkivera styrkeprogram.' })
       const programId = String(request.body.programId || '')
       if (!programId) return sendJson(response, 400, { error: 'Programmet saknas.' })
-      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'PATCH', body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }) })
+      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.${programType}`, { method: 'PATCH', body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error(`Program archive failed: ${result.status}`)
       return sendJson(response, 200, { ok: true })
     }
@@ -461,9 +490,10 @@ export default async function handler(request, response) {
       const assignmentsResult = await supabaseRequest(`program_assignments?program_id=eq.${encodeURIComponent(programId)}&removed_at=is.null&select=id&limit=1`)
       if (!assignmentsResult.ok) throw new Error('Assignment lookup failed')
       if ((await assignmentsResult.json()).length) return sendJson(response, 409, { error: 'Programmet används fortfarande av en eller flera simmare. Ta bort tilldelningarna först.' })
-      const logsResult = await supabaseRequest(`strength_program_logs?assignment_id=is.not.null&select=id,program_assignments!inner(program_id)&program_assignments.program_id=eq.${encodeURIComponent(programId)}&limit=1`)
-      if (logsResult.ok && (await logsResult.json()).length) return sendJson(response, 409, { error: 'Programmet har träningshistorik och kan inte raderas permanent. Arkivera det i stället.' })
-      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'DELETE' })
+      const logsResult = await supabaseRequest(`${programType === 'dryland' ? 'dryland_program_logs' : 'strength_program_logs'}?assignment_id=is.not.null&select=id,program_assignments!inner(program_id)&program_assignments.program_id=eq.${encodeURIComponent(programId)}&limit=1`)
+      if (!logsResult.ok) return sendJson(response, 503, { error: 'Träningshistoriken kunde inte kontrolleras. Programmet har inte raderats.' })
+      if ((await logsResult.json()).length) return sendJson(response, 409, { error: 'Programmet har träningshistorik och kan inte raderas permanent. Arkivera det i stället.' })
+      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.${programType}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Program deletion failed: ${result.status}`)
       return sendJson(response, 200, { ok: true })
     }
@@ -471,7 +501,7 @@ export default async function handler(request, response) {
       if (!canManageStrengthPrograms) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan redigera styrkeprogram.' })
       const programId = String(request.body.programId || ''), title = String(request.body.title || '').trim(), description = String(request.body.description || '').trim(), content = String(request.body.content || '').trim()
       if (!programId || !title || title.length > 100 || !description || description.length > 1000 || !content || content.length > 5000) return sendJson(response, 400, { error: 'Kontrollera programmets namn, beskrivning och innehåll.' })
-      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.strength`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ title, description, content, updated_at: new Date().toISOString() }) })
+      const result = await supabaseRequest(`training_programs?id=eq.${encodeURIComponent(programId)}&program_type=eq.${programType}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ title, description, content, updated_at: new Date().toISOString() }) })
       if (!result.ok) throw new Error(`Program update failed: ${result.status}`)
       const [program] = await result.json()
       return sendJson(response, 200, { program: mapProgram(program) })

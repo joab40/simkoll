@@ -44,7 +44,7 @@ export function validateStrengthDraft(draft) {
   if (!draft.description || draft.description.length > 1000) errors.push('Ange en beskrivning med högst 1 000 tecken.')
   if (draft.passes.length < 1 || draft.passes.length > 5) errors.push('Ett program kan innehålla 1–5 pass. Dela större program i flera importer.')
   draft.passes.forEach((pass, index) => {
-    if (!pass.title || /[\r\n]/.test(pass.title)) errors.push(`Ange en rubrik på en rad för pass ${index + 1}.`)
+    if (!pass.title || pass.title.length > 100 || /[\r\n]/.test(pass.title)) errors.push(`Ange en rubrik på en rad, högst 100 tecken, för pass ${index + 1}.`)
     if (!pass.exercises.length || pass.exercises.length > 30) errors.push(`Pass ${index + 1} behöver 1–30 övningar.`)
     if (pass.exercises.some((exercise) => !exercise.name || /[\r\n]/.test(exercise.name) || /[\r\n]/.test(exercise.prescription))) errors.push(`Kontrollera övningsnamn och dosering på en rad i pass ${index + 1}.`)
   })
