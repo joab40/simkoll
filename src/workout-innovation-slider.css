@@ -1,0 +1,14 @@
+.workout-innovation { min-width: 0; padding: 18px; border: 1px solid #cce0db; border-radius: 16px; background: #f0f8f5; }
+.workout-innovation-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.workout-editor .workout-innovation-heading label { font-size: 14px; }
+.workout-innovation output { padding: 5px 10px; border-radius: 20px; background: #dcefe8; color: #126c67; font-size: 13px; font-weight: 700; }
+.workout-editor .workout-innovation input[type="range"] { display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; margin: 8px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; accent-color: #0d7477; cursor: pointer; }
+.workout-editor .workout-innovation input:focus-visible { outline: 2px solid #0d7477; outline-offset: 3px; border-radius: 6px; }
+.workout-innovation-scale { display: flex; justify-content: space-between; gap: 16px; color: #466961; font-size: 12px; }
+.workout-innovation-scale span:last-child { text-align: right; }
+.workout-innovation p { margin: 14px 0 6px; color: var(--ink); font-size: 14px; line-height: 1.5; }
+.workout-innovation small { display: block; color: #536d70; font-size: 12px; line-height: 1.5; }
+.workout-generator-result { display: grid; gap: 8px; margin: 0 0 20px; padding: 16px 20px; border: 1px solid #bbd9ce; border-radius: 16px; background: #eff8f1; overflow-wrap: anywhere; }
+.workout-generator-result p { margin: 0; font-size: 14px; line-height: 1.5; }
+.workout-generator-result small { color: #536d70; }
+@media (max-width: 480px) { .workout-innovation { padding: 14px; } }
