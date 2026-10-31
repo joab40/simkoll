@@ -75,14 +75,25 @@ sker på `(profile_id, entry_key)` och skapar aldrig en träningsregistrering.
 Tidigare sparade reflektioner visas även om äldre passkoppling ändras.
 
 Tabellen har RLS aktiverat och används genom serverns profilsession.
-Anteckningarna exponeras inte för andra simmare, tränarvyn eller
-AI-assistenterna i denna version. De ersätter inte kommentarer till
-tränaren eller svar på ett utvecklingsmål.
+Anteckningarna exponeras inte för andra simmare, den vanliga tränarvyn eller
+chattassistenterna genom dagboksfunktionen. Ett separat, uttryckligt tillval
+i tränarens granskade AI-underlag för utvecklingssamtal kan ta med utvalda
+reflektioner; det är avstängt som standard och texterna visas före AI-anropet.
+Se [Utvecklingssamtal](development-talks.md). Reflektionerna ersätter inte
+kommentarer till tränaren eller svar på ett utvecklingsmål.
 
 ## Senare etapp
 
-Valbar AI-tolkning ligger kvar i backloggen. Dagboken, graferna och
-anteckningssparandet gör inga AI-anrop.
+Dagboken, graferna och anteckningssparandet gör inga AI-anrop. Tränarens
+aktiva samtalsförberedelse och förslag till överenskommelse är separata
+funktioner med granskning och källval, inte automatisk analys vid läsning.
+
+## Hjälp i dagboken
+
+**Frågor om träningsdagboken** ligger minimerat vid periodväljaren och kan
+öppnas även om historiken inte kunde hämtas. Samma nio dagboksfrågor används
+i simmarens FAQ och i assistenternas funktionshjälp. Se
+[Gemensam funktionshjälp](feature-faq.md).
 
 ## Egna träningstider och testlopp
 

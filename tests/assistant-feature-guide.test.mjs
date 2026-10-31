@@ -43,13 +43,14 @@ test('feature snapshot includes only safe current switches and read-only guidanc
     webappSettings: { aiEnabled: false, openChat: { enabled: true, coachOnly: true, backgroundImage: 'private-image-data' }, swimmer: { customPep: false } },
     openChatSettings: { enabled: true, coachOnly: true },
     developmentTalksEnabled: false,
-    pushSettings: { enabled: true, developmentTalks: false },
+    pushSettings: { enabled: true, developmentTalks: false, publishedWorkouts: false },
   })
   assert.equal(findFeature(snapshot, 'AI-stöd').enabled, false)
   assert.equal(findFeature(snapshot, 'Info från tränarna').enabled, true)
   assert.equal(findFeature(snapshot, 'Info från tränarna').coachOnly, true)
   assert.equal(findFeature(snapshot, 'Utvecklingssamtal i simmarvyn').enabled, false)
   assert.equal(findFeature(snapshot, 'Pushnotiser för klubben').categories.developmentTalks, false)
+  assert.equal(findFeature(snapshot, 'Pushnotiser för klubben').categories.publishedWorkouts, false)
   assert.equal(JSON.stringify(snapshot).includes('private-image-data'), false)
   assert.equal(snapshot.menuAndSettingsAreReadOnlyToAssistant, true)
 })

@@ -1,0 +1,17 @@
+.feature-faq { min-width: 0; }
+.feature-faq-group { display: grid; gap: 7px; min-width: 0; margin-bottom: 24px; }
+.feature-faq-group > h2 { margin: 24px 0 12px; font-size: clamp(20px, 2.5vw, 26px); }
+.feature-faq details { min-width: 0; }
+.feature-faq summary { overflow-wrap: anywhere; gap: 12px; }
+.feature-faq summary > span { flex: none; }
+.feature-faq p { overflow-wrap: anywhere; }
+.diary-faq { margin-top: 24px; padding: 20px; border: 1px solid var(--line, #dbe6e3); border-radius: 18px; background: var(--paper); }
+.diary-faq > summary { cursor: pointer; font-weight: 700; }
+.diary-faq[open] > summary { margin-bottom: 16px; }
+.diary-faq .feature-faq-group { margin: 0; }
+.diary-faq .feature-faq details { border-bottom: 1px solid var(--line, #dbe6e3); padding: 12px 0; }
+.diary-faq .feature-faq summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; font-size: 15px; line-height: 1.5; }
+.diary-faq .feature-faq summary::-webkit-details-marker { display: none; }
+.diary-faq .feature-faq p { color: var(--muted); font-size: 14px; line-height: 1.65; }
+.feature-faq summary:focus-visible, .diary-faq > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+@media (max-width: 480px) { .diary-faq { padding: 15px; } }
