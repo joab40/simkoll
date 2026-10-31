@@ -16,9 +16,10 @@ function TimeProgress({ group }) {
   return <div className="swim-time-progress"><p>Snabbare tider ligger högre. Punkterna är dina registreringar.</p><div className="swim-time-chart"><svg width={width} height={height} role="img" aria-label={`Jämförbara träningstider: ${group.description}`}><polyline points={items.map((item, index) => `${x(index)},${y(item.result_time)}`).join(' ')} fill="none" stroke="#147b7b" strokeWidth="2" />{items.map((item, index) => <g key={item.id}><circle cx={x(index)} cy={y(item.result_time)} r="4" fill="#147b7b"><title>{dateLabel(item.result_date)}: {formatTrainingTime(item.result_time)}</title></circle><text x={x(index)} y={y(item.result_time) - 9} textAnchor="middle">{formatTrainingTime(item.result_time)}</text><text x={x(index)} y={140} textAnchor="middle">{new Date(`${item.result_date}T12:00:00Z`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</text></g>)}</svg></div><small>Varje punkt visas i datumordning. Samma förutsättningar innebär samma gren, bassäng, typ av tid, start, arm/ben/hel simning, hjälpmedel, tidtagning och extra förutsättningar.</small></div>
 }
 
-export default function SwimTimes({ code, request, range, entries = [], profileId, coachView = false, readOnly = false, onDirty, onData, createRequest, onCreateHandled }) {
+export default function SwimTimes({ code, request, range, entries = [], profileId, coachView = false, readOnly = false, onDirty, onData, createRequest, onCreateHandled, initialRange, initialData }) {
   const today = todayKey()
-  const [ownRange, setOwnRange] = useState(() => ({ start: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10), end: today }))
+  const [ownRange, setOwnRange] = useState(() => initialRange || ({ start: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10), end: today }))
+  const initialTimeData = useRef(initialData)
   const period = range || ownRange
   const [times, setTimes] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [limited, setLimited] = useState(false), [reload, setReload] = useState(0)
   const [editor, setEditor] = useState(null), [original, setOriginal] = useState(''), [busy, setBusy] = useState(false), [status, setStatus] = useState(''), [formError, setFormError] = useState(''), [selected, setSelected] = useState('')
@@ -35,6 +36,12 @@ export default function SwimTimes({ code, request, range, entries = [], profileI
   useEffect(() => {
     let active = true
     setLoading(true); setError(''); setTimes([])
+    const cached = initialTimeData.current
+    initialTimeData.current = null
+    if (reload === 0 && cached && !cached.error && !cached.loading && cached.profileId === profileId && cached.periodKey === `${period.start}:${period.end}` && Array.isArray(cached.rows)) {
+      setTimes(cached.rows); setLimited(cached.limited === true); setLoading(false)
+      return () => { active = false }
+    }
     request(`/api/training?swimTimes=true&start=${period.start}&end=${period.end}${coachView ? `&profileId=${encodeURIComponent(profileId)}` : ''}`, code).then((data) => { if (active) { setTimes(data.times || []); setLimited(data.limited === true) } }).catch((reason) => { if (active) setError(reason.message) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [code, profileId, coachView, period.start, period.end, reload])

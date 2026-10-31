@@ -1,0 +1,20 @@
+:is(.swimmer-disclosure, .swimmer-card-details details) > summary { position: relative; list-style: none; padding-right: 36px; }
+:is(.swimmer-disclosure, .swimmer-card-details details) > summary::-webkit-details-marker { display: none; }
+:is(.swimmer-disclosure, .swimmer-card-details details) > summary::marker { content: ''; }
+:is(.swimmer-disclosure, .swimmer-card-details details) > summary::after { content: ''; position: absolute; right: 16px; top: 50%; width: 7px; height: 7px; border-right: 2px solid var(--teal); border-bottom: 2px solid var(--teal); transform: translateY(-65%) rotate(45deg); transition: transform .18s ease; pointer-events: none; }
+:is(.swimmer-disclosure, .swimmer-card-details details)[open] > summary::after { transform: translateY(-30%) rotate(225deg); }
+:is(.swimmer-disclosure, .swimmer-card-details details) > summary:focus-visible { outline: 3px solid #369e9a; outline-offset: 2px; border-radius: 14px; }
+.swimmer-disclosure > .swimmer-card-summary { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; padding: 12px 36px 12px 13px; cursor: pointer; }
+.swimmer-card-summary-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: #dff1eb; font-size: 20px; }
+.swimmer-card-summary-copy { display: grid; gap: 3px; min-width: 0; }
+.swimmer-card-summary-copy > strong { color: var(--ink); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.swimmer-card-summary-copy > small { margin: 0; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.4; overflow-wrap: anywhere; }
+.swimmer-card-summary-copy > .swimmer-card-summary-eyebrow { color: var(--teal); font-size: 8px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.swimmer-card-summary-actions { display: flex; align-items: center; justify-content: end; gap: 9px; }
+.swimmer-card-summary-actions > b { color: var(--teal); font-size: 10px; }
+.swimmer-card-direction { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%; background: #e7f3ee; color: #24756b; font: 700 22px/1 'Manrope', sans-serif; }
+.swimmer-card-direction.insufficient { background: #edf2ef; color: #74827d; }
+.swimmer-card-direction.mixed { background: #fff5dd; color: #8a6916; }
+.swimmer-card-direction-explanation { color: var(--muted); font-size: 11px; line-height: 1.5; }
+@media (max-width: 480px) { .swimmer-card-summary-actions { flex-direction: column; gap: 4px; } .swimmer-card-summary-copy > strong { font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { :is(.swimmer-disclosure, .swimmer-card-details details) > summary::after { transition: none; } }

@@ -26,6 +26,8 @@ import CoachMetricDetails from './coach-metric-details.jsx'
 import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import { planningMonday } from '../shared/weekly-planning.js'
 import SwimmerTrainingTimesCard from './swimmer-training-times-card.jsx'
+import SwimmerCardSummary, { DirectionExplanation } from './swimmer-card-summary.jsx'
+import { programActivityDirection } from '../shared/swimmer-card-direction.js'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import PrivateChatReply from './private-chat-reply.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
@@ -1695,7 +1697,7 @@ function SwimmerCompactWeek({ training, profileId }) {
         })}
       </React.Fragment>)}
     </div>
-    <details className="compact-week-help"><summary>Så läses veckan</summary><p><span>◆ Planerat</span><span>✓ Genomfört</span><span>Markerad kolumn = idag</span></p></details>
+    <details className="compact-week-help swimmer-disclosure"><summary>Så läses veckan</summary><p><span>◆ Planerat</span><span>✓ Genomfört</span><span>Markerad kolumn = idag</span></p></details>
   </section>
 }
 
@@ -5086,8 +5088,8 @@ function SwimmerDevelopmentGoalsCard({ profile, code, goals = [], onOpenGoal, on
   const activeGoals = sortedGoals.filter((goal) => goal.status !== 'complete')
   const previousGoals = sortedGoals.filter((goal) => goal.status === 'complete')
   const dateLabel = (value) => value ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }) : ''
-  const goalRow = (goal) => <details className="swimmer-development-goal" key={goal.id}>
-    <summary><span><strong>{goal.title}</strong><small><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status] || goal.status}</span>{goal.targetDate ? ` · mål ${dateLabel(goal.targetDate)}` : ''}</small></span><span aria-hidden="true">⌄</span></summary>
+  const goalRow = (goal) => <details className="swimmer-development-goal swimmer-disclosure" key={goal.id}>
+    <summary><span><strong>{goal.title}</strong><small><span className={`goal-status ${goal.status}`}>{GOAL_STATUS[goal.status] || goal.status}</span>{goal.targetDate ? ` · mål ${dateLabel(goal.targetDate)}` : ''}</small></span></summary>
     <div className="swimmer-development-goal-content"><p>{goal.description}</p>{goal.nextStep && <div className="next-step"><strong>Nästa steg</strong><span>{goal.nextStep}</span></div>}<div className="swimmer-development-goal-image"><GoalAnalysisImage goal={goal} code={code} /></div><button type="button" className="secondary-button" onClick={() => onOpenGoal?.(profile.id, goal.id)}>Öppna och redigera →</button></div>
   </details>
   return <section className="swimmer-development-goals-card">
@@ -5099,6 +5101,7 @@ function SwimmerDevelopmentGoalsCard({ profile, code, goals = [], onOpenGoal, on
 
 function SwimmerStrengthProgramCard({ profile, training, code, onChanged, programType = 'strength' }) {
   const kind = programKind(programType)
+  const direction = programActivityDirection(training?.sessions, profile.id, programType, todayKey())
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState('')
   const programs = (training?.programs || []).filter((program) => program.type === programType && program.active !== false)
@@ -5112,9 +5115,10 @@ function SwimmerStrengthProgramCard({ profile, training, code, onChanged, progra
       setStatus(programId ? `${kind.title}met är tilldelat ✓` : 'Tilldelningen är borttagen. Historiken är sparad.')
     } catch (error) { setStatus(error.message) } finally { setSaving(false) }
   }
-  return <details className={`swimmer-strength-program-card${assignment ? ' assigned' : ''}`}>
-    <summary><span className="swimmer-strength-icon" aria-hidden="true">{kind.icon}</span><span><small>{kind.title}</small><strong>{assignment?.program.title || 'Inget program tilldelat'}</strong></span><b>{assignment ? 'Aktivt' : 'Tilldela'} <i aria-hidden="true">⌄</i></b></summary>
+  return <details className={`swimmer-strength-program-card swimmer-disclosure${assignment ? ' assigned' : ''}`}>
+    <SwimmerCardSummary icon={kind.icon} eyebrow={kind.title} title={assignment?.program.title || 'Inget program tilldelat'} direction={direction} status={assignment ? 'Aktivt' : 'Tilldela'} />
     <div className="swimmer-strength-program-body">
+      <DirectionExplanation direction={direction} />
       {assignment && <p>{assignment.program.description}</p>}
       <label><span>{assignment ? 'Byt eller ta bort program' : `Tilldela program till ${profile.displayName}`}</span><select value={assignment?.program.id || ''} disabled={saving || !programs.length} onChange={(event) => changeProgram(event.target.value)}><option value="">{assignment ? 'Inget program' : programs.length ? `Välj ${kind.name}…` : 'Inga aktiva program'}</option>{programs.map((program) => <option value={program.id} key={program.id}>{program.title}</option>)}</select></label>
       <small>Program skapas och redigeras på sidan {kind.title}.</small>

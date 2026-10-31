@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import './daily-sleep.css'
+import SwimmerCardSummary, { DirectionExplanation } from './swimmer-card-summary.jsx'
+import { directionUnavailable, sleepDirection } from '../shared/swimmer-card-direction.js'
 
 export const sleepDuration = (minutes) => `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`
 const qualityLabel = (value) => ({ 1: '😴 Dålig', 3: '😐 Okej', 5: '😀 Bra' })[value] || '–'
@@ -21,18 +23,20 @@ export function SleepQuestion({ date, code, request, onContinue, lateEntry }) {
 export default function SleepHistory({ code, request, profileId, start, end, days = [], responses = [] }) {
   const [records, setRecords] = useState([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0)
   const [period, setPeriod] = useState(28)
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
   useEffect(() => {
     let active = true; setLoading(true); setError(''); setRecords([])
-    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
     const from = start || new Date(Date.parse(`${today}T12:00:00Z`) - (period - 1) * 86400000).toISOString().slice(0,10)
     const params = new URLSearchParams({ sleep: 'true', ...(profileId ? { profileId } : {}), start: from, end: end || today })
-    request(`/api/responses?${params}`, code).then((data) => { if (active) setRecords((data.records || []).filter((row) => !row.skipped)) }).catch((reason) => { if (active) setError(reason.message) }).finally(() => { if (active) setLoading(false) })
+    request(`/api/responses?${params}`, code).then((data) => { if (active) setRecords((data.records || []).filter((row) => !row.skipped && Number.isFinite(row.minutes) && row.minutes >= 0)) }).catch((reason) => { if (active) setError(reason.message) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [code, profileId, start, end, retry, period])
+  }, [code, profileId, start, end, retry, period, today])
   const average = records.length ? Math.round(records.reduce((sum, row) => sum + row.minutes, 0) / records.length) : null
-  return <details className="sleep-history">
-    <summary><span>🌙 Sömn och återhämtning<small>{loading ? 'Hämtar…' : error ? 'Underlaget kunde inte hämtas' : average == null ? 'Inga sömnsvar i perioden' : `${sleepDuration(average)} i snitt · ${records.length} ${records.length === 1 ? 'natt' : 'nätter'}`}</small></span><span aria-hidden="true">⌄</span></summary>
+  const direction = loading ? directionUnavailable('Hämtar riktning…') : error ? directionUnavailable('Riktningen kunde inte hämtas') : sleepDirection(records, end || today)
+  return <details className="sleep-history swimmer-disclosure">
+    <SwimmerCardSummary icon="🌙" title="Sömn och återhämtning" description={loading ? 'Hämtar…' : error ? 'Underlaget kunde inte hämtas' : average == null ? 'Inga sömnsvar i perioden' : `${sleepDuration(average)} i snitt · ${records.length} ${records.length === 1 ? 'natt' : 'nätter'}`} direction={direction} />
     <div className="sleep-history-content">
+      <DirectionExplanation direction={direction} />
       {!start && <label>Visa <select aria-label="Sömnhistorikens period" value={period} onChange={(event) => setPeriod(Number(event.target.value))}>{[28,90,180].map((value) => <option key={value} value={value}>{value} dagar</option>)}</select></label>}
       <p>{start && end ? `${start}–${end}` : `Senaste ${period} dagarna`}. Natten hör till dagen efter. Jämför med känsla och RPE för samma dag; det visar inget säkert orsakssamband.</p>
       {error ? <p className="form-error" role="alert">{error} <button type="button" className="text-button" onClick={() => setRetry((value) => value + 1)}>Försök igen</button></p> : !loading && records.length ? <>

@@ -12,8 +12,6 @@
 .sleep-actions { margin-top: 28px; flex-wrap: wrap; }
 .sleep-check button:disabled { opacity: .55; }
 .sleep-history { margin: 18px 0; border: 1px solid #cdded9; border-radius: 18px; background: #f8fcfa; overflow: hidden; }
-.sleep-history summary { padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 700; gap: 16px; }
-.sleep-history summary small { display: block; color: var(--muted); font-weight: 400; margin-top: 5px; font-size: 13px; }
 .sleep-history-content { padding: 0 20px 20px; }
 .sleep-table { overflow-x: auto; }
 .sleep-table table { border-collapse: collapse; width: 100%; font-size: 14px; white-space: nowrap; }
