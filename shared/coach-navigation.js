@@ -15,7 +15,8 @@ export const COACH_NAV_ITEMS = [
 ]
 
 export const COACH_MENU_FEATURES = COACH_NAV_ITEMS.filter(({ key }) => key !== 'today').map(({ key, label }) => [key, label])
-export const COACH_OVERVIEW_FEATURES = COACH_MENU_FEATURES
+// Messages have a permanent header shortcut when enabled, not a duplicate tab.
+export const COACH_OVERVIEW_FEATURES = COACH_MENU_FEATURES.filter(([key]) => key !== 'community')
 
 export const COACH_MENU_SECTIONS = [
   ['Arbeta', ['workout', 'swimmers', 'groups', 'community']],
