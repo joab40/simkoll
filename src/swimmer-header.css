@@ -1,0 +1,40 @@
+.app-shell > header.swimmer-top-header { flex-wrap: nowrap; overflow: visible; gap: 20px; }
+.app-shell > header.swimmer-top-header .club-brand { min-width: 0; }
+.app-shell > header.swimmer-top-header .club-brand > span { white-space: nowrap; }
+.app-shell > header.swimmer-top-header .swimmer-header-navigation { flex-wrap: nowrap; gap: 12px; }
+.swimmer-nav-primary { display: flex; align-items: center; gap: 4px; }
+.app-shell > header.swimmer-top-header .swimmer-nav-primary .menu-link { min-height: 40px; padding: 9px 10px; white-space: nowrap; border-radius: 10px; }
+.app-shell > header.swimmer-top-header .swimmer-nav-primary .menu-link:hover { background: #eaf4ef; }
+.swimmer-more { position: relative; flex: none; }
+.swimmer-more-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 8px 12px; border: 1px solid #d5e3df; border-radius: 12px; background: white; color: var(--teal); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.swimmer-more-toggle[aria-expanded="true"] { background: #e2f2ec; border-color: #88b9ad; }
+.swimmer-more-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.swimmer-more-panel { display: none; position: absolute; z-index: 20; top: calc(100% + 10px); right: 0; width: 278px; padding: 8px; border: 1px solid #cfdfd9; border-radius: 16px; background: var(--paper); box-shadow: 0 14px 35px #173e3926; }
+.swimmer-more-panel.open { display: grid; gap: 3px; }
+.app-shell > header.swimmer-top-header .swimmer-more-panel .menu-link { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 11px 12px; border-radius: 10px; white-space: normal; line-height: 1.4; text-align: left; }
+.app-shell > header.swimmer-top-header .swimmer-more-panel .menu-link:hover { background: #e8f3ee; }
+.app-shell > header.swimmer-top-header .swimmer-more-panel .swimmer-menu-icon { display: block; flex: none; width: 20px; height: 20px; }
+.app-shell > header.swimmer-top-header .profile-chip { flex: 0 1 auto; min-width: 0; max-width: 168px; min-height: 40px; padding: 5px 12px 5px 7px; gap: 8px; white-space: nowrap; }
+.app-shell > header.swimmer-top-header .swimmer-profile-emoji { margin: 0; flex: none; }
+.app-shell > header.swimmer-top-header .swimmer-profile-label { display: block; min-width: 0; margin: 0; font-size: 12px; }
+.app-shell > header.swimmer-top-header .swimmer-profile-label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swimmer-top-header button:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+@media (max-width: 1100px) {
+  .app-shell > header.swimmer-top-header { flex-wrap: wrap; gap: 10px; }
+  .app-shell > header.swimmer-top-header .club-brand { flex: 1 1 0; overflow: hidden; }
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation { display: none; gap: 8px; }
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation.open { display: grid; }
+  .swimmer-top-header .swimmer-nav-primary, .swimmer-top-header .swimmer-more, .swimmer-top-header .swimmer-more-panel { display: contents; }
+  .swimmer-top-header .swimmer-more-toggle { display: none; }
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation .menu-link { width: 100%; min-width: 0; min-height: 52px; padding: 11px 12px; border: 1px solid #dbe8e3; border-radius: 13px; background: #eef6f3; white-space: normal; overflow-wrap: anywhere; }
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation .menu-link .swimmer-menu-icon { display: block; width: 21px; height: 21px; flex: none; }
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation .menu-link:hover { background: #e0f1eb; }
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation .swimmer-menu-legal { min-height: 44px; background: #f5f8f5; }
+  .app-shell > header.swimmer-top-header .profile-chip { order: 20; display: flex; max-width: none; width: 100%; padding: 11px 14px; gap: 10px; }
+  .app-shell > header.swimmer-top-header .swimmer-profile-emoji { display: grid; }
+  .app-shell > header.swimmer-top-header .swimmer-profile-label { display: grid; flex: 1; }
+  .app-shell > header.swimmer-top-header .swimmer-header-logout { order: 20; }
+}
+@media (max-width: 500px) {
+  .app-shell > header.swimmer-top-header .swimmer-header-navigation.open { grid-template-columns: minmax(0, 1fr); }
+}

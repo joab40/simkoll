@@ -10,6 +10,9 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'swimmer-menu', section: 'checkin', question: 'Var hittar jag program, grenar och hjälp i simmarvyn?', answer: [
+    'På datorn finns Veckoplanering, Min träningsdagbok och Mina mål som genvägar i toppmenyn. Under Mer ligger Mitt styrkeprogram, Mina landträningsprogram, Mina grenar, Peppflödet, FAQ och Info & villkor. Din profil öppnas med namnknappen bredvid. På mindre skärmar öppnar Meny hela navigationen. Vilka profilval som finns beror på inloggning och aktiverade funktioner.',
+  ] },
   { id: 'checkin', section: 'checkin', question: 'Checka in och följ upp passet', answer: [
     'Välj Checka in och svara på hur det känns idag. Välj om du ska träna, har tränat, tävlar, vilar eller är sjuk. ”Jag ska träna” är en avsikt, inte ett genomfört pass. Efter träningen lämnar du en efterrapport för rätt aktivitet och pass.',
     'Rubrik, fokus, planerade meter/minuter, tid och plats syns i veckoplaneringen före incheckning. Dagens serier, upplägg och tränarens passkommentar låses upp efter dagens incheckning. Incheckning en annan dag låser inte upp dagens pass.',
