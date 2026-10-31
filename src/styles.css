@@ -728,6 +728,11 @@ button { cursor: pointer; }
 .choice-card-with-description { display: flex; justify-content: space-between; gap: 12px; padding-top: 14px; padding-bottom: 14px; }
 .choice-card-with-description > span:first-child { flex: 1 1 auto; min-width: 0; }
 .choice-card-with-description > span:last-child { flex: 0 0 auto; }
+.checkin-activity-choices { margin: 14px 0 20px; }
+.checkin-activity-choices .choice-card { min-height: 78px; }
+.checkin-activity-choices .choice-card-with-description > span:first-child { display: grid; gap: 4px; }
+.checkin-activity-choice-title { font-size: 16px; font-weight: 700; }
+.checkin-activity-choices .choice-card small { color: var(--muted); font-size: 14px; font-weight: 400; }
 .choice-icon { width: 31px; height: 31px; display: grid; place-items: center; background: #e1f3ef; color: var(--teal); border-radius: 50%; }
 .feeling-grid, .thumb-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; }
 .feeling-grid button, .thumb-grid button { min-width: 0; border: 1.5px solid #d6e2df; background: white; border-radius: 17px; padding: 18px 7px 13px; }
