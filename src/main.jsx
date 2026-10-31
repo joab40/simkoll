@@ -1113,7 +1113,7 @@ function StrengthProgramCard({ training, onOpen, programType = 'strength' }) {
   const kind = programKind(programType)
   const assignment = training?.assignments?.find((item) => item.program?.type === programType)
   if (!assignment) return null
-  return <section className="strength-program-card"><div><p className="eyebrow">Från tränarna</p><h2>Mitt {kind.name} {kind.icon}</h2><h3>{assignment.program.title}</h3><p>{assignment.program.description}</p></div><button type="button" className="primary-button" onClick={onOpen}>Öppna program →</button></section>
+  return <section className="strength-program-card swimmer-program-shortcut"><span className="swimmer-program-shortcut-icon" aria-hidden="true">{kind.icon}</span><div><p className="swimmer-program-shortcut-type">{kind.title}</p><h3>{assignment.program.title}</h3></div><button type="button" className="primary-button" aria-label={`Öppna ${kind.name}: ${assignment.program.title}`} onClick={onOpen}>Öppna →</button></section>
 }
 
 function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {

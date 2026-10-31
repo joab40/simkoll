@@ -1442,6 +1442,12 @@ button { cursor: pointer; }
 .strength-program-card .strength-remove-button:hover { border-color: #d9aaa6; background: #fff1ef; color: #934a47; }
 .strength-program-card .strength-remove-button:focus-visible { outline: 3px solid rgba(169, 105, 102, .22); outline-offset: 2px; }
 .strength-program-card .strength-remove-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.strength-program-card.swimmer-program-shortcut { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px; margin: 12px 0; border-radius: 16px; }
+.swimmer-program-shortcut-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: #dff1eb; font-size: 22px; }
+.swimmer-program-shortcut > div { min-width: 0; }
+.strength-program-card .swimmer-program-shortcut-type { margin: 0 0 3px; color: var(--teal); font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
+.strength-program-card.swimmer-program-shortcut h3 { margin: 0; color: var(--ink); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.strength-program-card.swimmer-program-shortcut > .primary-button { width: auto; min-height: 44px; margin: 0; padding: 9px 13px; border-radius: 12px; font-size: 12px; white-space: nowrap; }
 .strength-program-empty { display: flex; align-items: center; gap: 9px; padding: 10px 11px; border: 1px dashed #c9ddd7; border-radius: 11px; color: var(--muted); }
 .strength-program-empty > span { color: #66a293; font-size: 20px; }
 .strength-program-empty small { font-size: 10px; line-height: 1.4; }
