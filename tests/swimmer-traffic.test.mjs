@@ -133,3 +133,14 @@ test('cards and colour filters share report statuses; UI distinguishes errors an
   assert.match(view, /tidigare \$\{counts.previous\[color\]\}/)
   assert.match(view, /aria-pressed/)
 })
+
+test('traffic layout stays compact on desktop with separate touch-friendly mobile sizing', () => {
+  const css = readFileSync(new URL('../src/swimmer-traffic-overview.css', import.meta.url), 'utf8')
+  const view = readFileSync(new URL('../src/swimmer-traffic-overview.jsx', import.meta.url), 'utf8')
+  assert.match(css, /grid-template-rows: 24px auto/)
+  assert.match(css, /\.swimmer-traffic-count-arrow[^}]*width: 24px/)
+  assert.match(css, /\.swimmer-traffic-footer > details\[open\][^}]*grid-column: 1 \/ -1/)
+  assert.match(css, /@media \(max-width: 600px\)/)
+  assert.match(css, /\.swimmer-traffic-cohort-actions button, \.swimmer-traffic-overview > header button \{ min-height: 40px/)
+  assert.match(view, /className="swimmer-traffic-footer"/)
+})
