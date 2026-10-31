@@ -8,9 +8,11 @@ import { TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import { proposeTalkAgreement } from '../server/talk-agreement.js'
 import { loadTalkAgreementContext } from '../server/talk-agreement-context.js'
 import { generateTalkPreparation } from '../server/talk-preparation.js'
+import { loadSwimmerAgreement } from '../server/swimmer-agreement.js'
 import { beginGoalVideo, finishGoalVideo, cancelGoalVideo, replaceGoalImage, clearGoalMedia, signedGoalVideo, cleanupGoalVideo } from '../server/goal-video.js'
 
 const STATUSES = ['planned', 'active', 'paused', 'complete']
+const validTalkId = (value) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 const validTalkDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 const validTalkText = (value, max) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length <= 50 && Object.values(value).every((text) => typeof text === 'string' && text.length <= max)
 const FEEDBACK = {
@@ -34,9 +36,9 @@ const mapGoal = (goal, updates = [], imageUrl = null, videoPosterUrl = null) => 
 })
 
 const mapTalk = (item) => ({ id: item.id, swimmerId: item.swimmer_id, coachId: item.coach_id, groupId: item.group_id, meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerSeenAt: item.swimmer_seen_at || null, swimmerAnswers: item.swimmer_answers || {}, coachNotes: item.coach_notes || {}, coachPreparation: item.coach_preparation || null, agreement: item.agreement || {}, followUpDate: item.follow_up_date, createdAt: item.created_at, updatedAt: item.updated_at })
-async function loadTalks(profileId = null) {
-  const filter = profileId ? `&swimmer_id=eq.${profileId}` : ''
-  const result = await supabaseRequest(`development_talks?select=*&${filter.slice(1)}&order=meeting_date.desc,created_at.desc&limit=200`)
+async function loadTalks(profileId = null, talkId = null) {
+  const filter = `${profileId ? `&swimmer_id=eq.${encodeURIComponent(profileId)}` : ''}${talkId ? `&id=eq.${encodeURIComponent(talkId)}` : ''}`
+  const result = await supabaseRequest(`development_talks?select=*${filter}&order=meeting_date.desc,created_at.desc&limit=${talkId ? 1 : 200}`)
   if (!result.ok) throw new Error(`Development talks GET failed: ${result.status}`)
   return (await result.json()).map(mapTalk)
 }
@@ -74,6 +76,14 @@ export default async function handler(request, response) {
   if (request.method === 'POST' && ['begin-goal-video', 'finish-goal-video', 'cancel-goal-video', 'replace-goal-image', 'clear-goal-media', 'polish-goal', 'propose-talk-agreement', 'talk-agreement-context', 'talk-preparation-context', 'generate-talk-preparation', 'create', 'edit'].includes(request.body?.action) && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skapa och redigera utvecklingsmål och överenskommelser.' })
   try {
     if (request.method === 'GET') {
+      if (request.query?.agreementCard === 'true') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa överenskommelsen i simmarkortet.' })
+        const profileId = request.query.profileId
+        if (!validTalkId(profileId)) return sendJson(response, 400, { error: 'Välj en giltig simmare.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        try { return sendJson(response, 200, { talk: await loadSwimmerAgreement(profileId) }) }
+        catch (error) { return sendJson(response, 502, { error: error.message }) }
+      }
       if (request.query?.video === 'true') {
         response.setHeader('Cache-Control', 'private, no-store')
         const profile = role === 'coach' ? null : await getSessionProfile(request)
@@ -112,7 +122,12 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { settings: visible })
       }
       if (request.query?.talks === 'true') {
-        if (role === 'coach') return sendJson(response, 200, { talks: await loadTalks(request.query.profileId || null), globalEnabled: await talksEnabled() })
+        response.setHeader('Cache-Control', 'private, no-store')
+        if (role === 'coach') {
+          const { profileId, talkId } = request.query
+          if ((profileId && !validTalkId(profileId)) || (talkId && (!validTalkId(talkId) || !validTalkId(profileId)))) return sendJson(response, 400, { error: 'Välj en giltig simmare och ett giltigt samtal.' })
+          return sendJson(response, 200, { talks: await loadTalks(profileId || null, talkId || null), globalEnabled: await talksEnabled() })
+        }
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Utvecklingssamtal visas bara för inloggade profiler.' })
         return sendJson(response, 200, { talks: (await loadTalks(profile.id)).map(swimmerTalk), globalEnabled: await talksEnabled() })

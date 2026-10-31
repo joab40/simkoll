@@ -9,7 +9,7 @@ import { developmentTalkQuestions } from '../shared/development-talk-form.js'
 const summary = (value = {}) => typeof value.summary === 'string' ? value.summary : Object.values(value).filter((item) => typeof item === 'string').join('\n')
 const initial = (talk) => ({ notes: summary(talk.coachNotes), agreement: summary(talk.agreement), meetingDate: talk.meetingDate, followUpDate: talk.followUpDate || '', answers: { ...(talk.swimmerAnswers || {}) } })
 
-export default function DevelopmentTalkEditor({ talk, swimmerName, code, request, onBack, onSaved, onRemove }) {
+export default function DevelopmentTalkEditor({ talk, swimmerName, code, request, onBack, onSaved, onRemove, backLabel = '← Alla samtal' }) {
   const [draft, setDraft] = useState(() => initial(talk)), [baseline, setBaseline] = useState(() => initial(talk)), [saving, setSaving] = useState(''), [status, setStatus] = useState('')
   const busy = useRef(false), root = useRef(null)
   const version = useRef(talk.updatedAt)
@@ -38,7 +38,7 @@ export default function DevelopmentTalkEditor({ talk, swimmerName, code, request
       setStatus(complete ? '✓ Samtalet är markerat som genomfört. Överenskommelsen finns i simmarens historik.' : '✓ Ändringarna är sparade. Markera som genomfört när ni har haft samtalet.')
     } catch (error) { setStatus(error.message) } finally { busy.current = false; setSaving('') }
   }
-  return <div className="talk-editor" ref={root}><button type="button" className="back-button" disabled={Boolean(saving) || audioBusy || aiBusy || preparationBusy} onClick={() => { if (!dirty || window.confirm('Du har osparade svar, anteckningar eller ett ogranskat textförslag. Lämna utan att spara?')) onBack() }}>← Alla samtal</button>
+  return <div className="talk-editor" ref={root}><button type="button" className="back-button" disabled={Boolean(saving) || audioBusy || aiBusy || preparationBusy} onClick={() => { if (!dirty || window.confirm('Du har osparade svar, anteckningar eller ett ogranskat textförslag. Lämna utan att spara?')) onBack() }}>{backLabel}</button>
     <div className="talk-editor-heading"><div><p className="eyebrow">Utvecklingssamtal</p><h3>{swimmerName}</h3></div><span className="talk-status-pill ready">{talk.status === 'completed' ? 'Genomfört' : talk.status === 'prepared' ? 'Redo för samtal' : 'Förberedelser pågår'}</span></div>
     <div className="talk-next-step"><strong>{talk.status === 'completed' ? 'Samtalet är genomfört' : 'Nästa steg: håll samtalet tillsammans'}</strong><p>{talk.status === 'completed' ? 'Du kan fortfarande rätta anteckningar och överenskommelsen nedan.' : 'Läs simmarens svar, skriv anteckningar och kom överens om nästa steg. Spara under tiden och markera som genomfört när ni är klara.'}</p></div>
     <DevelopmentTalkPreparation talk={talk} code={code} request={request} disabled={Boolean(saving) || audioBusy || audioPending || aiBusy || aiPending} unsaved={formDirty} onBusyChange={setPreparationBusy} onSaved={(savedTalk) => { version.current = savedTalk.updatedAt; onSaved(savedTalk) }} />
