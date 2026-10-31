@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import WorkoutOccasionChoice from './workout-occasion-choice.jsx'
+import WorkoutPreview from './workout-preview.jsx'
+import { workbookPreviewWorkouts } from '../shared/workout-preview.js'
 import './workout-workbook-review.css'
 
 export default function WorkoutWorkbookReview({ workbook, date: initialDate, timeOfDay: initialTime, groups: initialGroups, initialOccasion, loadChoices, availableGroups, focuses, onPublish, onClose }) {
@@ -13,6 +15,7 @@ export default function WorkoutWorkbookReview({ workbook, date: initialDate, tim
   const [reviewed, setReviewed] = useState(false)
   const [publicationId] = useState(() => crypto.randomUUID())
   const [busy, setBusy] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [error, setError] = useState('')
   const active = sheets.find((sheet) => sheet.key === activeKey)
   const selected = sheets.filter((sheet) => sheet.selected)
@@ -52,8 +55,9 @@ export default function WorkoutWorkbookReview({ workbook, date: initialDate, tim
       </fieldset></div>
       <div className="workbook-publish"><label><input type="checkbox" checked={reviewed} disabled={busy} onChange={(event) => setReviewed(event.target.checked)} />Jag har granskat de valda flikarna som hela pass och kontrollerat deras meter och minuter.</label>
         {error && <p role="alert" className="form-error">{error}</p>}
-        <button className="primary-button" type="submit" disabled={busy || !selected.length || !groups.length || !reviewed}>{busy ? 'Publicerar passalternativen…' : `Publicera ${selected.length} ${selected.length === 1 ? 'pass' : 'passalternativ'} →`}</button><small>Berörda simmare får en gemensam pushnotis om nya simpass är aktiverat.</small>
+        <div className="workbook-publish-actions"><button type="button" className="secondary-button" disabled={busy || !selected.length} onClick={() => setPreviewOpen(true)}>Förhandsgranska som simmare</button><button className="primary-button" type="submit" disabled={busy || !selected.length || !groups.length || !reviewed}>{busy ? 'Publicerar passalternativen…' : `Publicera ${selected.length} ${selected.length === 1 ? 'pass' : 'passalternativ'} →`}</button></div><small>Berörda simmare får en gemensam pushnotis om nya simpass är aktiverat.</small>
       </div>
     </form>
+    {previewOpen && <WorkoutPreview workouts={workbookPreviewWorkouts(sheets, { date, timeOfDay, targetGroups: groups })} date={date} timeOfDay={timeOfDay} onClose={() => setPreviewOpen(false)} />}
   </section>
 }

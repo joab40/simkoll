@@ -31,6 +31,7 @@
 .workbook-review .workbook-skipped { font-size: .78rem; margin: 4px; }
 .workbook-publish { display: grid; gap: 12px; padding-top: 18px; border-top: 1px solid #d6e5e0; }
 .workbook-publish > button { justify-self: end; }
+.workbook-publish-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .workbook-publish > small { font-size: .78rem; text-align: right; }
 @media (max-width: 680px) {
   .workbook-review > header { flex-direction: column; }
@@ -40,6 +41,8 @@
   .workbook-amounts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workbook-amounts > label:first-child { grid-column: 1 / -1; }
   .workbook-publish > button { width: 100%; }
+  .workbook-publish-actions { flex-direction: column; }
+  .workbook-publish-actions > button { width: 100%; }
   .workbook-publish > small { text-align: left; }
 }
 @media (max-width: 380px) { .workbook-sheet-list { grid-template-columns: 1fr; } }
