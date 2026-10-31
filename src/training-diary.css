@@ -4,10 +4,14 @@
 .diary-heading p { margin: 0; color: var(--muted); }
 .diary-heading > span { font-size: 40px; }
 .diary-period, .diary-connections, .diary-development, .diary-calendar, .diary-history, .diary-goals { padding: 22px; margin: 16px 0; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); }
-.diary-period { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px; background: #e7f2ee; }
-.diary-period form, .diary-presets, .diary-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.diary-period { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: end; gap: 14px; background: #e7f2ee; }
+.diary-period form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(140px, auto); align-items: end; gap: 8px; min-width: 0; }
+.diary-presets, .diary-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .diary-period label, .diary-filters label { display: grid; gap: 5px; font-size: 13px; font-weight: 700; }
 .training-diary-page input, .training-diary-page select, .training-diary-page textarea { border: 1px solid #cbddda; border-radius: 11px; padding: 11px; background: white; color: var(--ink); font: inherit; }
+.diary-period form label { min-width: 0; }
+.diary-period form input { box-sizing: border-box; width: 100%; min-width: 0; }
+.diary-period form button { min-height: 46px; white-space: nowrap; }
 .training-diary-page button:focus-visible, .training-diary-page summary:focus-visible { outline: 3px solid #369e9a; outline-offset: 3px; }
 .diary-presets button, .diary-metric-tabs button, .diary-calendar .diary-section-heading button { min-height: 38px; padding: 8px 13px; border: 1px solid #cbded7; border-radius: 999px; background: white; color: var(--teal); font: inherit; font-weight: 700; }
 .diary-period-caption, .diary-chart-note, .diary-footnote { color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -109,4 +113,4 @@
 .diary-goals summary small { color: var(--muted); font-weight: 400; }
 .diary-goals p { white-space: pre-wrap; line-height: 1.6; }
 @media (max-width: 900px) { .diary-connection-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .training-diary-page { padding: 19px 12px 30px; } .diary-period, .diary-connections, .diary-development, .diary-calendar, .diary-history, .diary-goals { padding: 15px; border-radius: 17px; } .diary-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .diary-stats article { padding: 14px; } .diary-stats article > strong { font-size: 22px; } .diary-period form { width: 100%; } .diary-period form label { flex: 1; min-width: 110px; } .diary-period form input { width: 100%; min-width: 0; } .diary-period form button { width: 100%; } .diary-calendar-grid { gap: 3px; } .diary-calendar-grid > button { min-height: 70px; padding: 6px; font-size: 13px; } .diary-calendar-grid i { font-size: 13px; } .diary-entry > summary { padding: 12px; gap: 9px; } .diary-entry-value { max-width: 105px; } .diary-entry-metrics { grid-template-columns: repeat(2, 1fr); } .diary-entry-content { padding: 14px; } }
+@media (max-width: 700px) { .training-diary-page { padding: 19px 12px 30px; } .diary-period, .diary-connections, .diary-development, .diary-calendar, .diary-history, .diary-goals { padding: 15px; border-radius: 17px; } .diary-period { grid-template-columns: minmax(0, 1fr); } .diary-period form { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); } .diary-period form button { grid-column: 1 / -1; width: 100%; } .diary-period form label { min-width: 0; } .diary-period form input { width: 100%; min-width: 0; } .diary-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .diary-stats article { padding: 14px; } .diary-stats article > strong { font-size: 22px; } .diary-calendar-grid { gap: 3px; } .diary-calendar-grid > button { min-height: 70px; padding: 6px; font-size: 13px; } .diary-calendar-grid i { font-size: 13px; } .diary-entry > summary { padding: 12px; gap: 9px; } .diary-entry-value { max-width: 105px; } .diary-entry-metrics { grid-template-columns: repeat(2, 1fr); } .diary-entry-content { padding: 14px; } }
