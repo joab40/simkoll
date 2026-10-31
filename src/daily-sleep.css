@@ -13,6 +13,9 @@
 .sleep-check button:disabled { opacity: .55; }
 .sleep-history { margin: 18px 0; border: 1px solid #cdded9; border-radius: 18px; background: #f8fcfa; overflow: hidden; }
 .sleep-history-content { padding: 0 20px 20px; }
+.sleep-trend-method { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.sleep-trend-method > summary { display: flex; align-items: center; min-height: 44px; color: var(--teal); font-weight: 700; cursor: pointer; }
+.sleep-trend-method > .swimmer-card-direction-explanation { margin: 4px 0 12px; }
 .sleep-table { overflow-x: auto; }
 .sleep-table table { border-collapse: collapse; width: 100%; font-size: 14px; white-space: nowrap; }
 .sleep-table th, .sleep-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #deebe7; }

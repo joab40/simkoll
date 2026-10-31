@@ -18,14 +18,32 @@ export function sleepDirection(records, today) {
   const start = directionDay(today, -6), previousStart = directionDay(today, -13)
   const days = new Map()
   for (const row of records || []) {
-    if (!row.skipped && row.activity_date >= previousStart && row.activity_date <= today && Number.isFinite(row.minutes) && row.minutes >= 0 && [1, 3, 5].includes(row.quality)) days.set(row.activity_date, row)
+    if (row && !row.skipped && /^\d{4}-\d{2}-\d{2}$/.test(row.activity_date) && row.activity_date >= previousStart && row.activity_date <= today && Number.isFinite(row.minutes) && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)) days.set(row.activity_date, row)
   }
-  const current = [...days.values()].filter((row) => row.activity_date >= start), previous = [...days.values()].filter((row) => row.activity_date < start)
-  if (current.length < 3 || previous.length < 3) return directionUnavailable('Riktning kräver minst 3 sömnsvar i vardera 7-dagarsperioden')
-  const change = mean(current, 'quality') - mean(previous, 'quality'), minutes = Math.round(mean(current, 'minutes') - mean(previous, 'minutes'))
+  const nights = [...days.values()].sort((a, b) => a.activity_date.localeCompare(b.activity_date))
+  let current = nights.filter((row) => row.activity_date >= start), previous = nights.filter((row) => row.activity_date < start)
+  const weekly = current.length >= 3 && previous.length >= 3
+  if (!weekly) {
+    // Do not turn old history or duplicate reports into a current trend. A
+    // provisional comparison uses disjoint endpoints; the middle night is not
+    // part of either average. Weekly comparisons take precedence when possible.
+    if (nights.length < 7 || current.length < 3) return { ...directionUnavailable('Samlar underlag för sömntrend'), detail: 'Veckotrend kräver minst 3 sömnsvar i vardera 7-dagarsperioden. Innan dess kan 7 olika rapporterade nätter under de senaste 14 dagarna ge en preliminär korttidstrend, om minst 3 ligger senaste veckan. Saknade svar räknas inte som noll. RPE och dagens känsla påverkar inte pilen.' }
+    const recent = nights.slice(-7)
+    previous = recent.slice(0, 3)
+    current = recent.slice(-3)
+  }
+  const change = Math.round((mean(current, 'quality') - mean(previous, 'quality')) * 1e6) / 1e6, minutes = Math.round(mean(current, 'minutes') - mean(previous, 'minutes'))
   const state = change >= .4 ? 'up' : change <= -.4 ? 'down' : 'steady'
-  const label = state === 'up' ? 'Sömnkänslan har ökat' : state === 'down' ? 'Sömnkänslan har minskat' : 'Liknande sömnkänsla'
-  return { state, label, detail: `${label}: senaste 7 dagarna (${current.length} svar) jämfört med föregående 7 (${previous.length} svar). Genomsnittlig sovtid har ${minutes > 0 ? `ökat ${minutes} minuter` : minutes < 0 ? `minskat ${Math.abs(minutes)} minuter` : 'inte ändrats'}. Pilen följer upplevd sömnkvalitet på skalan 1–5, med gränsen 0,4. Längre sovtid bedöms inte automatiskt som bättre.` }
+  const feeling = state === 'up' ? 'Sömnkänslan har ökat' : state === 'down' ? 'Sömnkänslan har minskat' : 'Liknande sömnkänsla'
+  const range = (rows) => `${rows[0].activity_date}–${rows.at(-1).activity_date}`
+  const comparison = weekly ? `Senaste 7 dagarna (${current.length} svar) jämförs med föregående 7 (${previous.length} svar).` : `De senaste tre rapporterade nätterna (${range(current)}) jämförs med de första tre (${range(previous)}) av de senaste sju. Mittennatten ingår inte i jämförelsen. Detta är en preliminär korttidstrend med litet underlag, inte en veckotrend.`
+  return {
+    state, label: weekly ? feeling : `Preliminär korttidstrend · ${feeling.toLocaleLowerCase('sv-SE')}`,
+    comparison: weekly ? 'weekly' : 'short-term', preliminary: !weekly,
+    detail: `${comparison} Pilen följer enbart upplevd sömnkvalitet på skalan 1–5, med gränsen 0,4. RPE, dagens känsla och sovtid påverkar inte pilens riktning.`,
+    durationChangeMinutes: minutes,
+    durationDetail: `Sovtid i samma jämförelse: ${minutes === 0 ? 'oförändrad i snitt' : `${Math.abs(minutes)} minuter ${minutes > 0 ? 'längre' : 'kortare'} per natt i snitt`}. Längre sovtid räknas inte automatiskt som bättre.`,
+  }
 }
 
 export function swimTimesDirection(rows, limited = false) {

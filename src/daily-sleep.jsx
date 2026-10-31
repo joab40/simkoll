@@ -36,7 +36,8 @@ export default function SleepHistory({ code, request, profileId, start, end, day
   return <details className="sleep-history swimmer-disclosure">
     <SwimmerCardSummary icon="🌙" title="Sömn och återhämtning" description={loading ? 'Hämtar…' : error ? 'Underlaget kunde inte hämtas' : average == null ? 'Inga sömnsvar i perioden' : `${sleepDuration(average)} i snitt · ${records.length} ${records.length === 1 ? 'natt' : 'nätter'}`} direction={direction} />
     <div className="sleep-history-content">
-      <DirectionExplanation direction={direction} />
+      {direction.state === 'insufficient' ? <DirectionExplanation direction={direction} /> : <details className="sleep-trend-method swimmer-disclosure"><summary>Så räknas sömnpilen</summary><DirectionExplanation direction={direction} /></details>}
+      {direction.durationDetail && <p className="sleep-duration-trend">{direction.durationDetail}</p>}
       {!start && <label>Visa <select aria-label="Sömnhistorikens period" value={period} onChange={(event) => setPeriod(Number(event.target.value))}>{[28,90,180].map((value) => <option key={value} value={value}>{value} dagar</option>)}</select></label>}
       <p>{start && end ? `${start}–${end}` : `Senaste ${period} dagarna`}. Natten hör till dagen efter. Jämför med känsla och RPE för samma dag; det visar inget säkert orsakssamband.</p>
       {error ? <p className="form-error" role="alert">{error} <button type="button" className="text-button" onClick={() => setRetry((value) => value + 1)}>Försök igen</button></p> : !loading && records.length ? <>
