@@ -1,3 +1,6 @@
+.competition-calendar-v2 > .competition-add-card { margin: 12px 0; padding: 0; border-radius: 12px; }
+.competition-calendar-v2 > .competition-add-card > summary { box-sizing: border-box; min-height: 44px; padding: 11px 14px; font-size: 14px; line-height: 20px; }
+.competition-calendar-v2 > .competition-add-card > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -3px; border-radius: 11px; }
 .competition-calendar-v2 .competition-form-fields { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 12px; }
 .competition-calendar-v2 .competition-form-fields > .settings-actions { margin-top: 8px; }
 .competition-calendar-v2 .competition-form-fields textarea { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
