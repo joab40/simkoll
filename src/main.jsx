@@ -15,8 +15,8 @@ import { calendarActivityKey, calendarFormValues, calendarLinkKeys, sameCalendar
 import './swim-workout-options.css'
 import './planning-calendar.css'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
-import { sleepFollowUpReasons } from '../shared/coach-control-panel.js'
-import { shortSleepWarning } from '../shared/sleep-warning.js'
+import { TRAFFIC_LABELS } from '../shared/swimmer-traffic.js'
+import SwimmerTrafficOverview from './swimmer-traffic-overview.jsx'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import { programKind } from '../shared/program-kind.js'
 import DrylandProgramPage, { DrylandProgramRunner, DrylandHistory } from './dryland-program.jsx'
@@ -5085,7 +5085,8 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [artifactStatus, setArtifactStatus] = useState({})
   const [artifactError, setArtifactError] = useState('')
   const [training, setTraining] = useState(null)
-  const [sleepRecords, setSleepRecords] = useState([])
+  const [trafficData, setTrafficData] = useState(null), [trafficRefresh, setTrafficRefresh] = useState(0)
+  const trafficDate = todayKey(), trafficKey = `${code}:${trafficDate}:${trafficRefresh}`
   const [trainingGoalDrafts, setTrainingGoalDrafts] = useState({})
   const [trainingGoalStatus, setTrainingGoalStatus] = useState({})
   const [groupStatus, setGroupStatus] = useState({})
@@ -5099,11 +5100,13 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   useEffect(() => { loadTraining().catch(() => {}) }, [code])
   useEffect(() => {
     let active = true
-    const end = todayKey()
-    const start = new Date(Date.parse(`${end}T12:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10)
-    apiRequest(`/api/responses?sleep=true&start=${start}&end=${end}`, code).then((data) => { if (active) setSleepRecords(data.records || []) }).catch(() => { if (active) setSleepRecords([]) })
+    setTrafficData(null)
+    apiRequest('/api/training?traffic=true', code).then(data => {
+      if (!data || data.asOf !== trafficDate || data.range?.end !== trafficDate || !data.range?.start || !data.range?.previousStart || !data.range?.previousEnd || !Array.isArray(data.profiles) || data.profiles.some(row => !row.profileId || !TRAFFIC_LABELS[row.current?.color] || !TRAFFIC_LABELS[row.previous?.color] || !Array.isArray(row.current.reasons))) throw new Error('Trafikljusunderlaget är ofullständigt. Försök igen.')
+      if (active) setTrafficData({ key: trafficKey, report: data })
+    }).catch(error => { if (active) setTrafficData({ key: trafficKey, error: error.message || 'Trafikljusen kunde inte hämtas.' }) })
     return () => { active = false }
-  }, [code])
+  }, [code, trafficDate, trafficKey])
   useEffect(() => {
     if (!goalsEnabled) { setDevelopmentGoals([]); return }
     apiRequest('/api/goals', code).then((data) => setDevelopmentGoals(data.goals || [])).catch(() => setDevelopmentGoals([]))
@@ -5150,10 +5153,13 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     if (!confirmDestructive(`Profilen “${profile.displayName}” och all kopplad historik tas bort permanent. Detta går inte att ångra.`, 'RADERA PROFIL')) return
     try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-profile', profileId: profile.id }) }); await onProfilesChange() } catch (error) { window.alert(error.message) }
   }
-  const trafficColorFor = (profile) => { const recent = responses.filter((item) => item.profileId === profile.id && responseDate(item) >= new Date(Date.now() - 6 * 86400000)); const sick = new Set(recent.filter((item) => item.type === 'sick').map((item) => dateKey(responseDate(item)))).size; const lowBody = recent.filter((item) => Number(item.body) <= 2).length; const lowFeeling = recent.filter((item) => Number(item.feeling) <= 2).length; if (!recent.length) return 'unknown'; if (sick >= 2 || (lowBody >= 2 && lowFeeling >= 2)) return 'red'; if (sick || lowBody || lowFeeling) return 'yellow'; return 'green' }
-  const visibleProfiles = profiles
-    .filter((profile) => trafficFilter === 'all' || trafficColorFor(profile) === trafficFilter)
-    .filter((profile) => `${profile.displayName} ${profile.username}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const trafficLoading = trafficData?.key !== trafficKey, trafficError = !trafficLoading && trafficData.error
+  const trafficReport = !trafficLoading && !trafficError ? trafficData.report : null
+  const trafficById = useMemo(() => new Map((trafficReport?.profiles || []).map(row => [row.profileId, row.current])), [trafficReport])
+  const trafficFor = profile => trafficById.get(profile.id) || { ...TRAFFIC_LABELS.unknown, label: trafficLoading ? 'Hämtar…' : trafficError ? 'Underlag saknas' : TRAFFIC_LABELS.unknown.label, reasons: [] }
+  const searchedProfiles = profiles.filter(profile => `${profile.displayName} ${profile.username}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const visibleProfiles = searchedProfiles
+    .filter(profile => trafficFilter === 'all' || (!profile.isTestProfile && profile.active !== false && (!profile.approvalStatus || profile.approvalStatus === 'approved') && trafficFor(profile).color === trafficFilter))
     .sort((a, b) => {
       const latestToday = (profile) => responses
         .filter((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey())
@@ -5205,7 +5211,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
     <section className="swimmers-section">
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
       <label className="swimmer-search"><span>🔎</span><input type="search" placeholder="Sök namn eller användarnamn…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-      <div className="swimmer-traffic-filters" aria-label="Filtrera trafikljus"><span>Visa:</span>{[['all', 'Alla'], ['red', '🔴 Röda'], ['yellow', '🟡 Gula'], ['green', '🟢 Gröna']].map(([value, label]) => <button type="button" className={trafficFilter === value ? 'active' : ''} key={value} onClick={() => setTrafficFilter(value)}>{label}</button>)}</div>
+      <SwimmerTrafficOverview profiles={searchedProfiles} report={trafficReport} loading={trafficLoading} error={trafficError} filter={trafficFilter} onFilter={setTrafficFilter} onRefresh={() => setTrafficRefresh(value => value + 1)} />
       {artifactError && <p className="form-error">Artefakter kunde inte laddas. Kontrollera att migration 013 är körd i Supabase.</p>}
       {pendingProfiles.length > 0 && <section className="pending-profiles"><div><p className="eyebrow">Behöver granskas</p><h3>Nya profilförfrågningar</h3></div>{pendingProfiles.map((profile) => <article key={profile.id}><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username} · skapad {new Date(profile.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div><button className="approve-profile" onClick={() => reviewProfile(profile, true)}>Godkänn</button><button onClick={() => reviewProfile(profile, false)}>Avvisa</button></article>)}</section>}
       {reset && <div className="reset-banner"><span>{reset.profile.emoji}</span><div><small>Engångskod för {reset.profile.displayName} · giltig 30 minuter</small><strong>{reset.code}</strong></div><button onClick={() => setReset(null)}>×</button></div>}
@@ -5226,7 +5232,6 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const attention = hasSwimToday && !todayItem ? '🏊 Tränat idag' : raceBefore ? '🏁 Ska tävla idag' : raceAfter ? '🏅 Har tävlat idag' : todayItem?.type === 'after' ? `✓ ${checkinStatus(todayItem)} idag` : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
         const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
         const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
-        const recentItems = items.filter((item) => { const date = responseDate(item); const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 6); return date >= cutoff })
         const trendSummary = swimmerTrendSummaries[profile.id]?.trend
         const trendStates = { up: { arrow: '↗', title: 'Träningsläget förbättras', tone: 'up' }, down: { arrow: '↘', title: 'Träningsläget har sjunkit', tone: 'down' }, steady: { arrow: '→', title: 'Träningsläget är stabilt', tone: 'neutral' }, mixed: { arrow: '↕', title: 'Blandad utveckling', tone: 'mixed' }, insufficient: { arrow: '—', title: 'För lite underlag', tone: 'neutral' } }
         const trendState = trendStates[trendSummary?.state] || trendStates.insufficient
@@ -5234,23 +5239,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const trendError = swimmerTrendSummaries[profile.id]?.error
         const trendDate = (value) => new Date(`${value}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
         const trendLastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return trendDate(dateKey(day)) }
-        const lowBody = recentItems.filter((item) => Number(item.body) <= 2).length, lowFeeling = recentItems.filter((item) => Number(item.feeling) <= 2).length, sickDays = new Set(recentItems.filter((item) => item.type === 'sick').map((item) => dateKey(responseDate(item)))).size
-        const sleepEnd = todayKey()
-        const sleepStart = new Date(Date.parse(`${sleepEnd}T12:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10)
-        const recentSleep = sleepRecords.filter((row) => row.profile_id === profile.id && row.activity_date >= sleepStart && row.activity_date <= sleepEnd)
-        const sleepReasons = sleepFollowUpReasons(recentSleep, sleepEnd)
-        const sleepWarning = shortSleepWarning(recentSleep, sleepEnd)
-        const sleepNeedsFollowUp = sleepWarning?.level === 'red' || sleepReasons.some((reason) => reason !== sleepWarning?.label)
-        const plannedRecent = training?.plannedSessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
-        const missedPlanned = plannedRecent.filter((item) => !profileSessions.some((session) => session.date === item.date && session.slot === item.slot)).length
-        const signalReasons = []
-        if (sickDays) signalReasons.push(`${sickDays} sjukdag${sickDays > 1 ? 'ar' : ''}`)
-        if (lowBody) signalReasons.push(`tung kropp ${lowBody} gång${lowBody > 1 ? 'er' : ''}`)
-        if (lowFeeling) signalReasons.push(`låg känsla ${lowFeeling} gång${lowFeeling > 1 ? 'er' : ''}`)
-        if (missedPlanned) signalReasons.push(`${missedPlanned} missat planerat pass`)
-        signalReasons.push(...sleepReasons)
-        const hasActivityData = recentItems.length > 0 || recentSleep.length > 0 || profileSessions.length > 0 || plannedRecent.length > 0
-        const traffic = !hasActivityData ? { color: 'unknown', label: 'För lite data', icon: '⚪' } : (sickDays >= 2 || missedPlanned >= 3 || (lowBody >= 2 && lowFeeling >= 2) || sleepNeedsFollowUp) ? { color: 'red', label: 'Följ upp', icon: '🔴' } : signalReasons.length ? { color: 'yellow', label: 'Var uppmärksam', icon: '🟡' } : { color: 'green', label: 'Ser stabilt ut', icon: '🟢' }
+        const traffic = trafficFor(profile), signalReasons = traffic.reasons
         const trainingGoals = [{ icon: '🏊', label: 'Simning', completed: profileSessions.filter((item) => item.type === 'swim').length, target: swimGoal?.target }, { icon: '🤸', label: 'Landträning', completed: profileSessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget ?? 3 }, { icon: '🏋️', label: 'Styrka', completed: profileSessions.filter((item) => item.type === 'strength').length, target: crossGoal?.strengthTarget ?? 3 }].filter((item) => item.target > 0)
         const setupChecks = [
           { key: 'tempus', label: 'Tempus-ID', complete: Boolean(profile.tempusId) },
@@ -5305,7 +5294,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             </div></details>
           </div>}
         </article>
-      })}</div> : <EmptyPeriod title={profiles.length ? 'Ingen simmare matchar sökningen' : 'Inga profiler ännu'} periodLabel="Simmare" />}
+      })}</div> : (trafficLoading || trafficError) && trafficFilter !== 'all' ? null : <EmptyPeriod title={profiles.length ? 'Ingen simmare matchar urvalet' : 'Inga profiler ännu'} periodLabel="Simmare" />}
     </section>
   )
 }

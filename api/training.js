@@ -9,6 +9,7 @@ import { loadSwimTimes, saveSwimTime, deleteSwimTime } from '../server/swim-time
 import { isTimeId } from '../shared/swim-times.js'
 import { writeAuditLog } from '../server/audit.js'
 import { loadCoachWeek } from '../server/coach-week.js'
+import { loadSwimmerTraffic } from '../server/swimmer-traffic.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
 import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 import { validProgramType } from '../shared/program-kind.js'
@@ -139,6 +140,11 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if (request.method === 'GET' && request.query?.traffic === 'true') {
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se gruppens trafikljus.' })
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      try { return sendJson(response, 200, await loadSwimmerTraffic(stockholmDate())) } catch (error) { return sendJson(response, 502, { error: error.message }) }
+    }
     if (request.method === 'GET' && request.query?.coachWeek !== undefined) {
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se gruppens veckoplanering.' })
       response.setHeader?.('Cache-Control', 'private, no-store')

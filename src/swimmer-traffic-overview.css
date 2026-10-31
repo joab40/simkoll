@@ -1,0 +1,19 @@
+.swimmer-traffic-overview { margin: 18px 0; padding: 16px; border: 1px solid #d4e5de; border-radius: 18px; background: #f8fcfa; min-width: 0; }
+.swimmer-traffic-overview > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.swimmer-traffic-overview > header > strong { font-size: 13px; }
+.swimmer-traffic-overview > header button { min-height: 40px; font-size: 12px; }
+.swimmer-traffic-period { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 3px 0 12px; }
+.swimmer-traffic-trend-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.swimmer-traffic-trend { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 32px 1fr; gap: 6px 10px; align-items: center; min-width: 0; text-align: left; padding: 13px; border: 1px solid #d7e5e0; border-radius: 14px; background: white; color: var(--ink); }
+.swimmer-traffic-trend.active { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); background: #eef8f3; }
+.swimmer-traffic-trend-label { grid-column: 1 / -1; font-size: 12px; font-weight: 700; }
+.swimmer-traffic-trend > strong { font-size: 25px; line-height: 1.2; }
+.swimmer-traffic-count-arrow { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #edf3f0; color: #476e68; font: 700 23px/1 'Manrope', sans-serif; }
+.swimmer-traffic-trend small { grid-column: 1 / -1; align-self: start; color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.swimmer-traffic-cohort-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.swimmer-traffic-cohort-actions button { min-height: 36px; padding: 7px 10px; border: 1px solid #d7e5e0; border-radius: 12px; background: white; color: var(--teal); font-size: 11px; }
+.swimmer-traffic-cohort-actions button.active { border-color: #92bfb4; background: #e3f2ec; }
+.swimmer-traffic-overview > details { margin-top: 12px; font-size: 11px; line-height: 1.55; color: var(--muted); }
+.swimmer-traffic-overview > details > summary { min-height: 32px; cursor: pointer; color: var(--teal); font-weight: 700; }
+.swimmer-traffic-overview button:focus-visible, .swimmer-traffic-overview summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+@media (max-width: 500px) { .swimmer-traffic-overview { padding: 12px; } .swimmer-traffic-trend-grid { gap: 6px; } .swimmer-traffic-trend { padding: 9px; gap: 6px; grid-template-rows: auto 26px 1fr; } .swimmer-traffic-trend > strong { font-size: 23px; } .swimmer-traffic-count-arrow { width: 26px; height: 26px; font-size: 20px; } .swimmer-traffic-trend-label { font-size: 11px; } .swimmer-traffic-trend small { font-size: 10px; } }
