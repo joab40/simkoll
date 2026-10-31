@@ -31,6 +31,16 @@ timmar ger gul/orange signal; fem sådana nätter inom sju dagar ger röd signal
 Upplevd sömnkvalitet, inte RPE eller sovtid, bestämmer sömnpilens riktning.
 Saknat sömnunderlag visas tydligt och antalet märks då som ett minimiantal.
 
+Varje uppföljningssignal har en informationsikon. Hovra, fokusera med
+tangentbordet eller tryck på signalen för att se frågan, gränsen och vilket
+datumintervall som används. Tryck igen, tryck utanför eller använd Escape
+för att stänga. Låg känsla gäller den allmänna dagskänslan (”Hur känns det
+idag?”), medan låg kroppskänsla gäller den fysiska upplevelsen av kroppen
+(till exempel tung/öm eller pigg/fräsch). Vid gymträning motsvarar
+Kraftlös och Seg de låga kroppssvaren. Varje dag med minst ett lågt svar
+räknas en gång, även om simmaren svarat flera gånger den dagen. Det är
+antal dagar, inte ett medelvärde; saknade svar räknas inte som låga.
+
 Gruppens expanderbara tabell visar också en försiktig jämförelse av
 självskattad fartkänsla mellan vald och föregående kalendervecka. Det krävs minst två
 svar i vardera perioden. Kontrollpanelen använder befintliga data och gör

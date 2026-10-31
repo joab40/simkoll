@@ -1,0 +1,10 @@
+.coach-followup-reason-trigger { display: inline-flex; align-items: flex-start; gap: 7px; max-width: 100%; min-height: 36px; padding: 6px 0; border: 0; background: transparent; color: inherit; font: inherit; line-height: inherit; text-align: left; cursor: help; }
+.coach-followup-reason-trigger > span:first-child { overflow-wrap: anywhere; text-decoration: underline dotted #91aca6; text-underline-offset: 3px; }
+.coach-followup-info { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1px solid currentColor; border-radius: 50%; color: var(--teal); font-size: 10px; font-weight: 800; }
+.coach-followup-reason-trigger:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; border-radius: 5px; }
+.coach-followup-reason-help { margin: 2px 0 10px; padding: 11px 12px; border: 1px solid #c6ddd5; border-left: 3px solid var(--teal); border-radius: 10px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 400; line-height: 1.55; overflow-wrap: anywhere; }
+.coach-followup-reason-help[hidden] { display: none; }
+.coach-followup-reason-help > strong { color: var(--teal); }
+.coach-followup-reason-help > p { margin: 6px 0; }
+.coach-followup-reason-help > small { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+@media (hover: none), (pointer: coarse) { .coach-followup-reason-trigger { min-height: 44px; cursor: pointer; } }

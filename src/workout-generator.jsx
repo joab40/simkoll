@@ -1,12 +1,17 @@
 import React from 'react'
 import WorkoutInnovationSlider from './workout-innovation-slider.jsx'
+import './workout-generation-progress.css'
+
+export function WorkoutGenerationButtonContent({ generating, idleLabel = 'Skapa passförslag →' }) {
+  return <span className="workout-generation-button-content">{generating && <span className="workout-generation-spinner" aria-hidden="true" />}<span>{generating ? 'Skapar passförslag…' : idleLabel}</span></span>
+}
 
 export default function WorkoutGenerator({ generator, setGenerator, generating, focuses, onSubmit, onClose }) {
   const update = (key, value) => setGenerator((current) => ({ ...current, [key]: value }))
   return <form className="workout-generator coach-card" onSubmit={onSubmit}>
     <div className="workout-picker-head">
       <div><p className="eyebrow">Bygg från passbiblioteket</p><h3>Skapa ett redigerbart passförslag</h3></div>
-      <button type="button" className="text-button" onClick={onClose}>Stäng</button>
+      <button type="button" className="text-button" disabled={generating} onClick={onClose}>Stäng</button>
     </div>
     <p className="settings-help">Välj hur nära biblioteket förslaget ska ligga. Relevanta pass med höga betyg prioriteras; RPE hjälper till att matcha belastningen.</p>
     <WorkoutInnovationSlider value={generator.innovationLevel} disabled={generating} onChange={(value) => update('innovationLevel', value)} />
@@ -18,7 +23,8 @@ export default function WorkoutGenerator({ generator, setGenerator, generating, 
     </div>
     <label className="workout-generator-request">Frivilligt önskemål<textarea disabled={generating} maxLength={300} rows={2} placeholder="Till exempel: lägg gärna in en huvudserie med 3 × 500 m" value={generator.request} onChange={(event) => update('request', event.target.value)} /><small>Önskemålet vägs in som en preferens. Passbetyg, RPE, distans och tidsåtgång styr fortfarande helheten.</small></label>
     <fieldset disabled={generating} className="workout-groups"><legend>Passet gäller för</legend><div>{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, label]) => <label key={value}><input type="checkbox" checked={generator.groups.includes(value)} onChange={(event) => update('groups', event.target.checked ? [...generator.groups, value] : generator.groups.filter((item) => item !== value))} />{label}</label>)}</div></fieldset>
-    <button className={`primary-button${generating ? ' ai-working' : ''}`} type="submit" aria-busy={generating} disabled={generating || !generator.groups.length}>{generating ? 'Skapar passförslag…' : 'Skapa passförslag →'}</button>
+    <button className={`primary-button workout-generation-button${generating ? ' is-generating' : ''}`} type="submit" aria-busy={generating} disabled={generating || !generator.groups.length}><WorkoutGenerationButtonContent generating={generating} /></button>
+    <p className="workout-generation-status" role="status" aria-live="polite">{generating ? 'AI arbetar med ditt utkast. Det kan ta en stund – inget publiceras automatiskt.' : ''}</p>
   </form>
 }
 

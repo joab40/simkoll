@@ -1,0 +1,7 @@
+.workout-generation-button-content { display: inline-flex; justify-content: center; align-items: center; gap: 10px; min-width: 0; }
+.workout-generation-spinner { flex: none; width: 18px; height: 18px; box-sizing: border-box; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: workout-generation-spin .8s linear infinite; }
+.workout-generation-button.is-generating { cursor: wait; opacity: 1; }
+.workout-generation-status { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.workout-generation-status:empty { display: none; }
+@keyframes workout-generation-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .workout-generation-spinner { animation: none; } }
