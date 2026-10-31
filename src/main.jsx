@@ -2669,7 +2669,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   const aiEnabled = navigationSettings.aiEnabled !== false
   const overviewVisible = (key) => key === 'today' || key === 'settings' || navigationSettings.overview?.[key] !== false
   const coachVisible = (key) => key === 'today' || key === 'settings' || navigationSettings.coach?.[key] !== false
-  const overviewItems = [...COACH_NAV_ITEMS, ...(accountRole !== 'coach' ? [{ key: 'settings', label: 'Inställningar', mobile: 'Inställn.' }] : [])]
+  const overviewItems = COACH_NAV_ITEMS
   const orderedOverviewKeys = [...(navigationSettings.overviewOrder || []), ...overviewItems.map((item) => item.key)].filter((key, index, keys) => keys.indexOf(key) === index)
   const orderedOverviewItems = orderedOverviewKeys.map((key) => overviewItems.find((item) => item.key === key)).filter(Boolean)
   const legacyToolKeys = ['trends', 'history', 'week', 'talks', 'competition', 'workout-library', 'community', 'goals', 'programs', 'strength-programs', 'dryland-programs', 'rewards', 'faq', 'legal']
