@@ -1,20 +1,11 @@
-.swimmer-agreement-card { min-width: 0; margin-bottom: 16px; border: 1px solid #c7ded7; border-radius: 20px; background: linear-gradient(115deg, #f0f8f4, #fff); padding: 18px 20px; }
-.swimmer-agreement-card > header { display: flex; align-items: center; gap: 12px; }
-.swimmer-agreement-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: #dff1eb; font-size: 22px; }
-.swimmer-agreement-card > header > div { flex: 1; min-width: 0; }
-.swimmer-agreement-card .eyebrow { margin: 0 0 4px; font-size: 9px; }
-.swimmer-agreement-card h3 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
-.swimmer-agreement-card > header > button { flex: none; min-height: 44px; font-size: 11px; padding: 5px 0 5px 8px; }
+.swimmer-agreement-card { min-width: 0; margin: 14px 0; border: 1px solid #c7ded7; border-radius: 16px; background: linear-gradient(115deg, #f0f8f4, #fff); }
+.swimmer-agreement-body { padding: 0 16px 16px; border-top: 1px solid #d8e7e1; }
 .swimmer-agreement-dates { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 14px 0 10px; }
 .swimmer-agreement-dates > span { padding: 5px 9px; background: #e5f1ec; border-radius: 8px; color: var(--teal); font-size: 11px; }
 .swimmer-agreement-source { display: block; font-size: 10px; color: var(--muted); line-height: 1.5; }
 .swimmer-agreement-text { margin: 8px 0 12px; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; font-size: 13px; }
-.swimmer-agreement-text.is-excerpt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
-.swimmer-agreement-empty, .swimmer-agreement-card > p[role="status"] { margin: 12px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
-.swimmer-agreement-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.swimmer-agreement-empty, .swimmer-agreement-body > p[role="status"] { margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.swimmer-agreement-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 12px; }
 .swimmer-agreement-actions button { min-height: 44px; font-size: 12px; }
-.swimmer-agreement-expand { display: inline-flex; align-items: center; gap: 10px; }
-.swimmer-agreement-expand > span { width: 7px; height: 7px; border-right: 2px solid var(--teal); border-bottom: 2px solid var(--teal); transform: rotate(45deg); }
-.swimmer-agreement-expand[aria-expanded="true"] > span { transform: rotate(225deg); }
 .swimmer-agreement-card button:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
-@media (max-width: 480px) { .swimmer-agreement-card { padding: 14px; } .swimmer-agreement-card > header { flex-wrap: wrap; gap: 8px; } .swimmer-agreement-card > header > div { flex-basis: calc(100% - 50px); } .swimmer-agreement-card > header > button { margin-left: auto; padding: 0; } .swimmer-agreement-actions > .secondary-button { width: 100%; text-align: center; white-space: normal; } .swimmer-agreement-dates { margin-top: 10px; } }
+@media (max-width: 480px) { .swimmer-agreement-body { padding: 0 14px 14px; } .swimmer-agreement-actions > .secondary-button { width: 100%; text-align: center; white-space: normal; } .swimmer-agreement-dates { margin-top: 10px; } }

@@ -144,3 +144,14 @@ test('card is mounted only inside expanded swimmer details and exact navigation 
   assert.match(card, /data.talk.swimmerId !== profile.id/)
   assert.doesNotMatch(card, /dangerouslySetInnerHTML|method: 'POST'|OpenAI|setInterval/)
 })
+
+test('agreement uses the shared collapsed disclosure and keeps full text and actions outside its summary', async () => {
+  const card = await readFile(new URL('../src/swimmer-agreement-card.jsx', import.meta.url), 'utf8')
+  assert.match(card, /<details key=\{`\$\{code\}:\$\{profile.id\}`\} className="swimmer-agreement-card swimmer-disclosure">/)
+  assert.match(card, /<SwimmerCardSummary icon="🤝" eyebrow="Utvecklingssamtal" title="Vår överenskommelse" description=\{description\}/)
+  assert.doesNotMatch(card, /<details[^>]*\bopen=|agreementExcerpt|Visa hela|is-excerpt/)
+  assert.match(card, /agreementPlainText\(talk.text\)/)
+  assert.ok(card.indexOf('className="swimmer-agreement-body"') < card.indexOf('Öppna utvecklingssamtalet'))
+  assert.match(card, /'Kunde inte hämtas'/)
+  assert.match(card, /'Ingen överenskommelse sparad'/)
+})

@@ -10,8 +10,12 @@ Redo för samtal eller ett genomfört samtal utan text ersätter inte tidigare
 överenskommelse. Avstängning av förberedelser återkallar inte texten i ett
 genomfört samtal. En uttryckligt tömd `summary` återupplivar inte äldre textfält.
 
-Kortet visar ett kort textutdrag, samtalsdatum och eventuellt uppföljningsdatum.
-Visa hela/Visa mindre växlar till hela den sparade överenskommelsen.
+Kortet är minimerat från början och använder samma `SwimmerCardSummary`, ikon
+och expansionspil som de andra utfällbara korten. Bara rubrik och ett kort
+samtalsdatum (eller laddnings-/tom-/felstatus) syns i stängt läge. Öppna kortet
+för hela den sparade texten, datum, Uppdatera och länken till källsamtalet.
+Det finns ingen andra Visa hela-knapp inuti kortet. Uppdatering behåller det
+öppna läget, men profil-/inloggningsbyte återställer till stängt läge.
 Markdown-rubrikmarkörer och fetstilsmarkörer tas bort för läsbarhet; inga mål
 tolkas, skapas eller ändras. Texten renderas som vanlig React-text, inte HTML.
 Ingen ny AI-sammanfattning görs. Uppföljningsdatumet är en sparad planering,

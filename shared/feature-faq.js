@@ -121,7 +121,7 @@ export const FEATURE_FAQ = [
     'Använd förslaget fyller bara överenskommelsens text. Granska tillsammans, redigera och välj Spara ändringar. Inga utvecklingsmål registreras automatiskt. Kort röstanteckning, högst två minuter, är ett frivilligt alternativ: informera och få godkännande från alla som hörs före överföring till OpenAI. Granska transkriberingen innan den läggs till; ljudet sparas inte i Simkoll. Klubbens AI-inställning och budget gäller.',
   ] },
   { id: 'agreement-card', section: 'coach', roles: ['coach'], question: 'Var hittar jag överenskommelsen i simmarkortet?', answer: [
-    'Öppna simmarkortet under Simmare. Vår överenskommelse under Simmarens riktning visar ett utdrag från senaste genomförda samtalet med en sparad gemensam överenskommelse, samtalsdatum och eventuellt uppföljningsdatum. Visa hela visar texten. Ett nytt påbörjat eller tomt samtal ersätter inte den tidigare färdiga texten.',
+    'Öppna simmarkortet under Simmare. Vår överenskommelse under Simmarens riktning är minimerat från början och visar bara rubrik och samtalsdatum. Tryck på kortet för hela den sparade överenskommelsen, eventuellt uppföljningsdatum, Uppdatera och Öppna utvecklingssamtalet. Kortet använder samma expansionspil som övriga kort. Ett nytt påbörjat eller tomt samtal ersätter inte den tidigare färdiga texten.',
     'Öppna utvecklingssamtalet går till exakt det samtalet för läsning och redigering. Spara där och välj Tillbaka till simmarkortet, eller Uppdatera i kortet. Läsfel skiljs från att överenskommelse saknas. Kortet visar inga interna anteckningar och skapar varken AI-analys eller nya mål.',
   ] },
   { id: 'private-reply', section: 'messages', question: 'Privata svar i Info från tränarna', answer: [
