@@ -5,6 +5,40 @@ import { buildCoachControlPanel } from '../shared/coach-control-panel.js'
 const profiles = [{ id: 'a', displayName: 'Anna' }, { id: 'b', displayName: 'Bo' }, { id: 'test', displayName: 'Test', isTestProfile: true }]
 const after = (profileId, activityDate, extra = {}) => ({ profileId, activityDate, createdAt: `${activityDate}T18:00:00Z`, type: 'after', activityType: 'swim', trainingSlot: 'afternoon_swim', ...extra })
 
+test('selected week metrics exclude comparison data, while speed retains last calendar week', () => {
+  const report = buildCoachControlPanel(profiles, [
+    after('a', '2026-10-20', { rpe: 10, activityMinutes: 120, speedFeeling: 2 }),
+    after('a', '2026-10-21', { rpe: 10, activityMinutes: 120, speedFeeling: 3 }),
+    after('a', '2026-10-27', { rpe: 4, activityMinutes: 60, speedFeeling: 4 }),
+    after('a', '2026-10-28', { rpe: 6, activityMinutes: 60, speedFeeling: 5 }),
+    after('a', '2026-10-29', { rpe: 10 }), // Future relative to the selected report day.
+    { profileId: 'b', activityDate: '2026-10-20', type: 'sick' },
+    { profileId: 'b', activityDate: '2026-10-27', type: 'sick' },
+  ], '2026-10-28', [
+    { profile_id: 'a', activity_date: '2026-10-20', minutes: 300, quality: 1 },
+    { profile_id: 'a', activity_date: '2026-10-27', minutes: 480, quality: 5 },
+  ], { periodStart: '2026-10-26' })
+  assert.equal(report.completedPasses, 2)
+  assert.equal(report.load, 600)
+  assert.equal(report.averageRpe, 5)
+  assert.equal(report.sickDays, 1)
+  assert.equal(report.sleep.nights, 1)
+  assert.equal(report.sleep.averageMinutes, 480)
+  assert.equal(report.swimmers[0].speedPrevious, 2.5)
+  assert.equal(report.swimmers[0].speedCurrent, 4.5)
+  assert.equal(report.followUps.length, 0)
+  assert.equal(report.start, '2026-10-26')
+  assert.equal(report.signalStart, '2026-10-22')
+})
+
+test('ongoing week does not erase a repeated sleep signal at the Monday boundary', () => {
+  const nights = [420, 525, 360, 660, 420, 330, 405].map((minutes, i) => ({ profile_id: 'a', activity_date: `2026-10-${25 + i}`, minutes, quality: 5 }))
+  const report = buildCoachControlPanel(profiles, [], '2026-10-31', nights, { periodStart: '2026-10-26' })
+  assert.equal(report.sleep.nights, 6) // Only this calendar week's nights in the metric.
+  assert.equal(report.followUps[0].sleepWarning.level, 'red') // Rolling seven-day signal keeps Sunday too.
+  assert.equal(report.followUps[0].sleepWarning.count, 5)
+})
+
 test('coach overview counts unique after-activities and only known training load', () => {
   const responses = [
     after('a', '2026-10-18', { createdAt: '2026-10-18T18:00:00Z', rpe: 8, activityMinutes: 60, comment: 'Bra pass' }),

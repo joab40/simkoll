@@ -11,3 +11,5 @@ Räknaren återanvänder `/api/community?messageCount=true&since=…`: endast ID
 Meddelanden har flyttats bort från översiktsflikarna och dess inställningslista, men finns kvar i tränarmenyn. Funktionen kan fortfarande döljas via klubbens menyinställning eller tillåtna personliga menyval; samma inställning styr toppikonen. Äldre sparade översiktsordningar kan inte skapa en dubblett.
 
 Ingen ny databasfunktion, SQL eller utökad behörighet behövs.
+
+Gruppmenyn är förankrad i knappen Grupper, inte i hela kontrollraden. Öppning och fönsterändring justerar bara sidförskjutningen när menyn annars skulle hamna utanför skärmen. Alla tre toppkontroller delar höjd, ram, rundning och typografi.

@@ -13,6 +13,9 @@
 .sleep-check button:disabled { opacity: .55; }
 .sleep-history { margin: 18px 0; border: 1px solid #cdded9; border-radius: 18px; background: #f8fcfa; overflow: hidden; }
 .sleep-history-content { padding: 0 20px 20px; }
+.sleep-history-content > .sleep-short-warning { margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; border-left: 3px solid; font-size: 12px; }
+.sleep-history-content > .sleep-short-warning.amber { background: #fff6dd; color: #815000; border-color: #d6ad41; }
+.sleep-history-content > .sleep-short-warning.red { background: #fff0ed; color: #9e2c20; border-color: #db958b; }
 .sleep-trend-method { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .sleep-trend-method > summary { display: flex; align-items: center; min-height: 44px; color: var(--teal); font-weight: 700; cursor: pointer; }
 .sleep-trend-method > .swimmer-card-direction-explanation { margin: 4px 0 12px; }

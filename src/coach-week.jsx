@@ -6,8 +6,9 @@ const dateLabel = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('sv
 const weekday = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', weekday: 'short' }).replace('.', '')
 const FILTERS = [{ key: 'all', label: 'Alla' }, { key: 'planned', label: 'Planerat' }, { key: 'unplanned', label: 'Ej planerat' }, { key: 'completed', label: 'Genomfört' }]
 
-export default function CoachWeek({ profiles, asOf, code, request, onOpenSwimmer }) {
-  const [start, setStart] = useState(() => coachWeekMonday(asOf)), [data, setData] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(true), [refresh, setRefresh] = useState(0)
+export default function CoachWeek({ profiles, asOf, code, request, onOpenSwimmer, weekStart, onWeekChange, refreshKey = 0 }) {
+  const [localStart, setStart] = useState(() => coachWeekMonday(asOf)), [data, setData] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(true), [refresh, setRefresh] = useState(0)
+  const start = weekStart || localStart
   const [selectedKey, setSelectedKey] = useState(null), [filter, setFilter] = useState('all'), [search, setSearch] = useState('')
   const detailHeading = useRef(null)
   useEffect(() => {
@@ -15,18 +16,19 @@ export default function CoachWeek({ profiles, asOf, code, request, onOpenSwimmer
     setLoading(true); setError(''); setData(null)
     request(`/api/training?coachWeek=${start}`, code).then((result) => { if (active) setData(result) }).catch((failure) => { if (active) setError(failure.message) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [code, start, refresh, request])
+  }, [code, start, refresh, refreshKey, request])
   const week = useMemo(() => buildCoachWeek(profiles, data || {}, start), [profiles, data, start])
   const selected = week.cells.find((cell) => cell.key === selectedKey)
   const selectedSlot = week.slots.find((slot) => slot.key === selected?.slot)
   const entries = (selected?.entries || []).filter((entry) => (filter === 'all' || (filter === 'unplanned' ? !entry.planned : entry[filter])) && entry.displayName.toLocaleLowerCase('sv-SE').includes(search.trim().toLocaleLowerCase('sv-SE')))
   const choose = (cell) => { setSelectedKey(cell.key); setFilter('all'); setSearch('') }
   useEffect(() => { if (selectedKey && !loading && !error) detailHeading.current?.focus({ preventScroll: false }) }, [selectedKey, loading, error])
-  const changeWeek = (next) => { setStart(next); setSelectedKey(null); setSearch(''); setFilter('all') }
+  const changeWeek = (next) => { if (onWeekChange) onWeekChange(next); else setStart(next) }
+  useEffect(() => { setSelectedKey(null); setSearch(''); setFilter('all') }, [start])
 
   return <section className="coach-week" aria-labelledby="coach-week-heading">
     <header className="coach-week-header"><div><p className="eyebrow">Gruppens veckoplanering</p><h2 id="coach-week-heading">Planerat och genomfört</h2><p>{dateLabel(start)}–{dateLabel(coachWeekAddDays(start, 6))} · {week.profileCount} simmare i valda grupper</p></div>
-      <div className="coach-week-navigation"><button type="button" className="secondary-button" aria-label="Föregående vecka" onClick={() => changeWeek(coachWeekAddDays(start, -7))}>←</button><button type="button" className="secondary-button" onClick={() => changeWeek(coachWeekMonday(asOf))}>Denna vecka</button><button type="button" className="secondary-button" aria-label="Nästa vecka" onClick={() => changeWeek(coachWeekAddDays(start, 7))}>→</button><button type="button" className="text-button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Uppdatera</button></div>
+      {!weekStart && <div className="coach-week-navigation"><button type="button" className="secondary-button" aria-label="Föregående vecka" onClick={() => changeWeek(coachWeekAddDays(start, -7))}>←</button><button type="button" className="secondary-button" onClick={() => changeWeek(coachWeekMonday(asOf))}>Denna vecka</button><button type="button" className="secondary-button" aria-label="Nästa vecka" onClick={() => changeWeek(coachWeekAddDays(start, 7))}>→</button><button type="button" className="text-button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Uppdatera</button></div>}
     </header>
     <p className="coach-week-help">◆ Planerat i veckoplanen · ✓ Genomfört eller närvaromarkerat. Tryck på en ruta för namn och incheckningar.</p>
     {loading ? <p role="status">Hämtar veckans planering och närvaro…</p> : error ? <p className="form-error" role="alert">{error}</p> : !week.profileCount ? <p className="empty">Inga simmare i valda grupper.</p> : <>

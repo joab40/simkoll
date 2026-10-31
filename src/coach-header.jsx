@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { coachMessageBadge } from './coach-message-badge.js'
+import { groupMenuOffset } from './coach-group-menu-position.js'
 import './coach-header.css'
 
 export function CoachMessageButton({ count = 0, active = false, onOpen }) {
@@ -12,10 +13,21 @@ export function CoachMessageButton({ count = 0, active = false, onOpen }) {
 }
 
 export default function CoachHeader({ brand, groups, selectedGroups, onGroupsChange, messagesVisible = true, messageCount = 0, messagesActive = false, onMessages, children }) {
+  const groupMenu = useRef(null)
+  const positionGroupMenu = () => {
+    const menu = groupMenu.current, panel = menu?.querySelector(':scope > div')
+    if (!menu?.open || !panel) return
+    panel.style.left = `${groupMenuOffset(menu.getBoundingClientRect().left, panel.getBoundingClientRect().width, window.innerWidth)}px`
+  }
+  useEffect(() => {
+    positionGroupMenu()
+    window.addEventListener('resize', positionGroupMenu)
+    return () => window.removeEventListener('resize', positionGroupMenu)
+  }, [selectedGroups, messagesVisible])
   return <header className="coach-top-header">
     {brand}
     <div className="coach-header-actions">
-      <details className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groups.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groups.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => onGroupsChange(selectedGroups.includes(value) ? selectedGroups.filter((item) => item !== value) : [...selectedGroups, value])} />{label}</label>)}<button type="button" onClick={() => onGroupsChange(groups.map(([value]) => value))}>Alla grupper</button></div></details>
+      <details ref={groupMenu} onToggle={positionGroupMenu} className="coach-group-filter coach-group-filter-header"><summary>Grupper{selectedGroups.length === groups.length ? '' : ` · ${selectedGroups.length}`}</summary><div><strong>Visa grupper</strong>{groups.map(([value, label]) => <label key={value}><input type="checkbox" checked={selectedGroups.includes(value)} onChange={() => onGroupsChange(selectedGroups.includes(value) ? selectedGroups.filter((item) => item !== value) : [...selectedGroups, value])} />{label}</label>)}<button type="button" onClick={() => onGroupsChange(groups.map(([value]) => value))}>Alla grupper</button></div></details>
       {messagesVisible && <CoachMessageButton count={messageCount} active={messagesActive} onOpen={onMessages} />}
       {children}
     </div>

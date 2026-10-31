@@ -1,4 +1,6 @@
 import { createHmac } from 'node:crypto'
+import { analyticsRows } from '../server/analytics-rows.js'
+import { coachWeekAddDays, validCoachWeek } from '../shared/coach-week.js'
 import { dailySleep } from '../server/daily-sleep.js'
 import { loadWorkoutChoices } from '../server/workout-choice.js'
 import { validWorkoutOption } from '../shared/swim-workout-options.js'
@@ -113,6 +115,9 @@ export default async function handler(request, response) {
       catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
     }
     if (request.method === 'GET') {
+      const week = request.query?.coachWeek
+      if (week != null && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa gruppens veckounderlag.' })
+      if (week != null && !validCoachWeek(week)) return sendJson(response, 400, { error: 'Välj en giltig vecka med start på en måndag.' })
       const wantsOwn = request.query?.mine === 'true'
       const sessionProfile = wantsOwn ? await getSessionProfile(request) : null
       if (wantsOwn && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på din profil igen.' })
@@ -122,9 +127,16 @@ export default async function handler(request, response) {
       const requestedDate = role === 'coach' ? String(request.query?.date || '') : ''
       if (requestedDate && !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) return sendJson(response, 400, { error: 'Ogiltigt datum.' })
       const dateFilter = requestedDate ? `&activity_date=eq.${encodeURIComponent(requestedDate)}` : ''
-      const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? dateFilter : `&created_at=gte.${encodeURIComponent(recent)}`
-      const result = await supabaseRequest(`responses?select=${select}${filter}&order=created_at.desc&limit=2000`)
+      // The selected week plus its comparison week, fully paginated. Do not
+      // reuse the initial/latest responses list for historical weekly reports.
+      const weekFilter = week != null ? `&activity_date=gte.${coachWeekAddDays(week, -7)}&activity_date=lte.${[coachWeekAddDays(week, 6), stockholmDate()].sort()[0]}` : ''
+      const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? weekFilter || dateFilter : `&created_at=gte.${encodeURIComponent(recent)}`
+      if (week != null) response.setHeader('Cache-Control', 'private, no-store')
+      const result = week != null
+        ? await analyticsRows(`responses?select=${select}${filter}&order=activity_date.asc,created_at.asc,id.asc`)
+        : await supabaseRequest(`responses?select=${select}${filter}&order=created_at.desc&limit=2000`)
       if (!result.ok) throw new Error(`Supabase GET failed: ${result.status} ${await result.text()}`)
+      if (result.truncated) return sendJson(response, 422, { error: 'Veckounderlaget är för stort för en fullständig sammanställning.' })
       let rows = await result.json()
       if (role === 'coach') {
         const testProfiles = await supabaseRequest('profiles?is_test_profile=eq.true&select=id')

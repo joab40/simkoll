@@ -81,7 +81,7 @@ test('missing migration gives an explicit error, never a fake empty night', asyn
   assert.equal(result.code,503); assert.match(result.data.error,/100/)
 })
 test('sleep follow-up requires two distinct poor nights and respects profile and week scope', () => {
-  const row = (id,date,extra = {}) => ({ profile_id: id, activity_date: date, quality: 1, ...extra })
+  const row = (id,date,extra = {}) => ({ profile_id: id, activity_date: date, minutes: 480, quality: 1, ...extra })
   const profiles = [{ id: owner, displayName: 'A' }]
   assert.equal(buildCoachControlPanel(profiles,[],today,[row(owner,today),row(owner,today)]).followUps.length,0)
   assert.equal(buildCoachControlPanel(profiles,[],today,[row(owner,today),row(other,previous(1)),row(owner,previous(8)),row(owner,previous(1),{skipped:true})]).followUps.length,0)

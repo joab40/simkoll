@@ -1,4 +1,5 @@
 import { comparableSwimTimes } from './swim-times.js'
+import { shortSleepWarning } from './sleep-warning.js'
 
 export const directionUnavailable = (label = 'För lite underlag för riktning') => ({ state: 'insufficient', label, detail: label })
 export const directionDay = (date, offset) => new Date(Date.parse(`${date}T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
@@ -15,6 +16,7 @@ export function programActivityDirection(sessions, profileId, type, today) {
 }
 
 export function sleepDirection(records, today) {
+  const warning = shortSleepWarning(records, today)
   const start = directionDay(today, -6), previousStart = directionDay(today, -13)
   const days = new Map()
   for (const row of records || []) {
@@ -27,7 +29,7 @@ export function sleepDirection(records, today) {
     // Do not turn old history or duplicate reports into a current trend. A
     // provisional comparison uses disjoint endpoints; the middle night is not
     // part of either average. Weekly comparisons take precedence when possible.
-    if (nights.length < 7 || current.length < 3) return { ...directionUnavailable('Samlar underlag för sömntrend'), detail: 'Veckotrend kräver minst 3 sömnsvar i vardera 7-dagarsperioden. Innan dess kan 7 olika rapporterade nätter under de senaste 14 dagarna ge en preliminär korttidstrend, om minst 3 ligger senaste veckan. Saknade svar räknas inte som noll. RPE och dagens känsla påverkar inte pilen.' }
+    if (nights.length < 7 || current.length < 3) return { ...directionUnavailable('Samlar underlag för sömntrend'), warning, detail: 'Veckotrend kräver minst 3 sömnsvar i vardera 7-dagarsperioden. Innan dess kan 7 olika rapporterade nätter under de senaste 14 dagarna ge en preliminär korttidstrend, om minst 3 ligger senaste veckan. Saknade svar räknas inte som noll. RPE och dagens känsla påverkar inte pilen.' }
     const recent = nights.slice(-7)
     previous = recent.slice(0, 3)
     current = recent.slice(-3)
@@ -38,7 +40,7 @@ export function sleepDirection(records, today) {
   const range = (rows) => `${rows[0].activity_date}–${rows.at(-1).activity_date}`
   const comparison = weekly ? `Senaste 7 dagarna (${current.length} svar) jämförs med föregående 7 (${previous.length} svar).` : `De senaste tre rapporterade nätterna (${range(current)}) jämförs med de första tre (${range(previous)}) av de senaste sju. Mittennatten ingår inte i jämförelsen. Detta är en preliminär korttidstrend med litet underlag, inte en veckotrend.`
   return {
-    state, label: weekly ? feeling : `Preliminär korttidstrend · ${feeling.toLocaleLowerCase('sv-SE')}`,
+    state, warning, label: weekly ? feeling : `Preliminär korttidstrend · ${feeling.toLocaleLowerCase('sv-SE')}`,
     comparison: weekly ? 'weekly' : 'short-term', preliminary: !weekly,
     detail: `${comparison} Pilen följer enbart upplevd sömnkvalitet på skalan 1–5, med gränsen 0,4. RPE, dagens känsla och sovtid påverkar inte pilens riktning.`,
     durationChangeMinutes: minutes,

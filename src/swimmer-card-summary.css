@@ -15,6 +15,11 @@
 .swimmer-card-direction { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%; background: #e7f3ee; color: #24756b; font: 700 22px/1 'Manrope', sans-serif; }
 .swimmer-card-direction.insufficient { background: #edf2ef; color: #74827d; }
 .swimmer-card-direction.mixed { background: #fff5dd; color: #8a6916; }
+.swimmer-card-direction.warning-amber { background: #fff0c2; color: #815000; border: 1px solid #d6ad41; }
+.swimmer-card-direction.warning-red { background: #ffe1dc; color: #9e2c20; border: 1px solid #db958b; }
+.swimmer-card-summary-copy > .swimmer-card-warning-label { font-weight: 700; }
+.swimmer-card-summary-copy > .swimmer-card-warning-label.amber { color: #815000; }
+.swimmer-card-summary-copy > .swimmer-card-warning-label.red { color: #9e2c20; }
 .swimmer-card-direction-explanation { color: var(--muted); font-size: 11px; line-height: 1.5; }
 @media (max-width: 480px) { .swimmer-card-summary-actions { flex-direction: column; gap: 4px; } .swimmer-card-summary-copy > strong { font-size: 12px; } }
 @media (prefers-reduced-motion: reduce) { :is(.swimmer-disclosure, .swimmer-card-details details) > summary::after { transition: none; } }

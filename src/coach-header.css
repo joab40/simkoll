@@ -1,11 +1,12 @@
 .coach-shell > header.coach-top-header { height: auto; min-height: 72px; flex-wrap: wrap; gap: 10px 8px; padding-top: 10px; padding-bottom: 10px; }
 .coach-top-header > .club-brand { min-width: 0; }
 .coach-shell > .coach-top-header > .coach-header-actions { position: relative; display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
-.coach-header-actions .coach-group-filter-header { position: static; margin: 0; transform: none; }
-.coach-header-actions .coach-group-filter-header > summary { display: flex; align-items: center; min-height: 44px; padding: 10px 12px; white-space: nowrap; }
-.coach-header-actions .coach-group-filter-header > div { right: 0; left: auto; max-width: calc(100vw - 32px); }
+.coach-header-actions .coach-group-filter-header { position: relative; margin: 0; transform: none; }
+.coach-header-actions .coach-group-filter-header > summary { display: flex; align-items: center; min-height: 44px; padding: 10px 12px; border: 1px solid #cadeda; border-radius: 14px; background: white; font-size: 12px; font-weight: 700; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.coach-header-actions .coach-group-filter-header > div { right: auto; left: 0; max-width: calc(100vw - 32px); }
 .coach-header-actions .coach-header-menu > summary { display: flex; align-items: center; min-height: 44px; }
-.coach-header-actions .coach-badge { display: inline-flex; align-items: center; min-height: 44px; }
+.coach-header-actions .coach-badge { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 12px; border: 1px solid #cadeda; border-radius: 14px; background: white; font-size: 12px; text-transform: none; letter-spacing: 0; }
+.coach-header-actions .coach-group-filter-header[open] > summary, .coach-header-actions .coach-header-menu[open] .coach-badge { border-color: var(--teal); background: #dff1ed; }
 .coach-menu-compact { display: none; }
 .coach-message-button { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 10px 12px; border: 1px solid #cadeda; border-radius: 14px; background: white; color: var(--teal); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .coach-message-button:hover { background: #edf6f2; border-color: #91bcb2; }
@@ -17,7 +18,8 @@
   .coach-message-button-label { display: none; }
   .coach-message-button { width: 44px; padding: 10px; }
   .coach-header-actions .coach-badge { display: none; }
-  .coach-menu-compact { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 10px 12px; border-radius: 14px; background: #dff1ed; color: var(--teal); font-size: 12px; font-weight: 700; }
+  .coach-menu-compact { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 10px 12px; border: 1px solid #cadeda; border-radius: 14px; background: white; color: var(--teal); font-size: 12px; font-weight: 700; }
+  .coach-header-menu[open] .coach-menu-compact { border-color: var(--teal); background: #dff1ed; }
 }
 @media (max-width: 480px) { .coach-top-header .logo { gap: 7px; font-size: 16px; letter-spacing: .05em; } }
 @media (forced-colors: active) { .coach-message-button.active { outline: 2px solid ButtonText; } .coach-message-badge { background: Highlight; color: HighlightText; } }

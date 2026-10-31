@@ -15,6 +15,7 @@ import './swim-workout-options.css'
 import './planning-calendar.css'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
 import { sleepFollowUpReasons } from '../shared/coach-control-panel.js'
+import { shortSleepWarning } from '../shared/sleep-warning.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import { programKind } from '../shared/program-kind.js'
 import DrylandProgramPage, { DrylandProgramRunner, DrylandHistory } from './dryland-program.jsx'
@@ -121,17 +122,6 @@ const average = (key, items) => {
 }
 
 const confirmDestructive = (description, phrase = 'RADERA') => window.prompt(`${description}\n\nSkriv ${phrase} för att bekräfta.`) === phrase
-
-function previousWeekRange() {
-  const today = new Date()
-  const mondayOffset = (today.getDay() + 6) % 7
-  const thisMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset)
-  const start = new Date(thisMonday)
-  start.setDate(start.getDate() - 7)
-  const end = new Date(thisMonday)
-  end.setMilliseconds(-1)
-  return { start, end }
-}
 
 function App() {
   const [auth, setAuth] = useState(null)
@@ -914,12 +904,12 @@ function Faq({ role, onBack }) {
         <details><summary>Landträningsprogram<span>+</span></summary><p>Öppna Mina landträningsprogram i simmarmenyn eller ditt tilldelade program på startsidan. Välj ett pass, läs övningar och instruktioner och markera vad du genomfört. Resultat som repetitioner, sekunder och sträcka samt kommentar är valfria. Bekräfta genomförd landträning och tryck Spara landpass och resultat. Tidigare resultat visas som stöd, inte som krav att göra mer.</p><p>Landträning räknas mot landträningsmålet, separat från styrka och simning. Programmet och veckoplaneringen ger tillsammans högst en landträningsregistrering per dag. Resultaten finns i träningsdagboken. Om du avmarkerar genomfört i planeringen finns resultaten kvar, men de återställer inte dagen automatiskt.</p>{role === 'coach' && <p>Tränarmenyn → Landträningsprogram har samma bibliotek, övningsbilder, import och tilldelningsflöde som styrkeprogrammen. Huvudtränare och superadmin kan skapa, importera och redigera; vanliga aktiva tränare kan tilldela färdiga program individuellt eller till flera simmare. Styrkeprogrammet påverkas inte. Historiken visas i programmets uppföljning och på simmarkortet. Import med AI kräver granskning före sparande. Funktionen behöver SQL 111.</p>}</details>
         {role === 'coach' && <details><summary>Lagring och historik<span>+</span></summary><p>Superadmin öppnar Lagring och historik i tränarmenyn. Databasen visas separat från bilder, filmer och dokument i projektets fillagring. Budgetgränserna anges manuellt i GB och är egna riktvärden, inte avlästa abonnemangsgränser. Kvar avser kvar till angiven budget; om budget eller filstorlek saknas visas det tydligt. Gul varning visas vid 80 % och röd vid 90 %. Ingen automatisk radering eller blockering av uppladdningar sker.</p><p>En mätpunkt sparas dagligen från aktivering. Uppdatera och spara mätpunkt hämtar nya värden och uppdaterar dagens mätpunkt. Loggen visar nya serverhanterade filoperationer och budgetändringar, utan privata texter eller filinnehåll. Historiska lagringsnivåer och händelser kan inte återskapas. Detta är ingen faktureringsvy; verifiera faktisk kapacitet i Supabase Dashboard. Funktionen kräver SQL 110 och inga nya Vercel-variabler.</p></details>}
         <details><summary>Privata svar i Info från tränarna<span>+</span></summary><p>Tränaren kan klicka på simmarens meddelande för att skriva ett privat svar direkt under det i samma chattfönster. Svaret märks med 🔒 och syns för mottagaren och tränarna. Övriga simmare ser inte svaret. Simmaren kan läsa svaret i samma chatt och under sina privata meddelanden. Tränarens vanliga skrivfält längst ner skickar fortfarande till gruppen.</p><p>Tränaren kan skriva själv eller välja <strong>Föreslå svar med AI</strong>. Då skickas valt meddelande, tränarens eventuella utkast och relevant hjälp-, pass-, tävlings- och tränarinfo för simmarens grupp till OpenAI. Andra simmares privata svar, sömn och interna tränaranteckningar ingår inte. Förslaget visas separat med underlag och eventuella kontrollpunkter. Tränaren kan redigera, använda eller kasta förslaget. <strong>Använd förslaget</strong> ändrar bara svarstexten; svaret skickas först med <strong>Skicka privat</strong>. AI kan ha fel, särskilt när information saknas eller är gammal. Klubbens AI-inställning och tokenbudget gäller.</p></details>
-        <details><summary>Sömnkoll och återhämtning<span>+</span></summary><p>Efter ”Hur känns det idag?” kan du vid profilkopplad check-in frivilligt ange ungefärlig sovtid (0–14 timmar i kvartsteg) och om sömnen var dålig, okej eller bra. Svaret sparas direkt när du trycker Spara och fortsätt och är synligt för tränarna. Natten hör till dagen efter; vid efterregistrering svarar du om natten inför gårdagen. Du får frågan högst en gång per aktivitetsdag på dina enheter, även om du checkar in flera gånger. Hoppa över idag tar också bort frågan resten av dagen. Anonym check-in innehåller ingen profilkopplad sömnkoll.</p><p>I Min träningsdagbok → Sömn och återhämtning kan du följa sovtid och sömnkänsla tillsammans med dagens känsla och RPE. Tränaren ser historiken i simmarkortet. I simmarkortet och Kontrollpanelen → Individuell uppföljning visas en sömnsignal vid minst två nätter med dålig sömn eller minst tre rapporterade nätter med ett snitt under sju timmar, under de senaste sju dagarna. Det är en påminnelse om att fråga hur simmaren mår, inte en medicinsk bedömning eller automatisk ändring av träningen. Saknade svar räknas inte som noll.</p><p>Sömnpilen följer bara upplevd sömnkvalitet. RPE och dagens känsla får finnas som jämförelse men påverkar inte pilen och behöver inte vara ifyllda. Vanlig veckotrend kräver minst tre sömnsvar i vardera sjudagarsperioden. Innan dess kan sju olika rapporterade nätter under de senaste 14 dagarna ge en preliminär korttidstrend, om minst tre ligger senaste veckan. De första tre och sista tre av de senaste sju nätterna jämförs; mittennatten ingår inte. När veckounderlag finns används det i stället. Sovtidens förändring visas separat – längre sömn räknas inte automatiskt som bättre.</p></details>
+        <details><summary>Sömnkoll och återhämtning<span>+</span></summary><p>Efter ”Hur känns det idag?” kan du vid profilkopplad check-in frivilligt ange ungefärlig sovtid (0–14 timmar i kvartsteg) och om sömnen var dålig, okej eller bra. Svaret sparas direkt när du trycker Spara och fortsätt och är synligt för tränarna. Natten hör till dagen efter; vid efterregistrering svarar du om natten inför gårdagen. Du får frågan högst en gång per aktivitetsdag på dina enheter, även om du checkar in flera gånger. Hoppa över idag tar också bort frågan resten av dagen. Anonym check-in innehåller ingen profilkopplad sömnkoll.</p><p>I Min träningsdagbok → Sömn och återhämtning kan du följa sovtid och sömnkänsla tillsammans med dagens känsla och RPE. Tränaren ser historiken i simmarkortet. I simmarkortet och Kontrollpanelen → Individuell uppföljning visas en sömnsignal vid minst två nätter med dålig sömn eller minst tre rapporterade nätter med ett snitt under sju timmar, under de senaste sju dagarna. Det är en påminnelse om att fråga hur simmaren mår, inte en medicinsk bedömning eller automatisk ändring av träningen. Saknade svar räknas inte som noll.</p><p>Sömnpilen följer bara upplevd sömnkvalitet. RPE och dagens känsla får finnas som jämförelse men påverkar inte pilen och behöver inte vara ifyllda. Vanlig veckotrend kräver minst tre sömnsvar i vardera sjudagarsperioden. Innan dess kan sju olika rapporterade nätter under de senaste 14 dagarna ge en preliminär korttidstrend, om minst tre ligger senaste veckan. De första tre och sista tre av de senaste sju nätterna jämförs; mittennatten ingår inte. När veckounderlag finns används det i stället. Sovtidens förändring visas separat – längre sömn räknas inte automatiskt som bättre.</p><p>Pilens bakgrund blir gul/orange om de senaste tre rapporterade nätterna inom sju dagar alla är högst 7 timmar. Den blir röd vid minst fem sådana nätter under veckan. Text och varningssymbol förklarar signalen även utan färg. En längre natt kan inte väga bort dessa korta nätter. Samma signal visas i Individuell uppföljning och på simmarkortet. Pilen kan fortfarande peka uppåt för sömnkänslan trots varningsfärgen. Reglerna är underlag för dialog, inte en medicinsk bedömning eller rekommenderat sömnmål; ingen automatisk träningsändring görs.</p></details>
         <details><summary>Tävlings-PM, klasser och grenanmälan<span>+</span></summary><p>Under Meny → Mina grenar kan simmaren välja en kommande tävling för sin grupp och öppna original-PM:et, även innan grenanmälan har öppnats. Saknas klass i grenlistan betyder det att uppgiften inte är angiven där. Kontrollera PM och fråga tränaren vid oklarheter.</p>{role === 'coach' && <p>I Tävlingskalender kan du bifoga PM när du skapar tävlingen eller senare med Bifoga PM. PDF och bilder på högst 3 MB stöds. Bilagan finns kvar när du läser in eller ändrar det tolkade grenprogrammet. Redigera tävling ändrar grunduppgifterna. Granska och spara grenprogrammet innan du väljer Öppna grenanmälan för simmare. Att stänga anmälan tar inte bort tidigare val. Om tävlingen sparas men bilagan misslyckas visas det i formuläret, och nästa försök uppdaterar samma tävling.</p>}</details>
         <details><summary>Hur fungerar Min träningsdagbok?<span>+</span></summary><p>Öppna Meny → Min träningsdagbok eller genvägen i Min profil. Välj vecka, månad, termin eller egna datum. Du kan jämföra träning, kontinuitet, RPE och känsla med föregående lika långa period. Tryck på en kalenderdag och öppna ett pass för upplägg, fokus, simsätt i passtexten, kommentarer och tävlingsresultat när de finns.</p><p>Rapporterade simmeter och minuter visas separat från uppskattningar som kommer från kopplade pass. Saknade värden betyder inte noll. Tävling räknas separat från simträning, cykelkilometer blir inte simmeter och morgonpass hålls isär från eftermiddagspass. Efterregistrering visas på aktivitetsdagen.</p><p>Under passet kan du skriva Vad fungerade? och Vad vill jag ta med till nästa pass? Tryck på Spara reflektion. Dessa anteckningar visas i din egen dagbok och skapar varken träningspass eller poäng. Anonyma svar kan inte kopplas tillbaka till dagboken. Att läsa dagboken eller spara anteckningar gör inga AI-anrop. Graferna visar uppgifter och jämförelser, inte bevis på att träningen orsakat en viss utveckling. Utvecklingsmål skapas fortsatt av tränaren tillsammans med dig.</p></details>
         <details><summary>Hur får jag veta att jag fått ett nytt utvecklingsmål?<span>+</span></summary><p>När tränaren skapar ett mål i samråd med dig visas ett kort på startsidan och en händelse i notislistan. Har du aktiverat webnotiser för utvecklingsmål och samtal på din enhet kan du också få en pushnotis. Öppna kortet och läs målet under Meny → Mina mål. Då försvinner startkortet, men målet ligger kvar i din profil.</p><p>Du kan skriva ett privat svar på målet om du har frågor eller vill berätta hur det går. Tränarna ser svaret under Utvecklingsmål och kan svara där. Se det som ett underlag för ert samtal; du kan inte själv ändra tränarens mål. Undvik känsliga personuppgifter i fritext.</p></details>
-        {role === 'coach' && <details><summary>Vilka svar ligger bakom korten under Idag?<span>+</span></summary><p>Klicka på Gruppens känsla, Upplevd ansträngning, Passet eller Upplägget för att se svaren bakom medelvärdet. Listan följer valt datum och gruppfilter och visar simmarens namn, värde, kommentar och när svaret skickades. Anonyma svar visas utan profilkoppling. Flera svar från samma simmare visas separat eftersom varje svar räknas i medelvärdet. Sök på namn eller kommentar och sortera efter värde om du vill följa upp en viss skattning.</p><p>Gruppens känsla omfattar alla incheckningar med ett värde. De andra korten omfattar svar efter träning eller tävling, och bara de som har angett respektive värde. Hjälpsymbolen förklarar fortfarande skalan. Samma svarsvy finns under Förra veckan.</p></details>}
-        {role === 'coach' && <details><summary>Vilka har svarat i aktivitetskortet?<span>+</span></summary><p>Under Idag eller Förra veckan klickar du på en rad i Aktivitet → Vad har gruppen gjort?, till exempel ”Jag ska träna · 14 svar”. Då visas svaren med namn för profilsvar, status, datum, passval och kommentarer. Sök på namn eller kommentar för att hitta ett svar. Vald period och gruppfilter följer med. Flera svar från samma simmare visas separat, men profilantalet räknar unika profiler. Anonyma svar visas utan namn.</p></details>}
+        {role === 'coach' && <details><summary>Vilka svar ligger bakom korten under Idag?<span>+</span></summary><p>Klicka på Gruppens känsla, Upplevd ansträngning, Passet eller Upplägget för att se svaren bakom medelvärdet. Listan följer valt datum och gruppfilter och visar simmarens namn, värde, kommentar och när svaret skickades. Anonyma svar visas utan profilkoppling. Flera svar från samma simmare visas separat eftersom varje svar räknas i medelvärdet. Sök på namn eller kommentar och sortera efter värde om du vill följa upp en viss skattning.</p><p>Gruppens känsla omfattar alla incheckningar med ett värde. De andra korten omfattar svar efter träning eller tävling, och bara de som har angett respektive värde. Hjälpsymbolen förklarar fortfarande skalan. Samma svarsvy finns under Kontrollpanel → Veckans incheckningar. Den tidigare menyn Förra veckan är samlad där; veckoväljaren styr både planeringen och rapportkorten. Individuell uppföljning är minimerad med antalet simmare för Ta en dialog synligt. Signalerna följer sju dagar bakåt från periodens sista dag, idag för pågående vecka, så de inte försvinner vid ett veckoskifte.</p></details>}
+        {role === 'coach' && <details><summary>Vilka har svarat i aktivitetskortet?<span>+</span></summary><p>Under Idag eller Kontrollpanel → Veckans incheckningar klickar du på en rad i Aktivitet → Vad har gruppen gjort?, till exempel ”Jag ska träna · 14 svar”. Då visas svaren med namn för profilsvar, status, datum, passval och kommentarer. Sök på namn eller kommentar för att hitta ett svar. Vald period och gruppfilter följer med. Flera svar från samma simmare visas separat, men profilantalet räknar unika profiler. Anonyma svar visas utan namn.</p></details>}
         <details><summary>Utvecklingsmål och analysbilder<span>+</span></summary><p>Utvecklingsmål skapas av tränaren i samråd med simmaren. Simmaren kan läsa målet och skriva reflektioner men kan inte skapa egna utvecklingsmål. En bifogad analysbild är underlag som kompletterar måltexten och kan öppnas för att se detaljer.</p>{role === 'coach' && <p>På simmarkortet under Simmare visas en kompakt översikt över aktiva utvecklingsmål. Fäll ut ett mål för beskrivning, nästa steg och analysbild, eller välj Öppna och redigera för hela målet. Avslutade mål ligger under Tidigare mål. Nytt mål väljer rätt simmare automatiskt. Under Utvecklingsmål → Nytt mål skriver du stödord eller en påbörjad måltext direkt i Beskrivning. Du kan även prata in en beskrivning och granska transkriberingen. Välj Skapa målförslag med AI för ett förslag med rubrik, beskrivning och eventuellt nästa steg. Simkoll försöker stoppa fullständiga namn, e-post och personnummer innan AI-anropet, men du måste själv avidentifiera text och bild och exempelvis skriva ”simmaren”. Granska förslaget, välj Använd förslaget och redigera vid behov innan du sparar. Ett sparat mål kan senare öppnas och rättas med Redigera mål; rubrik, beskrivning och nästa steg kan ändras utan att status, poäng, bild eller historik påverkas. Läsbara bildobservationer och osäkerheter visas separat. Bilder ska vara JPG, PNG eller WebP under 3 MB och bara avse aktuell simmare. De sparas privat med målet. Att bifoga eller visa en bild gör inget AI-anrop; transkribering och målförslag använder klubbens AI-kvot. Ljudet sparas inte i Simkoll.</p>}</details>
 <details><summary>Morgonpass och eftermiddagspass i incheckningen<span>+</span></summary><p>När du ska simma eller har simmat väljer du vilket pass svaret gäller: morgon eller eftermiddag / kväll. Om du tränar båda passen rapporterar du dem separat. Ett svar om morgonträningen ger inte närvaro på kvällspasset. ”Ska träna” är en plan, inte bekräftelse på att du har genomfört passet. Vid efterregistrering gäller passvalet gårdagen.</p>{role === 'coach' && <p>Under Närvaro under simpass väljer du passet du vill följa upp. Äldre svar utan passkoppling visas som ”Pass ej angivet” och räknas inte automatiskt som närvaro. Du kan markera närvaron manuellt för rätt pass. Svar om sjukdom, vila, tävling eller andra aktiviteter visas som information, inte som genomförd simträning.</p>}<p>Finns flera upplägg för samma träning väljer du vilket du körde i efterincheckningen. Bara det valda uppläggets meter och minuter räknas, som uppskattning när hela passet är genomfört. Du kan ange egen mängd. Vid delvis genomfört pass räknas bara det du anger. Närvaro utan ett entydigt passval ger ingen gissad mängd. I veckoplaneringen visas alternativen tillsammans när datum, starttid och plats stämmer; veckomängden visas som ett intervall.</p></details>
         <details><summary>Bilder till styrkeövningar<span>+</span></summary><p>Tränaren kan lägga till en bild till varje övning. I simmarens styrkeprogram visas bilden vid rätt övning; klicka på den för en större bild. Bilderna kompletterar textinstruktionerna.</p>{role === 'coach' && <><p>Huvudtränare och superadmin kan lägga till bilder under importen eller via Styrkeprogram → Styrkeprogrambibliotek → Övningsbilder. Generera ett förslag med start- och slutläge, eller ladda upp en egen JPG/PNG/WebP under 3 MB. Kontrollera teknik och övningskoppling före sparandet. Varje AI-bild kostar ett separat anrop och följer klubbens tokenbudget. Egna bilder skickas till Simkolls privata bildlagring utan AI-tolkning. Att läsa en bild gör inget AI-anrop.</p><p>Justera Bildinstruktion för att förtydliga startläge, rörelse, utrustning eller kameravinkel. Detta ändrar inte simmarens övningsbeskrivning. Välj Använd den här bilden för ett godkänt förslag och spara programmet; annars behålls den gamla bilden. Bildinstruktionen sparas med den godkända bilden. Varje omgenerering kostar ett nytt AI-anrop.</p></>}</details>
@@ -2678,7 +2668,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   const overviewItems = COACH_NAV_ITEMS
   const orderedOverviewKeys = [...(navigationSettings.overviewOrder || []), ...overviewItems.map((item) => item.key)].filter((key, index, keys) => keys.indexOf(key) === index)
   const orderedOverviewItems = orderedOverviewKeys.map((key) => overviewItems.find((item) => item.key === key)).filter((item) => item && item.key !== 'community')
-  const legacyToolKeys = ['trends', 'history', 'week', 'talks', 'competition', 'workout-library', 'community', 'goals', 'programs', 'strength-programs', 'dryland-programs', 'rewards', 'faq', 'legal']
+  const legacyToolKeys = ['trends', 'history', 'talks', 'competition', 'workout-library', 'community', 'goals', 'programs', 'strength-programs', 'dryland-programs', 'rewards', 'faq', 'legal']
   const navItem = (key) => COACH_NAV_ITEMS.find((item) => item.key === key)
   useEffect(() => {
     if (COACH_NAV_ITEMS.some((item) => item.key === view) && !coachVisible(view)) setView('today')
@@ -2696,18 +2686,9 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
     ...summaryPlanning.plans.filter((item) => item.activityType === 'competition' && item.date === summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group)))),
     ...summaryPlanning.competitions.filter((item) => item.startDate <= summaryDate && (item.endDate || item.startDate) >= summaryDate && (!item.targetGroups?.length || item.targetGroups.some((group) => selectedGroups.includes(group)))),
   ].filter((item, index, items) => items.findIndex((candidate) => String(candidate.title || candidate.name || '').toLocaleLowerCase('sv-SE') === String(item.title || item.name || '').toLocaleLowerCase('sv-SE')) === index)
-  const previousWeek = previousWeekRange()
-  const todayResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === todayKey())
   const selectedDateResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === summaryDate)
   const hasCompetitionOnSummaryDate = summaryCompetitionPlans.length > 0 || selectedDateResponses.some((item) => item.competition === true)
   const selectedActiveProfiles = new Set(selectedDateResponses.map((item) => item.profileId).filter(Boolean)).size
-  const previousWeekResponses = groupFilteredResponses.filter((response) => {
-    const date = responseDate(response)
-    return date >= previousWeek.start && date <= previousWeek.end
-  })
-  const scopedResponses = view === 'today' ? todayResponses : previousWeekResponses
-
-  const previousWeekLabel = `${previousWeek.start.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${previousWeek.end.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
   const selectCoachView = (nextView) => { if (nextView === 'goals') setGoalNavigation(null); setView(nextView); if (nextView === 'competition') loadCompetitionResults() }
   const openViewFromMenu = (nextView) => { selectCoachView(nextView); document.querySelectorAll('.coach-header-menu, .legacy-tools').forEach((menu) => { menu.open = false }) }
   const openGoalsForProfile = (profileId, goalId = '', create = false) => {
@@ -2771,7 +2752,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
         ) : view === 'control-panel' ? (
-          <CoachControlPanel profiles={groupFilteredProfiles} responses={groupFilteredResponses} asOf={todayKey()} code={code} request={apiRequest} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
         ) : view === 'rewards' ? (
@@ -2818,14 +2799,11 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
           <History responses={groupFilteredResponses} />
         ) : (
           <>{view === 'today' && <AttendancePanel code={code} profiles={groupFilteredProfiles} responses={selectedDateResponses} date={summaryDate} />}<PeriodOverview
-            responses={view === 'today' ? selectedDateResponses : scopedResponses}
-            title={view === 'today' ? (summaryDate === todayKey() ? 'Idag' : 'Vald dag') : 'Förra veckan'}
+            responses={selectedDateResponses}
+            title={summaryDate === todayKey() ? 'Idag' : 'Vald dag'}
             profiles={groupFilteredProfiles}
             hasPlannedCompetition={view === 'today' && summaryCompetitionPlans.length > 0}
-            periodLabel={view === 'today'
-              ? summaryDateLabel
-              : previousWeekLabel}
-            showDays={view === 'week'}
+            periodLabel={summaryDateLabel}
           />{view === 'today' && <CoachActivitySummary code={code} selectedDate={summaryDate} onDateChange={setSummaryDate} aiEnabled={aiEnabled} />}</>
         )}
         {view === 'today' && <button className="clear-button" onClick={async () => {
@@ -5324,7 +5302,9 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const sleepEnd = todayKey()
         const sleepStart = new Date(Date.parse(`${sleepEnd}T12:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10)
         const recentSleep = sleepRecords.filter((row) => row.profile_id === profile.id && row.activity_date >= sleepStart && row.activity_date <= sleepEnd)
-        const sleepReasons = sleepFollowUpReasons(recentSleep)
+        const sleepReasons = sleepFollowUpReasons(recentSleep, sleepEnd)
+        const sleepWarning = shortSleepWarning(recentSleep, sleepEnd)
+        const sleepNeedsFollowUp = sleepWarning?.level === 'red' || sleepReasons.some((reason) => reason !== sleepWarning?.label)
         const plannedRecent = training?.plannedSessions?.filter((item) => item.profileId === profile.id && item.date >= weekStartDate && item.date <= todayKey()) || []
         const missedPlanned = plannedRecent.filter((item) => !profileSessions.some((session) => session.date === item.date && session.slot === item.slot)).length
         const signalReasons = []
@@ -5334,7 +5314,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         if (missedPlanned) signalReasons.push(`${missedPlanned} missat planerat pass`)
         signalReasons.push(...sleepReasons)
         const hasActivityData = recentItems.length > 0 || recentSleep.length > 0 || profileSessions.length > 0 || plannedRecent.length > 0
-        const traffic = !hasActivityData ? { color: 'unknown', label: 'För lite data', icon: '⚪' } : (sickDays >= 2 || missedPlanned >= 3 || (lowBody >= 2 && lowFeeling >= 2) || sleepReasons.length > 0) ? { color: 'red', label: 'Följ upp', icon: '🔴' } : signalReasons.length ? { color: 'yellow', label: 'Var uppmärksam', icon: '🟡' } : { color: 'green', label: 'Ser stabilt ut', icon: '🟢' }
+        const traffic = !hasActivityData ? { color: 'unknown', label: 'För lite data', icon: '⚪' } : (sickDays >= 2 || missedPlanned >= 3 || (lowBody >= 2 && lowFeeling >= 2) || sleepNeedsFollowUp) ? { color: 'red', label: 'Följ upp', icon: '🔴' } : signalReasons.length ? { color: 'yellow', label: 'Var uppmärksam', icon: '🟡' } : { color: 'green', label: 'Ser stabilt ut', icon: '🟢' }
         const trainingGoals = [{ icon: '🏊', label: 'Simning', completed: profileSessions.filter((item) => item.type === 'swim').length, target: swimGoal?.target }, { icon: '🤸', label: 'Landträning', completed: profileSessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget ?? 3 }, { icon: '🏋️', label: 'Styrka', completed: profileSessions.filter((item) => item.type === 'strength').length, target: crossGoal?.strengthTarget ?? 3 }].filter((item) => item.target > 0)
         const setupChecks = [
           { key: 'tempus', label: 'Tempus-ID', complete: Boolean(profile.tempusId) },
@@ -5393,10 +5373,10 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, profiles, title, periodLabel, showDays, hasPlannedCompetition = false }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
   const [selectedMetric, setSelectedMetric] = useState(null)
-  useEffect(() => { setSelectedMetric(null) }, [periodLabel])
+  useEffect(() => { setSelectedMetric(null); setSelectedFeeling(null) }, [periodLabel])
   const metricSummaries = useMemo(() => Object.fromEntries(['feeling', 'rpe', 'pass', 'setup'].map((key) => [key, coachMetricDetails(key, responses, profiles)])), [responses, profiles])
   const profileById = useMemo(() => new Map((profiles || []).map((profile) => [profile.id, profile])), [profiles])
   const distribution = useMemo(() => FEELINGS.map((feeling) => ({
@@ -5434,7 +5414,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, has
       </section>
       {selectedMetric && <CoachMetricDetails key={selectedMetric} metricKey={selectedMetric} responses={responses} profiles={profiles} periodLabel={periodLabel} onClose={() => setSelectedMetric(null)} />}
 
-      {showDays && <WeekDays responses={responses} />}
+      {showDays && <WeekDays responses={responses} weekStart={weekStart} />}
 
       <section className="coach-card">
         <div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>
@@ -5462,8 +5442,8 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, has
   )
 }
 
-function WeekDays({ responses }) {
-  const { start } = previousWeekRange()
+function WeekDays({ responses, weekStart }) {
+  const start = new Date(`${weekStart}T12:00:00`)
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start)
     date.setDate(start.getDate() + index)
