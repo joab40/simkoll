@@ -2885,6 +2885,14 @@ button { cursor: pointer; }
 .strength-import-upload, .strength-import-review { display: grid; gap: 1rem; }
 .strength-import label { display: grid; gap: .4rem; font-weight: 600; }
 .strength-import input:not([type="checkbox"]), .strength-import textarea { width: 100%; box-sizing: border-box; padding: .7rem .85rem; border: 1px solid #cbdcda; border-radius: 12px; background: white; color: #15343e; font: inherit; }
+.strength-import-upload input[type="file"] { display: block; min-width: 0; max-width: 100%; padding: 8px; color: var(--muted); font-size: 16px; font-weight: 400; cursor: pointer; }
+.strength-import-upload input[type="file"]::file-selector-button { min-height: 44px; margin: 0 12px 0 0; padding: 10px 16px; border: 1px solid #b9d5cd; border-radius: 10px; background: #e8f3f0; color: var(--teal); font: inherit; font-weight: 700; line-height: 1.4; cursor: pointer; }
+.strength-import-upload input[type="file"]:not(:disabled):hover::file-selector-button { border-color: var(--teal); background: #dceee8; }
+.strength-import-upload input[type="file"]:not(:disabled):active::file-selector-button { background: #cde5dc; }
+.strength-import-upload input[type="file"]:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-color: var(--teal); }
+.strength-import-upload input[type="file"]:disabled { opacity: .6; cursor: not-allowed; }
+.strength-import-upload input[type="file"]:disabled::file-selector-button { cursor: not-allowed; }
+@media (forced-colors: active) { .strength-import-upload input[type="file"]::file-selector-button { border-color: ButtonText; background: ButtonFace; color: ButtonText; } }
 .strength-import textarea { min-height: 4rem; resize: vertical; }
 .strength-import .strength-import-check { display: flex; align-items: center; gap: .65rem; font-weight: 500; }
 .strength-import-check input { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
