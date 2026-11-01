@@ -1,6 +1,7 @@
 import { coachWeekAddDays, coachWeekMonday } from './coach-week.js'
 import { sleepFollowUpReasons } from './coach-control-panel.js'
 import { shortSleepWarning } from './sleep-warning.js'
+import { buildTrainingHeart } from './training-heart.js'
 
 export const TRAFFIC_LABELS = {
   red: { color: 'red', label: 'Följ upp', icon: '🔴' },
@@ -55,7 +56,7 @@ export function buildSwimmerTraffic(profiles, data, asOf) {
     asOf, range: { start: coachWeekAddDays(asOf, -6), end: asOf, previousStart: coachWeekAddDays(asOf, -13), previousEnd },
     profiles: uniqueProfiles(profiles).map(profile => {
       const own = { responses: responses.get(profile.id) || [], sleep: sleep.get(profile.id) || [], sessions: sessions.get(profile.id) || [], plans: plans.get(profile.id) || [], createdAt: profile.createdAt }
-      return { profileId: profile.id, current: swimmerTrafficAt(own, asOf), previous: swimmerTrafficAt(own, previousEnd) }
+      return { profileId: profile.id, current: swimmerTrafficAt(own, asOf), previous: swimmerTrafficAt(own, previousEnd), heart: buildTrainingHeart(own, asOf) }
     }),
   }
 }

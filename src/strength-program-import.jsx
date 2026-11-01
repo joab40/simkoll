@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { STRENGTH_FILE_TYPES, STRENGTH_FILE_MAX_BYTES, normalizeStrengthDraft, validateStrengthDraft } from '../shared/strength-import.js'
 import { ExerciseImageControl } from './strength-exercise-images.jsx'
+import ProgramManagementCard from './program-management-card.jsx'
 
 export default function StrengthProgramImport({ code, request, onSaved, aiEnabled, programType = 'strength' }) {
   const land = programType === 'dryland'
@@ -35,8 +36,8 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
     } catch (error) { setStatus(error.message) } finally { setBusy('') }
   }
   const issues = draft ? validateStrengthDraft(draft) : []
-  return <section className="coach-card strength-import">
-    <div className="period-heading"><div><p className="eyebrow">Från fil till program</p><h3>Importera {land ? 'landträningsprogram' : 'styrkeprogram'}</h3></div><span className="strength-import-model">GPT-6.1 Sol som standard</span></div>
+  return <ProgramManagementCard className="strength-import" icon="📄" eyebrow="Från fil till program" title={`Importera ${land ? 'landträningsprogram' : 'styrkeprogram'}`} status={busy ? 'Arbetar…' : draft ? 'Utkast att granska' : file ? 'Fil vald' : 'Excel · PDF · bild'}>
+    <span className="strength-import-model">GPT-6.1 Sol som standard</span>
     <p>Ladda upp Excel, PDF eller en bild. Granska och redigera tolkningen innan den sparas. Ett program kan innehålla 1–5 separata pass.</p>
     {!draft ? <div className="strength-import-upload">
       <label>Programfil<input type="file" accept=".xls,.xlsx,.pdf,.png,.jpg,.jpeg,.webp" disabled={!!busy} onChange={(event) => { setFile(event.target.files?.[0] || null); setStatus('') }} /></label>
@@ -72,5 +73,5 @@ export default function StrengthProgramImport({ code, request, onSaved, aiEnable
       <div className="strength-import-actions"><button type="button" className="primary-button" disabled={!reviewed || !!issues.length || !!busy} onClick={save}>{busy === 'save' ? 'Sparar…' : 'Spara i programbiblioteket'}</button><button type="button" className="secondary-button" disabled={!!busy} onClick={() => { setDraft(null); setStatus('') }}>Välj en annan fil</button></div>
     </div>}
     {status && <p className="strength-import-status" role="status">{status}</p>}
-  </section>
+  </ProgramManagementCard>
 }

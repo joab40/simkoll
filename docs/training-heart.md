@@ -1,0 +1,15 @@
+# Träningshjärtat
+
+Hjärtat är en separat knapp bredvid simmarkortets huvudknapp (inga nästlade knappar). Hovring/fokus öppnar förhandsvisning, klick fäster panelen. Klick igen, utanför, kryss, Escape eller tangentbordsfokus utanför stänger. Panelen renderas i portal med viewport-bunden position för att inte klippas av kortets overflow. Den är icke-modal och alla värden/färger har textalternativ.
+
+`shared/training-heart.js` beräknar endast beskrivande produktregler, ingen validerad medicinsk/formpoäng:
+
+- Känslofärg: kropp och känsla, dagligt medelvärde över tre inkluderade aktivitetsdagar, minst två dagar per mått. Något visat snitt ≤2 rött, något <3,5 gult, båda ≥3,5 grönt, annars grått. Måtten avrundas till en decimal innan färggränser tillämpas. Gymkropp motsvarar upplevd kraft/spänst.
+- Ring: sju dagar mot föregående sju; rapporterad RPE × rapporterade minuter. Ingen uppskattning från pass/närvaro. Jämförelse kräver minst tre kända rapportgrupper på minst två dagar och ≥80 % täckning i båda perioder. Visad procent avrundas till en decimal före klassning: <80 % mindre, >120 % större, annars lika. Storlek säger inget om bra/dåligt. Ingen jämförelse vid otillräckligt underlag.
+- Rapporter grupperas som befintlig kontrollpanels belastningsunderlag: senaste inlämnade efterrapport per aktivitetsdag/aktivitet/passval. Detta kan inte särskilja två fysiska träningstillfällen med samma avgränsning. Olika aktiviteter och morgon/eftermiddag hålls isär. En senare Inte genomfört-rapport får inte återuppliva en äldre rapport. Tävling exkluderas; okänd aktivitet/tid/RPE är saknat underlag, inte noll.
+- Animation: daglig fartkänsla från uttrycklig simning, inte styrka eller tävling. Två dagar på sju, varav en senaste tre, krävs. ≤2 långsam, ≥4 något snabbare, annars mellan. Tidsperioderna för färg, ring och animation framgår separat. Detta är inte riktig puls.
+- Separata varningar: giltig, icke överhoppad sömn via befintliga `sleepFollowUpReasons`, samt rapporterade sjukdagar senaste sju dagarna. De maskeras aldrig av god känslofärg och visas även högst upp i panelen. Frånvaro av varning är inte friskförklaring.
+
+Data följer befintlig tränarskyddad GET `/api/training?traffic=true`. Samma paginerade och datumbegränsade hämtning används, med några ytterligare numeriska/klassificerande svarsfält. Ingen ny fråga per simmare, ingen ny databaslagring, SQL, AI eller extern mottagare. Endast profiler i befintligt aktivt/godkänt/ej-test-urval får sammanfattning; råa svar och kommentarer returneras inte. Delvisa läsfel stoppar hela rapporten. Trafikljusberäkningen och färgfiltren ändras inte.
+
+Underlag/perioder/svarstäckning/senaste aktivitetsdag visas i panelen. För gammalt/saknat underlag är neutralt, och laddning/fel skiljs från avsaknad. Animation kan stängas av för webbläsaren med en lokal UI-preferens och uppdateras på alla hjärtan; `prefers-reduced-motion` respekteras alltid. Ingen bestående känslig data lagras i den preferensen. FAQ är gemensam källa för synlig hjälp och båda assistenternas generella funktionskunskap, inte ett nytt AI-flöde med individdata.

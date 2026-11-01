@@ -60,6 +60,9 @@ test('key recent functions and diary boundaries remain documented', () => {
   assert.match(byId('followup'), /minst två olika aktivitetsdagar/)
   assert.match(byId('swimmer-traffic'), /Saknat underlag.*grå, inte gröna/)
   assert.match(byId('swimmer-traffic'), /samma veckodag en vecka tidigare/)
+  assert.match(byId('training-heart'), /inte faktisk puls/)
+  assert.match(byId('training-heart'), /hovra.*klicka/)
+  assert.match(byId('training-heart'), /Saknade eller gamla känslosvar ger grått/)
   assert.match(byId('workout-generation'), /spärrad mot dubbelklick/)
 })
 

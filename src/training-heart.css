@@ -1,0 +1,52 @@
+.swimmer-card-header { position: relative; }
+.swimmer-card-header > .swimmer-card-toggle { padding-right: 76px; }
+.swimmer-card-header .swimmer-name > span { flex-shrink: 0; }
+.swimmer-card-header .swimmer-name > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.swimmer-card-header .swimmer-name > div small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.training-heart-control { position: absolute; top: 12px; right: 12px; }
+.training-heart-trigger { position: relative; display: grid; place-items: center; width: 48px; height: 48px; min-height: 44px; padding: 0; border: 1px solid #dae7e3; border-radius: 14px; background: #f5faf8; color: #81928e; cursor: pointer; }
+.training-heart-trigger svg { width: 44px; height: 44px; overflow: visible; }
+.training-heart-trigger.green { color: #277a60; }
+.training-heart-trigger.yellow { color: #ab7615; }
+.training-heart-trigger.red { color: #b45454; }
+.training-heart-shape { fill: currentColor; transform-origin: 32px 32px; }
+.training-heart-ring { fill: none; stroke: #9cb5af; stroke-width: 1.6; transform-origin: 32px 32px; }
+.ring-unknown .training-heart-ring { stroke: #aebdb8; stroke-dasharray: 3 4; transform: scale(.94); }
+.ring-lower .training-heart-ring { transform: scale(.94); }
+.ring-higher .training-heart-ring { transform: scale(1.08); stroke-width: 2.2; }
+.training-heart-warning { position: absolute; top: -4px; right: -4px; display: grid; place-items: center; width: 19px; height: 19px; border: 1px solid #b78a30; border-radius: 50%; background: #fff0bf; color: #6d4d0d; font: 800 12px/1 'Manrope', sans-serif; }
+.training-heart-trigger:hover { background: #eaf5f0; }
+.training-heart-trigger:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.training-heart-shape.motion-slow { animation: training-heart-breathe 3.2s ease-in-out infinite; }
+.training-heart-shape.motion-gentle { animation: training-heart-breathe 2.6s ease-in-out infinite; }
+.training-heart-shape.motion-brisk { animation: training-heart-breathe 2s ease-in-out infinite; }
+.motion-off .training-heart-shape { animation: none; }
+@keyframes training-heart-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.training-heart-panel { position: fixed; z-index: 1200; overflow-y: auto; overscroll-behavior: contain; padding: 14px; box-sizing: border-box; border: 1px solid #b9d5cb; border-radius: 15px; background: #fcfefb; box-shadow: 0 12px 38px #153f3729; color: #15343e; font: 12px/1.5 'Manrope', sans-serif; }
+.training-heart-panel > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.training-heart-panel h3 { margin: 2px 0 0; font-size: 15px; overflow-wrap: anywhere; }
+.training-heart-panel h4 { margin: 0 0 5px; font-size: 12px; }
+.training-heart-panel p { margin: 6px 0; overflow-wrap: anywhere; }
+.training-heart-panel small { color: #5d7573; font-size: 10px; }
+.training-heart-panel > header button { flex: 0 0 36px; min-height: 36px; border: 1px solid #d4e3dc; border-radius: 9px; background: white; color: #24665f; font-size: 22px; cursor: pointer; }
+.training-heart-panel > section, .training-heart-rules > section { padding-top: 10px; margin-top: 10px; border-top: 1px solid #deebe4; }
+.training-heart-rules { margin-top: 6px; }
+.training-heart-rules > summary { min-height: 40px; padding: 10px 0; color: #24665f; font-weight: 700; cursor: pointer; }
+.training-heart-rules > summary:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
+.training-heart-caveat { color: #536e69; }
+.training-heart-alert { margin: 10px 0; padding: 9px; border: 1px solid #e2c783; border-radius: 9px; background: #fff6dc; color: #6d4d0d; }
+.training-heart-alert ul { margin: 4px 0 0; }
+.training-heart-panel dl { margin: 6px 0; }
+.training-heart-panel dl > div { display: grid; grid-template-columns: 75px minmax(0, 1fr); gap: 8px; padding: 3px 0; }
+.training-heart-panel dt { font-weight: 700; }
+.training-heart-panel dd { margin: 0; }
+.training-heart-panel ul { padding-left: 18px; }
+.training-heart-panel footer { display: grid; gap: 5px; padding-top: 12px; }
+.training-heart-panel footer button { min-height: 40px; border: 1px solid #b9d5cb; border-radius: 9px; background: #e8f4ed; color: #24665f; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
+.training-heart-panel button:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
+@media (max-width: 500px) {
+  .swimmer-card-header .swimmer-name { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 4px 9px; }
+  .swimmer-card-header .swimmer-name > span { grid-row: 1 / 3; }
+  .swimmer-card-header .swimmer-level { grid-column: 2; justify-self: start; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .training-heart-shape { animation: none !important; } }
