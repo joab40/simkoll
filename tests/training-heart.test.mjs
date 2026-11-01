@@ -126,7 +126,8 @@ test('heart is a sibling of the card toggle, with accessible portal, hover/click
 
 test('emoji-like heart keeps its gloss inside one animated group and load ring separate', () => {
   const source = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
-  const view = source('src/training-heart.jsx'), css = source('src/training-heart.css')
+  const live = source('src/training-heart.jsx'), view = source('src/training-heart-glyph.jsx'), css = source('src/training-heart.css')
+  assert.match(live, /<TrainingHeartGlyph motion=\{motion\}/)
   assert.ok(view.includes('id={`${id}-fill`}'), 'each card has its own gradient')
   assert.ok(view.includes('fill={`url(#${id}-fill)`}'))
   assert.match(view, /<circle className="training-heart-ring"[^>]*\/>\s*<g className=\{`training-heart-shape motion-\$\{motion\}`\}>/)

@@ -14,4 +14,28 @@
 .diary-faq .feature-faq summary::-webkit-details-marker { display: none; }
 .diary-faq .feature-faq p { color: var(--muted); font-size: 14px; line-height: 1.65; }
 .feature-faq summary:focus-visible, .diary-faq > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+.training-heart-examples { padding-bottom: 16px; min-width: 0; }
+.training-heart-examples > p { font-size: 14px; line-height: 1.65; color: #506367; }
+.training-heart-examples .training-heart-example-label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--teal); }
+.training-heart-examples .training-heart-example-notice { padding-left: 10px; border-left: 3px solid #7caaa0; font-weight: 600; }
+.training-heart-example-motion { min-height: 44px; margin-bottom: 16px; padding: 10px 14px; border: 1px solid #b9d5cb; border-radius: 10px; background: #e8f4ed; color: #24665f; font: inherit; font-size: 13px; font-weight: 700; }
+.training-heart-example-motion:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.training-heart-example-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-bottom: 16px; }
+.training-heart-example { min-width: 0; padding: 14px; border: 1px solid #d2e3dc; border-radius: 14px; background: #f4faf7; }
+.training-heart-example > header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.training-heart-example h3 { margin: 0; font: 800 15px/1.45 'Manrope', sans-serif; overflow-wrap: anywhere; }
+.training-heart-example-icon { flex: 0 0 58px; width: 58px; height: 58px; cursor: default; }
+.training-heart-example-icon svg { width: 54px; height: 54px; }
+.training-heart-example-icon:hover { background: transparent; }
+.training-heart-example > p { font-size: 13px; line-height: 1.65; color: #506367; }
+.training-heart-examples .training-heart-example details { padding: 0 10px; background: #fff; }
+.training-heart-examples .training-heart-example summary { min-height: 44px; padding: 10px 0; font-size: 12px; color: #24665f; }
+.training-heart-examples .training-heart-example summary > span { font-size: 16px; }
+.training-heart-examples .training-heart-example details:not([open]) > summary > span { transform: none; }
+.training-heart-examples .training-heart-example-reading:not([open]) > summary > span { transform: none; }
+.training-heart-example dl { margin: 0 0 10px; font-size: 12px; line-height: 1.6; }
+.training-heart-example dl > div { padding: 8px 0; border-top: 1px solid #deebe4; }
+.training-heart-example dt { font-weight: 800; }
+.training-heart-example dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.training-heart-examples .training-heart-example-alert { padding: 8px; border-radius: 8px; background: #fff1ca; color: #6d4d0d; font-weight: 700; }
 @media (max-width: 480px) { .diary-faq { padding: 15px; } }

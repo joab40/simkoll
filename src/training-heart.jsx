@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import TrainingHeartGlyph from './training-heart-glyph.jsx'
 import './training-heart.css'
 
 const colors = { unknown: 'För lite aktuell känsloinformation', green: 'God rapporterad kropp- och dagskänsla', yellow: 'Blandad eller lägre kropp- och dagskänsla', red: 'Låg rapporterad kropp- eller dagskänsla' }
@@ -70,14 +71,7 @@ export default function TrainingHeart({ data, asOf, name, loading = false, error
   }
   return <div className="training-heart-control">
     <button ref={trigger} type="button" className={`training-heart-trigger ${color} ring-${ring}${animate ? '' : ' motion-off'}`} aria-label={`Träningshjärtat för ${name}: ${loading ? 'hämtar underlag' : error ? 'underlag saknas' : colors[color]}${warnings.length ? ', uppföljningssignal finns' : ''}. Visa värden och förklaring.`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-panel` : undefined} onMouseEnter={enter} onMouseLeave={leave} onFocus={() => { if (!ignoreFocus.current) setOpen(true) }} onBlur={blur} onClick={() => { if (pinned) close(); else { clearTimeout(timer.current); setOpen(true); setPinned(true); requestAnimationFrame(() => closeButton.current?.focus()) } }}>
-      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-        <defs><linearGradient id={`${id}-fill`} x1="0" y1="0" x2=".8" y2="1"><stop offset="0" className="training-heart-light" /><stop offset=".48" className="training-heart-middle" /><stop offset="1" className="training-heart-dark" /></linearGradient></defs>
-        <circle className="training-heart-ring" cx="32" cy="32" r="28" />
-        <g className={`training-heart-shape motion-${motion}`}>
-          <path className="training-heart-body" fill={`url(#${id}-fill)`} d="M32 51C28 47 12 37 12 25C12 13 25 11 32 21C39 11 52 13 52 25C52 37 36 47 32 51Z" />
-          <path className="training-heart-shine" d="M18 25C18 20 23 18 27 22" />
-        </g>
-      </svg>
+      <TrainingHeartGlyph motion={motion} />
       {warnings.length > 0 && <span className="training-heart-warning" aria-hidden="true">!</span>}
     </button>
     {open && createPortal(<section ref={panel} id={`${id}-panel`} className="training-heart-panel" role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} style={position ? { ...position } : { visibility: 'hidden' }} onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={leave} onBlur={blur}>

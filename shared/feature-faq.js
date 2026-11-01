@@ -1,5 +1,6 @@
 // Curated product help shared by the visible FAQ, diary help and chat assistant.
 // This is documentation, not access to anyone's personal records or feature state.
+import { TRAINING_HEART_EXAMPLE_ANSWERS } from './training-heart-examples.js'
 export const FEATURE_FAQ_UPDATED = '2026-11-01'
 export const FEATURE_FAQ_SECTIONS = [
   ['checkin', 'Incheckning och planering'],
@@ -78,6 +79,7 @@ export const FEATURE_FAQ = [
     'Hjärtat är ritat i emoji-liknande stil för samma utseende på mobil och dator. Det växer och krymper mjukt; grundstorleken är samma och hög belastning gör inte själva hjärtat större. Animationen bygger bara på fartkänsla från efterrapporter uttryckligen märkta simning, inte tävling. Minst två olika dagar senaste veckan och ett svar senaste tre dagarna krävs. Högst 2 ger lugn, minst 4 något snabbare och övriga värden mjuk animation. Stark/Explosiv på gymmet blir inte simfart. Animationen är symbolisk och kan stängas av för alla träningshjärtan i webbläsaren. Enhetens inställning Minskad rörelse stoppar alltid animationen.',
     'En separat varningssymbol och text lyfter rapporterad sjukdom eller befintliga sömnsignaler senaste sju dagarna, även om hjärtat är grönt. RPE, fartkänsla och sömn ändrar inte hjärtats känslofärg. Saknad sömn är inte noll och avsaknad av varning är inget bevis på full återhämtning. Öppning gör inget AI-anrop och ändrar inga registreringar. Underlaget uppdateras tillsammans med trafikljusen; använd Uppdatera trafikljus för nya uppgifter. Testprofiler och ej aktiva/godkända profiler ingår inte.',
   ] },
+  { id: 'training-heart-examples', section: 'diary', question: 'Hur kan hjärtat se ut inför mästerskap eller under en tung träningsperiod?', answer: TRAINING_HEART_EXAMPLE_ANSWERS },
   { id: 'sleep-direction', section: 'diary', question: 'Vad betyder sömnpilen och varningsfärgen?', answer: [
     'Pilen följer bara upplevd sömnkvalitet, inte sovtid, RPE eller dagens känsla. Veckotrend kräver minst tre giltiga nätter i vardera sjudagarsperioden. Annars kan sju rapporterade nätter inom 14 dagar, varav minst tre senaste veckan, ge en tydligt märkt preliminär korttidstrend. Första tre och sista tre av de senaste sju jämförs. Sovtidens förändring visas separat.',
     'Gul/orange bakgrund betyder att de senaste tre rapporterade nätterna inom sju dagar alla är högst 7 timmar. Rött betyder minst fem sådana nätter inom sju dagar. En längre natt väger inte bort de korta nätterna. Samma signal kan visas i tränarens Individuell uppföljning. Även minst två Dålig-svar eller ett snitt under sju timmar över minst tre rapporterade nätter kan lyftas.',

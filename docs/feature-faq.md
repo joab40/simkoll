@@ -1,6 +1,6 @@
 # Gemensam funktionshjälp
 
-Uppdaterad 2026-10-31. `shared/feature-faq.js` är den gemensamma källan för
+Uppdaterad 2026-11-01. `shared/feature-faq.js` är den gemensamma källan för
 nya funktionsfrågor i tränarens FAQ, simmarens FAQ, den utfällbara hjälpen
 **Frågor om träningsdagboken** och båda chattassistenternas funktionsunderlag.
 Rollfiltrering håller tränarverktyg borta från simmarens instruktioner.
