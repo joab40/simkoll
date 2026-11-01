@@ -98,6 +98,10 @@
 .diary-entry-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
 .diary-entry-metrics p { display: grid; gap: 3px; margin: 0; }
 .diary-entry-metrics strong { font-size: 12px; color: var(--muted); }
+.diary-entry-metrics small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.diary-entry-load { display: grid; gap: 5px; margin: 14px 0; padding: 12px; border: 1px solid #cbded5; border-radius: 10px; background: #f0f7f1; }
+.diary-entry-load strong { font-size: 14px; }
+.diary-entry-load span { color: #586e66; font-size: 12px; line-height: 1.6; }
 .diary-pass-content { white-space: pre-wrap; overflow-wrap: anywhere; background: #f4f8f5; padding: 13px; border-radius: 11px; }
 .diary-source-note { padding: 12px 14px; color: #5e7158; background: #f0f5e7; border-radius: 11px; font-size: 13px; line-height: 1.6; }
 .diary-entry-content blockquote { margin: 8px 0; padding: 10px 14px; white-space: pre-wrap; border-left: 3px solid #8ebfb1; background: #f6faf7; }

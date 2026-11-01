@@ -63,6 +63,9 @@ test('key recent functions and diary boundaries remain documented', () => {
   assert.match(byId('training-heart'), /inte faktisk puls/)
   assert.match(byId('training-heart'), /hovra.*klicka/)
   assert.match(byId('training-heart'), /Saknade eller gamla känslosvar ger grått/)
+  assert.match(byId('linked-estimated-load'), /10.*110.*1 100/)
+  assert.match(byId('linked-estimated-load'), /inga gamla svar.*skrivs om/)
+  assert.match(byId('linked-estimated-load'), /Saknad RPE kan aldrig återskapas/)
   assert.match(byId('workout-generation'), /spärrad mot dubbelklick/)
 })
 

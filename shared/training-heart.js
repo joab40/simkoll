@@ -1,5 +1,6 @@
 import { coachWeekAddDays } from './coach-week.js'
 import { sleepFollowUpReasons } from './coach-control-panel.js'
+import { trainingLoad } from './training-load.js'
 
 const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 const valid = (value, min, max) => Number.isFinite(value) && value >= min && value <= max
@@ -24,9 +25,17 @@ function afterReports(rows) {
 }
 
 function load(rows) {
-  const reports = afterReports(rows), known = reports.filter(row => types.has(row.activityType) && valid(row.rpe, 1, 10) && valid(row.activityMinutes, 1, 1440))
-  return { value: known.length ? round(known.reduce((sum, row) => sum + row.rpe * row.activityMinutes, 0)) : null, known: known.length, total: reports.length, days: new Set(known.map(row => row.date)).size }
+  const reports = afterReports(rows).map(row => {
+    const canEstimate = row.activityType === 'swim' && ['morning_swim', 'afternoon_swim'].includes(row.trainingSlot) && row.plannedCompletion !== 'partial' && row.linkedEstimate?.source === 'linked-plan'
+    return { row, amount: trainingLoad(row.rpe, row.activityMinutes, canEstimate ? row.linkedEstimate.minutes : null) }
+  })
+  const known = reports.filter(({ row, amount }) => types.has(row.activityType) && amount.value != null)
+  const reported = known.filter(item => item.amount.source === 'reported'), estimated = known.filter(item => item.amount.source === 'estimated')
+  const total = items => items.length ? round(items.reduce((sum, item) => sum + item.amount.value, 0)) : null
+  return { value: total(known), reportedValue: total(reported), estimatedValue: total(estimated), reported: reported.length, estimated: estimated.length, known: known.length, total: reports.length, days: new Set(known.map(item => item.row.date)).size, rpeAnswers: reports.filter(item => item.amount.rpeKnown).length, missingRpe: reports.filter(item => !item.amount.rpeKnown).length, missingTime: reports.filter(item => item.amount.minutes == null).length, unknownActivity: reports.filter(item => !types.has(item.row.activityType)).length }
 }
+
+export { afterReports as trainingHeartAfterReports }
 
 export function buildTrainingHeart({ responses = [], sleep = [] } = {}, asOf) {
   if (!day(asOf)) throw new Error('Ogiltigt datum för träningshjärtat.')
