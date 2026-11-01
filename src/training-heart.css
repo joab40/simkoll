@@ -1,11 +1,18 @@
 .swimmer-card-header { position: relative; }
-.swimmer-card-header > .swimmer-card-toggle { padding-right: 76px; }
+.swimmer-card-header > .swimmer-card-toggle { padding-right: 116px; min-height: 116px; }
 .swimmer-card-header .swimmer-name > span { flex-shrink: 0; }
 .swimmer-card-header .swimmer-name > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .swimmer-card-header .swimmer-name > div small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.training-heart-control { position: absolute; top: 12px; right: 12px; }
+.training-heart-control { position: absolute; top: 8px; right: 10px; }
 .training-heart-trigger { --heart-light: #dce5e2; --heart-middle: #95aaa3; --heart-dark: #637e75; position: relative; display: grid; place-items: center; width: 52px; height: 52px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #81928e; cursor: pointer; }
 .training-heart-trigger svg { width: 48px; height: 48px; overflow: visible; }
+.training-heart-trigger .training-heart-glyph { animation: none !important; rotate: none; }
+.training-heart-trigger.training-heart-with-load { width: 96px; min-height: 100px; height: auto; padding: 4px 2px 6px; gap: 3px; border-radius: 12px; }
+.training-heart-icon { position: relative; display: grid; place-items: center; width: 52px; height: 52px; }
+.training-heart-load-label { display: grid; gap: 2px; color: #49635f; text-align: center; line-height: 1.3; overflow-wrap: anywhere; }
+.training-heart-load-label small { font: 600 10px/1.3 'Manrope', sans-serif; }
+.training-heart-load-label strong { font: 800 12px/1.3 'Manrope', sans-serif; }
+.training-heart-load-label.load-unknown strong { font-size: 10px; color: #6e8084; }
 .training-heart-trigger.green { --heart-light: #a4f2b0; --heart-middle: #39b968; --heart-dark: #14794e; color: #277a60; }
 .training-heart-trigger.yellow { --heart-light: #ffe799; --heart-middle: #f4b737; --heart-dark: #c17a16; color: #ab7615; }
 .training-heart-trigger.red { --heart-light: #ffb0b2; --heart-middle: #ef5b68; --heart-dark: #b82d4e; color: #b45454; }
@@ -15,7 +22,7 @@
 .training-heart-dark { stop-color: var(--heart-dark); }
 .training-heart-body { stroke: var(--heart-dark); stroke-width: .7; stroke-linejoin: round; }
 .training-heart-shine { fill: none; stroke: white; stroke-width: 3.5; stroke-linecap: round; opacity: .65; }
-.training-heart-ring { fill: none; stroke: #9cb5af; stroke-width: 1.6; transform-origin: 32px 32px; }
+.training-heart-ring { fill: none; stroke: #9cb5af; stroke-width: 1.6; transform-origin: 32px 32px; animation: none !important; rotate: none; transition: none; }
 .ring-unknown .training-heart-ring { stroke: #aebdb8; stroke-dasharray: 3 4; transform: scale(.94); }
 .ring-lower .training-heart-ring { transform: scale(.94); }
 .ring-higher .training-heart-ring { transform: scale(1.06); stroke-width: 2.2; }
@@ -39,6 +46,7 @@
 .training-heart-rules > summary { min-height: 40px; padding: 10px 0; color: #24665f; font-weight: 700; cursor: pointer; }
 .training-heart-rules > summary:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
 .training-heart-caveat { color: #536e69; }
+.training-heart-load-explanation { padding: 9px; margin-top: 8px; border: 1px solid #d2e3dc; border-radius: 9px; background: #f0f7f4; }
 .training-heart-alert { margin: 10px 0; padding: 9px; border: 1px solid #e2c783; border-radius: 9px; background: #fff6dc; color: #6d4d0d; }
 .training-heart-alert ul { margin: 4px 0 0; }
 .training-heart-panel dl { margin: 6px 0; }
@@ -50,6 +58,11 @@
 .training-heart-panel footer button { min-height: 40px; border: 1px solid #b9d5cb; border-radius: 9px; background: #e8f4ed; color: #24665f; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .training-heart-panel button:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
 @media (max-width: 500px) {
+  .swimmer-card-header > .swimmer-card-toggle { padding-right: 88px; min-height: 128px; }
+  .training-heart-control { right: 6px; }
+  .training-heart-trigger.training-heart-with-load { width: 70px; }
+  .training-heart-load-label strong { font-size: 11px; }
+  .swimmer-card-header .swimmer-card-meta { padding-left: 0; }
   .swimmer-card-header .swimmer-name { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 4px 9px; }
   .swimmer-card-header .swimmer-name > span { grid-row: 1 / 3; }
   .swimmer-card-header .swimmer-level { grid-column: 2; justify-self: start; margin-left: 0; }

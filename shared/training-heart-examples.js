@@ -1,10 +1,11 @@
 import { buildTrainingHeart } from './training-heart.js'
+import { trainingHeartLoadSummary } from './training-heart-load.js'
 
 export const TRAINING_HEART_EXAMPLE_NOTICE = 'Hjärtat visar rapporterade signaler, inte bekräftad toppform. Snabb pulsering betyder hög fartkänsla – inte automatiskt ”redo för tävling”.'
 export const TRAINING_HEART_EXAMPLE_INTRO = [
   'Här visas fiktiva exempel, inte någon simmares uppgifter. Samma hjärta och beräkningsregler används som på simmarkortet. Exemplen står stilla från början; välj Visa pulsering för att jämföra takterna. Minskad rörelse i enhetens inställningar gäller även här.',
   'Stark, snabb och återhämtad inför ett mästerskap är ett möjligt positivt mönster, inte något hjärtat kan bekräfta. Det mäter inte toppform eller tävlingsberedskap. Måltävling, toppningsperiod, träningsfas, testlopp och tävlingsresultat ingår inte i hjärtats nuvarande beräkning. Bedöm sammanhanget tillsammans med tränaren.',
-  'Färg = kropp och dagskänsla senaste tre dagarna. Ring = RPE × rapporterade minuter senaste sju mot föregående sju dagar. Pulsering = upplevd simfart senaste sju dagarna, med krav på aktuella svar. Sömn och sjukdom visas som separata varningar, inte som hjärtats färg eller takt. Alltså: grön färg betyder inte automatiskt återhämtad.',
+  'Färg = kropp och dagskänsla senaste tre dagarna. Ring = RPE × rapporterade minuter senaste sju mot föregående sju dagar. Ringen står stilla. Etiketten Belastning visar förändringen med pil och procent: 75 % av tidigare belastning visas som ↓ 25 %, inte ↓ 75 %. ↑ betyder mer och ↓ mindre rapporterad belastning, inte bättre eller sämre. ≈ Oförändrad betyder samma belastning avrundat till en decimal; annars visas även små förändringar. Vid otillräckligt underlag visas Jämförelse saknas, aldrig en gissad nolla. Pulsering = upplevd simfart senaste sju dagarna, med krav på aktuella svar. Sömn och sjukdom visas som separata varningar, inte som hjärtats färg eller takt. Alltså: grön färg betyder inte automatiskt återhämtad.',
 ]
 
 const asOf = '2026-11-01'
@@ -37,7 +38,7 @@ export function trainingHeartExampleFacts({ heart }) {
   const load = heart.load, previous = load.previous
   return [
     ['Färg', `Kropp ${number(heart.body.value)}/5 och dagskänsla ${number(heart.feeling.value)}/5. ${heart.body.days} respektive ${heart.feeling.days} svarsdagar senaste tre dagarna.`],
-    ['Ring', `${number(load.value)} mot ${number(previous.value)} RPE × minuter. ${load.ratio == null ? 'Ingen giltig jämförelse.' : `${number(load.ratio * 100)} % av föregående veckas rapporterade belastning.`} Täckning: ${load.known}/${load.total} respektive ${previous.known}/${previous.total} rapportgrupper med båda uppgifterna; ${load.days} respektive ${previous.days} svarsdagar.`],
+    ['Ring', `${trainingHeartLoadSummary(load).label}. ${number(load.value)} mot ${number(previous.value)} RPE × minuter. ${load.ratio == null ? 'Ingen giltig jämförelse.' : `${number(load.ratio * 100)} % av föregående veckas rapporterade belastning.`} Täckning: ${load.known}/${load.total} respektive ${previous.known}/${previous.total} rapportgrupper med båda uppgifterna; ${load.days} respektive ${previous.days} svarsdagar.`],
     ['Pulsering', `Fartkänsla ${number(heart.speed.value)}/5 från ${heart.speed.days} simdagar senaste sju dagarna. ${({ none: 'Stilla: för lite underlag.', slow: 'Lugn takt (3,2 sekunder per cykel).', gentle: 'Mjuk takt (2,6 sekunder per cykel).', brisk: 'Snabbare takt (2 sekunder per cykel).' })[heart.speed.motion]} Detta är inte faktisk puls.`],
     ['Sömn / sjukdom', `${heart.sleep.nights ? `${number(heart.sleep.averageMinutes / 60)} h i snitt under ${heart.sleep.nights} nätter; alla svar Bra.` : 'Sömnsvar saknas.'} Sjukdom: ${heart.sickDays.length} rapporterade dagar. ${heart.warnings.length ? heart.warnings.join(' · ') + '.' : 'Ingen varningssignal i tillgängliga svar; inget bevis på full återhämtning.'}`],
   ]

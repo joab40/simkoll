@@ -135,5 +135,6 @@ test('emoji-like heart keeps its gloss inside one animated group and load ring s
   for (const color of ['green', 'yellow', 'red']) assert.match(css, new RegExp(`\\.training-heart-trigger\\.${color} \\{ --heart-light:`))
   for (const scale of ['.88', '1.08']) assert.ok(css.includes(`scale(${scale})`))
   for (const seconds of ['3.2', '2.6', '2']) assert.ok(css.includes(`training-heart-breathe ${seconds}s`))
-  assert.doesNotMatch(css, /training-heart-ring[^{}]*\{[^}]*animation:/)
+  assert.match(css, /\.training-heart-ring \{[^}]*animation: none !important/)
+  assert.match(css, /\.training-heart-trigger \.training-heart-glyph \{[^}]*animation: none !important/)
 })

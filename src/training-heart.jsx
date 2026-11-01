@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import TrainingHeartGlyph from './training-heart-glyph.jsx'
+import { trainingHeartLoadSummary } from '../shared/training-heart-load.js'
 import './training-heart.css'
 
 const colors = { unknown: 'För lite aktuell känsloinformation', green: 'God rapporterad kropp- och dagskänsla', yellow: 'Blandad eller lägre kropp- och dagskänsla', red: 'Låg rapporterad kropp- eller dagskänsla' }
@@ -15,9 +16,10 @@ const readMotion = () => { try { return localStorage.getItem(motionKey) !== 'off
 export default function TrainingHeart({ data, asOf, name, loading = false, error = '', excluded = false }) {
   const [open, setOpen] = useState(false), [pinned, setPinned] = useState(false), [position, setPosition] = useState(null), [animate, setAnimate] = useState(readMotion)
   const trigger = useRef(null), panel = useRef(null), closeButton = useRef(null), timer = useRef(null), ignoreFocus = useRef(false)
-  const id = useId(), heart = !excluded && data?.asOf === asOf ? data : null
+  const id = useId(), heart = !excluded && !loading && !error && data?.asOf === asOf ? data : null
   const color = heart?.color || 'unknown', ring = heart?.load.ring || 'unknown', motion = heart?.speed.motion || 'none'
   const warnings = heart?.warnings || []
+  const loadSummary = trainingHeartLoadSummary(heart?.load)
   const unavailable = excluded ? 'Profilen ingår inte i detta underlag, till exempel en testprofil eller en avstängd profil.' : loading ? 'Hämtar aktuellt underlag…' : error ? 'Underlaget kunde inte hämtas. Använd Uppdatera trafikljus för att försöka igen.' : 'Aktuellt underlag saknas. Inget antas vara bra eller dåligt.'
   const close = (restoreFocus = false) => {
     clearTimeout(timer.current); setOpen(false); setPinned(false)
@@ -70,9 +72,9 @@ export default function TrainingHeart({ data, asOf, name, loading = false, error
     window.dispatchEvent(new CustomEvent('simkoll-heart-motion', { detail: next }))
   }
   return <div className="training-heart-control">
-    <button ref={trigger} type="button" className={`training-heart-trigger ${color} ring-${ring}${animate ? '' : ' motion-off'}`} aria-label={`Träningshjärtat för ${name}: ${loading ? 'hämtar underlag' : error ? 'underlag saknas' : colors[color]}${warnings.length ? ', uppföljningssignal finns' : ''}. Visa värden och förklaring.`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-panel` : undefined} onMouseEnter={enter} onMouseLeave={leave} onFocus={() => { if (!ignoreFocus.current) setOpen(true) }} onBlur={blur} onClick={() => { if (pinned) close(); else { clearTimeout(timer.current); setOpen(true); setPinned(true); requestAnimationFrame(() => closeButton.current?.focus()) } }}>
-      <TrainingHeartGlyph motion={motion} />
-      {warnings.length > 0 && <span className="training-heart-warning" aria-hidden="true">!</span>}
+    <button ref={trigger} type="button" className={`training-heart-trigger training-heart-with-load ${color} ring-${ring}${animate ? '' : ' motion-off'}`} aria-label={`Träningshjärtat för ${name}: ${loading ? 'hämtar underlag' : error ? 'underlag saknas' : colors[color]}. ${loadSummary.label}. ${loadSummary.description}${warnings.length ? ' Uppföljningssignal finns.' : ''} Visa värden och förklaring.`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-panel` : undefined} onMouseEnter={enter} onMouseLeave={leave} onFocus={() => { if (!ignoreFocus.current) setOpen(true) }} onBlur={blur} onClick={() => { if (pinned) close(); else { clearTimeout(timer.current); setOpen(true); setPinned(true); requestAnimationFrame(() => closeButton.current?.focus()) } }}>
+      <span className="training-heart-icon" aria-hidden="true"><TrainingHeartGlyph motion={motion} />{warnings.length > 0 && <span className="training-heart-warning">!</span>}</span>
+      <span className={`training-heart-load-label load-${loadSummary.direction}`} aria-hidden="true"><small>Belastning</small><strong>{loadSummary.value}</strong></span>
     </button>
     {open && createPortal(<section ref={panel} id={`${id}-panel`} className="training-heart-panel" role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} style={position ? { ...position } : { visibility: 'hidden' }} onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={leave} onBlur={blur}>
       <header><div><small>Värden och förklaring</small><h3 id={`${id}-title`}>Träningshjärtat · {name}</h3></div><button ref={closeButton} type="button" aria-label="Stäng förklaringen" onClick={() => close(true)}>×</button></header>
@@ -80,10 +82,11 @@ export default function TrainingHeart({ data, asOf, name, loading = false, error
       {warnings.length > 0 && <div className="training-heart-alert"><strong>Att uppmärksamma, även vid grön känslofärg</strong><ul>{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
       {!heart ? <p role="status">{unavailable}</p> : <>
         <p>Underlag till och med {date(heart.asOf)} · Saknade värden är inte noll.</p>
+        <div className="training-heart-load-explanation"><strong>{loadSummary.label}</strong><p>{loadSummary.description}</p><small>{date(heart.periods.start)}–{date(heart.asOf)} mot {date(heart.periods.previousStart)}–{date(heart.periods.previousEnd)} · RPE × rapporterade minuter, inte simmeter eller procent av ett träningsmål. Ringen står stilla; bara hjärtat kan pulsera.</small></div>
         <section><h4>Aktuella värden</h4><dl className="training-heart-overview">
           <div><dt>Kropp</dt><dd>{metric(heart.body)}</dd></div>
           <div><dt>Dagskänsla</dt><dd>{metric(heart.feeling)}</dd></div>
-          <div><dt>Belastning</dt><dd>{number(heart.load.value)} · {heart.load.total ? `${heart.load.known} av ${heart.load.total} rapporter` : 'inga efterrapporter'}</dd></div>
+          <div><dt>Belastning</dt><dd>{number(heart.load.value)} RPE × min · {heart.load.total ? `${heart.load.known} av ${heart.load.total} rapporter` : 'inga efterrapporter'}</dd></div>
           <div><dt>Fartkänsla</dt><dd>{metric(heart.speed)}</dd></div>
           <div><dt>Sömn</dt><dd>{heart.sleep.nights ? `${number(heart.sleep.averageMinutes / 60)} h · ${heart.sleep.nights} nätter · senaste ${date(heart.sleep.lastDay)}` : 'Saknas'}</dd></div>
         </dl><p>Färg = kropp och dagskänsla. Ring = rapporterad belastning mot föregående vecka. Rörelse = upplevd simfart. Varning = sömn eller sjukdom.</p></section>

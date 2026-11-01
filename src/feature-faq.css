@@ -28,6 +28,8 @@
 .training-heart-example-icon svg { width: 54px; height: 54px; }
 .training-heart-example-icon:hover { background: transparent; }
 .training-heart-example > p { font-size: 13px; line-height: 1.65; color: #506367; }
+.training-heart-examples .training-heart-example-load { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #e8f2ee; color: #49635f; }
+.training-heart-example-load small { font-size: 10px; }
 .training-heart-examples .training-heart-example details { padding: 0 10px; background: #fff; }
 .training-heart-examples .training-heart-example summary { min-height: 44px; padding: 10px 0; font-size: 12px; color: #24665f; }
 .training-heart-examples .training-heart-example summary > span { font-size: 16px; }
