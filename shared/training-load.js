@@ -14,5 +14,5 @@ export function trainingLoad(rpe, reportedMinutes, estimatedMinutes = null) {
 
 export function diaryEntryLoad(entry) {
   if (entry.state !== 'completed' || !types.has(entry.type)) return trainingLoad(null, null)
-  return trainingLoad(entry.rpe, entry.reportedMinutes, entry.type === 'swim' && entry.linked && !entry.partial ? entry.estimatedMinutes : null)
+  return trainingLoad(entry.rpe, entry.reportedMinutes, entry.type === 'swim' && (entry.linked || entry.timeLinked) && !entry.partial ? entry.estimatedMinutes : null)
 }

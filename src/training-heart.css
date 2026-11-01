@@ -47,6 +47,11 @@
 .training-heart-rules > summary:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
 .training-heart-caveat { color: #536e69; }
 .training-heart-load-explanation { padding: 9px; margin-top: 8px; border: 1px solid #d2e3dc; border-radius: 9px; background: #f0f7f4; }
+.training-heart-coverage { margin-top: 8px; }
+.training-heart-coverage > strong, .training-heart-coverage > small { display: block; }
+.training-heart-gaps li { padding: 7px 0; border-bottom: 1px solid #deebe4; }
+.training-heart-gaps li:last-child { border-bottom: 0; }
+.training-heart-gaps li p { margin: 3px 0; }
 .training-heart-alert { margin: 10px 0; padding: 9px; border: 1px solid #e2c783; border-radius: 9px; background: #fff6dc; color: #6d4d0d; }
 .training-heart-alert ul { margin: 4px 0 0; }
 .training-heart-panel dl { margin: 6px 0; }

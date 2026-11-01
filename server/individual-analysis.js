@@ -1,3 +1,5 @@
+import { plannedSwimTime, commonPlannedSwimTime } from '../shared/planned-swim-time.js'
+
 const number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
 const keys = ['feeling', 'energy', 'body', 'rpe', 'speedFeeling', 'temperature', 'passRating']
 const average = (rows, key) => {
@@ -18,7 +20,7 @@ export const analysisResponse = (row) => {
 // AM and PM, or count a planned workout's full distance as actually swum.
 export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], trainingGroup }) {
   const inGroup = (row) => !row.target_groups?.length || Boolean(trainingGroup && row.target_groups.includes(trainingGroup))
-  const candidates = workouts.filter(inGroup).map((row) => ({ ...row, time_of_day: plans.find((plan) => plan.source_workout_id === row.id && plan.calendar_link?.mode === 'linked' && inGroup(plan))?.time_of_day || row.time_of_day, source: 'published', note: [row.note, ...plans.filter((plan) => plan.source_workout_id === row.id && inGroup(plan)).map((plan) => plan.notes)].filter(Boolean).join('\n').slice(0, 2500) }))
+  const candidates = workouts.filter(inGroup).map((row) => ({ ...row, duration_minutes: plannedSwimTime(row.duration_minutes, plans.filter(plan => plan.source_workout_id === row.id && plan.plan_date === row.workout_date && !plan.calendar_link?.detachedWorkoutId && inGroup(plan)).map(plan => plan.duration_minutes)) ?? row.duration_minutes, time_of_day: plans.find((plan) => plan.source_workout_id === row.id && plan.calendar_link?.mode === 'linked' && inGroup(plan))?.time_of_day || row.time_of_day, source: 'published', note: [row.note, ...plans.filter((plan) => plan.source_workout_id === row.id && inGroup(plan)).map((plan) => plan.notes)].filter(Boolean).join('\n').slice(0, 2500) }))
   plans.filter((row) => row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && (!row.source_workout_id || !workouts.some((workout) => workout.id === row.source_workout_id)) && inGroup(row)).forEach((row) => candidates.push({ ...row, workout_date: row.plan_date, note: row.notes, source: 'plan' }))
   const seen = new Set()
   sessions = sessions.filter((row) => { if (!row.session_slot || row.session_slot === 'legacy') return true; const key = `${row.session_date}|${row.session_slot}`; if (seen.has(key)) return false; seen.add(key); return true })
@@ -33,9 +35,17 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     let matchStatus = candidate ? 'slot' : 'unmatched'
     if (!candidate && timed.length === 0 && sessionCount === 1 && sameDay.length === 1 && (!timeOfDay || !sameDay[0].time_of_day)) { candidate = sameDay[0]; matchStatus = 'day_only' }
     if (!candidate && sameDay.length) matchStatus = 'ambiguous'
+    let matchReason = null
+    if (!candidate) {
+      if (sameDay.length) matchReason = timeOfDay && sameDay.every(row => row.time_of_day && row.time_of_day !== timeOfDay) ? 'slot-mismatch' : 'choice-required'
+      else {
+        const otherGroup = workouts.some(row => row.workout_date === day && !inGroup(row)) || plans.some(row => row.activity_type === 'swim' && row.plan_date === day && !inGroup(row))
+        matchReason = otherGroup ? 'group-mismatch' : 'no-plan'
+      }
+    }
     const dayFeedback = responses.filter((row) => responseDay(row) === day && row.day_type === 'after' && (!row.activity_type || row.activity_type === 'swim'))
     const allSessionsCount = sessions.filter((row) => row.session_date === day).length
-    const slotFeedback = dayFeedback.filter((row) => row.session_slot && row.session_slot === session.session_slot).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    const slotFeedback = dayFeedback.filter((row) => row.session_slot && row.session_slot === session.session_slot).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(b.id || '').localeCompare(String(a.id || '')))
     const legacyFeedback = dayFeedback.filter((row) => !row.session_slot)
     const feedbackLink = slotFeedback.length ? 'slot' : legacyFeedback.length === 1 && allSessionsCount === 1 ? 'day_only' : legacyFeedback.length ? 'ambiguous' : 'missing'
     const feedback = feedbackLink === 'slot' ? analysisResponse(slotFeedback[0]) : feedbackLink === 'day_only' ? analysisResponse(legacyFeedback[0]) : null
@@ -43,8 +53,16 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     if (selectedReference) {
       candidate = sameDay.find((row) => `${row.source === 'published' ? 'workout' : 'plan'}:${row.id}` === selectedReference && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay)) || null
       matchStatus = candidate ? 'slot' : 'ambiguous'
+      const selected = workouts.find(row => `workout:${row.id}` === selectedReference) || plans.find(row => `plan:${row.id}` === selectedReference)
+      if (candidate) matchReason = null
+      else if (!selected) matchReason = 'selection-unavailable'
+      else if (!inGroup(selected)) matchReason = 'group-mismatch'
+      else if ((selected.workout_date || selected.plan_date) !== day) matchReason = 'date-mismatch'
+      else if (selected.calendar_link?.detachedWorkoutId) matchReason = 'detached-plan'
+      else matchReason = sameDay.some(row => `${row.source === 'published' ? 'workout' : 'plan'}:${row.id}` === selectedReference) ? 'slot-mismatch' : 'selection-unavailable'
     }
-    return { date: day, sessionSlot: session.session_slot, title: candidate?.title || 'Registrerat simpass', focus: candidate?.focus || null, timeOfDay: candidate?.time_of_day || null, distanceMeters: candidate ? number(candidate.distance_meters) : null, durationMinutes: candidate ? number(candidate.duration_minutes) : null, content: String(candidate?.content || '').slice(0, 5000), note: String(candidate?.note || '').slice(0, 2500), source: candidate?.source || null, matchStatus, feedbackLink, feedback, candidateTitles: candidate ? [] : sameDay.map((row) => row.title).slice(0, 8) }
+    const commonMinutes = !candidate && !selectedReference ? commonPlannedSwimTime(timed.map(row => row.duration_minutes)) : null
+    return { date: day, sessionSlot: session.session_slot, title: candidate?.title || 'Registrerat simpass', focus: candidate?.focus || null, timeOfDay: candidate?.time_of_day || null, distanceMeters: candidate ? number(candidate.distance_meters) : null, durationMinutes: candidate ? number(candidate.duration_minutes) : commonMinutes, timeBasis: commonMinutes != null ? 'common-slot' : candidate ? 'linked-pass' : null, content: String(candidate?.content || '').slice(0, 5000), note: String(candidate?.note || '').slice(0, 2500), source: candidate?.source || null, matchStatus, matchReason, feedbackLink, feedback, candidateTitles: candidate ? [] : sameDay.map((row) => row.title).slice(0, 8) }
   }).sort((a, b) => a.date.localeCompare(b.date) || String(a.sessionSlot).localeCompare(String(b.sessionSlot)))
 }
 

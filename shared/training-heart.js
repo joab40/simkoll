@@ -1,6 +1,7 @@
 import { coachWeekAddDays } from './coach-week.js'
 import { sleepFollowUpReasons } from './coach-control-panel.js'
 import { trainingLoad } from './training-load.js'
+import { trainingLoadGaps } from './training-load-diagnostics.js'
 
 const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 const valid = (value, min, max) => Number.isFinite(value) && value >= min && value <= max
@@ -32,7 +33,11 @@ function load(rows) {
   const known = reports.filter(({ row, amount }) => types.has(row.activityType) && amount.value != null)
   const reported = known.filter(item => item.amount.source === 'reported'), estimated = known.filter(item => item.amount.source === 'estimated')
   const total = items => items.length ? round(items.reduce((sum, item) => sum + item.amount.value, 0)) : null
-  return { value: total(known), reportedValue: total(reported), estimatedValue: total(estimated), reported: reported.length, estimated: estimated.length, known: known.length, total: reports.length, days: new Set(known.map(item => item.row.date)).size, rpeAnswers: reports.filter(item => item.amount.rpeKnown).length, missingRpe: reports.filter(item => !item.amount.rpeKnown).length, missingTime: reports.filter(item => item.amount.minutes == null).length, unknownActivity: reports.filter(item => !types.has(item.row.activityType)).length }
+  const gaps = reports.flatMap(({ row, amount }) => {
+    const issues = trainingLoadGaps(row, amount)
+    return issues.length ? [{ date: row.date, activity: types.has(row.activityType) ? row.activityType : 'unknown', slot: ['morning_swim', 'afternoon_swim'].includes(row.trainingSlot) ? row.trainingSlot : null, issues }] : []
+  }).sort((a, b) => b.date.localeCompare(a.date) || String(a.slot).localeCompare(String(b.slot)) || a.activity.localeCompare(b.activity))
+  return { value: total(known), reportedValue: total(reported), estimatedValue: total(estimated), reported: reported.length, estimated: estimated.length, known: known.length, total: reports.length, days: new Set(known.map(item => item.row.date)).size, rpeAnswers: reports.filter(item => item.amount.rpeKnown).length, missingRpe: reports.filter(item => !item.amount.rpeKnown).length, missingTime: reports.filter(item => item.amount.minutes == null).length, unknownActivity: reports.filter(item => !types.has(item.row.activityType)).length, gaps }
 }
 
 export { afterReports as trainingHeartAfterReports }
