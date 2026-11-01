@@ -1,5 +1,7 @@
 # Träningshjärtat
 
+Hjärtat ritas som en färgad, glansig SVG i emoji-liknande stil, inte som en plattformsberoende emoji. Unika gradient-ID:n håller färgerna separata när flera simmarkort visas. Samma grundstorlek och mjuk skalning 0,88–1,08 ger synlig stor–liten-pulsering utan att blanda ihop hjärtstorlek med belastning. Ringen är separat och statisk; endast hjärtat pulserar. Hastigheterna och beräkningsreglerna är oförändrade. Detta bekräftar inte toppform.
+
 Hjärtat är en separat knapp bredvid simmarkortets huvudknapp (inga nästlade knappar). Hovring/fokus öppnar förhandsvisning, klick fäster panelen. Klick igen, utanför, kryss, Escape eller tangentbordsfokus utanför stänger. Panelen renderas i portal med viewport-bunden position för att inte klippas av kortets overflow. Den är icke-modal och alla värden/färger har textalternativ.
 
 `shared/training-heart.js` beräknar endast beskrivande produktregler, ingen validerad medicinsk/formpoäng:

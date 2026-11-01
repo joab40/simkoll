@@ -123,3 +123,16 @@ test('heart is a sibling of the card toggle, with accessible portal, hover/click
   assert.match(css, /\.motion-off \.training-heart-shape \{ animation: none/)
   assert.doesNotMatch(view, /apiRequest|fetch\(/)
 })
+
+test('emoji-like heart keeps its gloss inside one animated group and load ring separate', () => {
+  const source = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+  const view = source('src/training-heart.jsx'), css = source('src/training-heart.css')
+  assert.ok(view.includes('id={`${id}-fill`}'), 'each card has its own gradient')
+  assert.ok(view.includes('fill={`url(#${id}-fill)`}'))
+  assert.match(view, /<circle className="training-heart-ring"[^>]*\/>\s*<g className=\{`training-heart-shape motion-\$\{motion\}`\}>/)
+  assert.match(view, /training-heart-body[\s\S]*training-heart-shine[\s\S]*<\/g>/)
+  for (const color of ['green', 'yellow', 'red']) assert.match(css, new RegExp(`\\.training-heart-trigger\\.${color} \\{ --heart-light:`))
+  for (const scale of ['.88', '1.08']) assert.ok(css.includes(`scale(${scale})`))
+  for (const seconds of ['3.2', '2.6', '2']) assert.ok(css.includes(`training-heart-breathe ${seconds}s`))
+  assert.doesNotMatch(css, /training-heart-ring[^{}]*\{[^}]*animation:/)
+})
