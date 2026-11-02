@@ -41,7 +41,7 @@ for (const role of ['swimmer', 'coach']) test(`${role} assistant request include
     assert.ok(prompt.includes(entry.question), entry.id)
     for (const paragraph of entry.answer) assert.ok(prompt.includes(paragraph), entry.id)
   }
-  for (const forbidden of ['training_diary_reflections', 'profile_daily_sleep', 'training_swim_times', 'coach_activity_notes']) assert.ok(!reads.some(url => url.pathname.endsWith('/' + forbidden)), forbidden)
+  for (const forbidden of ['training_diary_reflections', 'profile_daily_sleep', 'profile_daily_illness', 'training_swim_times', 'coach_activity_notes']) assert.ok(!reads.some(url => url.pathname.endsWith('/' + forbidden)), forbidden)
   for (const url of reads.filter(url => url.pathname.endsWith('/development_talks'))) {
     assert.equal(url.searchParams.get('swimmer_id'), `eq.${profileId}`)
     assert.doesNotMatch(url.searchParams.get('select'), /coach_notes|coach_preparation/)

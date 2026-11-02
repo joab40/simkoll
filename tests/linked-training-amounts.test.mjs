@@ -119,7 +119,7 @@ test('loader fetches two bounded projected sources once for the roster, keeps pr
     return { ok: true, json: async () => rows }
   }
   const loaded = await loadSwimmerTraffic(asOf, read)
-  assert.equal(calls.length, 7)
+  assert.equal(calls.length, 8)
   assert.equal(loaded.profiles.find(row => row.profileId === 'a').heart.load.estimatedValue, 1100)
   assert.equal(loaded.profiles.find(row => row.profileId === 'b').heart.load.value, null)
   assert.doesNotMatch(JSON.stringify(loaded), /workout_reference|training_group|linkedEstimate|activity_minutes/)

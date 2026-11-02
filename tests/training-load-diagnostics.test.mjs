@@ -95,7 +95,7 @@ test('API diagnostics remain profile-isolated and require no extra queries for n
     const rows = query.startsWith('profiles?') ? [{ id: 'p' }, { id: 'q' }] : query.startsWith('responses?') ? [{ id: 'a', profile_id: 'p', activity_date: '2026-11-01', day_type: 'after', activity_type: 'strength', rpe: 5, activity_minutes: null }] : []
     return { ok: true, json: async () => rows }
   })
-  assert.equal(calls.length, 5)
+  assert.equal(calls.length, 6)
   assert.deepEqual(result.profiles.find(row => row.profileId === 'p').heart.load.gaps[0].issues, ['reported-time-missing'])
   assert.deepEqual(result.profiles.find(row => row.profileId === 'q').heart.load.gaps, [])
 })

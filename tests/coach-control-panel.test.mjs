@@ -26,7 +26,7 @@ test('selected week metrics exclude comparison data, while speed retains last ca
   assert.equal(report.sleep.averageMinutes, 480)
   assert.equal(report.swimmers[0].speedPrevious, 2.5)
   assert.equal(report.swimmers[0].speedCurrent, 4.5)
-  assert.equal(report.followUps.length, 0)
+  assert.equal(report.followUps.length, 1) // Direct sickness yesterday is actionable without waiting two days.
   assert.equal(report.start, '2026-10-26')
   assert.equal(report.signalStart, '2026-10-22')
 })
@@ -56,7 +56,7 @@ test('coach overview counts unique after-activities and only known training load
   assert.equal(report.feedbackCount, 1)
 })
 
-test('dialog signals require repeated distinct days, not duplicate responses or silence', () => {
+test('heavy body and high RPE are yellow; direct current sickness is red', () => {
   const responses = [
     after('a', '2026-10-17', { rpe: 9, body: 2 }),
     after('a', '2026-10-17', { createdAt: '2026-10-17T19:00:00Z', rpe: 9, body: 2 }),
@@ -65,9 +65,9 @@ test('dialog signals require repeated distinct days, not duplicate responses or 
   ]
   const report = buildCoachControlPanel(profiles, responses, '2026-10-19')
   assert.equal(report.followUps.length, 1)
-  assert.equal(report.followUps[0].profileId, 'a')
-  assert.match(report.followUps[0].reasons.join(' '), /kroppskänsla 2 dagar/)
-  assert.match(report.followUps[0].reasons.join(' '), /RPE 8–10\) 2 dagar/)
+  assert.equal(report.followUps[0].profileId, 'b')
+  assert.match(report.watchList[0].reasons.join(' '), /kroppskänsla 2 dagar/)
+  assert.match(report.watchList[0].reasons.join(' '), /RPE 8–10\) 2 dagar/)
 })
 
 test('speed feeling development needs at least two answers in both weeks', () => {
@@ -94,7 +94,7 @@ test('sickness counts swimmers and distinct days across the full overview period
   assert.equal(report.sickSwimmers, 2)
   assert.equal(report.sickDays, 3)
   assert.equal(report.swimmers.find((item) => item.profileId === 'a').sickDays, 2)
-  assert.equal(report.followUps.length, 0) // Older illness does not trigger the seven-day signal.
+  assert.equal(report.followUps.length, 2) // Both have a direct sickness report yesterday, independently of older history.
 })
 
 test('sleep overview excludes skipped, missing, duplicate and out-of-scope nights without treating them as zero', () => {

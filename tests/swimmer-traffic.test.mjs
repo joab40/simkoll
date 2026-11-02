@@ -14,8 +14,8 @@ test('one classifier distinguishes all colours without treating missing values a
   assert.equal(status({}).color, 'unknown')
   assert.equal(status({ responses: [answer()] }).color, 'green')
   assert.equal(status({ responses: [answer(end, { body: 1 })] }).color, 'yellow')
-  assert.equal(status({ responses: [answer('2026-10-30', { body: 2, feeling: 1 }), answer(end, { body: 1, feeling: 2 })] }).color, 'red')
-  assert.equal(status({ responses: [answer(end, { type: 'sick' }), answer(end, { type: 'sick' })] }).color, 'yellow')
+  assert.equal(status({ responses: [answer('2026-10-30', { body: 2, feeling: 1 }), answer(end, { body: 1, feeling: 2 })] }).color, 'yellow')
+  assert.equal(status({ responses: [answer(end, { type: 'sick' }), answer(end, { type: 'sick' })] }).color, 'red')
   assert.equal(status({ responses: [answer('2026-10-30', { type: 'sick' }), answer(end, { type: 'sick' })] }).color, 'red')
   for (const value of [null, undefined, '', 0, '1', NaN]) {
     assert.equal(status({ responses: [answer(end, { body: value, feeling: value })] }).color, 'green')
@@ -46,13 +46,13 @@ test('sleep warnings affect the same colours as the card, independently of RPE',
 test('planned sessions deduplicate exact date/slot and use the respective calendar week', () => {
   const plans = [{ date: '2026-10-30', slot: 'morning_swim' }, { date: '2026-10-30', slot: 'afternoon_swim' }]
   const result = status({ plans: [...plans, ...plans], sessions: [{ date: '2026-10-30', slot: 'morning_swim' }] })
-  assert.equal(result.color, 'yellow')
-  assert.match(result.reasons[0], /^1 planerade pass/)
-  assert.equal(status({ plans: [...plans, { date: end, slot: 'strength' }] }).color, 'red')
-  assert.equal(status({ plans, sessions: plans }).color, 'green')
+  assert.equal(result.color, 'unknown')
+  assert.match(result.planningNotes[0], /^1 planerade pass/)
+  assert.equal(status({ plans: [...plans, { date: end, slot: 'strength' }] }).color, 'unknown')
+  assert.equal(status({ plans, sessions: plans }).color, 'unknown')
   assert.equal(status({ plans: [{ date: '2026-10-25', slot: 'strength' }] }).color, 'unknown')
   const past = swimmerTrafficAt({ plans: [{ date: '2026-10-23', slot: 'strength' }] }, '2026-10-24')
-  assert.equal(past.color, 'yellow')
+  assert.equal(past.color, 'unknown')
 })
 
 test('comparison uses one current roster, no invented previous status for new swimmers', () => {
@@ -78,7 +78,7 @@ test('group/search cohort changes both sides; absent rows stay grey, not green',
   assert.equal(trafficCounts([profile], null).canCompare, false)
 })
 
-test('loader reads all pages from five bounded, narrow sources without writes', async () => {
+test('loader reads all pages from six bounded, narrow sources without writes', async () => {
   const requests = []
   const report = await loadSwimmerTraffic(end, async (query, options) => {
     requests.push(query)
@@ -98,8 +98,8 @@ test('loader reads all pages from five bounded, narrow sources without writes', 
       : [{ id: 501, profile_id: 'a', activity_date: end, day_type: 'sick' }]
     return { ok: true, json: async () => rows }
   })
-  assert.equal(requests.length, 6)
-  assert.equal(report.profiles[0].current.color, 'yellow')
+  assert.equal(requests.length, 7)
+  assert.equal(report.profiles[0].current.color, 'red')
   assert.equal(report.profiles[0].previous.color, 'green')
   assert.doesNotMatch(JSON.stringify(report), /activity_date|profile_id|minutes|comment/)
 })

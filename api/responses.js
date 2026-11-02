@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { analyticsRows } from '../server/analytics-rows.js'
 import { coachWeekAddDays, validCoachWeek } from '../shared/coach-week.js'
 import { dailySleep } from '../server/daily-sleep.js'
+import { dailyIllness } from '../server/daily-illness.js'
 import { loadWorkoutChoices } from '../server/workout-choice.js'
 import { validWorkoutOption } from '../shared/swim-workout-options.js'
 import { checkinTraining, validCheckinActivity } from '../shared/checkin-activity.js'
@@ -109,6 +110,11 @@ export default async function handler(request, response) {
   if (!role) return sendJson(response, 401, { error: 'Du behöver logga in igen.' })
 
   try {
+    if ((request.method === 'GET' && request.query?.illness === 'true') || (request.method === 'POST' && request.body?.action === 'save-illness')) {
+      response.setHeader('Cache-Control', 'private, no-store')
+      try { return sendJson(response, 200, await dailyIllness(request, role)) }
+      catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+    }
     if ((request.method === 'GET' && request.query?.sleep === 'true') || (request.method === 'POST' && request.body?.action === 'save-sleep')) {
       response.setHeader('Cache-Control', 'private, no-store')
       try { return sendJson(response, 200, await dailySleep(request, role)) }

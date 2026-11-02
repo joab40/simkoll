@@ -39,6 +39,8 @@ import SwimmerAgreementCard from './swimmer-agreement-card.jsx'
 import SwimmerCardSummary, { DirectionExplanation } from './swimmer-card-summary.jsx'
 import { programActivityDirection } from '../shared/swimmer-card-direction.js'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
+import IllnessHistory, { IllnessQuestion } from './daily-illness.jsx'
+import { illnessLabel } from '../shared/illness.js'
 import PrivateChatReply from './private-chat-reply.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import DevelopmentTalkRoster from './development-talk-roster.jsx'
@@ -2109,6 +2111,20 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   const [sleepError, setSleepError] = useState('')
   const [sleepRetry, setSleepRetry] = useState(0)
   const [sleepSaved, setSleepSaved] = useState(false)
+  const [illnessStatus, setIllnessStatus] = useState('loading'), [illnessError, setIllnessError] = useState('')
+  const [illnessSaved, setIllnessSaved] = useState(false)
+  const [dailyPrompts, setDailyPrompts] = useState(null)
+  useEffect(() => {
+    if (!identified || !hasProfile) { setIllnessStatus('done'); return }
+    let active = true
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
+    apiRequest(`/api/responses?illness=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then(data => {
+      if (!active) return
+      setIllnessStatus(data.available === false ? 'error' : data.records?.length ? 'done' : 'needed')
+      setIllnessError(data.available === false ? data.warning : '')
+    }).catch(error => { if (active) { setIllnessError(error.name === 'AbortError' ? 'Sjukdomskollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setIllnessStatus('error') } }).finally(() => clearTimeout(timer))
+    return () => { active = false; clearTimeout(timer); controller.abort() }
+  }, [code, activityDate, identified, hasProfile])
   const [workoutOptions, setWorkoutOptions] = useState([])
   const [optionsStatus, setOptionsStatus] = useState('loading')
   const [optionsRetry, setOptionsRetry] = useState(0)
@@ -2125,12 +2141,13 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     if (!identified || !hasProfile) { setSleepStatus('done'); return }
     let active = true
     setSleepStatus('loading'); setSleepError('')
-    apiRequest(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code).then((data) => { if (active) setSleepStatus(data.records?.length ? 'done' : 'needed') }).catch((error) => { if (active) { setSleepError(error.message); setSleepStatus('error') } })
-    return () => { active = false }
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
+    apiRequest(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then((data) => { if (active) { const done = Boolean(data.records?.length); setSleepStatus(done ? 'done' : 'needed'); if (done) setSleepSaved(true) } }).catch((error) => { if (active) { setSleepError(error.name === 'AbortError' ? 'Sömnkollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setSleepStatus('error') } }).finally(() => clearTimeout(timer))
+    return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [code, activityDate, identified, hasProfile, sleepRetry])
   const typeQuestions = form.type ? getQuestions(form.type, form.activityType).filter((question) => question.key !== 'sleep') : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
-  const questions = [...(identified && hasProfile && sleepStatus !== 'done' ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
+  const questions = [...(identified && hasProfile && (dailyPrompts?.illness ?? illnessStatus !== 'done') ? [{ key: 'dailyIllness', title: 'Känner du dig sjuk eller på väg att bli sjuk?', hint: 'Sjukdomskänsla är något annat än trötthet efter träningen.', kind: 'dailyIllness' }] : []), ...(identified && hasProfile && (dailyPrompts?.sleep ?? sleepStatus !== 'done') ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
   const swimPlans = hasProfile ? workoutOptions : (Array.isArray(plannedWorkouts) ? plannedWorkouts : [plannedWorkouts]).filter(Boolean)
   const primarySwimPlan = swimPlans[0] || null
@@ -2226,17 +2243,19 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Hur mådde du igår?' : 'Hur känns det idag?'} hint="Gå på magkänslan.">
         <div className="feeling-grid">
           {FEELINGS.map((feeling) => (
-            <button key={feeling.value} onClick={() => { update('feeling', feeling.value); next() }}>
+            <button key={feeling.value} disabled={identified && hasProfile && (sleepStatus === 'loading' || illnessStatus === 'loading')} onClick={() => { setDailyPrompts(current => current || { illness: illnessStatus !== 'done', sleep: sleepStatus !== 'done' }); update('feeling', feeling.value); next() }}>
               <span>{feeling.emoji}</span><small>{feeling.label}</small>
             </button>
           ))}
         </div>
+        {identified && hasProfile && (sleepStatus === 'loading' || illnessStatus === 'loading') && <p role="status">Kontrollerar dagens frivilliga frågor…</p>}
       </Question>
     )
   } else {
     const question = questions[step - questionOffset]
     content = (
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.hint}>
+        {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={apiRequest} onContinue={() => { setIllnessSaved(true); next() }} />)}
         {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={apiRequest} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
         {question.kind === 'scale' && (
           <Scale
@@ -5207,10 +5226,12 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
           </button>
           <TrainingHeart data={heartsById.get(profile.id)} asOf={trafficDate} name={profile.displayName} loading={trafficLoading} error={trafficError} excluded={profile.isTestProfile || profile.active === false || Boolean(profile.approvalStatus && profile.approvalStatus !== 'approved')} />
           </div>
+          {traffic.illness?.current && <p className="swimmer-illness-badge">🤧 {illnessLabel(traffic.illness.current.status)} · {traffic.illness.current.activity_date}</p>}
           {!isExpanded && setupCompleteCount < 4 && setupHelpProfile === profile.id && <div className={`swimmer-setup-help ${setupIndicatorColor}`} role="status"><div><strong>{setupCompleteCount}/4 inställningar klara</strong><button type="button" onClick={() => setSetupHelpProfile(null)} aria-label="Stäng informationen">×</button></div><p>Saknas: {setupMissing.join(', ')}.</p></div>}
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
-            {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} Att följa upp</strong><span>{signalReasons.join(' · ')}</span></div>}
+            {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} {traffic.color === 'red' ? 'Ta en dialog' : 'Bevaka utvecklingen'}</strong><span>{signalReasons.join(' · ')}</span></div>}
+            {traffic.planningNotes?.length > 0 && <p className="checkin-selection-note">Planering: {traffic.planningNotes.join(' · ')}. Påverkar inte hälsotrafikljuset.</p>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             <button type="button" className="swimmer-trend-card" onClick={() => setSelectedProfile(profile)} aria-label={`Öppna statistik för ${profile.displayName}`}>
               <span className={`swimmer-trend-arrow ${trendState.tone}`} aria-hidden="true">{trendLoading && !trendSummary ? '…' : trendState.arrow}</span>
@@ -5225,6 +5246,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             <SwimmerStrengthProgramCard programType="dryland" profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
             <SleepHistory profileId={profile.id} code={code} request={apiRequest} responses={responses.filter((item) => item.profileId === profile.id)} />
+            <IllnessHistory key={profile.id} profileId={profile.id} code={code} request={apiRequest} />
             {goalsEnabled && <SwimmerDevelopmentGoalsCard code={code} profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
             <SwimmerNotes profile={profile} code={code} />

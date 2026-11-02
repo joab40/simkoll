@@ -13,7 +13,7 @@ test('general feeling and physical body have distinct question explanations but 
   assert.match(body.description, /Kraftlös = 1 och Seg = 2/)
   for (const help of [feeling, body]) {
     assert.match(help.description, /1–2 av 5/)
-    assert.match(help.rule, /minst två olika aktivitetsdagar/)
+    assert.match(help.rule, /minst tre olika aktivitetsdagar/)
     assert.match(help.rule, /inte antal svar eller ett medelvärde/)
     assert.match(help.rule, /Saknade svar räknas inte som låga/)
   }
@@ -29,11 +29,12 @@ test('explanations match independent, distinct-day signals, not duplicates or mi
     row('single', '2026-10-30', { body: 1, feeling: 1 }), row('single', '2026-10-30', { body: 1, feeling: 1 }),
     row('single', '2026-10-29', {}),
   ], '2026-10-31', [], { periodStart: '2026-10-26' })
-  assert.equal(report.followUps.length, 2)
-  assert.deepEqual(report.followUps.find((item) => item.profileId === 'body').reasons, ['Låg kroppskänsla 2 dagar senaste veckan'])
-  assert.deepEqual(report.followUps.find((item) => item.profileId === 'feeling').reasons, ['Låg känsla 2 dagar senaste veckan'])
+  assert.equal(report.followUps.length, 0)
+  assert.equal(report.watchList.length, 3)
+  assert.deepEqual(report.watchList.find((item) => item.profileId === 'body').reasons, ['Låg kroppskänsla 2 dagar senaste veckan'])
+  assert.deepEqual(report.watchList.find((item) => item.profileId === 'feeling').reasons, ['Låg känsla 2 dagar senaste veckan'])
   assert.equal(report.signalStart, '2026-10-25')
-  for (const swimmer of report.followUps) for (const reason of swimmer.reasons) assert.ok(coachFollowUpHelp(reason))
+  for (const swimmer of report.watchList) for (const reason of swimmer.reasons) assert.ok(coachFollowUpHelp(reason))
 })
 
 test('every current sleep signal and other follow-up reason has matching help', () => {

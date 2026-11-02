@@ -6,6 +6,7 @@ import './training-diary.css'
 import SwimTimes from './swim-times.jsx'
 import SwimmerDevelopment from './swimmer-development.jsx'
 import SleepHistory from './daily-sleep.jsx'
+import IllnessHistory from './daily-illness.jsx'
 import FeatureFaq from './feature-faq.jsx'
 import { diaryEntryLoad } from '../shared/training-load.js'
 
@@ -135,6 +136,7 @@ export default function TrainingDiary({ code, request, onBack, onGoals }) {
       <div ref={timesSection}><SwimTimes code={code} request={request} range={range} entries={data.entries} onDirty={onDirty} onData={setTimeState} createRequest={createTime} onCreateHandled={setCreateTime} /></div>
       <DiaryConnections key={`${range.start}:${range.end}`} days={current.days} byType={current.byType} raceResults={data.raceResults || []} goals={data.goals} onDay={onDay} />
       <SleepHistory code={code} request={request} start={range.start} end={range.end} days={current.days} />
+      <IllnessHistory code={code} request={request} start={range.start} end={range.end} />
       <section className="diary-development">
         <div className="diary-section-heading"><div><p className="eyebrow">Min utveckling</p><h2>Mängd och upplevelse över tid</h2></div></div>
         <div className="diary-legend"><span><i style={{ background: SWIM_METER_COLOR }} /> Simmeter · rapporterat + uppskattat från kopplade pass</span><span><i className="race" /> Tävlingsdag / planerad tävling</span></div>

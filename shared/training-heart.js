@@ -2,7 +2,8 @@ import { coachWeekAddDays } from './coach-week.js'
 import { sleepFollowUpReasons } from './coach-control-panel.js'
 import { trainingLoad } from './training-load.js'
 import { trainingLoadGaps } from './training-load-diagnostics.js'
-import { trainingHeartState } from './training-heart-state.js'
+import { trainingHeartState, TRAINING_STATES } from './training-heart-state.js'
+import { illnessDays, illnessLabel } from './illness.js'
 
 const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 const valid = (value, min, max) => Number.isFinite(value) && value >= min && value <= max
@@ -43,7 +44,7 @@ function load(rows) {
 
 export { afterReports as trainingHeartAfterReports }
 
-export function buildTrainingHeart({ responses = [], sleep = [] } = {}, asOf) {
+export function buildTrainingHeart({ responses = [], sleep = [], illness = [], illnessAvailable = true } = {}, asOf) {
   if (!day(asOf)) throw new Error('Ogiltigt datum för träningshjärtat.')
   const start = coachWeekAddDays(asOf, -6), feelingStart = coachWeekAddDays(asOf, -2), previousStart = coachWeekAddDays(asOf, -13), previousEnd = coachWeekAddDays(asOf, -7)
   const recent = responses.filter(row => within(row, start, asOf)), mood = recent.filter(row => row.date >= feelingStart)
@@ -63,17 +64,20 @@ export function buildTrainingHeart({ responses = [], sleep = [] } = {}, asOf) {
   const nights = [...new Map(sleep.filter(row => !row.skipped && day(row.activity_date) && row.activity_date >= start && row.activity_date <= asOf && valid(row.minutes, 0, 840) && [1, 3, 5].includes(row.quality)).map(row => [row.activity_date, row])).values()]
   const sickDays = [...new Set(recent.filter(row => row.type === 'sick').map(row => row.date))].sort()
   const warnings = sleepFollowUpReasons(nights, asOf)
+  const illnessAnswers = illnessDays(illness, start, asOf), latestIllness = illnessAnswers.at(-1)
+  if (latestIllness && latestIllness.activity_date >= coachWeekAddDays(asOf, -1) && latestIllness.status !== 'none') warnings.push(`${illnessLabel(latestIllness.status)} · ${latestIllness.activity_date}`)
   if (sickDays.length) warnings.push(`Sjukdom rapporterad ${sickDays.length} dag${sickDays.length === 1 ? '' : 'ar'} senaste sju dagarna`)
   const swimReports = afterReports(recent).filter(row => row.activityType === 'swim')
   const currentSpeed = dailyMetric(swimReports.filter(row => row.date >= feelingStart), 'speedFeeling')
   const earlierSpeed = dailyMetric(swimReports.filter(row => row.date < feelingStart), 'speedFeeling')
-  const readiness = trainingHeartState({ body, feeling, speed: currentSpeed, earlierSpeed,
+  let readiness = trainingHeartState({ body, feeling, speed: currentSpeed, earlierSpeed,
     load: { ...currentLoad, previous: previousLoad, ratio }, nights: nights.filter(night => night.activity_date >= feelingStart), warnings })
+  if (!illnessAvailable && readiness.state !== 'watch') readiness = { ...readiness, ...TRAINING_STATES.unknown, state: 'unknown', description: 'Sjukdomskollens underlag kunde inte hämtas. Övriga värden visas, men inget positivt träningsläge antas från ofullständiga källor.' }
   return {
     asOf, periods: { feelingStart, start, end: asOf, previousStart, previousEnd }, color, body, feeling,
     load: { ...currentLoad, previous: previousLoad, ratio, ring },
     speed: { ...speed, motion },
     sleep: { nights: nights.length, averageMinutes: round(mean(nights.map(row => row.minutes))), poorNights: nights.filter(row => row.quality === 1).length, lastDay: nights.map(row => row.activity_date).sort().at(-1) || null },
-    sickDays, warnings, readiness,
+    sickDays, warnings, readiness, illness: { available: illnessAvailable, latest: latestIllness || null },
   }
 }

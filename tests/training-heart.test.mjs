@@ -106,7 +106,7 @@ test('existing traffic endpoint maps narrow load/speed fields to summaries witho
     if (query.startsWith('responses?')) rows = sixReports.map(row => ({ id: row.id, profile_id: 'a', activity_date: row.date, created_at: row.createdAt, day_type: row.type, activity_type: row.activityType, session_slot: row.trainingSlot, body: row.body, feeling: row.feeling, rpe: row.rpe, activity_minutes: row.activityMinutes, speed_feeling: row.speedFeeling, competition: false }))
     return { ok: true, json: async () => rows }
   })
-  assert.equal(calls.length, 5)
+  assert.equal(calls.length, 6)
   assert.equal(report.profiles[0].heart.load.value, 900)
   assert.equal(report.profiles[0].heart.load.ratio, 1)
   assert.equal(report.profiles[0].heart.speed.motion, 'brisk')

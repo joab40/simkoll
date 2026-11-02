@@ -24,8 +24,8 @@ test('authorized traffic GET is read-only, no-store and returns only aggregate s
     assert.match(response.headers['Cache-Control'], /no-store/)
     assert.equal(response.data.asOf, stockholmDate())
     assert.equal(response.data.profiles[0].current.color, 'green')
-    assert.equal(requests.length, 5)
-    assert.ok(requests.every(path => /\/(profiles|responses|profile_daily_sleep|personal_training_sessions|planned_training_sessions)\?/.test(path)))
+    assert.equal(requests.length, 6)
+    assert.ok(requests.every(path => /\/(profiles|responses|profile_daily_sleep|profile_daily_illness|personal_training_sessions|planned_training_sessions)\?/.test(path)))
     assert.doesNotMatch(JSON.stringify(response.data), /comment|minutes|reflection|coach_notes|display_name/)
   } finally { globalThis.fetch = originalFetch }
 })

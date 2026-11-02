@@ -1,11 +1,12 @@
 import { shortSleepWarning } from './sleep-warning.js'
+import { followupSignals } from './followup-signals.js'
+import { illnessDays } from './illness.js'
 
 const dayBefore = (day, days) => new Date(Date.parse(`${day}T12:00:00Z`) - days * 86400000).toISOString().slice(0, 10)
 const mean = (values) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
 const numeric = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
 const activityDay = (row) => String(row.activityDate || row.createdAt || '').slice(0, 10)
 const activityKey = (row) => `${activityDay(row)}:${row.activityType || 'unknown'}:${row.trainingSlot || 'day'}`
-const uniqueDays = (rows, predicate) => new Set(rows.filter(predicate).map(activityDay)).size
 export function sleepFollowUpReasons(rows, asOf) {
   const unique = [...new Map(rows.filter((row) => !row.skipped && numeric(row.minutes) !== null && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)).map((row) => [row.activity_date, row])).values()]
   const reasons = []
@@ -26,7 +27,7 @@ const sleepSummary = (rows) => ({
   poorNights: rows.filter((row) => row.quality === 1).length,
 })
 
-export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords = [], { periodStart } = {}) {
+export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords = [], { periodStart, illnessRecords = [] } = {}) {
   const start = periodStart || dayBefore(asOf, 13), recentStart = dayBefore(asOf, 6)
   const comparisonStart = periodStart ? dayBefore(periodStart, 7) : start
   const scopedIds = new Set(profiles.filter((profile) => !profile.isTestProfile).map((profile) => profile.id))
@@ -53,29 +54,23 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     const previousAfter = comparisonPasses.filter((row) => row.profileId === profile.id && activityDay(row) < speedStart)
     const speedCurrent = currentAfter.map((row) => numeric(row.speedFeeling)).filter((value) => value !== null)
     const speedPrevious = previousAfter.map((row) => numeric(row.speedFeeling)).filter((value) => value !== null)
-    const lowBodyDays = uniqueDays(recent, (row) => numeric(row.body) !== null && row.body <= 2)
-    const lowFeelingDays = uniqueDays(recent, (row) => numeric(row.feeling) !== null && row.feeling <= 2)
-    const highRpeDays = uniqueDays(recent, (row) => row.type === 'after' && numeric(row.rpe) !== null && row.rpe >= 8)
-    const sickDays = uniqueDays(recent, (row) => row.type === 'sick')
-    const reasons = []
     const ownSleep = sleep.filter((row) => row.profile_id === profile.id)
     const recentSleep = ownSleep.filter((row) => row.activity_date >= recentStart && row.activity_date <= asOf)
     const sleepWarning = shortSleepWarning(recentSleep, asOf)
-    reasons.push(...sleepFollowUpReasons(recentSleep, asOf))
-    if (sickDays >= 2) reasons.push(`Sjukfrånvaro rapporterad ${sickDays} dagar senaste veckan`)
-    if (lowBodyDays >= 2) reasons.push(`Låg kroppskänsla ${lowBodyDays} dagar senaste veckan`)
-    if (lowFeelingDays >= 2) reasons.push(`Låg känsla ${lowFeelingDays} dagar senaste veckan`)
-    if (highRpeDays >= 2) reasons.push(`Hög ansträngning (RPE 8–10) ${highRpeDays} dagar senaste veckan`)
+    const ownIllness = illnessRecords.filter(row => row.profile_id === profile.id)
+    const periodIllness = illnessDays(ownIllness, start, asOf)
+    const sickDates = new Set([...own.filter(row => row.type === 'sick').map(activityDay), ...periodIllness.filter(row => row.status === 'sick').map(row => row.activity_date)])
+    const signals = followupSignals({ responses: recent, illness: ownIllness, sleepReasons: sleepFollowUpReasons(recentSleep, asOf), sleepWarning, asOf })
     return {
       profileId: profile.id, displayName: profile.displayName, emoji: profile.emoji || '🏊',
       completed: completed.filter((row) => row.profileId === profile.id).length,
       rpe: mean(ownAfter.map((row) => numeric(row.rpe)).filter((value) => value !== null)),
       feedback: ownAfter.filter((row) => Boolean(row.comment?.trim()) || numeric(row.pass) !== null || numeric(row.setup) !== null).length,
-      sickDays: uniqueDays(own, (row) => row.type === 'sick'),
+      sickDays: sickDates.size, mildDays: periodIllness.filter(row => row.status === 'mild').length,
       sleep: sleepSummary(ownSleep.filter((row) => row.activity_date >= start)), sleepWarning,
       speedCurrent: speedCurrent.length >= 2 ? mean(speedCurrent) : null,
       speedPrevious: speedPrevious.length >= 2 ? mean(speedPrevious) : null,
-      reasons,
+      reasons: signals.reasons, signalColor: signals.color, illness: signals.illness,
     }
   })
   return {
@@ -88,8 +83,10 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     loadAnswers: knownLoads.length,
     sickSwimmers: swimmers.filter((swimmer) => swimmer.sickDays > 0).length,
     sickDays: swimmers.reduce((sum, swimmer) => sum + swimmer.sickDays, 0),
+    mildSwimmers: swimmers.filter(swimmer => swimmer.mildDays > 0).length,
     sleep: sleepSummary(periodSleep),
-    followUps: swimmers.filter((swimmer) => swimmer.reasons.length).sort((a, b) => b.reasons.length - a.reasons.length || a.displayName.localeCompare(b.displayName, 'sv')),
+    followUps: swimmers.filter((swimmer) => swimmer.signalColor === 'red').sort((a, b) => b.reasons.length - a.reasons.length || a.displayName.localeCompare(b.displayName, 'sv')),
+    watchList: swimmers.filter((swimmer) => swimmer.signalColor === 'yellow').sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv')),
     swimmers,
   }
 }

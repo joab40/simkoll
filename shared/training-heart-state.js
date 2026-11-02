@@ -13,6 +13,7 @@ export const TRAINING_STATES = {
 }
 
 export const TRAINING_STATE_RULES = [
+  'Sjukdomskollen är separat från träningen. Senaste giltiga dagsvar idag/igår med Lite känningar eller Jag känner mig sjuk ger uppföljningsläge före positiva träningslägen, oavsett RPE eller belastning. Ett nyare Nej gör inte äldre känningar aktuella; saknade eller överhoppade svar betyder inte frisk. Äldre sjukfrånvaro under veckan visas fortsatt som separat varning. Ingen sjukdomsrisk räknas fram.',
   'Alla lägen är rapporterade signaler och produktregler för samtal, inte en validerad formbedömning. Ingen måltävling, träningsfas, direkt återhämtningsfråga, testlopps- eller tävlingsresultat används. Ingen AI körs och träningen ändras inte.',
   'Aktuellt betyder senaste tre kalenderdagarna till och med valt datum. Kropp, dagskänsla och aktuell simfartkänsla behöver vardera minst två olika svarsdagar för redo/toppningssignal. Varje dags medelvärde väger lika; värdena avrundas till en decimal. Gymmets kraftsvar blir aldrig simfart och tävlingssvar blir inte simfart i denna beräkning.',
   'Positivt sömnunderlag kräver minst två giltiga nätter under de senaste tre dagarna, minst 8 timmar varje sådan natt, inget Dålig-svar och sömnkvalitet minst 4 av 5 i snitt (Dålig=1, Okej=3, Bra=5). Detta är en försiktig produktregel för ungdoms-/juniormiljön, inte ett individuellt sömnmål. Längre sömn är inte i sig bevis på återhämtning. Saknad sömn räknas inte som utvilad.',

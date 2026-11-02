@@ -2,6 +2,7 @@
 // This is documentation, not access to anyone's personal records or feature state.
 import { TRAINING_HEART_EXAMPLE_ANSWERS } from './training-heart-examples.js'
 import { TRAINING_STATE_RULES } from './training-heart-state.js'
+import { FOLLOWUP_RULES } from './followup-signals.js'
 export const FEATURE_FAQ_UPDATED = '2026-11-02'
 export const FEATURE_FAQ_SECTIONS = [
   ['checkin', 'Incheckning och planering'],
@@ -12,6 +13,13 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'daily-illness', section: 'diary', question: 'Kan jag berätta att jag känner mig sjuk även om jag har tränat?', answer: [
+    'Ja. I profilkopplad incheckning finns den frivilliga dagsfrågan Känner du dig sjuk eller på väg att bli sjuk? Välj Nej, Lite känningar eller Jag känner mig sjuk. Den gäller aktivitetsdagen och visas även efter träning, tävling eller vila. Den beskriver sjukdomskänsla, inte hur tungt passet var. Ingen sjukdom gissas från tung kropp eller RPE.',
+    'Frågan hanteras en gång per dag även om du checkar in flera pass. Hoppa över idag är också ett dagsval, inte ett Nej. Svaret sparas direkt, separat från träning och poäng, synligt för dig och tränarna i Sjukdomskänningar i dagboken/simmarkortet. I din dagbok kan du ändra eller ta bort svaret för idag och igår, till exempel om du börjar känna dig sjuk senare. Tränaren ändrar inte svaret åt dig.',
+    'Känner sig sjuk idag/igår ger röd dialogsignal direkt. Lite känningar visas gult; minst tre olika dagar under sju dagar med ett aktuellt känningar-svar idag/igår ger rött. Aktuella sjukdomskänningar hindrar positiva lägen som Turbo/Redo i träningshjärtat. Ett nyare Nej tar bort markeringen av äldre känningar som aktuella men är ingen medicinsk friskförklaring. Saknat eller överhoppat svar betyder inte frisk. Detta är samtalsstöd, inte diagnos, sjukdomsprognos eller automatiskt beslut om träning.',
+    'Dessa nya dagsvar skickas inte automatiskt till språkmodellen eller utvecklingssamtalets AI-sammanställning. FAQ-assistenten kan förklara funktionen men får inte därigenom tillgång till någons sjukdomssvar. Om SQL 112 saknas eller en hämtning misslyckas visas att underlaget saknas; grundincheckningen kan ändå slutföras.',
+    'Kontrollpanelens Rapporterad sjukdom räknar både vanliga Sjuk-incheckningar och dagsvaret Jag känner mig sjuk, högst en gång per simmare och aktivitetsdag. Lite känningar visas separat och räknas inte som sjukdagar. Det är egna rapporter, inte medicinskt bekräftad sjukdom.',
+  ] },
   { id: 'swimmer-menu', section: 'checkin', question: 'Var hittar jag program, grenar och hjälp i simmarvyn?', answer: [
     'På datorn finns Veckoplanering, Min träningsdagbok och Mina mål som genvägar i toppmenyn. Under Mer ligger Mitt styrkeprogram, Mina landträningsprogram, Mina grenar, Peppflödet, FAQ och Info & villkor. Din profil öppnas med namnknappen bredvid. På mindre skärmar öppnar Meny hela navigationen. Vilka profilval som finns beror på inloggning och aktiverade funktioner.',
   ] },
@@ -179,11 +187,13 @@ export const FEATURE_FAQ = [
   { id: 'swimmer-traffic', section: 'coach', roles: ['coach'], question: 'Vad betyder trendpilarna för röda, gula och gröna simmare?', answer: [
     'Under Simmare visas antal röda, gula och gröna profiler med förändringen mot samma veckodag en vecka tidigare. ↗ betyder fler, ↘ färre och → oförändrat antal, inte automatiskt bättre eller sämre mående. Samma valda grupper och sökning används i båda perioderna. Tryck på en färg för att filtrera listan; färgvalet ändrar inte jämförelsegruppen. Kort, antal och filter använder samma färgberäkning, inklusive sömnsignaler.',
     'Testprofiler, avstängda och ännu inte godkända profiler räknas inte. Saknat underlag och nya profiler utan tidigare historik visas grå, inte gröna. Utan underlag i båda perioderna visas Jämförelse saknas. Ändrad svarstäckning kan ändra antalen utan att samma simmare blivit bättre eller sämre.',
-    'Incheckningar och sömn omfattar sju aktivitetsdagar; planering och genomförande gäller respektive kalendervecka fram till jämförelsedagen. På simmarkortet räknas låga kropps-/känslosvar per svar, till skillnad från Kontrollpanelens Individuell uppföljning som räknar olika dagar. Tidigare status räknas om från nu sparad historik, inte ett statusarkiv, så rättelser kan ändra jämförelsen. Välj Uppdatera trafikljus för nytt underlag. Ingen AI körs och trafikljusen är samtalsstöd, inte diagnoser.',
+    FOLLOWUP_RULES,
+    'Sömnreglerna är oförändrade: minst två Dålig-svar eller minst tre nätter med snitt under sju timmar ger rött; senaste tre rapporterade nätterna högst sju timmar ger gult, minst fem sådana nätter ger rött. Tidigare status räknas om från nu sparad historik med samma nya regler, inte ett statusarkiv. Rättelser kan ändra jämförelsen. Välj Uppdatera trafikljus för nytt underlag. Ingen AI körs.',
   ] },
   { id: 'followup', section: 'coach', roles: ['coach'], question: 'Låg känsla eller låg kroppskänsla – vad är skillnaden?', answer: [
     'I Kontrollpanel → Individuell uppföljning gäller låg känsla den allmänna dagskänslan från Hur känns det idag. Låg kroppskänsla gäller kroppens fysiska upplevelse, som tung/öm eller pigg/fräsch. På gymmet motsvarar Kraftlös och Seg de två låga kroppssvaren.',
-    'Båda signalerna kräver svar på 1–2 av 5 på minst två olika aktivitetsdagar i det angivna sjudagarsintervallet. Minst ett lågt svar gör att dagen räknas; flera svar samma dag är fortfarande en dag, inte ett medelvärde. Saknade svar räknas inte som låga. Hög ansträngning gäller RPE 8–10 på minst två dagar. Upprepad sjukdom och sömnsignaler kan också lyftas.',
+    'Ett lågt svar (1–2/5) gör att aktivitetsdagen räknas, aldrig flera gånger samma dag. Enbart tung kropp eller låg känsla ger gult under Bevaka utvecklingen, inte rött. Saknade svar räknas inte som låga. Låg belastning tar inte bort direkta sjukdoms- eller sömnsignaler.',
+    FOLLOWUP_RULES,
     'Listan är minimerad från början men visar antalet för Ta en dialog. Intervallet följer sju dagar bakåt från vald veckas sista dag eller idag för pågående vecka, så signalen försvinner inte automatiskt på måndag. Hovra, fokusera eller tryck på signalen/informationsikonen för förklaring och datumunderlag. Tryck igen, utanför eller Escape stänger. Öppna simmarkortet för underlag eller Skriv privat för dialog. Det är inte en diagnos eller ett automatiskt träningsbeslut.',
   ] },
   { id: 'metric-answers', section: 'coach', roles: ['coach'], question: 'Vilka svar ligger bakom korten under Idag?', answer: [
