@@ -1,5 +1,5 @@
 .swimmer-card-header { position: relative; }
-.swimmer-card-header > .swimmer-card-toggle { padding-right: 116px; min-height: 116px; }
+.swimmer-card-header > .swimmer-card-toggle { padding-right: 128px; min-height: 132px; }
 .swimmer-card-header .swimmer-name > span { flex-shrink: 0; }
 .swimmer-card-header .swimmer-name > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .swimmer-card-header .swimmer-name > div small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -7,12 +7,11 @@
 .training-heart-trigger { --heart-light: #dce5e2; --heart-middle: #95aaa3; --heart-dark: #637e75; position: relative; display: grid; place-items: center; width: 52px; height: 52px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #81928e; cursor: pointer; }
 .training-heart-trigger svg { width: 48px; height: 48px; overflow: visible; }
 .training-heart-trigger .training-heart-glyph { animation: none !important; rotate: none; }
-.training-heart-trigger.training-heart-with-load { width: 96px; min-height: 100px; height: auto; padding: 4px 2px 6px; gap: 3px; border-radius: 12px; }
+.training-heart-trigger.training-heart-with-load { width: 108px; min-height: 112px; height: auto; padding: 4px 2px 6px; gap: 5px; border-radius: 12px; }
 .training-heart-icon { position: relative; display: grid; place-items: center; width: 52px; height: 52px; }
-.training-heart-load-label { display: grid; gap: 2px; color: #49635f; text-align: center; line-height: 1.3; overflow-wrap: anywhere; }
-.training-heart-load-label small { font: 600 10px/1.3 'Manrope', sans-serif; }
-.training-heart-load-label strong { font: 800 12px/1.3 'Manrope', sans-serif; }
-.training-heart-load-label.load-unknown strong { font-size: 10px; color: #6e8084; }
+.training-heart-status { display: grid; gap: 3px; color: #274d49; text-align: center; line-height: 1.3; overflow-wrap: normal; }
+.training-heart-status strong { font: 800 11px/1.35 'Manrope', sans-serif; }
+.training-heart-status small { font: 500 9px/1.3 'Manrope', sans-serif; color: #59716c; }
 .training-heart-trigger.green { --heart-light: #a4f2b0; --heart-middle: #39b968; --heart-dark: #14794e; color: #277a60; }
 .training-heart-trigger.yellow { --heart-light: #ffe799; --heart-middle: #f4b737; --heart-dark: #c17a16; color: #ab7615; }
 .training-heart-trigger.red { --heart-light: #ffb0b2; --heart-middle: #ef5b68; --heart-dark: #b82d4e; color: #b45454; }
@@ -23,17 +22,33 @@
 .training-heart-body { stroke: var(--heart-dark); stroke-width: .7; stroke-linejoin: round; }
 .training-heart-shine { fill: none; stroke: white; stroke-width: 3.5; stroke-linecap: round; opacity: .65; }
 .training-heart-ring { fill: none; stroke: #9cb5af; stroke-width: 1.6; transform-origin: 32px 32px; animation: none !important; rotate: none; transition: none; }
-.ring-unknown .training-heart-ring { stroke: #aebdb8; stroke-dasharray: 3 4; transform: scale(.94); }
-.ring-lower .training-heart-ring { transform: scale(.94); }
-.ring-higher .training-heart-ring { transform: scale(1.06); stroke-width: 2.2; }
+.training-heart-size { transform-origin: 32px 33px; }
+.load-lower .training-heart-size { transform: scale(.92); }
+.load-higher .training-heart-size { transform: scale(1.08); }
+.state-unknown .training-heart-ring { stroke: #aebdb8; stroke-dasharray: 3 4; }
+.state-unknown .training-heart-status { color: #647671; }
+.state-steady .training-heart-ring, .state-load-only .training-heart-ring { stroke: #268781; stroke-width: 2; }
+.state-fast .training-heart-ring { stroke: #247ec0; stroke-width: 2.4; }
+.state-rising .training-heart-ring { stroke: #159a8c; stroke-width: 2.5; }
+.state-ready .training-heart-ring { stroke: #249554; stroke-width: 2.7; filter: drop-shadow(0 0 2px #8ecfa4); }
+.state-turbo .training-heart-ring { stroke: #b87c08; stroke-width: 3; filter: drop-shadow(0 0 2px #eacb6b) drop-shadow(0 0 4px #8bce9c); }
+.state-turbo .training-heart-status { color: #7a550b; }
+.state-heavy .training-heart-ring, .state-watch .training-heart-ring { stroke: #c16b27; stroke-width: 2.5; }
+.training-heart-state-explanation { padding: 10px; border: 1px solid #b9d5cb; border-radius: 10px; background: #f3f9f5; }
+.training-heart-state-explanation.state-turbo { border-color: #ceac4c; background: #fffae9; }
+.training-heart-state-explanation.state-heavy, .training-heart-state-explanation.state-watch { border-color: #dca778; background: #fff6ed; }
+.training-heart-state-explanation summary { min-height: 44px; padding: 10px 0; cursor: pointer; font-weight: 700; }
+.training-heart-panel .training-heart-state-explanation dl > div { grid-template-columns: minmax(90px, .85fr) minmax(0, 1.15fr); }
 .training-heart-warning { position: absolute; top: -4px; right: -4px; display: grid; place-items: center; width: 19px; height: 19px; border: 1px solid #b78a30; border-radius: 50%; background: #fff0bf; color: #6d4d0d; font: 800 12px/1 'Manrope', sans-serif; }
 .training-heart-trigger:hover, .training-heart-trigger[aria-expanded="true"] { background: #eaf5f0; }
 .training-heart-trigger:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
 .training-heart-shape.motion-slow { animation: training-heart-breathe 3.2s ease-in-out infinite; }
 .training-heart-shape.motion-gentle { animation: training-heart-breathe 2.6s ease-in-out infinite; }
 .training-heart-shape.motion-brisk { animation: training-heart-breathe 2s ease-in-out infinite; }
+.state-turbo .training-heart-shape { animation: training-heart-turbo 1.3s ease-in-out infinite; }
 .motion-off .training-heart-shape { animation: none; }
 @keyframes training-heart-breathe { 0%, 100% { transform: scale(.88); } 45% { transform: scale(1.08); } 65% { transform: scale(1); } }
+@keyframes training-heart-turbo { 0%, 55%, 100% { transform: scale(.94); } 13% { transform: scale(1.1); } 25% { transform: scale(.96); } 38% { transform: scale(1.06); } }
 .training-heart-panel { position: fixed; z-index: 1200; overflow-y: auto; overscroll-behavior: contain; padding: 14px; box-sizing: border-box; border: 1px solid #b9d5cb; border-radius: 15px; background: #fcfefb; box-shadow: 0 12px 38px #153f3729; color: #15343e; font: 12px/1.5 'Manrope', sans-serif; }
 .training-heart-panel > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .training-heart-panel h3 { margin: 2px 0 0; font-size: 15px; overflow-wrap: anywhere; }
@@ -63,10 +78,9 @@
 .training-heart-panel footer button { min-height: 40px; border: 1px solid #b9d5cb; border-radius: 9px; background: #e8f4ed; color: #24665f; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .training-heart-panel button:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
 @media (max-width: 500px) {
-  .swimmer-card-header > .swimmer-card-toggle { padding-right: 88px; min-height: 128px; }
+  .swimmer-card-header > .swimmer-card-toggle { padding-right: 118px; min-height: 148px; }
   .training-heart-control { right: 6px; }
-  .training-heart-trigger.training-heart-with-load { width: 70px; }
-  .training-heart-load-label strong { font-size: 11px; }
+  .training-heart-trigger.training-heart-with-load { width: 100px; }
   .swimmer-card-header .swimmer-card-meta { padding-left: 0; }
   .swimmer-card-header .swimmer-name { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 4px 9px; }
   .swimmer-card-header .swimmer-name > span { grid-row: 1 / 3; }

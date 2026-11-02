@@ -26,12 +26,12 @@ test('live heart, fictional examples and both FAQ guides share the exact load la
   const source = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
   const live = source('src/training-heart.jsx'), examples = source('src/training-heart-examples.jsx')
   for (const view of [live, examples]) assert.match(view, /trainingHeartLoadSummary/)
-  assert.match(live, /training-heart-load-label/)
+  assert.match(live, /training-heart-status/)
   assert.match(live, /!excluded && !loading && !error && data\?\.asOf === asOf/)
   assert.match(live, /loadSummary\.description/)
   for (const example of TRAINING_HEART_EXAMPLES) {
     const label = trainingHeartLoadSummary(example.heart.load).label
-    assert.ok(trainingHeartExampleFacts(example).find(([key]) => key === 'Ring')[1].includes(label))
+    assert.ok(trainingHeartExampleFacts(example).find(([key]) => key === 'Belastning')[1].includes(label))
     for (const role of ['coach', 'swimmer']) assert.ok(featureFaqGuide(role).includes(label))
   }
   const css = source('src/training-heart.css')

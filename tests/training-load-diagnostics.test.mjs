@@ -108,7 +108,7 @@ test('coverage names each failed requirement; presentation cannot turn missing c
   assert.equal(trainingLoadCoverage({ known: 79, total: 99, days: 2 }).percent, 79)
   assert.equal(trainingLoadCoverage({ known: 0, total: 0, days: 0 }).percent, null)
   const view = readFileSync(new URL('../src/training-heart.jsx', import.meta.url), 'utf8')
-  assert.match(view, /Streckad ring = otillräckligt jämförelseunderlag/)
+  assert.match(view, /Varför saknas belastningsjämförelse/)
   assert.match(view, /Visa rapporter som saknar beräkningsunderlag/)
   assert.match(view, /trainingLoadIssueText/)
   assert.match(view, /load=\{heart.load.previous\}/)

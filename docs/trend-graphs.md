@@ -1,4 +1,10 @@
-# Träningsgrafer, version 3.99.0
+# Träningsgrafer
+
+## Zoom och sidscroll (3.100.0)
+
+Statistikens TrendLineChart mäter behållaren med ResizeObserver och ritar en läsbar 230 px hög graf i grundzoom. Det tidigare viewBox-beteendet pressade ihop en mycket bred period till ett tunt band. Nu används faktisk renderad bredd som viewBox-bredd, med 1×/2×/4×/8× zoom, bibehållen mittpunkt vid zoom, native sidscroll, pekardrag med mus, fokusbar scrollregion, pilar och Återställ. Touch behåller webbläsarens vanliga svep och sidans vertikala scroll. Periodbyte återställer zoom, scroll och tooltip. Bara datumetiketternas täthet ändras; värden, skalor, tooltip och datapunkter filtreras eller interpoleras inte av zoom. DiaryChart i träningsdagboken behåller sitt befintliga scrollbeteende.
+
+## Mätvärden och luckor (3.99.0)
 
 Simmeter har gemensam svart linje/färg (`SWIM_METER_COLOR`) i statistikens delade grupp-/individdiagram och i dagbokens mängddiagram. Rapporterad och uppskattad mängd är fortfarande separata datakällor; den sammanlagda linjen har källtext per dag. Diagramritningen ändrar inte registreringar, periodsummeringar, poäng eller AI-underlag.
 

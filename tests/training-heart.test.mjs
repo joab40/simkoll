@@ -130,7 +130,7 @@ test('emoji-like heart keeps its gloss inside one animated group and load ring s
   assert.match(live, /<TrainingHeartGlyph motion=\{motion\}/)
   assert.ok(view.includes('id={`${id}-fill`}'), 'each card has its own gradient')
   assert.ok(view.includes('fill={`url(#${id}-fill)`}'))
-  assert.match(view, /<circle className="training-heart-ring"[^>]*\/>\s*<g className=\{`training-heart-shape motion-\$\{motion\}`\}>/)
+  assert.match(view, /<circle className="training-heart-ring"[^>]*\/>\s*<g className="training-heart-size"><g className=\{`training-heart-shape motion-\$\{motion\}`\}>/)
   assert.match(view, /training-heart-body[\s\S]*training-heart-shine[\s\S]*<\/g>/)
   for (const color of ['green', 'yellow', 'red']) assert.match(css, new RegExp(`\\.training-heart-trigger\\.${color} \\{ --heart-light:`))
   for (const scale of ['.88', '1.08']) assert.ok(css.includes(`scale(${scale})`))

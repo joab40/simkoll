@@ -2,6 +2,7 @@ import { coachWeekAddDays } from './coach-week.js'
 import { sleepFollowUpReasons } from './coach-control-panel.js'
 import { trainingLoad } from './training-load.js'
 import { trainingLoadGaps } from './training-load-diagnostics.js'
+import { trainingHeartState } from './training-heart-state.js'
 
 const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 const valid = (value, min, max) => Number.isFinite(value) && value >= min && value <= max
@@ -63,11 +64,16 @@ export function buildTrainingHeart({ responses = [], sleep = [] } = {}, asOf) {
   const sickDays = [...new Set(recent.filter(row => row.type === 'sick').map(row => row.date))].sort()
   const warnings = sleepFollowUpReasons(nights, asOf)
   if (sickDays.length) warnings.push(`Sjukdom rapporterad ${sickDays.length} dag${sickDays.length === 1 ? '' : 'ar'} senaste sju dagarna`)
+  const swimReports = afterReports(recent).filter(row => row.activityType === 'swim')
+  const currentSpeed = dailyMetric(swimReports.filter(row => row.date >= feelingStart), 'speedFeeling')
+  const earlierSpeed = dailyMetric(swimReports.filter(row => row.date < feelingStart), 'speedFeeling')
+  const readiness = trainingHeartState({ body, feeling, speed: currentSpeed, earlierSpeed,
+    load: { ...currentLoad, previous: previousLoad, ratio }, nights: nights.filter(night => night.activity_date >= feelingStart), warnings })
   return {
     asOf, periods: { feelingStart, start, end: asOf, previousStart, previousEnd }, color, body, feeling,
     load: { ...currentLoad, previous: previousLoad, ratio, ring },
     speed: { ...speed, motion },
     sleep: { nights: nights.length, averageMinutes: round(mean(nights.map(row => row.minutes))), poorNights: nights.filter(row => row.quality === 1).length, lastDay: nights.map(row => row.activity_date).sort().at(-1) || null },
-    sickDays, warnings,
+    sickDays, warnings, readiness,
   }
 }

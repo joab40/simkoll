@@ -6,24 +6,29 @@ import { featureFaqFor, featureFaqGuide } from '../shared/feature-faq.js'
 
 const byId = id => TRAINING_HEART_EXAMPLES.find(example => example.id === id)
 test('fictional FAQ scenarios run the real heart rules, including mixed signals and missing data', () => {
-  assert.equal(TRAINING_HEART_EXAMPLES.length, 5)
+  assert.equal(TRAINING_HEART_EXAMPLES.length, 9)
   const expected = {
     competition: ['green', 'lower', 'brisk', 900, 1620, 0],
+    ready: ['green', 'similar', 'brisk', 1500, 1620, 0],
+    rising: ['green', 'higher', 'gentle', 2000, 1200, 0],
     heavy: ['red', 'higher', 'slow', 2100, 1200, 0],
     mixed: ['yellow', 'similar', 'brisk', 1200, 1200, 0],
     'sleep-warning': ['green', 'lower', 'brisk', 900, 1620, 1],
     missing: ['unknown', 'unknown', 'none', 300, null, 0],
+    'load-only': ['unknown', 'similar', 'none', 1200, 1200, 0],
+    steady: ['green', 'similar', 'gentle', 1200, 1200, 0],
   }
   for (const example of TRAINING_HEART_EXAMPLES) {
     const heart = example.heart
     assert.deepEqual([heart.color, heart.load.ring, heart.speed.motion, heart.load.value, heart.load.previous.value, heart.warnings.length], expected[example.id])
-    assert.equal(trainingHeartExampleFacts(example).length, 4)
+    assert.equal(trainingHeartExampleFacts(example).length, 6)
     assert.doesNotMatch(JSON.stringify(heart), /profileId|username|comment/)
   }
   assert.equal(byId('competition').heart.load.ratio, .556)
   assert.equal(byId('heavy').heart.load.ratio, 1.75)
   assert.equal(byId('missing').heart.body.days, 1)
   assert.equal(byId('missing').heart.load.ratio, null)
+  for (const [id, state] of [['competition', 'turbo'], ['ready', 'ready'], ['rising', 'rising'], ['heavy', 'heavy'], ['mixed', 'fast'], ['sleep-warning', 'watch'], ['load-only', 'load-only'], ['steady', 'steady'], ['missing', 'unknown']]) assert.equal(byId(id).heart.readiness.state, state)
   assert.match(byId('sleep-warning').heart.warnings[0], /Kort sovtid senaste 3 nätterna.*6 h 30 min/)
 })
 

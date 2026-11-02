@@ -15,7 +15,7 @@ export default function TrainingHeartExamples() {
       const { heart } = example
       const loadSummary = trainingHeartLoadSummary(heart.load)
       return <article className="training-heart-example" key={example.id} aria-labelledby={`${id}-${example.id}`}>
-        <header><span className={`training-heart-trigger training-heart-example-icon ${heart.color} ring-${heart.load.ring}`} aria-hidden="true"><TrainingHeartGlyph motion={heart.speed.motion} />{heart.warnings.length > 0 && <span className="training-heart-warning">!</span>}</span><h3 id={`${id}-${example.id}`}>{example.title}</h3></header>
+        <header><span className={`training-heart-trigger training-heart-example-icon ${heart.color} state-${heart.readiness.state} load-${heart.load.ring}`} aria-hidden="true"><TrainingHeartGlyph motion={heart.speed.motion} />{heart.warnings.length > 0 && <span className="training-heart-warning">!</span>}</span><h3 id={`${id}-${example.id}`}>{example.title}</h3></header>
         <p className="training-heart-example-load"><strong>{loadSummary.label}</strong><small>Senaste 7 dagar mot föregående 7 dagar</small></p>
         <p>{example.interpretation}</p>
         {heart.warnings.length > 0 && <p className="training-heart-example-alert">Sömnsignal: {heart.warnings.join(' · ')}</p>}
