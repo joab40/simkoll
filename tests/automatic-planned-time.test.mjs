@@ -21,7 +21,7 @@ function calculate(responses = [response()], workouts = [workout()], plans = [])
 }
 
 test('coach 120 minutes automatically supplies time and 600 load without reported time or a minute confirmation', () => {
-  for (const planned_completion of [undefined, 'full']) {
+  for (const planned_completion of [undefined, 'full', 'partial']) {
     const raw = response({ planned_completion }), before = structuredClone(raw)
     const { entry, load } = calculate([raw])
     assert.equal(entry.reportedMinutes, null)
@@ -64,13 +64,17 @@ test('two possible 120-minute workouts give 120 once without inventing a choice 
   assert.equal(metrics.get(`p|${date}|afternoon_swim`).distanceMeters, null)
 })
 
-test('own time wins; partial/no, invalid selected source and different or unknown durations cannot acquire full common time', () => {
+test('own time wins; no, invalid selected source and different or unknown durations cannot acquire common time', () => {
   const alternatives = [workout(), workout({ id: 'w2' })]
   const actual = calculate([response({ activity_minutes: 80, planned_completion: 'partial' })], alternatives)
   assert.equal(actual.entry.estimatedMinutes, null)
   assert.equal(actual.load.value, 400)
   assert.equal(actual.load.reported, 1)
-  for (const planned_completion of ['partial', 'no']) assert.equal(calculate([response({ planned_completion })], alternatives).load.value, null)
+  const partial = calculate([response({ planned_completion: 'partial' })], alternatives)
+  assert.equal(partial.load.value, 600)
+  assert.equal(partial.entry.estimatedMinutes, 120)
+  assert.equal(partial.entry.estimatedMeters, null)
+  assert.equal(calculate([response({ planned_completion: 'no' })], alternatives).load.value, null)
   assert.equal(calculate([response({ workout_reference: 'workout:removed' })], alternatives).load.value, null)
   for (const duration_minutes of [90, null, 0, 1441]) {
     const result = calculate([response()], [workout(), workout({ id: 'w2', duration_minutes })])
@@ -89,4 +93,47 @@ test('linked planning cannot borrow time from a different group/day or a detache
   const view = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   assert.match(view, /minuter från tränarens planering räknas automatiskt/)
   assert.match(view, /Du behöver inte fylla i eller bekräfta planerad tid igen/)
+})
+
+test('partial content uses coach time across diary, heart and weekly totals, never full distance', () => {
+  const workouts = [workout(), workout({ id: 'alternative', duration_minutes: 90, distance_meters: 4000 })]
+  const raw = response({ profile_id: 'p', planned_completion: 'partial', workout_reference: 'workout:w' })
+  const before = structuredClone(raw)
+  const { entry, load } = calculate([raw], workouts)
+  assert.equal(entry.partial, true)
+  assert.equal(entry.estimatedMinutes, 120)
+  assert.equal(entry.reportedMinutes, null)
+  assert.equal(entry.estimatedMeters, null)
+  assert.equal(diaryEntryLoad(entry).value, 600)
+  assert.equal(load.estimatedValue, 600)
+  assert.equal(load.missingTime, 0)
+  const metrics = rows => sessionSwimMetrics({ sessions: [session], responses: rows, workouts,
+    plans: [], profiles: [{ id: 'p', training_group: 'junior' }] }).get(`p|${date}|afternoon_swim`)
+  assert.deepEqual(metrics([raw]), { durationMinutes: 120, distanceMeters: null })
+  assert.deepEqual(metrics([{ ...raw, activity_minutes: 65, activity_distance_meters: 2000 }]), { durationMinutes: 65, distanceMeters: 2000 })
+  assert.deepEqual(raw, before)
+  assert.equal(calculate([{ ...raw, rpe: null }], workouts).load.value, null)
+  assert.equal(calculate([{ ...raw, rpe: null }], workouts).load.missingTime, 0)
+  for (const patch of [{ workout_reference: 'workout:removed' }, { session_slot: 'morning_swim' }]) {
+    assert.equal(calculate([{ ...raw, ...patch }], workouts).load.value, null)
+  }
+})
+
+test('historical partial answers restore comparison coverage without changing the thresholds or raw answers', () => {
+  // Synthetic regression for the 4/6-report pattern, not real swimmer data.
+  const dates = ['2026-10-28', '2026-10-29', '2026-10-30', date,
+    '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-25', '2026-10-24']
+  const rows = dates.map((activity_date, i) => response({ id: `r${i}`, activity_date,
+    created_at: `${activity_date}T18:00:00Z`,
+    planned_completion: [1, 2, 6, 8, 9].includes(i) ? 'partial' : 'full' }))
+  const workouts = dates.filter(day => day !== '2026-10-21').map((workout_date, i) => workout({id: `w${i}`, workout_date}))
+  const before = structuredClone(rows)
+  const { load } = calculate(rows, workouts)
+  assert.equal(load.known, 4)
+  assert.equal(load.total, 4)
+  assert.equal(load.previous.known, 5)
+  assert.equal(load.previous.total, 6)
+  assert.equal(load.previous.missingTime, 1)
+  assert.notEqual(load.ring, 'unknown')
+  assert.deepEqual(rows, before)
 })

@@ -1,4 +1,5 @@
 export const hasTrendValue = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+const calendarGap = (a, b) => Date.parse(`${b?.date}T12:00:00Z`) - Date.parse(`${a?.date}T12:00:00Z`) > 86400000
 
 // Multiple workouts on a day need distinct x coordinates for interpolation.
 // Keep them inside that day, with a single centered calendar label.
@@ -23,10 +24,44 @@ export function trendSegments(items, key) {
   return items.reduce((segments, item, index) => {
     if (!hasTrendValue(item[key])) return segments
     const point = { index, value: Number(item[key]) }, last = segments[segments.length - 1]
-    if (last && last[last.length - 1].index === index - 1) last.push(point)
+    if (last && last[last.length - 1].index === index - 1 && !calendarGap(items[index - 1], item)) last.push(point)
     else segments.push([point])
     return segments
   }, [])
+}
+
+// Visual bridges only. No intermediate values/points and no extrapolation.
+export function trendGapSegments(items, key) {
+  const gaps = []
+  let previous = null
+  items.forEach((item, index) => {
+    if (!hasTrendValue(item[key])) return
+    const point = { index, value: Number(item[key]) }
+    if (previous && (index > previous.index + 1 || calendarGap(items[previous.index], item))) gaps.push([previous, point])
+    previous = point
+  })
+  return gaps
+}
+
+// Calendar-only rows remain display data, never new responses or activities.
+export function trendCalendarItems(items, { start, endExclusive, meterDays = [] } = {}) {
+  const grouped = new Map()
+  for (const item of items) {
+    if (!grouped.has(item.date)) grouped.set(item.date, [])
+    grouped.get(item.date).push(item)
+  }
+  const validDay = day => /^\d{4}-\d{2}-\d{2}$/.test(day || '') && Number.isFinite(Date.parse(`${day}T12:00:00Z`)) && new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) === day
+  const dates = [...grouped.keys()].filter(validDay).sort()
+  const from = validDay(start) ? start : dates[0]
+  const until = validDay(endExclusive) ? endExclusive : dates.length ? new Date(Date.parse(`${dates.at(-1)}T12:00:00Z`) + 86400000).toISOString().slice(0, 10) : null
+  if (!from || !until || from >= until || Date.parse(until) - Date.parse(from) > 366 * 86400000) return items
+  const amounts = new Map(meterDays.map(day => [day.date, day]))
+  const result = []
+  for (let date = from; date < until; date = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
+    const rows = grouped.get(date) || [{ date, title: amounts.get(date)?.swimMetersPlot === 0 ? 'Ingen registrerad simning' : 'Inga registrerade pass eller svar', count: 0, calendarOnly: true }]
+    result.push(...rows.map(row => ({ ...row, ...(amounts.has(date) ? { swimMetersPlot: amounts.get(date).swimMetersPlot, swimMeterPlotSource: amounts.get(date).swimMeterPlotSource } : {}) })))
+  }
+  return result
 }
 
 // Shape-preserving Hermite curves. Tangents stop at extrema and control

@@ -27,7 +27,7 @@ function afterReports(rows) {
 
 function load(rows) {
   const reports = afterReports(rows).map(row => {
-    const canEstimate = row.activityType === 'swim' && ['morning_swim', 'afternoon_swim'].includes(row.trainingSlot) && row.plannedCompletion !== 'partial' && row.linkedEstimate?.source === 'linked-plan'
+    const canEstimate = row.activityType === 'swim' && ['morning_swim', 'afternoon_swim'].includes(row.trainingSlot) && row.linkedEstimate?.source === 'linked-plan'
     return { row, amount: trainingLoad(row.rpe, row.activityMinutes, canEstimate ? row.linkedEstimate.minutes : null) }
   })
   const known = reports.filter(({ row, amount }) => types.has(row.activityType) && amount.value != null)

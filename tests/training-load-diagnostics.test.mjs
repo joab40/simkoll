@@ -17,7 +17,7 @@ test('missing time has an exact fixed reason without inferring minutes or modify
   const cases = [
     [{ activityMinutes: 0 }, {}, 'invalid-reported-time'],
     [{ activityType: null }, {}, 'activity-missing'],
-    [{ plannedCompletion: 'partial' }, {}, 'partial-time-missing'],
+    [{ plannedCompletion: 'partial' }, { workouts: [] }, 'no-plan'],
     [{ activityType: 'strength' }, {}, 'reported-time-missing'],
     [{ trainingSlot: null }, {}, 'slot-missing'],
     [{}, { workouts: [] }, 'no-plan'],
@@ -73,7 +73,7 @@ test('diagnosis uses latest report only, excludes no/race/before, and never leak
   const latest = report({ id: 'z', activityMinutes: 60 })
   assert.deepEqual(heart(enrich([latest, old])).load.gaps, [])
   for (const patch of [{ plannedCompletion: 'no' }, { competition: true }, { type: 'before' }]) assert.deepEqual(heart(enrich([report(patch)])).load.gaps, [])
-  const load = heart(enrich([old, { ...latest, activityMinutes: null, plannedCompletion: 'partial' }])).load
+  const load = heart(enrich([old, { ...latest, activityMinutes: null, plannedCompletion: 'partial', workoutReference: 'workout:missing' }])).load
   assert.equal(load.gaps.length, 1)
   assert.deepEqual(Object.keys(load.gaps[0]).sort(), ['activity', 'date', 'issues', 'slot'])
   assert.doesNotMatch(JSON.stringify(load), /PRIVATE|SECRET|workoutReference|profileId|createdAt/)

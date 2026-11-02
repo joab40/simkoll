@@ -51,11 +51,15 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     source: 'coach-attendance',
   }))
   const entries = buildDiaryEntries({ sessions: [...sessions, ...attendanceSessions], responses, workouts, plans, personalPlans, strengthLogs, drylandLogs, assignments, results, reflections, trainingGroup: profile.training_group || profile.trainingGroup, today: stockholmDate(), unlockedToday: unlocks.length > 0 })
+  const current = summarizeDiary(entries, responses, start, end), previous = summarizeDiary(entries, responses, range.previousStart, range.previousEnd)
+  if (warnings.some(warning => /^(registrerade pass|incheckningar|upplagda pass|grundplanering|tränarens närvaromarkeringar)/.test(warning))) {
+    for (const summary of [current, previous]) summary.days = summary.days.map(day => ({ ...day, swimMetersPlot: null, swimMeterPlotSource: 'Ofullständigt mängdunderlag' }))
+  }
   return {
     range,
     entries: entries.filter((entry) => entry.date >= start && entry.date <= end),
-    current: summarizeDiary(entries, responses, start, end),
-    previous: summarizeDiary(entries, responses, range.previousStart, range.previousEnd),
+    current,
+    previous,
     raceResults: results.map((row) => ({ date: row.result_date, event: row.event, pool: row.pool, time: row.swim_time, resultTime: row.result_time, source: row.source || 'unknown' })),
     goals: goals.filter((goal) => !goal.target_date || goal.target_date >= start || goal.status === 'active'),
     warnings: [...new Set(warnings)],

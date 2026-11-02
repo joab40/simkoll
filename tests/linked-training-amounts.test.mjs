@@ -44,13 +44,13 @@ test('reported time always wins, even for partial work; invalid explicit time is
   }
 })
 
-test('partial, not done, before, competition, untyped, unknown-slot and gym reports never gain full planned minutes', () => {
-  for (const patch of [{ plannedCompletion: 'partial' }, { plannedCompletion: 'no' }, { type: 'before' }, { competition: true }, { activityType: null }, { trainingSlot: null }, { activityType: 'strength' }, { activityType: 'other' }]) {
+test('not done, before, competition, untyped, unknown-slot and gym reports never gain full planned minutes', () => {
+  for (const patch of [{ plannedCompletion: 'no' }, { type: 'before' }, { competition: true }, { activityType: null }, { trainingSlot: null }, { activityType: 'strength' }, { activityType: 'other' }]) {
     const [row] = recover([report(patch)])
     assert.equal(row.linkedEstimate, undefined, JSON.stringify(patch))
     assert.equal(buildTrainingHeart({ responses: [row] }, asOf).load.value, null)
   }
-  assert.equal(diaryEntryLoad({ state: 'completed', type: 'swim', linked: true, partial: true, rpe: 10, reportedMinutes: null, estimatedMinutes: 110 }).value, null)
+  assert.equal(diaryEntryLoad({ state: 'completed', type: 'swim', linked: true, partial: true, rpe: 10, reportedMinutes: null, estimatedMinutes: 110 }).value, 1100)
   assert.equal(diaryEntryLoad({ state: 'completed', type: 'competition', rpe: 10, reportedMinutes: 110 }).value, null)
 })
 
@@ -79,13 +79,15 @@ test('alternatives require the actual selection and are never added together; ma
   assert.equal(recover([report({ workoutReference: 'plan:manual' })], { workouts: [], plans: [{ ...plans[0], calendar_link: { detachedWorkoutId: 'detached' } }] })[0].linkedEstimate, undefined)
 })
 
-test('latest report alone is recovered; later not-done and partial answers cannot revive an old full answer', () => {
+test('latest report alone is recovered; later partial uses its own choice, not an older full answer', () => {
   const old = report({ id: 'a', createdAt: `${asOf}T10:00:00Z` }), latest = report({ id: 'z' })
   const rows = recover([latest, old])
   assert.equal(rows[0].linkedEstimate.minutes, 110)
   assert.equal(rows[1].linkedEstimate, undefined)
   assert.equal(buildTrainingHeart({ responses: rows }, asOf).load.value, 1100)
-  for (const plannedCompletion of ['partial', 'no']) assert.equal(buildTrainingHeart({ responses: recover([old, { ...latest, plannedCompletion }]) }, asOf).load.value, null)
+  assert.equal(buildTrainingHeart({ responses: recover([old, { ...latest, plannedCompletion: 'no' }]) }, asOf).load.value, null)
+  assert.equal(buildTrainingHeart({ responses: recover([old, { ...latest, plannedCompletion: 'partial' }]) }, asOf).load.value, 1100)
+  assert.equal(buildTrainingHeart({ responses: recover([old, { ...latest, plannedCompletion: 'partial', workoutReference: 'workout:missing' }]) }, asOf).load.value, null)
 })
 
 test('reported and estimated totals stay separate; comparisons are visibly estimated if either period includes planned time', () => {

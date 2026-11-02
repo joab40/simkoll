@@ -2,7 +2,6 @@
 export const TRAINING_TIME_ISSUES = {
   'invalid-reported-time': 'Angiven tid är ogiltig. Kontrollera att den är mellan 1 och 1 440 minuter.',
   'activity-missing': 'Träningstyp saknas eller är okänd. Ingen simtid kopplas automatiskt.',
-  'partial-time-missing': 'Delvis genomfört – egen tid saknas. Hela planerade tiden används inte.',
   'reported-time-missing': 'Egen tid saknas. För denna aktivitet hämtas ingen tid från ett simpass.',
   'slot-missing': 'Morgon-/eftermiddagspass saknas eller är okänt. Ingen säker passkoppling kan göras.',
   'choice-required': 'Passval saknas eller är oklart. Flera möjliga upplägg kan inte räknas som ett valt pass.',
