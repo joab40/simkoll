@@ -4,6 +4,7 @@ import { trainingLoad } from './training-load.js'
 import { trainingLoadGaps } from './training-load-diagnostics.js'
 import { trainingHeartState, TRAINING_STATES } from './training-heart-state.js'
 import { illnessDays, illnessLabel } from './illness.js'
+import { heavyTrainingPattern } from './heavy-training-pattern.js'
 
 const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 const valid = (value, min, max) => Number.isFinite(value) && value >= min && value <= max
@@ -51,7 +52,8 @@ export function buildTrainingHeart({ responses = [], sleep = [], illness = [], i
   const body = dailyMetric(mood, 'body'), feeling = dailyMetric(mood, 'feeling')
   const enough = body.days >= 2 && feeling.days >= 2
   // Explicit product thresholds, not a validated medical/readiness score.
-  const color = !enough ? 'unknown' : body.value <= 2 || feeling.value <= 2 ? 'red' : body.value < 3.5 || feeling.value < 3.5 ? 'yellow' : 'green'
+  const heavy = heavyTrainingPattern(responses, asOf)
+  const color = !enough ? 'unknown' : heavy.persistent ? 'red' : body.value < 3.5 || feeling.value < 3.5 ? 'yellow' : 'green'
   const currentLoad = load(recent), previousLoad = load(responses.filter(row => within(row, previousStart, previousEnd)))
   const covered = value => value.known >= 3 && value.days >= 2 && value.known / value.total >= .8
   const comparable = covered(currentLoad) && covered(previousLoad) && previousLoad.value > 0
@@ -78,6 +80,6 @@ export function buildTrainingHeart({ responses = [], sleep = [], illness = [], i
     load: { ...currentLoad, previous: previousLoad, ratio, ring },
     speed: { ...speed, motion },
     sleep: { nights: nights.length, averageMinutes: round(mean(nights.map(row => row.minutes))), poorNights: nights.filter(row => row.quality === 1).length, lastDay: nights.map(row => row.activity_date).sort().at(-1) || null },
-    sickDays, warnings, readiness, illness: { available: illnessAvailable, latest: latestIllness || null },
+    sickDays, warnings, readiness, heavy, illness: { available: illnessAvailable, latest: latestIllness || null },
   }
 }

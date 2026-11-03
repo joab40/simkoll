@@ -28,7 +28,8 @@ test('selected week metrics exclude comparison data, while speed retains last ca
   assert.equal(report.swimmers[0].speedCurrent, 4.5)
   assert.equal(report.followUps.length, 1) // Direct sickness yesterday is actionable without waiting two days.
   assert.equal(report.start, '2026-10-26')
-  assert.equal(report.signalStart, '2026-10-22')
+  assert.equal(report.signalStart, '2026-10-15')
+  assert.equal(report.symptomStart, '2026-10-22')
 })
 
 test('ongoing week does not erase a repeated sleep signal at the Monday boundary', () => {
@@ -56,7 +57,7 @@ test('coach overview counts unique after-activities and only known training load
   assert.equal(report.feedbackCount, 1)
 })
 
-test('heavy body and high RPE are yellow; direct current sickness is red', () => {
+test('twos are not body warnings; repeated high RPE is yellow and current sickness red', () => {
   const responses = [
     after('a', '2026-10-17', { rpe: 9, body: 2 }),
     after('a', '2026-10-17', { createdAt: '2026-10-17T19:00:00Z', rpe: 9, body: 2 }),
@@ -66,7 +67,7 @@ test('heavy body and high RPE are yellow; direct current sickness is red', () =>
   const report = buildCoachControlPanel(profiles, responses, '2026-10-19')
   assert.equal(report.followUps.length, 1)
   assert.equal(report.followUps[0].profileId, 'b')
-  assert.match(report.watchList[0].reasons.join(' '), /kroppskänsla 2 dagar/)
+  assert.doesNotMatch(report.watchList[0].reasons.join(' '), /kropp/)
   assert.match(report.watchList[0].reasons.join(' '), /RPE 8–10\) 2 dagar/)
 })
 

@@ -115,7 +115,7 @@ test('loader fetches two bounded projected sources once for the roster, keeps pr
     if (query.startsWith('profiles?')) rows = [{ id: 'a', training_group: 'junior' }, { id: 'b', training_group: 'other' }]
     if (query.startsWith('responses?')) rows = ['a', 'b'].map(profile_id => ({ ...raw(report()), profile_id }))
     if (query.startsWith('daily_workouts?')) rows = [workout()]
-    if (!query.startsWith('profiles?')) { assert.match(query, /gte.2026-10-19/); assert.match(query, /lte.2026-11-01/) }
+    if (!query.startsWith('profiles?')) { assert.match(query, query.startsWith('responses?') ? /gte.2026-10-12/ : /gte.2026-10-19/); assert.match(query, /lte.2026-11-01/) }
     return { ok: true, json: async () => rows }
   }
   const loaded = await loadSwimmerTraffic(asOf, read)

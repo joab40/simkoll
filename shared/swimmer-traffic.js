@@ -22,14 +22,14 @@ export function swimmerTrafficAt({ responses = [], sleep = [], illness = [], ses
   if (!validTrafficDay(end)) throw new Error('Ogiltigt datum för trafikljus.')
   const start = coachWeekAddDays(end, -6), weekStart = coachWeekMonday(end)
   if (createdAt && String(createdAt).slice(0, 10) > end) return { ...TRAFFIC_LABELS.unknown, reasons: [] }
-  const recent = responses.filter(row => within(row.date, start, end))
+  const history = responses.filter(row => within(row.date, coachWeekAddDays(end, -13), end))
   const nights = [...new Map(sleep.filter(row => within(row.activity_date, start, end) && validSleep(row)).map(row => [row.activity_date, row])).values()]
   const registered = sessions.filter(row => within(row.date, weekStart, end))
   const planned = [...new Map(plans.filter(row => within(row.date, weekStart, end)).map(row => [`${row.date}|${row.slot}`, row])).values()]
   const completed = new Set(registered.map(row => `${row.date}|${row.slot}`))
   const missing = planned.filter(row => !completed.has(`${row.date}|${row.slot}`)).length
   const sleepReasons = sleepFollowUpReasons(nights, end), warning = shortSleepWarning(nights, end)
-  const signals = followupSignals({ responses: recent, illness, sleepReasons, sleepWarning: warning, asOf: end })
+  const signals = followupSignals({ responses: history, illness, sleepReasons, sleepWarning: warning, asOf: end })
   const color = signals.hasData || nights.length > 0 ? signals.color : 'unknown'
   return { ...TRAFFIC_LABELS[color], reasons: signals.reasons, illness: signals.illness,
     planningNotes: missing ? [`${missing} planerade pass utan registrerat genomförande denna vecka`] : [] }
@@ -45,7 +45,7 @@ export function buildSwimmerTraffic(profiles, data, asOf) {
   }
   const responses = group(data.responses || []), sleep = group(data.sleep || []), illness = group(data.illness || []), sessions = group(data.sessions || []), plans = group(data.plans || [])
   return {
-    asOf, illnessAvailable: data.illnessAvailable !== false, range: { start: coachWeekAddDays(asOf, -6), end: asOf, previousStart: coachWeekAddDays(asOf, -13), previousEnd },
+    asOf, illnessAvailable: data.illnessAvailable !== false, range: { start: coachWeekAddDays(asOf, -13), end: asOf, previousStart: coachWeekAddDays(asOf, -20), previousEnd },
     profiles: uniqueProfiles(profiles).map(profile => {
       const own = { responses: responses.get(profile.id) || [], sleep: sleep.get(profile.id) || [], illness: illness.get(profile.id) || [], illnessAvailable: data.illnessAvailable !== false, sessions: sessions.get(profile.id) || [], plans: plans.get(profile.id) || [], createdAt: profile.createdAt }
       return { profileId: profile.id, current: swimmerTrafficAt(own, asOf), previous: swimmerTrafficAt(own, previousEnd), heart: buildTrainingHeart(own, asOf) }

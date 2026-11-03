@@ -133,9 +133,9 @@ export default async function handler(request, response) {
       const requestedDate = role === 'coach' ? String(request.query?.date || '') : ''
       if (requestedDate && !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) return sendJson(response, 400, { error: 'Ogiltigt datum.' })
       const dateFilter = requestedDate ? `&activity_date=eq.${encodeURIComponent(requestedDate)}` : ''
-      // The selected week plus its comparison week, fully paginated. Do not
+      // Selected week plus two preceding weeks for rolling 14-day follow-up. Do not
       // reuse the initial/latest responses list for historical weekly reports.
-      const weekFilter = week != null ? `&activity_date=gte.${coachWeekAddDays(week, -7)}&activity_date=lte.${[coachWeekAddDays(week, 6), stockholmDate()].sort()[0]}` : ''
+      const weekFilter = week != null ? `&activity_date=gte.${coachWeekAddDays(week, -14)}&activity_date=lte.${[coachWeekAddDays(week, 6), stockholmDate()].sort()[0]}` : ''
       const filter = sessionProfile ? `&profile_id=eq.${sessionProfile.id}` : role === 'coach' ? weekFilter || dateFilter : `&created_at=gte.${encodeURIComponent(recent)}`
       if (week != null) response.setHeader('Cache-Control', 'private, no-store')
       const result = week != null

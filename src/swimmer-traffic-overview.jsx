@@ -10,6 +10,7 @@ export default function SwimmerTrafficOverview({ profiles, report, loading, erro
   return <section className="swimmer-traffic-overview" aria-label="Trafikljus och förändring">
     <header><strong>Trafikljus · förändring över tid</strong><button type="button" className="text-button" disabled={loading} onClick={onRefresh}>Uppdatera trafikljus</button></header>
     {ready && <p className="swimmer-traffic-period">{dayLabel(report.range.start)}–{dayLabel(report.range.end)} jämfört med {dayLabel(report.range.previousStart)}–{dayLabel(report.range.previousEnd)} · samma {counts.total} profiler i urvalet</p>}
+    {ready && <small>Träningskänsla: 14 dagar · sjukdom/sömn/RPE: 7 dagar. Tvåor ger ingen varning i sig.</small>}
     {ready && report.illnessAvailable === false && <p className="form-error" role="status">Sjukdomskollen saknas – kör SQL 112. Övriga signaler visas, men status och antal kan vara ofullständiga. Saknat svar är inte ett nej.</p>}
     {loading ? <p role="status">Hämtar trafikljus och jämförelse…</p> : error ? <p role="alert" className="form-error">{error} Inga ofullständiga antal eller trender visas. Försök med Uppdatera trafikljus.</p> : null}
     <div className="swimmer-traffic-trend-grid">{[['red', '🔴', 'Röda'], ['yellow', '🟡', 'Gula'], ['green', '🟢', 'Gröna']].map(([color, icon, label]) => {

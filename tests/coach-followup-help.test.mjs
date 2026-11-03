@@ -4,18 +4,19 @@ import { readFileSync } from 'node:fs'
 import { coachFollowUpHelp } from '../shared/coach-followup-help.js'
 import { buildCoachControlPanel, sleepFollowUpReasons } from '../shared/coach-control-panel.js'
 
-test('general feeling and physical body have distinct question explanations but the same low threshold', () => {
-  const feeling = coachFollowUpHelp('Låg känsla 2 dagar senaste veckan')
-  const body = coachFollowUpHelp('Låg kroppskänsla 3 dagar senaste veckan')
+test('general feeling and physical body have distinct explanations and the same persistent-one rule', () => {
+  const feeling = coachFollowUpHelp('Tung dagskänsla (1/5) 5 olika dagar under 14 dagar · ihållande mönster')
+  const body = coachFollowUpHelp('Tung kropp (1/5) 1 dag under 14 dagar')
   assert.match(feeling.description, /Hur känns det idag/)
   assert.match(feeling.description, /allmänna dagskänslan/)
   assert.match(body.description, /Hur känns kroppen/)
   assert.match(body.description, /Kraftlös = 1 och Seg = 2/)
   for (const help of [feeling, body]) {
-    assert.match(help.description, /1–2 av 5/)
-    assert.match(help.rule, /minst tre olika aktivitetsdagar/)
+    assert.match(help.description, /Bara ettan räknas/)
+    assert.match(help.rule, /2 = segt ger ingen uppföljningsvarning i sig/)
+    assert.match(help.rule, /minst fem olika aktivitetsdagar under 14 dagar/)
     assert.match(help.rule, /inte antal svar eller ett medelvärde/)
-    assert.match(help.rule, /Saknade svar räknas inte som låga/)
+    assert.match(help.rule, /Saknade svar räknas inte som ettor/)
   }
   assert.equal(coachFollowUpHelp('Okänd signal'), null)
 })
@@ -31,9 +32,10 @@ test('explanations match independent, distinct-day signals, not duplicates or mi
   ], '2026-10-31', [], { periodStart: '2026-10-26' })
   assert.equal(report.followUps.length, 0)
   assert.equal(report.watchList.length, 3)
-  assert.deepEqual(report.watchList.find((item) => item.profileId === 'body').reasons, ['Låg kroppskänsla 2 dagar senaste veckan'])
-  assert.deepEqual(report.watchList.find((item) => item.profileId === 'feeling').reasons, ['Låg känsla 2 dagar senaste veckan'])
-  assert.equal(report.signalStart, '2026-10-25')
+  assert.deepEqual(report.watchList.find((item) => item.profileId === 'body').reasons, ['Tung kropp (1/5) 1 dag under 14 dagar'])
+  assert.deepEqual(report.watchList.find((item) => item.profileId === 'feeling').reasons, ['Tung dagskänsla (1/5) 1 dag under 14 dagar'])
+  assert.equal(report.signalStart, '2026-10-18')
+  assert.equal(report.symptomStart, '2026-10-25')
   for (const swimmer of report.watchList) for (const reason of swimmer.reasons) assert.ok(coachFollowUpHelp(reason))
 })
 
@@ -57,5 +59,5 @@ test('follow-up help is accessible by hover, focus and tap without data requests
   assert.doesNotMatch(source, /fetch\(|apiRequest/)
   const panel = readFileSync(new URL('../src/coach-control-panel.jsx', import.meta.url), 'utf8')
   assert.match(panel, /<CoachFollowUpReason/)
-  assert.match(panel, /periodLabel=\{`\$\{dayLabel\(report.signalStart\)/)
+  assert.match(panel, /reason.startsWith\('Tung '\) \? report.signalStart : report.symptomStart/)
 })

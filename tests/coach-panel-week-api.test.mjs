@@ -27,7 +27,7 @@ test('bounded weekly response read paginates beyond 1000 and excludes test profi
     assert.equal(url.hostname, 'coach-week-responses.invalid')
     if (table === 'profiles') return json([{ id: 'test' }])
     assert.equal(table, 'responses')
-    assert.deepEqual(url.searchParams.getAll('activity_date'), ['gte.2026-01-05', 'lte.2026-01-18'])
+    assert.deepEqual(url.searchParams.getAll('activity_date'), ['gte.2025-12-29', 'lte.2026-01-18'])
     assert.equal(url.searchParams.get('order'), 'activity_date.asc,created_at.asc,id.asc')
     const offset = Number(url.searchParams.get('offset'))
     offsets.push(offset)

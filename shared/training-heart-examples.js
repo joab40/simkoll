@@ -19,7 +19,7 @@ const scenarios = [
   { id: 'rising', title: 'På väg mot fart', body: 3.5, feeling: 3.5, speed: 3.5, earlierSpeed: 2.5, rpe: 5, minutes: 80, previousRpe: 5, previousMinutes: 80, sleepMinutes: 510,
     interpretation: 'Petrolfärgad ring. Aktuell fartkänsla har ökat från tidigare svarsdagar under veckan, samtidigt som kropp och dagskänsla inte är låga. Visar en upplevd riktning, inte att tävlingstider faktiskt förbättrats.' },
   { id: 'heavy', title: 'Tung träningsperiod – trött och långsam', body: 2, feeling: 3, speed: 2, rpe: 7, minutes: 100, previousRpe: 5, previousMinutes: 80, sleepMinutes: 510,
-    interpretation: 'Rött hjärta, orange ring, större hjärtgrundstorlek och lugn pulsering. Kroppen känns tung och fartkänslan är låg. Det kan passa en tung träningsperiod, men bekräftar inte nedträning eller överträning. Stäm av med simmaren; rött är inte en diagnos.' },
+    interpretation: 'Gult/orange hjärta, orange ring, större hjärtgrundstorlek och lugn pulsering. Kroppen är skattad till två och fartkänslan är låg. Detta kan passa en tung träningsperiod utan att ge röd uppföljningssignal i sig. Bekräftar inte nedträning, sjukdom eller överträning.' },
   { id: 'mixed', title: 'Blandade signaler – snabb men tung i kroppen', body: 3, feeling: 4, speed: 4, rpe: 5, minutes: 80, previousRpe: 5, previousMinutes: 80, sleepMinutes: 510,
     interpretation: 'Gult hjärta och blå ring märkt Hög fartkänsla. Simmaren känner fart men kroppen känns inte lika bra. Ingen redo- eller toppningssignal: hög fartkänsla ensam bekräftar inte återhämtning.' },
   { id: 'sleep-warning', title: 'Grönt hjärta – men kort sömn', body: 4, feeling: 4, speed: 4, rpe: 5, minutes: 60, previousRpe: 6, previousMinutes: 90, sleepMinutes: 390,

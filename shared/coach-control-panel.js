@@ -30,8 +30,9 @@ const sleepSummary = (rows) => ({
 export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords = [], { periodStart, illnessRecords = [] } = {}) {
   const start = periodStart || dayBefore(asOf, 13), recentStart = dayBefore(asOf, 6)
   const comparisonStart = periodStart ? dayBefore(periodStart, 7) : start
+  const signalStart = dayBefore(asOf, 13), readStart = [comparisonStart, signalStart].sort()[0]
   const scopedIds = new Set(profiles.filter((profile) => !profile.isTestProfile).map((profile) => profile.id))
-  const comparisonRows = responses.filter((row) => row.profileId && scopedIds.has(row.profileId) && activityDay(row) >= comparisonStart && activityDay(row) <= asOf)
+  const comparisonRows = responses.filter((row) => row.profileId && scopedIds.has(row.profileId) && activityDay(row) >= readStart && activityDay(row) <= asOf)
   const rows = comparisonRows.filter((row) => activityDay(row) >= start)
   const sleep = [...new Map(sleepRecords.filter((row) => scopedIds.has(row.profile_id) && row.activity_date >= comparisonStart && row.activity_date <= asOf && !row.skipped && numeric(row.minutes) !== null && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)).map((row) => [`${row.profile_id}:${row.activity_date}`, row])).values()]
   const periodSleep = sleep.filter((row) => row.activity_date >= start)
@@ -47,11 +48,11 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
   }).filter((value) => value !== null)
   const swimmers = profiles.filter((profile) => scopedIds.has(profile.id)).map((profile) => {
     const own = rows.filter((row) => row.profileId === profile.id)
-    const recent = comparisonRows.filter((row) => row.profileId === profile.id && activityDay(row) >= recentStart)
+    const recent = comparisonRows.filter((row) => row.profileId === profile.id && activityDay(row) >= signalStart)
     const ownAfter = completed.filter((row) => row.profileId === profile.id)
     const speedStart = periodStart || recentStart
     const currentAfter = ownAfter.filter((row) => activityDay(row) >= speedStart)
-    const previousAfter = comparisonPasses.filter((row) => row.profileId === profile.id && activityDay(row) < speedStart)
+    const previousAfter = comparisonPasses.filter((row) => row.profileId === profile.id && activityDay(row) >= comparisonStart && activityDay(row) < speedStart)
     const speedCurrent = currentAfter.map((row) => numeric(row.speedFeeling)).filter((value) => value !== null)
     const speedPrevious = previousAfter.map((row) => numeric(row.speedFeeling)).filter((value) => value !== null)
     const ownSleep = sleep.filter((row) => row.profile_id === profile.id)
@@ -74,7 +75,7 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     }
   })
   return {
-    start, end: asOf, signalStart: recentStart,
+    start, end: asOf, signalStart, symptomStart: recentStart,
     profileCount: swimmers.length,
     completedPasses: completed.length,
     averageRpe: mean(rpeValues), rpeAnswers: rpeValues.length,

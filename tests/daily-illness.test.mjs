@@ -102,7 +102,7 @@ test('heavy training alone and duplicate answers cannot create a red pattern', (
   assert.equal(signals({ responses: [0, 1].map(n => answer(n, { body: 1, feeling: 1 })) }).color, 'yellow')
   assert.equal(signals({ responses: [0, 1, 2].map(n => answer(n, { body: 1 })) }).color, 'yellow')
   assert.equal(signals({ responses: [0, 1, 2].map(n => answer(n, { rpe: 10 })) }).color, 'yellow')
-  assert.equal(signals({ responses: [0, 1, 2].map(n => answer(n, { body: 2, feeling: 2 })) }).color, 'red')
+  assert.equal(signals({ responses: [0, 1, 2].map(n => answer(n, { body: 2, feeling: 2 })) }).color, 'green')
   assert.equal(signals({ responses: [2, 3, 4].map(n => answer(n, { body: 1, feeling: 1 })) }).color, 'yellow')
   assert.equal(signals({ responses: [0, 1, 2].map(n => answer(n, { body: 1 })).concat([3, 4, 5].map(n => answer(n, { feeling: 1 }))) }).color, 'yellow')
 })

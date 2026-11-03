@@ -753,6 +753,13 @@ button { cursor: pointer; }
 .scale-10 { grid-template-columns: repeat(10, 1fr); }
 .scale-grid button { aspect-ratio: 1; border: 1.5px solid #d6e2df; background: white; border-radius: 12px; font-weight: 700; font-size: 18px; }
 .scale-grid button:hover { background: var(--lime); border-color: #a6c63e; transform: translateY(-2px); }
+.scale-grid.checkin-scale-icons button { display: grid; align-content: center; justify-items: center; gap: 5px; min-width: 0; padding: 8px 2px; }
+.scale-grid.checkin-scale-icons button > span { font-size: 30px; line-height: 1.15; }
+.scale-grid.checkin-scale-icons button > small { font-size: 14px; font-weight: 700; }
+@media (max-width: 600px) {
+  .scale-10.checkin-scale-icons { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .scale-10.checkin-scale-icons button { aspect-ratio: auto; min-height: 76px; }
+}
 .scale-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 11px; }
 .comment-box textarea { width: 100%; height: 145px; border: 1.5px solid #d6e2df; border-radius: 15px; padding: 16px; resize: none; outline: 0; }
 .comment-box textarea:focus { border-color: var(--teal); }

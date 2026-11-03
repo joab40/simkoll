@@ -40,6 +40,8 @@ import SwimmerCardSummary, { DirectionExplanation } from './swimmer-card-summary
 import { programActivityDirection } from '../shared/swimmer-card-direction.js'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import IllnessHistory, { IllnessQuestion } from './daily-illness.jsx'
+import Scale from './checkin-scale.jsx'
+import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
 import PrivateChatReply from './private-chat-reply.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
@@ -76,14 +78,6 @@ const BUILD_TIME = __BUILD_TIME__
 const COMMIT_SHA = __COMMIT_SHA__
 const coachRoleLabel = (role) => role === 'superadmin' ? 'Superadmin' : role === 'head_coach' ? 'Huvudtränare' : 'Tränare'
 const canSwitchToOwnSwimmerView = (role) => role === 'head_coach' || role === 'superadmin'
-
-const FEELINGS = [
-  { value: 1, emoji: '😣', label: 'Tungt' },
-  { value: 2, emoji: '😕', label: 'Segt' },
-  { value: 3, emoji: '😌', label: 'Okej' },
-  { value: 4, emoji: '🙂', label: 'Bra' },
-  { value: 5, emoji: '🤩', label: 'Toppen' },
-]
 
 const DAY_TYPES = [
   { value: 'before', title: 'Jag ska träna', icon: '→' },
@@ -2113,6 +2107,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   const [sleepSaved, setSleepSaved] = useState(false)
   const [illnessStatus, setIllnessStatus] = useState('loading'), [illnessError, setIllnessError] = useState('')
   const [illnessSaved, setIllnessSaved] = useState(false)
+  const [dailySaving, setDailySaving] = useState(false)
   const [dailyPrompts, setDailyPrompts] = useState(null)
   useEffect(() => {
     if (!identified || !hasProfile) { setIllnessStatus('done'); return }
@@ -2255,13 +2250,14 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     const question = questions[step - questionOffset]
     content = (
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.hint}>
-        {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={apiRequest} onContinue={() => { setIllnessSaved(true); next() }} />)}
+        {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={apiRequest} onBusyChange={setDailySaving} onContinue={() => { setIllnessSaved(true); next() }} />)}
         {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={apiRequest} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
         {question.kind === 'scale' && (
           <Scale
             count={question.count}
             left={question.left}
             right={question.right}
+            icons={checkinScaleIcons(question.key, { competition: form.competition === true })}
             onChange={(value) => { update(question.key, value); next() }}
           />
         )}
@@ -2291,7 +2287,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   return (
     <div className="checkin-page">
       <div className="progress"><span style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
-      <button className="back-button" onClick={step === 0 ? onBack : () => setStep((current) => current - 1)}>← Tillbaka</button>
+      <button className="back-button" disabled={dailySaving} onClick={step === 0 ? onBack : () => setStep((current) => current - 1)}>← Tillbaka</button>
       <div className="question-wrap">{content}</div>
       <div className="step-count">{Math.min(step + 1, total)} / {total}</div>
     </div>
@@ -2300,17 +2296,6 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
 
 function Question({ eyebrow = 'Snabbkoll', title, hint, children }) {
   return <section className="question"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{hint}</p>{children}</section>
-}
-
-function Scale({ count, left, right, onChange }) {
-  return (
-    <div className="scale-wrap">
-      <div className={`scale-grid scale-${count}`}>
-        {Array.from({ length: count }, (_, index) => <button key={index} onClick={() => onChange(index + 1)}>{index + 1}</button>)}
-      </div>
-      <div className="scale-labels"><span>{left}</span><span>{right}</span></div>
-    </div>
-  )
 }
 
 function getQuestions(type, activityType = null) {

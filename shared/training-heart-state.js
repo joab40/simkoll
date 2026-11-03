@@ -1,5 +1,7 @@
 // Transparent product rules for conversation support, not a validated form,
 // recovery or competition-readiness model. Never prescribe training from this.
+import { HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
+
 export const TRAINING_STATES = {
   turbo: { label: 'Turbo · toppningssignal', description: 'Mycket god kropp-, dags- och fartkänsla, positivt sömnunderlag och minskad belastning sammanfaller. Ett mönster att stämma av inför tävling, inte bekräftad toppform.' },
   ready: { label: 'Utvilad och redo · signal', description: 'God kropp-, dags- och fartkänsla sammanfaller med positivt sömnunderlag. Utvilad är en tolkning av dessa svar, inte en direkt fråga om återhämtning eller ett klartecken för tävling.' },
@@ -13,6 +15,7 @@ export const TRAINING_STATES = {
 }
 
 export const TRAINING_STATE_RULES = [
+  HEAVY_PATTERN_RULE,
   'Sjukdomskollen är separat från träningen. Senaste giltiga dagsvar idag/igår med Lite känningar eller Jag känner mig sjuk ger uppföljningsläge före positiva träningslägen, oavsett RPE eller belastning. Ett nyare Nej gör inte äldre känningar aktuella; saknade eller överhoppade svar betyder inte frisk. Äldre sjukfrånvaro under veckan visas fortsatt som separat varning. Ingen sjukdomsrisk räknas fram.',
   'Alla lägen är rapporterade signaler och produktregler för samtal, inte en validerad formbedömning. Ingen måltävling, träningsfas, direkt återhämtningsfråga, testlopps- eller tävlingsresultat används. Ingen AI körs och träningen ändras inte.',
   'Aktuellt betyder senaste tre kalenderdagarna till och med valt datum. Kropp, dagskänsla och aktuell simfartkänsla behöver vardera minst två olika svarsdagar för redo/toppningssignal. Varje dags medelvärde väger lika; värdena avrundas till en decimal. Gymmets kraftsvar blir aldrig simfart och tävlingssvar blir inte simfart i denna beräkning.',

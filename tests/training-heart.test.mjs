@@ -25,7 +25,7 @@ test('colour uses daily means of body/feeling, not the number of checkins, speed
   const rows = [response(0), response(-1)]
   assert.equal(heart(rows).color, 'green')
   assert.equal(heart(rows.map(row => ({ ...row, body: 3 }))).color, 'yellow')
-  assert.equal(heart(rows.map(row => ({ ...row, feeling: 2 }))).color, 'red')
+  assert.equal(heart(rows.map(row => ({ ...row, feeling: 2 }))).color, 'yellow')
   assert.equal(heart(rows.map(row => ({ ...row, body: 5, feeling: 5, rpe: 10, speedFeeling: 1 }))).color, 'green')
   const weighted = heart([response(0, { body: 1 }), ...Array.from({ length: 10 }, (_, i) => response(-1, { id: `many${i}`, body: 5 }))])
   assert.equal(weighted.body.value, 3)

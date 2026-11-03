@@ -28,7 +28,7 @@ test('activity dates include the entire first day, exclude future data and cross
   assert.equal(status({ responses: [answer('2026-02-30')] }).color, 'unknown')
   assert.throws(() => swimmerTrafficAt({}, '2026-02-30'), /Ogiltigt/)
   const report = buildSwimmerTraffic([profile], {}, '2027-01-01')
-  assert.deepEqual(report.range, { start: '2026-12-26', end: '2027-01-01', previousStart: '2026-12-19', previousEnd: '2026-12-25' })
+  assert.deepEqual(report.range, { start: '2026-12-19', end: '2027-01-01', previousStart: '2026-12-12', previousEnd: '2026-12-25' })
 })
 
 test('sleep warnings affect the same colours as the card, independently of RPE', () => {
@@ -85,7 +85,7 @@ test('loader reads all pages from six bounded, narrow sources without writes', a
     assert.equal(options, undefined)
     assert.doesNotMatch(query, /comment|coach_notes|reflection|\*/)
     if (!query.startsWith('profiles?')) {
-      assert.match(query, /gte.2026-10-18/)
+      assert.match(query, query.startsWith('responses?') ? /gte.2026-10-11/ : /gte.2026-10-18/)
       assert.match(query, /lte.2026-10-31/)
     }
     let rows = []

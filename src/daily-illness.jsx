@@ -4,23 +4,35 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import SwimmerCardSummary from './swimmer-card-summary.jsx'
 import './daily-illness.css'
 
-export function IllnessQuestion({ date, code, request, onContinue, replace = false, initial = null }) {
+export function IllnessQuestion({ date, code, request, onContinue, onBusyChange, replace = false, initial = null }) {
   const [status, setStatus] = useState(initial), [busy, setBusy] = useState(false), [error, setError] = useState('')
-  const saving = useRef(false)
-  const save = async skipped => {
+  const saving = useRef(false), lastAttempt = useRef(null), active = useRef(true)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
+  const save = async (skipped, selectedStatus = status) => {
     if (saving.current) return
     saving.current = true; setBusy(true); setError('')
+    onBusyChange?.(true)
+    lastAttempt.current = { skipped, status: selectedStatus }
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
     try {
-      await request('/api/responses', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-illness', date, status, skipped, replace }) })
-      onContinue()
-    } catch (reason) { setError(reason.message); saving.current = false; setBusy(false) }
+      await request('/api/responses', code, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-illness', date, status: selectedStatus, skipped, replace }) })
+      if (active.current) { onBusyChange?.(false); onContinue() }
+    } catch (reason) { if (active.current) { setError(reason.name === 'AbortError' ? 'Sparandet kunde inte bekräftas i tid. Försök igen.' : reason.message); saving.current = false; setBusy(false); onBusyChange?.(false) } }
+    finally { clearTimeout(timer) }
+  }
+  const choose = value => {
+    if (saving.current) return
+    setStatus(value)
+    if (!replace) save(false, value)
   }
   return <div className="illness-question">
     <p>Frivilligt · {date} · synligt för tränarna. Sparas direkt i din dagbok, separat från träningen.</p>
-    <div className="illness-choices" role="group" aria-label="Sjukdomskänsla">{ILLNESS_CHOICES.map(choice => <button type="button" key={choice.value} aria-pressed={status === choice.value} disabled={busy} onClick={() => setStatus(choice.value)}><span aria-hidden="true">{choice.icon}</span><strong>{choice.label}</strong>{status === choice.value && <b aria-hidden="true">✓</b>}</button>)}</div>
+    {!replace && <p className="illness-note">Tryck på ett svar för att spara och gå vidare.</p>}
+    <div className="illness-choices" role="group" aria-label="Sjukdomskänsla" aria-busy={busy}>{ILLNESS_CHOICES.map(choice => <button type="button" key={choice.value} aria-pressed={status === choice.value} disabled={busy} onClick={() => choose(choice.value)}><span aria-hidden="true">{choice.icon}</span><strong>{choice.label}</strong>{status === choice.value && <b aria-hidden="true">✓</b>}</button>)}</div>
+    {busy && <p role="status">Sparar svaret…</p>}
     <p className="illness-note">Inte en diagnos. Prata med tränaren vid sjukdomskänningar.</p>
-    <div className="illness-actions"><button type="button" className="text-button" disabled={busy} onClick={() => save(true)}>{replace ? 'Ta bort mitt svar' : 'Hoppa över idag'}</button><button type="button" className="primary-button" disabled={busy || !status} onClick={() => save(false)}>{busy ? 'Sparar…' : replace ? 'Spara ändring' : 'Spara och fortsätt →'}</button></div>
-    {error && <div role="alert"><p className="form-error">{error}</p>{!replace && <button type="button" className="text-button" disabled={busy} onClick={onContinue}>Fortsätt utan sjukdomskoll</button>}</div>}
+    <div className="illness-actions"><button type="button" className="text-button" disabled={busy} onClick={() => save(true)}>{replace ? 'Ta bort mitt svar' : 'Hoppa över idag'}</button>{replace && <button type="button" className="primary-button" disabled={busy || !status} onClick={() => save(false)}>{busy ? 'Sparar…' : 'Spara ändring'}</button>}</div>
+    {error && <div role="alert"><p className="form-error">{error}</p>{!replace && <><button type="button" className="secondary-button" disabled={busy} onClick={() => save(lastAttempt.current.skipped, lastAttempt.current.status)}>Försök igen</button><button type="button" className="text-button" disabled={busy} onClick={onContinue}>Fortsätt utan sjukdomskoll</button></>}</div>}
   </div>
 }
 

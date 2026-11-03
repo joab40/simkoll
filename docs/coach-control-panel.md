@@ -17,12 +17,15 @@ appens begränsade lista med de senaste svaren. Delvisa resultat visas inte
 som en fullständig sammanställning. Anonyma svar visas bara när alla grupper är valda.
 
 Listan **Ta en dialog** är minimerad från början, med antalet simmare synligt
-även när den är stängd. Den visar röda, daterade signaler under de
-sju dagarna fram till periodens sista dag (idag för pågående vecka). Detta
-datumintervall står i kortet, och signaler nollställs inte på måndagar.
-Rött för kropp/dagskänsla kräver båda låga (1–2/5) på samma minst tre olika
-dagar, minst en idag/igår. Enbart låg kropp, låg dagskänsla och hög RPE
-visas gult i den separata minimerade listan **Bevaka utvecklingen**. Direkta
+även när den är stängd. Kropp/dagskänsla följer 14 dagar, övriga signaler
+sju dagar fram till periodens sista dag (idag för pågående vecka). Rätt
+datumintervall visas per signal och nollställs inte på måndagar.
+2 = segt ger ingen uppföljningsvarning i sig. Rött för ihållande kropp eller
+dagskänsla kräver 1/5 på minst fem olika dagar under 14 dagar, i samma mått,
+med ett spann på minst åtta kalenderdagar och minst två sådana dagar de
+senaste tre dagarna. Kropp och dagskänsla läggs inte ihop för att nå fem.
+Aktuella ettor utan ihållande mönster och upprepad hög RPE visas gult i den
+separata minimerade listan **Bevaka utvecklingen**. Direkta
 sjukdomssvar idag/igår ger rött utan att vänta på upprepade trötthetsdagar.
 Lite sjukdomskänningar ger gult; tre sådana dagar inom sju med ett aktuellt
 känningar-svar idag/igår ger rött. Planeringsluckor ger ingen hälsovarning.
@@ -44,9 +47,10 @@ datumintervall som används. Tryck igen, tryck utanför eller använd Escape
 för att stänga. Låg känsla gäller den allmänna dagskänslan (”Hur känns det
 idag?”), medan låg kroppskänsla gäller den fysiska upplevelsen av kroppen
 (till exempel tung/öm eller pigg/fräsch). Vid gymträning motsvarar
-Kraftlös och Seg de låga kroppssvaren. Varje dag med minst ett lågt svar
+Kraftlös = 1 och Seg = 2; bara ettan ingår i tungt-mönstret. Varje dag med minst en etta
 räknas en gång, även om simmaren svarat flera gånger den dagen. Det är
-antal dagar, inte ett medelvärde; saknade svar räknas inte som låga.
+antal dagar, inte ett medelvärde; saknade svar räknas inte som ettor eller
+bevis på återhämtning. Trösklarna är justerbara produktregler, inte medicinska gränser.
 
 Gruppens expanderbara tabell visar också en försiktig jämförelse av
 självskattad fartkänsla mellan vald och föregående kalendervecka. Det krävs minst två
