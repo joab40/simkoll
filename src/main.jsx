@@ -4719,6 +4719,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
   const [publishedAlternatives, setPublishedAlternatives] = useState(0)
   const loadOccasionChoices = useMemo(() => (requestedDate, exclude, signal) => apiRequest(`/api/workouts?occasionChoices=true&date=${encodeURIComponent(requestedDate)}${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ''}`, code, { signal }), [code])
   const loadSingleOccasions = useMemo(() => (signal) => loadOccasionChoices(date, form.id || '', signal), [loadOccasionChoices, date, form.id])
+  const loadImportOccasions = useMemo(() => (requestedDate, exclude, signal) => apiRequest(`/api/workouts?occasionChoices=true&includePlanning=true&date=${encodeURIComponent(requestedDate)}`, code, { signal }), [code])
   const [criteria, setCriteria] = useState(['focus', 'pass', 'rpe'])
   const [focusPreference, setFocusPreference] = useState('')
   const [generatorOpen, setGeneratorOpen] = useState(false)
@@ -4858,7 +4859,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
     } catch (error) { window.alert(error.message) }
   }
 
-  if (workbookImport) return <section className="workout-editor"><WorkoutWorkbookReview workbook={workbookImport} date={date} timeOfDay={form.timeOfDay || ''} groups={form.targetGroups || selectedGroups} initialOccasion={form} loadChoices={loadOccasionChoices} availableGroups={availableGroups} focuses={WORKOUT_FOCUSES} onPublish={publishWorkbook} onClose={() => setWorkbookImport(null)} /></section>
+  if (workbookImport) return <section className="workout-editor"><WorkoutWorkbookReview workbook={workbookImport} date={date} timeOfDay={form.timeOfDay || ''} groups={form.targetGroups || selectedGroups} initialOccasion={form} loadChoices={loadImportOccasions} availableGroups={availableGroups} focuses={WORKOUT_FOCUSES} onPublish={publishWorkbook} onClose={() => setWorkbookImport(null)} /></section>
 
   return (
     <section className="workout-editor">

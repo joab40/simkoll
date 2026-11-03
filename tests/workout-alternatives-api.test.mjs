@@ -19,10 +19,11 @@ async function call(body, token = code, method = 'POST') {
   await handler({ method, query: method === 'GET' ? body : {}, body: method === 'GET' ? undefined : body, headers: { 'x-simkoll-code': token } }, response)
   return response
 }
-function fixture({ missingMigration = false, missingMigrationOnWrite = false, initialWorkouts = [], initialPlans = [] } = {}) {
+function fixture({ missingMigration = false, missingMigrationOnWrite = false, initialWorkouts = [], initialPlans = [], calendarEvents = null, calendarFailure = false, planningFailureAt = null } = {}) {
   const workouts = structuredClone(initialWorkouts), plans = structuredClone(initialPlans), writes = []
+  let planningWrites = 0
   const matches = (rows, url) => rows.filter((row) => [...url.searchParams].every(([key, value]) => {
-    if (['id', 'workout_date', 'plan_date', 'source_workout_id', 'alternative_group_id'].includes(key)) {
+    if (['id', 'workout_date', 'plan_date', 'source_workout_id', 'alternative_group_id', 'activity_type'].includes(key)) {
       if (value === 'is.null') return row[key] == null
       if (value.startsWith('eq.')) return row[key] === value.slice(3)
       if (value.startsWith('in.(')) return value.slice(4, -1).split(',').includes(row[key])
@@ -31,9 +32,10 @@ function fixture({ missingMigration = false, missingMigrationOnWrite = false, in
   }))
   globalThis.fetch = async (raw, options = {}) => {
     const url = new URL(raw), method = options.method || 'GET', table = url.pathname.split('/').at(-1)
+    if (url.hostname === 'occasion-calendar.invalid') return calendarFailure ? json({}, 503) : new Response(['BEGIN:VCALENDAR', ...calendarEvents.map(item => ['BEGIN:VEVENT', `UID:${item.uid}`, `DTSTART:${item.date.replaceAll('-', '')}T${item.time.replace(':', '')}00`, `SUMMARY:${item.title}`, `LOCATION:${item.location || ''}`, 'END:VEVENT'].join('\r\n')), 'END:VCALENDAR'].join('\r\n'))
     assert.equal(url.hostname, 'workout-alternatives.invalid')
     if (method !== 'GET') writes.push({ table, method, body: options.body ? JSON.parse(options.body) : null })
-    if (table === 'app_settings') return json([])
+    if (table === 'app_settings') return json(calendarEvents ? [{ setting_value: { sportAdminCalendars: [{ id: 'shared', url: 'https://occasion-calendar.invalid/feed', groups: ['junior'] }] } }] : [])
     if (table === 'daily_workouts') {
       if (missingMigration || (missingMigrationOnWrite && method !== 'GET')) return json({ message: 'alternative_group_id missing from schema cache' }, 400)
       if (method === 'POST') {
@@ -51,6 +53,7 @@ function fixture({ missingMigration = false, missingMigrationOnWrite = false, in
       return json(matches(workouts, url))
     }
     if (table === 'training_plans') {
+      if (method !== 'GET' && ++planningWrites === planningFailureAt) return json({ message: 'simulated planning write failure' }, 503)
       if (method === 'POST') {
         const payload = JSON.parse(options.body), row = { id: randomUUID(), ...payload }
         plans.push(row); return json([row])
@@ -248,4 +251,107 @@ test('a workbook can extend an existing occasion and retries scope only that imp
   assert.equal(state.plans.length, 4)
   assert.equal(groupSwimOccasions(asPlanning(state.plans)).length, 1)
   assert.deepEqual(planningAmountRange(asPlanning(state.plans), 'distanceMeters'), { min: 4400, max: 4900 })
+})
+
+const planningId = 'cccccccc-cccc-4ccc-accc-cccccccccccc'
+const manualPlan = (extra = {}) => ({ id: planningId, plan_date: date, activity_type: 'swim', title: 'Planerad simträning', time_of_day: 'afternoon', target_groups: ['junior'], source_workout_id: null, duration_minutes: 120, ...extra })
+const calendarTraining = (extra = {}) => ({ uid: 'training', date, time: '18:00', title: 'Träning - Junior', location: 'Himlabadet', ...extra })
+const importChoices = () => call({ occasionChoices: 'true', includePlanning: 'true', date }, code, 'GET')
+
+test('Drive occasion choices include manual swim planning even before a workout is published, without writes', async () => {
+  const state = fixture({ initialPlans: [manualPlan(), manualPlan({ id: secondId, activity_type: 'strength' }), manualPlan({ id: firstId, calendar_link: { mode: 'none', detachedWorkoutId: secondId } })] })
+  const result = await importChoices()
+  assert.equal(result.code, 200)
+  assert.equal(result.data.occasions.length, 1)
+  assert.equal(result.data.occasions[0].targetPlanId, planningId)
+  assert.equal(result.data.occasions[0].timeOfDay, 'afternoon')
+  assert.equal(state.writes.length, 0)
+  assert.equal((await call({ occasionChoices: 'true', date }, code, 'GET')).data.occasions.length, 0, 'legacy single-editor choices remain published-workout-only')
+})
+test('a workbook consumes only the selected planning row, groups alternatives and retries without duplicates', async () => {
+  const state = fixture({ initialPlans: [manualPlan(), manualPlan({ id: secondId, title: 'Annan separat träning', time_of_day: 'morning' })] })
+  const body = { ...requestBody(), occasionMode: 'existing', alternativeToPlanId: planningId }
+  const result = await call(body)
+  assert.equal(result.code, 200, JSON.stringify(result.data))
+  assert.equal(state.plans.length, 4)
+  assert.ok(result.data.workouts.every(item => item.alternativeGroupId === planningId))
+  const selected = state.plans.find(plan => plan.id === planningId)
+  assert.ok(result.data.workouts.some(item => item.id === selected.source_workout_id))
+  assert.equal(state.plans.find(plan => plan.id === secondId).source_workout_id, null)
+  assert.equal((await call(body)).code, 200)
+  assert.equal(state.plans.length, 4)
+  assert.equal(state.workouts.length, 3)
+})
+test('same-time group calendar training is one choice; registration, land training and other dates are not', async () => {
+  const state = fixture({ calendarEvents: [calendarTraining(), calendarTraining({ uid: 'black', title: 'Träning - Ungdom Svart' }), calendarTraining({ uid: 'morning', time: '08:00' }), calendarTraining({ uid: 'camp', time: '22:00', title: 'Anmälan sportlovsläger' }), calendarTraining({ uid: 'land', title: 'Landträning' }), calendarTraining({ uid: 'tomorrow', date: '2026-10-30' })] })
+  const result = await importChoices()
+  assert.equal(result.code, 200)
+  assert.equal(result.data.occasions.length, 2)
+  assert.deepEqual(result.data.occasions.map(item => item.time), ['08:00', '18:00'])
+  assert.deepEqual(result.data.occasions[1].targetGroups.sort(), ['junior', 'ungdom_svart'])
+  assert.equal(state.writes.length, 0)
+})
+test('calendar-only import preserves time, place, all group keys, one occasion and idempotent publication', async () => {
+  const state = fixture({ calendarEvents: [calendarTraining(), calendarTraining({ uid: 'black', title: 'Träning - Ungdom Svart' })] })
+  const target = (await importChoices()).data.occasions[0]
+  const body = { ...requestBody(), occasionMode: 'existing', alternativeToCalendarKey: target.targetCalendarKey, targetGroups: target.targetGroups }
+  const result = await call(body)
+  assert.equal(result.code, 200, JSON.stringify(result.data))
+  assert.equal(state.plans.length, 3)
+  assert.ok(state.plans.every(plan => plan.calendar_link.time === '18:00' && plan.location === 'Himlabadet' && plan.calendar_link.keys.length === 2))
+  assert.ok(state.plans.every(plan => plan.target_groups.includes('ungdom_svart')))
+  assert.equal(groupSwimOccasions(asPlanning(state.plans)).length, 1)
+  assert.deepEqual(planningAmountRange(asPlanning(state.plans), 'distanceMeters'), { min: 4400, max: 4900 })
+  assert.equal((await call(body)).code, 200)
+  assert.equal(state.plans.length, 3)
+  assert.equal(state.workouts.length, 3)
+  assert.equal((await importChoices()).data.occasions.length, 1, 'published calendar training must not appear again as an empty calendar choice')
+})
+test('planning and calendar targets reject missing/wrong day, incompatible slot/group and conflicting target fields before writes', async () => {
+  for (const extra of [{ alternativeToPlanId: secondId }, { alternativeToPlanId: planningId, timeOfDay: 'morning' }, { alternativeToPlanId: planningId, targetGroups: ['other'] }, { alternativeToPlanId: planningId, alternativeToWorkoutId: firstId }, { alternativeToPlanId: planningId, date: '2026-10-30' }, { alternativeToCalendarKey: 'gone' }]) {
+    const state = fixture({ initialPlans: [manualPlan()], calendarEvents: [calendarTraining()] })
+    const result = await call({ ...requestBody(), occasionMode: 'existing', ...extra })
+    assert.ok([400, 409].includes(result.code), JSON.stringify(result.data))
+    assert.equal(state.writes.length, 0)
+  }
+})
+test('unavailable calendar does not masquerade as an empty day; non-coaches cannot read planning choices', async () => {
+  const state = fixture({ calendarEvents: [], calendarFailure: true })
+  assert.notEqual((await importChoices()).code, 200)
+  assert.equal((await call({ occasionChoices: 'true', includePlanning: 'true', date }, '', 'GET')).code, 403)
+  assert.equal(state.writes.length, 0)
+})
+
+test('manual calendar-linked planning uses the real clock slot, while untimed planning remains explicitly unknown', async () => {
+  fixture({ initialPlans: [manualPlan({ time_of_day: 'morning', calendar_link: { mode: 'linked', key: 'known', time: '18:00', location: 'Himlabadet' } }), manualPlan({ id: secondId, time_of_day: '', calendar_link: { mode: 'none', time: '00:00' } })] })
+  const choices = (await importChoices()).data.occasions
+  assert.equal(choices.find(item => item.targetPlanId === planningId).timeOfDay, 'afternoon')
+  assert.equal(choices.find(item => item.targetPlanId === secondId).timeOfDay, '')
+})
+
+test('shared manual calendar planning rows are reused without leaving zero-amount alternatives or stealing another slot', async () => {
+  const calendar_link = { mode: 'linked', key: 'shared', time: '18:00', location: 'Himlabadet' }
+  const state = fixture({ initialPlans: [manualPlan({ calendar_link }), manualPlan({ id: secondId, calendar_link, target_groups: ['ungdom_svart'] })] })
+  const choices = (await importChoices()).data.occasions
+  assert.equal(choices.length, 1)
+  assert.deepEqual(choices[0].targetGroups.sort(), ['junior', 'ungdom_svart'])
+  const result = await call({ ...requestBody(), occasionMode: 'existing', alternativeToPlanId: planningId, targetGroups: choices[0].targetGroups })
+  assert.equal(result.code, 200)
+  assert.ok(state.plans.every(plan => plan.source_workout_id && plan.distance_meters > 0))
+  assert.equal(groupSwimOccasions(asPlanning(state.plans)).length, 1)
+  assert.deepEqual(planningAmountRange(asPlanning(state.plans), 'distanceMeters'), { min: 4400, max: 4900 })
+})
+
+test('a partial planning failure is visible and retry repairs only that import, never an unrelated manual training', async () => {
+  const state = fixture({ planningFailureAt: 2, initialPlans: [manualPlan(), manualPlan({ id: secondId, title: 'Separat träning', time_of_day: 'morning' })] })
+  const body = { ...requestBody(), occasionMode: 'existing', alternativeToPlanId: planningId }
+  const first = await call(body)
+  assert.notEqual(first.code, 200)
+  assert.match(first.data.error, /kalenderkopplingen kunde inte bekräftas/)
+  assert.equal(state.workouts.length, 3, 'already published IDs are retained for a safe retry')
+  assert.equal((await call(body)).code, 200)
+  assert.equal(state.workouts.length, 3)
+  assert.equal(state.plans.length, 4)
+  assert.equal(state.plans.find(plan => plan.id === secondId).source_workout_id, null)
+  assert.equal(state.plans.filter(plan => plan.source_workout_id).length, 3)
 })

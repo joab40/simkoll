@@ -438,9 +438,11 @@ function inferSportAdminGroups(item, fallback) {
   return inferred.length ? normalizeSportAdminGroups(inferred) : normalizeSportAdminGroups(fallback)
 }
 
-async function configuredSportAdminCalendars() {
+const planningLinkError = message => Object.assign(new Error(message), { status: 503 })
+
+async function configuredSportAdminCalendars({ strict = false } = {}) {
   const result = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
-  if (!result.ok) return []
+  if (!result.ok) { if (strict) throw planningLinkError('Kalenderinställningarna kunde inte hämtas. Försök igen.'); return [] }
   const value = (await result.json())[0]?.setting_value || {}
   return Array.isArray(value.sportAdminCalendars) ? value.sportAdminCalendars : []
 }
@@ -455,23 +457,29 @@ async function updatePlanningHiddenDate(date, hidden) {
   await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, planningHiddenDates: [...dates].slice(-120) }, updated_at: new Date().toISOString() }) })
 }
 
-async function readSportAdminCalendars(calendars) {
+async function readSportAdminCalendars(calendars, { strict = false } = {}) {
   const safe = Array.isArray(calendars) ? calendars : []
   const results = await Promise.all(safe.filter((calendar) => calendar.enabled !== false && calendar.url).map(async (calendar) => {
     try {
-      const source = await fetch(calendar.url)
-      if (!source.ok) return []
+      const source = await fetch(calendar.url, { signal: AbortSignal.timeout(10000) })
+      if (!source.ok) { if (strict) throw new Error('Kalendern kunde inte hämtas.'); return [] }
       return parseSportAdminIcs(await source.text()).map((item) => ({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: inferSportAdminGroups(item, calendar.groups) }))
-    } catch (error) { console.warn('SportAdmin calendar fetch failed:', error.message); return [] }
+    } catch (error) { if (strict) throw planningLinkError('Dagens kalenderträningar kunde inte hämtas. Försök igen.'); console.warn('SportAdmin calendar fetch failed:', error.message); return [] }
   }))
   return results.flat().slice(0, 1000)
 }
 
+async function importWorkoutOccasions(date, includeCalendar = true) {
+  const calendarActivities = includeCalendar ? await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true }) : []
+  return loadWorkoutOccasions(date, { calendarActivities })
+}
+
 async function syncPlanningFromWorkout(workout, occasionPlan = null) {
   const date = workout.workout_date
-  const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&order=updated_at.asc&limit=100`)
-  if (!existing.ok) return
+  const existing = await supabaseRequest(`training_plans?plan_date=eq.${date}&activity_type=eq.swim&select=*&order=updated_at.asc&limit=200`)
+  if (!existing.ok) { if (occasionPlan) throw planningLinkError('Kalenderkopplingen kunde inte bekräftas. Försök igen.'); return }
   const plans = await existing.json()
+  if (occasionPlan && plans.length >= 200) throw planningLinkError('Dagens planering kunde inte läsas fullständigt. Försök igen.')
   // A coach can explicitly detach a published workout from its planning row.
   // Keep a small tombstone in calendar_link so the read-time backfill below
   // does not silently recreate that link after a page refresh.
@@ -486,16 +494,26 @@ async function syncPlanningFromWorkout(workout, occasionPlan = null) {
   // Prefer its own row. Each imported alternative needs a separate row and may
   // never overwrite another alternative merely because focus/groups match.
   const own = eligible.find((item) => item.source_workout_id === workout.id)
-  const current = own || (workout.alternative_group_id
+  const explicitPlans = occasionPlan?.planIds ? eligible.filter(item => occasionPlan.planIds.includes(item.id) && unlinked(item)) : []
+  const current = own || (occasionPlan ? explicitPlans[0] : workout.alternative_group_id
     ? sameTime.find((item) => unlinked(item) && !item.alternative_group_id && sameGroup(item))
     : sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find(unlinked))
   const sibling = workout.alternative_group_id && plans.find((item) => item.alternative_group_id === workout.alternative_group_id && item.calendar_link?.mode === 'linked')
-  const calendar = occasionPlan || (!current && sibling ? { calendar_link: sibling.calendar_link, location: sibling.location } : {})
+  const calendar = occasionPlan ? { calendar_link: occasionPlan.calendar_link, location: occasionPlan.location } : (!current && sibling ? { calendar_link: sibling.calendar_link, location: sibling.location } : {})
   const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], ...(Object.hasOwn(workout, 'alternative_group_id') ? { alternative_group_id: workout.alternative_group_id || null } : {}), ...calendar, source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-  if (!current) await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
-  else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
-  else if (!current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload }) })
-  else if (current.source_workout_id) await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
+  if (!own && explicitPlans.length) {
+    for (const plan of explicitPlans) {
+      const result = await supabaseRequest(`training_plans?id=eq.${plan.id}&source_workout_id=is.null`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+      if (!result.ok || !(await result.json()).length) throw planningLinkError('Planeringen har ändrats. Hämta träningen igen innan du försöker på nytt.')
+    }
+    return
+  }
+  let result
+  if (!current) result = await supabaseRequest('training_plans', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ plan_date: date, activity_type: 'swim', ...payload }) })
+  else if (current.sync_status === 'linked' || current.source_workout_id === workout.id) result = await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) })
+  else if (!current.source_workout_id) result = await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload }) })
+  else if (current.source_workout_id) result = await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
+  if (occasionPlan && !result?.ok) throw planningLinkError('Passet har publicerats men kalenderkopplingen kunde inte bekräftas. Försök igen med samma import.')
 }
 async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
   const currentPlans = Array.isArray(plans) ? plans : []
@@ -616,7 +634,8 @@ export default async function handler(request, response) {
         const exclude = String(request.query.exclude || '')
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (exclude && !competitionUuid.test(exclude))) return sendJson(response, 400, { error: 'Välj ett giltigt datum och pass.' })
         response.setHeader('Cache-Control', 'private, no-store')
-        return sendJson(response, 200, { occasions: workoutOccasionChoices(await loadWorkoutOccasions(date), exclude) })
+        const includePlanning = request.query.includePlanning === 'true'
+        return sendJson(response, 200, { occasions: workoutOccasionChoices(await (includePlanning ? importWorkoutOccasions(date) : loadWorkoutOccasions(date)), exclude, includePlanning) })
       }
       if (request.query?.checkinChoices === 'true') {
         const date = String(request.query.date || stockholmDate())
@@ -987,8 +1006,11 @@ export default async function handler(request, response) {
           payload.push({ id, alternative_group_id: groupId, workout_date: date, time_of_day: timeOfDay, target_groups: groups, title, content, note: note || null, focus: focus || null, distance_meters: meters, duration_minutes: minutes })
         }
         const mode = body.occasionMode || 'new'
-        if (!['new', 'existing'].includes(mode) || (mode === 'existing' && !competitionUuid.test(String(body.alternativeToWorkoutId || '')))) return sendJson(response, 400, { error: 'Välj nytt träningstillfälle eller ett giltigt befintligt pass.' })
-        const link = mode === 'existing' ? prepareWorkoutOccasion(await loadWorkoutOccasions(date), { targetId: body.alternativeToWorkoutId, timeOfDay, targetGroups: groups }) : null
+        const targets = [body.alternativeToWorkoutId, body.alternativeToPlanId, body.alternativeToCalendarKey].filter(Boolean)
+        if (!['new', 'existing'].includes(mode) || (mode === 'existing' && (targets.length !== 1 || (body.alternativeToWorkoutId && !competitionUuid.test(String(body.alternativeToWorkoutId))) || (body.alternativeToPlanId && !competitionUuid.test(String(body.alternativeToPlanId))) || (body.alternativeToCalendarKey && (typeof body.alternativeToCalendarKey !== 'string' || body.alternativeToCalendarKey.length > 2000))))) return sendJson(response, 400, { error: 'Välj nytt träningstillfälle eller ett giltigt befintligt pass.' })
+        const context = mode === 'existing' ? await (body.alternativeToCalendarKey ? importWorkoutOccasions(date) : loadWorkoutOccasions(date)) : null
+        const link = context ? prepareWorkoutOccasion(context, { targetId: body.alternativeToWorkoutId, targetPlanId: body.alternativeToPlanId, targetCalendarKey: body.alternativeToCalendarKey, timeOfDay, targetGroups: groups }) : null
+        const occasionPlan = link ? { calendar_link: link.calendarPlan?.calendar_link || { mode: 'none' }, location: link.calendarPlan?.location || null, planIds: link.planIds || [] } : null
         if (link) payload.forEach((workout) => { workout.alternative_group_id = link.groupId })
         // Query only this import's stable IDs: the shared occasion may contain
         // other workouts published earlier, including earlier workbook imports.
@@ -1002,7 +1024,7 @@ export default async function handler(request, response) {
         const previous = await previousResult.json()
         if (previous.length && (previous.length !== payload.length || payload.some((item) => !previous.some((saved) => saved.id === item.id && ['alternative_group_id', 'workout_date', 'time_of_day', 'title', 'content', 'note', 'focus', 'distance_meters', 'duration_minutes'].every((key) => (saved[key] ?? null) === (item[key] ?? null)) && JSON.stringify(saved.target_groups) === JSON.stringify(item.target_groups))))) return sendJson(response, 409, { error: 'Den här importen har redan publicerats. Avbryt importen och öppna de sparade passen om du vill ändra dem.' })
         let inserted = [], saved = previous
-        if (link) for (const member of await persistWorkoutOccasion(link)) await syncPlanningFromWorkout(member)
+        if (link) for (const member of await persistWorkoutOccasion(link)) await syncPlanningFromWorkout(member, occasionPlan)
         if (!previous.length) {
           // One database statement publishes all selected tabs atomically.
           const result = await supabaseRequest('daily_workouts?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(payload) })
@@ -1017,7 +1039,6 @@ export default async function handler(request, response) {
           saved = await persisted.json()
         }
         await updatePlanningHiddenDate(date, false)
-        const occasionPlan = link ? { calendar_link: link.calendarPlan?.calendar_link || { mode: 'none' }, location: link.calendarPlan?.location || null } : null
         for (const workout of saved) await syncPlanningFromWorkout(workout, occasionPlan)
         if (inserted.length) queueCategoryPush({ category: 'publishedWorkouts', id: groupId, targetGroups: groups, date, timeOfDay, workoutCount: saved.length })
         return sendJson(response, 200, { workouts: saved.map((workout) => publicWorkout(workout)) })

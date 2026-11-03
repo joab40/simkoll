@@ -4,7 +4,7 @@ import { TRAINING_HEART_EXAMPLE_ANSWERS } from './training-heart-examples.js'
 import { TRAINING_STATE_RULES } from './training-heart-state.js'
 import { FOLLOWUP_RULES } from './followup-signals.js'
 import { HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
-export const FEATURE_FAQ_UPDATED = '2026-11-02'
+export const FEATURE_FAQ_UPDATED = '2026-11-03'
 export const FEATURE_FAQ_SECTIONS = [
   ['checkin', 'Incheckning och planering'],
   ['diary', 'Min träningsdagbok'],
@@ -47,6 +47,7 @@ export const FEATURE_FAQ = [
     'Efter träningen väljer du vilket upplägg du körde. Bara det valda uppläggets mängd används som uppskattning vid helt genomfört pass, eller den mängd du själv anger. Delvis genomfört ger inte automatiskt hela mängden. Närvaro utan entydigt passval ger ingen gissad mängd. Två faktiskt separata träningstillfällen räknas var för sig.',
   ], coachAnswer: [
     'I Lägg upp ett pass väljer du Nytt träningstillfälle eller Alternativ till befintlig träning. Välj det befintliga tillfället på rätt datum. Samma morgon-/eftermiddagsmärkning slår inte i sig ihop två uttryckligt separata tillfällen. Redan publicerade pass kan öppnas och kopplas som alternativ.',
+    'Vid import från delad Drive-mapp blir Alternativ till befintlig träning förvalt om det finns en passande simträning i dagens planering. Ett enda passande tillfälle väljs automatiskt; finns flera väljer tränaren vilket. Även planerad simning utan publicerat pass och tydligt namngivna simträningstider i SportAdmin kan väljas. Tid på dagen hämtas från valet och döljs, men visas om tillfället saknar tidsangivelse eller om du väljer Nytt träningstillfälle. Byter du datum kontrolleras planeringen på nytt. Kalenderaktiviteter som lägeranmälan, tävling eller landträning blir inte automatiskt simträning.',
   ] },
   { id: 'diary-overview', section: 'diary', question: 'Hur fungerar Min träningsdagbok?', answer: [
     'Öppna Meny → Min träningsdagbok eller genvägen i Min profil. Välj Vecka, Månad eller Termin. För egna datum fyller du i Från och Till och trycker Visa period. Perioden får vara högst 366 dagar och går som längst till idag. Jämförelsen gäller föregående lika långa period.',
