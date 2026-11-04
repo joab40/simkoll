@@ -1,7 +1,7 @@
 import { parseSwimWorkbook } from './swim-workbook-import.js'
 import { SWIM_WORKBOOK_TYPES, SWIM_WORKBOOK_MAX_BYTES } from '../shared/swim-workbook.js'
 
-export async function importDriveWorkbook(fileId, apiKey) {
+export async function downloadDriveWorkbook(fileId, apiKey) {
   if (!apiKey) throw new Error('Google Drive API-nyckel saknas i Vercel.')
   const base = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`
   const metadata = await fetch(`${base}?${new URLSearchParams({ key: apiKey, fields: 'id,name,mimeType,size' })}`, { signal: AbortSignal.timeout(20000) })
@@ -23,5 +23,10 @@ export async function importDriveWorkbook(fileId, apiKey) {
     if (length > SWIM_WORKBOOK_MAX_BYTES) { await response.body.cancel?.().catch(() => {}); throw new Error('Välj ett kalkylblad under 3 MB.') }
     chunks.push(Buffer.from(chunk))
   }
-  return parseSwimWorkbook(Buffer.concat(chunks), file.name)
+  return { bytes: Buffer.concat(chunks), fileName: file.name }
+}
+
+export async function importDriveWorkbook(fileId, apiKey) {
+  const { bytes, fileName } = await downloadDriveWorkbook(fileId, apiKey)
+  return parseSwimWorkbook(bytes, fileName)
 }

@@ -4,7 +4,7 @@ import { TRAINING_HEART_EXAMPLE_ANSWERS } from './training-heart-examples.js'
 import { TRAINING_STATE_RULES } from './training-heart-state.js'
 import { FOLLOWUP_RULES } from './followup-signals.js'
 import { HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
-export const FEATURE_FAQ_UPDATED = '2026-11-03'
+export const FEATURE_FAQ_UPDATED = '2026-11-04'
 export const FEATURE_FAQ_SECTIONS = [
   ['checkin', 'Incheckning och planering'],
   ['diary', 'Min träningsdagbok'],
@@ -14,6 +14,11 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'weekly-spreadsheet-import', roles: ['coach'], section: 'coach', question: 'Hur importerar jag veckoplanering från Excel eller Google Drive?', answer: [
+    'Öppna Planering → Importera veckoplanering. Välj XLS/XLSX (högst 3 MB), Välj från delad Drive-mapp eller klistra in en Google Kalkylark-/Drive-länk som appens Drive-koppling kan läsa. Välj 1–5 flikar och kontrollera planeringsåret. Arkiv, tillfälliga planer och stödflikar är inte förvalda. GPT-6.1 kan analysera valda flikars innehåll; du kan avmarkera AI för vanlig tabelläsning. AI är ett granskningsunderlag, inte automatisk publicering.',
+    'Granska hittade veckor, grupper, datum, rubriker, meter, minuter och anteckningar. Tydliga SportAdmin-simträningar på samma datum och halvdag matchas mot berörda grupper. Ett enda kompatibelt tillfälle väljs automatiskt; vid flera väljer du själv. Kalendern styr tid och plats. Minuter hämtas från uttrycklig tidsåtgång i filen eller kalenderns start- och sluttid; saknad tid gissas inte. Du kan ange minuter i granskningen. Flera upplägg på samma tillfälle blir passalternativ, vars mängder inte adderas.',
+    'Varje valt veckoblock kan komplettera eller ersätta grundplanen för just de valda grupperna. Identiska rader hoppas över. Publicerade pass, tävlingskopplingar, kalenderhändelser och simmarnas registreringar skyddas; import vid ett skyddat publicerat tillfälle hoppas över. Ersättning kräver ett uttryckligt godkännande och gamla grundplansrader säkerhetskopieras i en privat importlogg. Om planering eller kalender ändras efter granskning måste du granska igen. Veckonumret visas i planeringsvyn. Importen kräver databasuppdatering 113.',
+  ] },
   { id: 'daily-illness', section: 'diary', question: 'Kan jag berätta att jag känner mig sjuk även om jag har tränat?', answer: [
     'Ja. I profilkopplad incheckning finns den frivilliga dagsfrågan Känner du dig sjuk eller på väg att bli sjuk? Välj Nej, Lite känningar eller Jag känner mig sjuk. Den gäller aktivitetsdagen och visas även efter träning, tävling eller vila. Den beskriver sjukdomskänsla, inte hur tungt passet var. Ingen sjukdom gissas från tung kropp eller RPE.',
     'Frågan hanteras en gång per dag även om du checkar in flera pass. I incheckningen trycker du en gång på svaret: det sparas och nästa fråga öppnas direkt, utan en extra Spara-knapp. Vid sparfel stannar du kvar och kan försöka igen eller fortsätta utan sjukdomskoll. Hoppa över idag är också ett dagsval, inte ett Nej. Svaret sparas separat från träning och poäng, synligt för dig och tränarna i Sjukdomskänningar i dagboken/simmarkortet. I din dagbok kan du ändra eller ta bort svaret för idag och igår; där bekräftar du ändringen med Spara ändring. Tränaren ändrar inte svaret åt dig.',

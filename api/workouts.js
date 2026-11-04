@@ -19,6 +19,10 @@ import { queueCategoryPush } from '../server/web-push.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { loadWorkoutOccasions, workoutOccasionChoices, prepareWorkoutOccasion, persistWorkoutOccasion } from '../server/workout-occasions.js'
 import { importDriveWorkbook } from '../server/drive-workout-import.js'
+import { loadPlanningFile, inspectPlanningFile, analyzePlanningFile, loadPlanningRows, preparePlanningImport, planningCalendarChoices } from '../server/planning-import.js'
+import { validatePlanningDraft } from '../shared/planning-import.js'
+import { planningAddDays } from '../shared/weekly-planning.js'
+import { analyticsRows } from '../server/analytics-rows.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
 import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 
@@ -401,12 +405,30 @@ function compactSportAdminNotes(value) {
   }).join('').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-function parseSportAdminIcs(source) {
+export function parseSportAdminIcs(source, { strict = false, from = '', to = '' } = {}) {
   const lines = String(source || '').replace(/\r\n[ \t]/g, '').split(/\r?\n/), events = []
+  const timestamp = value => {
+    const match = value.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/)
+    if (!match) return null
+    let date = `${match[1]}-${match[2]}-${match[3]}`, time = match[4] ? `${match[4]}:${match[5]}` : ''
+    if (match[7]) {
+      const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(`${date}T${time}:${match[6] || '00'}Z`))
+      const part = name => parts.find(item => item.type === name)?.value
+      date = `${part('year')}-${part('month')}-${part('day')}`; time = `${part('hour')}:${part('minute')}`
+    }
+    return { date, time }
+  }
   let event = null
   for (const line of lines) {
     if (line === 'BEGIN:VEVENT') { event = {}; continue }
-    if (line === 'END:VEVENT') { if (event?.date && event.title) events.push({ ...event, notes: compactSportAdminNotes(event.notes), id: `sportadmin-${events.length}-${event.date}-${event.title}` }); event = null; continue }
+    if (line === 'END:VEVENT') {
+      if (event?.date && event.title && (!from || event.date >= from) && (!to || event.date <= to)) {
+        const minutes = event.time && event.end?.time ? (Date.parse(`${event.end.date}T${event.end.time}:00Z`) - Date.parse(`${event.date}T${event.time}:00Z`)) / 60000 : null
+        const { end, ...clean } = event
+        events.push({ ...clean, ...(minutes > 0 && minutes <= 600 ? { durationMinutes: minutes } : {}), notes: compactSportAdminNotes(event.notes), id: `sportadmin-${events.length}-${event.date}-${event.title}` })
+      }
+      event = null; continue
+    }
     if (!event) continue
     const separator = line.indexOf(':'); if (separator < 0) continue
     const key = line.slice(0, separator).split(';')[0], value = line.slice(separator + 1).replace(/\\n/g, '\n').replace(/\\,/g, ',').trim()
@@ -414,8 +436,10 @@ function parseSportAdminIcs(source) {
     if (key === 'SUMMARY') event.title = value
     if (key === 'LOCATION') event.location = value
     if (key === 'DESCRIPTION') event.notes = value
-    if (key === 'DTSTART') { const match = value.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?/); if (match) { event.date = `${match[1]}-${match[2]}-${match[3]}`; event.time = match[4] ? `${match[4]}:${match[5]}` : '' } }
+    if (key === 'DTSTART') Object.assign(event, timestamp(value) || {})
+    if (key === 'DTEND') event.end = timestamp(value)
   }
+  if (strict) { if (events.length > 1000) throw planningLinkError('Kalendern innehåller för många träningar för säker import. Välj färre veckor.'); return events }
   return events.slice(0, 300)
 }
 
@@ -457,20 +481,22 @@ async function updatePlanningHiddenDate(date, hidden) {
   await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, planningHiddenDates: [...dates].slice(-120) }, updated_at: new Date().toISOString() }) })
 }
 
-async function readSportAdminCalendars(calendars, { strict = false } = {}) {
+async function readSportAdminCalendars(calendars, { strict = false, from = '', to = '' } = {}) {
   const safe = Array.isArray(calendars) ? calendars : []
   const results = await Promise.all(safe.filter((calendar) => calendar.enabled !== false && calendar.url).map(async (calendar) => {
     try {
       const source = await fetch(calendar.url, { signal: AbortSignal.timeout(10000) })
       if (!source.ok) { if (strict) throw new Error('Kalendern kunde inte hämtas.'); return [] }
-      return parseSportAdminIcs(await source.text()).map((item) => ({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: inferSportAdminGroups(item, calendar.groups) }))
+      return parseSportAdminIcs(await source.text(), { strict, from, to }).map((item) => ({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: inferSportAdminGroups(item, calendar.groups) }))
     } catch (error) { if (strict) throw planningLinkError('Dagens kalenderträningar kunde inte hämtas. Försök igen.'); console.warn('SportAdmin calendar fetch failed:', error.message); return [] }
   }))
-  return results.flat().slice(0, 1000)
+  const activities = results.flat()
+  if (strict && activities.length > 1000) throw planningLinkError('För många kalenderträningar för säker import. Välj färre veckor.')
+  return activities.slice(0, 1000)
 }
 
 async function importWorkoutOccasions(date, includeCalendar = true) {
-  const calendarActivities = includeCalendar ? await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true }) : []
+  const calendarActivities = includeCalendar ? await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, from: date, to: date }) : []
   return loadWorkoutOccasions(date, { calendarActivities })
 }
 
@@ -518,8 +544,8 @@ async function syncPlanningFromWorkout(workout, occasionPlan = null) {
 async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
   const currentPlans = Array.isArray(plans) ? plans : []
   const hidden = new Set(Array.isArray(hiddenDates) ? hiddenDates : [])
-  const workoutsResult = await supabaseRequest('daily_workouts?select=*&order=workout_date.asc&limit=200')
-  if (!workoutsResult.ok) return currentPlans
+  const workoutsResult = await analyticsRows('daily_workouts?select=*&order=workout_date.asc,id.asc')
+  if (!workoutsResult.ok || workoutsResult.truncated) return currentPlans
   const workouts = await workoutsResult.json()
   // Raderade upplagda pass kan lämna kvar sin länk i training_plans. Dessa
   // rader ska inte fortsätta synas i vare sig tränar- eller simmarvyn.
@@ -541,8 +567,8 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
   // Calendar competitions are synchronized transactionally by migration 099.
   // Creating copies on reads would leave stale dates/groups and duplicate days.
   if (!workouts.length) return cleanPlans
-  const refreshed = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
-  return refreshed.ok ? await refreshed.json() : cleanPlans
+  const refreshed = await analyticsRows('training_plans?select=*&order=plan_date.asc,id.asc')
+  return refreshed.ok && !refreshed.truncated ? await refreshed.json() : cleanPlans
 }
 
 function parseWorkoutCsv(csv) {
@@ -647,18 +673,19 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { options: await loadWorkoutChoices(date, choiceProfile.training_group) })
       }
       if (request.query?.planning === 'true') {
-        const result = await supabaseRequest('training_plans?select=*&order=plan_date.asc&limit=200')
-        if (!result.ok) throw new Error(`Training plans GET failed: ${result.status} ${await result.text()}`)
+        const result = await analyticsRows('training_plans?select=*&order=plan_date.asc,id.asc')
+        if (!result.ok || result.truncated) throw planningLinkError('Planeringen kunde inte läsas fullständigt. Försök igen.')
         const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
         const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [])
         const visiblePlans = plans.filter((item) => !item.calendar_link?.detachedWorkoutId && (role === 'coach' || !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
         const [workoutsResult, sportAdminActivities, cyclesResult] = await Promise.all([
-          supabaseRequest('daily_workouts?select=*&order=workout_date.asc,created_at.asc&limit=1000'),
+          analyticsRows('daily_workouts?select=*&order=workout_date.asc,created_at.asc,id.asc'),
           configuredSportAdminCalendars().then(readSportAdminCalendars),
           supabaseRequest('training_cycles?select=*&order=start_date.asc&limit=300'),
         ])
-        const workouts = workoutsResult.ok ? (await workoutsResult.json()).map((item) => publicWorkout(item, { includeDetails: role === 'coach' })) : []
+        if (!workoutsResult.ok || workoutsResult.truncated) throw planningLinkError('Publicerade pass kunde inte läsas fullständigt. Försök igen.')
+        const workouts = (await workoutsResult.json()).map((item) => publicWorkout(item, { includeDetails: role === 'coach' }))
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const visibleSportAdminActivities = role === 'coach' ? sportAdminActivities : sportAdminActivities.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const cycles = cyclesResult.ok ? await cyclesResult.json() : []
@@ -749,6 +776,50 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (['planning-import-inspect', 'planning-import-analyze', 'planning-import-preview', 'planning-import-apply'].includes(request.body?.action)) {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan importera veckoplanering.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        const body = request.body
+        try {
+          if (body.action === 'planning-import-inspect' || body.action === 'planning-import-analyze') {
+            if (body.action === 'planning-import-analyze' && body.useAi === true) {
+              const availability = await aiAvailability()
+              if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'AI-budgeten är nådd. Prova tabelläsning utan AI.' : 'AI-stöd är avstängt. Du kan använda tabelläsning utan AI.' })
+            }
+            const file = await loadPlanningFile(body, driveConfig().apiKey)
+            if (body.action === 'planning-import-inspect') return sendJson(response, 200, inspectPlanningFile(file))
+            const draft = await analyzePlanningFile(request, file, body)
+            const starts = draft.weeks.map(week => week.monday).sort()
+            const calendar = await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, from: starts[0], to: planningAddDays(starts.at(-1), 6) })
+            const rows = await loadPlanningRows(draft.weeks)
+            return sendJson(response, 200, { ...draft, calendarChoices: planningCalendarChoices(calendar), existing: rows.map(publicPlan) })
+          }
+          const weeks = validatePlanningDraft(body.weeks)
+          const digest = createHash('sha256').update(JSON.stringify(weeks)).digest('hex')
+          if (body.action === 'planning-import-apply') {
+            if (weeks.some(week => week.mode === 'replace') && body.confirmReplace !== true) return sendJson(response, 400, { error: 'Bekräfta att befintlig grundplan får ersättas för valda veckor och grupper.' })
+            if (!competitionUuid.test(String(body.importId || ''))) return sendJson(response, 400, { error: 'Ogiltigt import-ID.' })
+            const batch = await supabaseRequest(`planning_import_batches?id=eq.${body.importId}&select=request_digest,summary&limit=1`)
+            if (!batch.ok) return sendJson(response, 503, { error: 'Databasstödet för import saknas eller är otillgängligt. Kör SQL-migration 113 först. Inget har sparats.' })
+            const previous = (await batch.json())[0]
+            if (previous) return sendJson(response, previous.request_digest === digest ? 200 : 409, previous.request_digest === digest ? { saved: true, summary: previous.summary } : { error: 'Import-ID har redan använts för en annan planering.' })
+          }
+          const starts = weeks.map(week => week.monday).sort()
+          const calendar = await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, from: starts[0], to: planningAddDays(starts.at(-1), 6) })
+          const prepared = preparePlanningImport(weeks, await loadPlanningRows(weeks), calendar, body.importId)
+          const previewToken = createHash('sha256').update(JSON.stringify([prepared.scopes, prepared.rows])).digest('hex')
+          if (body.action === 'planning-import-preview') return sendJson(response, 200, { summary: prepared.summary, previewToken })
+          if (body.previewToken !== previewToken) return sendJson(response, 409, { error: 'Planeringen eller kalendern har ändrats. Granska importen igen innan du sparar.' })
+          const saved = await supabaseRequest('rpc/apply_weekly_planning_import', { method: 'POST', body: JSON.stringify({ p_id: body.importId, p_digest: digest, p_weeks: prepared.scopes, p_rows: prepared.rows, p_summary: prepared.summary }) })
+          if (!saved.ok) {
+            const detail = await saved.json().catch(() => ({}))
+            return sendJson(response, detail.code === '40001' ? 409 : 503, { error: detail.code === '40001' ? 'Planeringen ändrades under tiden. Granska importen igen.' : 'Importen kunde inte sparas. Kontrollera att SQL-migration 113 är körd. Inga delar av importen har sparats.' })
+          }
+          return sendJson(response, 200, { saved: true, summary: await saved.json() })
+        } catch (error) {
+          return sendJson(response, [400, 409, 503].includes(error.status) ? error.status : 400, { error: error.status ? error.message : 'Filen kunde inte läsas. Kontrollera format, storlek och valda flikar. Inget har sparats.' })
+        }
+      }
       if (request.body?.action === 'assistant-chat') {
         const availability = await aiAvailability()
         if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })

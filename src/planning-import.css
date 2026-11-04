@@ -1,0 +1,59 @@
+.planning-import { margin: 1.2rem 0; padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--line, #cfe1df); border-radius: 24px; background: #f5faf8; }
+.planning-import > header, .planning-import-week > header, .planning-import-draft-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.planning-import h2, .planning-import h3, .planning-import p { margin: 0 0 .7rem; }
+.planning-import p, .planning-import small { line-height: 1.5; }
+.planning-import-body { border: 0; padding: 0; margin: 0; min-width: 0; }
+.planning-import-sources, .planning-import-groups { display: flex; flex-wrap: wrap; gap: .7rem; margin: .8rem 0; }
+.planning-import-file { position: relative; cursor: pointer; display: inline-flex; align-items: center; }
+.planning-import-file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.planning-import-file:focus-within { outline: 3px solid #177a80; outline-offset: 3px; }
+.planning-import-link { display: flex; align-items: flex-end; gap: .7rem; margin: 1rem 0; }
+.planning-import-link label { flex: 1; min-width: 0; }
+.planning-import label { font-size: .92rem; font-weight: 650; }
+.planning-import label:not(.planning-import-check):not(.planning-import-file) > input:not([type=checkbox]), .planning-import select, .planning-import textarea { display: block; width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-weight: 450; color: #14323b; border: 1px solid #bdd5d2; border-radius: 12px; background-color: white; padding: .75rem .9rem; margin-top: .35rem; }
+.planning-import input:focus-visible, .planning-import select:focus-visible, .planning-import textarea:focus-visible { outline: 3px solid #7dbcb5; outline-offset: 2px; }
+.planning-import input[type=checkbox] { width: 1.1rem; height: 1.1rem; flex-shrink: 0; accent-color: #147578; margin: .15rem .5rem 0 0; }
+.planning-import-sheets { display: grid; gap: .6rem; margin: 1rem 0; }
+.planning-import-sheets label, .planning-import-check { display: flex; align-items: flex-start; gap: .3rem; }
+.planning-import-sheets small { margin-left: auto; font-weight: 400; color: #617b80; }
+.planning-import-year { display: block; max-width: 11rem; margin: 1rem 0; }
+.planning-import-check { margin: .9rem 0; }
+.planning-import-check small { display: block; font-weight: 400; max-width: 65ch; }
+.planning-import-week { margin: 1rem 0; background: white; border: 1px solid #ccdedb; border-radius: 18px; padding: 1rem; }
+.planning-import-week.is-selected { border-color: #5caaa3; }
+.planning-import-week > header label { display: flex; align-items: flex-start; }
+.planning-import-week > header strong, .planning-import-week > header small { display: block; }
+.planning-import-week > header > span { color: #657d80; font-size: .85rem; }
+.planning-import-week-settings { display: flex; gap: 1rem; justify-content: space-between; flex-wrap: wrap; align-items: center; margin-top: .75rem; }
+.planning-import-groups label { display: inline-flex; align-items: center; }
+.planning-import-source { font-size: .85rem; margin: .8rem 0; color: #60777d; }
+.planning-import-source summary { cursor: pointer; color: #126d71; }
+.planning-import-week-content > summary { cursor: pointer; color: #126d71; font-size: .88rem; font-weight: 650; padding: .8rem 0 .2rem; }
+.planning-import-row { border-top: 1px solid #e0ebe8; }
+.planning-import-row > summary { position: relative; display: flex; align-items: center; gap: 1rem; justify-content: space-between; padding: .8rem 1.5rem .8rem .2rem; cursor: pointer; }
+.planning-import-row > summary > span > span { margin-left: .8rem; }
+.planning-import-row > summary small { color: #4f7777; text-align: right; }
+.planning-import-row > summary::after { content: '⌄'; color: #147578; position: absolute; right: .2rem; top: .8rem; }
+.planning-import-row[open] > summary::after { content: '⌃'; }
+.planning-import-row-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; padding: .5rem 0 1rem; }
+.planning-import-wide { grid-column: 1 / -1; }
+.planning-import-confirm, .planning-import-success { border-radius: 16px; padding: 1.2rem; margin-top: 1rem; background: #e3f1eb; }
+.planning-import-status { display: flex; align-items: center; gap: .8rem; padding: .9rem; background: #e0efec; border-radius: 12px; }
+.planning-import-spinner { width: 1.1rem; height: 1.1rem; flex-shrink: 0; border: 2px solid #a1ccc4; border-top-color: #137477; border-radius: 50%; animation: planning-import-spin 1s linear infinite; }
+.planning-import-warnings { color: #815a25; }
+.planning-import-drive { margin: 1rem 0; max-height: 24rem; overflow: auto; }
+.planning-import-drive > div { display: flex; justify-content: space-between; align-items: center; }
+@keyframes planning-import-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .planning-import-spinner { animation: none; } }
+@media (max-width: 650px) {
+  .planning-import-link { align-items: stretch; flex-direction: column; }
+  .planning-import-sources > *, .planning-import-confirm .primary-button { width: 100%; justify-content: center; }
+  .planning-import-row-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planning-import-row > summary { align-items: flex-start; gap: .5rem; flex-wrap: wrap; }
+  .planning-import-row > summary > span { flex: 1; }
+  .planning-import-row > summary > span > span { display: block; margin: .25rem 0 0; }
+  .planning-import-row > summary small { text-align: left; flex-basis: 100%; }
+  .planning-import-week > header { flex-direction: column; gap: .35rem; }
+  .planning-import-week-settings > label { width: 100%; }
+  .planning-import > header .text-button { padding: .5rem; }
+}

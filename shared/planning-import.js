@@ -1,0 +1,51 @@
+import { planningAddDays, planningMonday } from './weekly-planning.js'
+
+export const PLANNING_GROUPS = { junior: 'Junior', ungdom_svart: 'Ungdom Svart', ungdom_orange: 'Ungdom Orange' }
+export const validPlanningDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
+export function isoWeek(date) {
+  const thursday = planningAddDays(planningMonday(date), 3)
+  const year = Number(thursday.slice(0, 4))
+  return { year, week: 1 + Math.round((Date.parse(`${planningMonday(date)}T12:00:00Z`) - Date.parse(`${planningMonday(`${year}-01-04`)}T12:00:00Z`)) / 604800000) }
+}
+export function isoWeekMonday(year, week) {
+  if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(week) || week < 1 || week > 53) throw new Error('Välj ett giltigt år och veckonummer.')
+  const monday = planningAddDays(planningMonday(`${year}-01-04`), (week - 1) * 7)
+  if (isoWeek(monday).year !== year) throw new Error(`År ${year} har inte vecka ${week}.`)
+  return monday
+}
+export function planningDriveId(value) {
+  const text = String(value || '').trim()
+  const match = text.match(/^https:\/\/(?:docs\.google\.com\/spreadsheets|drive\.google\.com\/file)\/d\/([a-zA-Z0-9_-]+)(?:[/?#].*)?$/)
+  const id = match?.[1] || (/^[a-zA-Z0-9_-]{8,160}$/.test(text) ? text : '')
+  if (!/^[a-zA-Z0-9_-]{8,160}$/.test(id)) throw new Error('Ange en Google Kalkylark-/Drive-länk eller välj fil i mappen.')
+  return id
+}
+export function validatePlanningDraft(input) {
+  const fail = message => { throw Object.assign(new Error(message), { status: 400 }) }
+  if (!Array.isArray(input) || !input.length || input.length > 20) fail('Välj 1–20 veckor åt gången.')
+  const seen = new Set()
+  return input.map(week => {
+    if (!validPlanningDate(week.monday) || planningMonday(week.monday) !== week.monday) fail('En vecka måste börja på en giltig måndag.')
+    const groups = [...new Set(week.groups || [])]
+    if (!groups.length || groups.some(group => !Object.hasOwn(PLANNING_GROUPS, group))) fail('Välj berörda grupper för varje vecka.')
+    for (const group of groups) {
+      const key = `${week.monday}|${group}`
+      if (seen.has(key)) fail('Samma vecka och grupp förekommer flera gånger. Välj bara ett underlag för gruppen.')
+      seen.add(key)
+    }
+    if (!['add', 'replace'].includes(week.mode)) fail('Välj komplettera eller ersätt grundplan.')
+    if (!Array.isArray(week.sessions) || !week.sessions.length || week.sessions.length > 40) fail('Varje vald vecka behöver 1–40 planeringsrader.')
+    const sessions = week.sessions.map(row => {
+      if (!validPlanningDate(row.date) || planningMonday(row.date) !== week.monday) fail('Alla pass måste ligga inom sin valda vecka.')
+      if (!['swim', 'strength', 'dryland', 'competition'].includes(row.activityType)) fail('Välj giltig aktivitetstyp.')
+      if (!['morning', 'afternoon'].includes(row.timeOfDay)) fail('Välj morgon eller eftermiddag för varje pass.')
+      if (typeof row.title !== 'string' || !row.title.trim() || row.title.length > 100) fail('Varje pass behöver en rubrik på högst 100 tecken.')
+      for (const [key, maximum] of [['distanceMeters', 30000], ['durationMinutes', 600]]) {
+        if (row[key] !== null && row[key] !== '' && row[key] !== undefined && (!Number.isInteger(Number(row[key])) || Number(row[key]) < 1 || Number(row[key]) > maximum)) fail('Meter och minuter måste vara positiva heltal inom rimliga gränser.')
+      }
+      if (row.calendarKey !== undefined && (typeof row.calendarKey !== 'string' || row.calendarKey.length > 2000)) fail('Ogiltig kalenderkoppling.')
+      return { date: row.date, activityType: row.activityType, timeOfDay: row.timeOfDay, title: row.title.trim(), focus: String(row.focus || '').slice(0, 80), distanceMeters: row.distanceMeters ? Number(row.distanceMeters) : null, durationMinutes: row.durationMinutes ? Number(row.durationMinutes) : null, notes: String(row.notes || '').slice(0, 500), calendarKey: row.calendarKey || '', separate: row.separate === true }
+    })
+    return { monday: week.monday, groups, mode: week.mode, sessions }
+  })
+}
