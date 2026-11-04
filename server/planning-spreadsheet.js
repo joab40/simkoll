@@ -77,6 +77,36 @@ export function planningSource(workbook, names) {
   return { sheets, source }
 }
 
+// Send values from selected sheets only: no other sheets, formulas, links or
+// workbook metadata. Original cell addresses are retained for source checks.
+export function planningModelFile(sheets, blocks = null) {
+  const workbook = XLSX.utils.book_new()
+  for (const source of sheets) {
+    const ranges = blocks?.filter(block => block.sourceSheet === source.name).map(block => XLSX.utils.decode_range(block.sourceRange))
+    if (ranges && !ranges.length) continue
+    const sheet = {}
+    const included = cell => !ranges || ranges.some(range => cell.r >= range.s.r && cell.r <= range.e.r && cell.c >= range.s.c && cell.c <= range.e.c)
+    // Keep the closest group heading above each recognized table.
+    const headings = new Set()
+    for (const range of ranges || []) {
+      const heading = source.rows.filter(row => row.row - 1 < range.s.r && Object.entries(row.cells).some(([address, value]) => XLSX.utils.decode_cell(address).c === range.s.c && /planering/i.test(value))).at(-1)
+      if (heading) headings.add(XLSX.utils.encode_cell({ r: heading.row - 1, c: range.s.c }))
+    }
+    for (const row of source.rows) for (const [address, value] of Object.entries(row.cells)) {
+      if (included(XLSX.utils.decode_cell(address)) || headings.has(address)) sheet[address] = { t: 's', v: value }
+    }
+    const addresses = Object.keys(sheet).map(address => XLSX.utils.decode_cell(address))
+    if (!addresses.length) continue
+    sheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(...addresses.map(cell => cell.r)), c: Math.max(...addresses.map(cell => cell.c)) } })
+    // Only retain merges whose populated anchor is in the scoped export.
+    sheet['!merges'] = (source.mergedCells || []).map(value => XLSX.utils.decode_range(value)).filter(range => sheet[XLSX.utils.encode_cell(range.s)] && included(range.s) && included(range.e))
+    XLSX.utils.book_append_sheet(workbook, sheet, source.name)
+  }
+  if (!workbook.SheetNames.length) throw new Error('Inget Excel-underlag hittades för urvalet.')
+  const bytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  return { type: 'input_file', filename: 'vald-veckoplanering.xlsx', file_data: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${bytes.toString('base64')}` }
+}
+
 const dayIndex = value => ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'].findIndex(day => text(value).toLowerCase().startsWith(day.slice(0, 3)))
 const groupsIn = value => {
   const s = text(value).toLowerCase(), groups = []
@@ -131,7 +161,7 @@ export function parsePlanningTables(workbook, names, year) {
       const footnotes = []
       for (let fr = lastDay + 1; fr <= Math.min(lastDay + 3, range.e.r); fr++) for (let fc = c; fc < Math.min(c + 10, range.e.c + 1); fc++) {
         const value = at(fr, fc)
-        if (value && !/^summa|^vecka/i.test(value) && /[a-zåäö]{4}/i.test(value) && !/november|oktober|inriktning|tränare|längd|banor/i.test(value)) footnotes.push(value)
+        if (value && !/^summa|^vecka|^meter$/i.test(value) && /[a-zåäö]{4}/i.test(value) && !/november|oktober|inriktning|tränare|längd|banor/i.test(value)) footnotes.push(value)
       }
       for (const session of sessions) session.notes = [session.notes, phase && `Veckofokus: ${phase}`, ...new Set(footnotes)].filter(Boolean).join(' · ').slice(0, 500)
       if (sessions.length) weeks.push({ monday, groups, sessions, sourceSheet: name, sourceDateLabel, sourceRange: `${XLSX.utils.encode_cell({ r, c: c - 1 })}:${XLSX.utils.encode_cell({ r: Math.min(header + 10, range.e.r), c: Math.min(c + 9, range.e.c) })}`, warnings: [`Kontrollera datum mot källans ”${sourceDateLabel}”. År ${sourceYear} är valt.`, 'Flera rader på samma halvdag behandlas som passalternativ, inte extra träningsmängd.'] })

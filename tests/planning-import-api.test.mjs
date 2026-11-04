@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import XLSX from 'xlsx'
 process.env.SUPABASE_URL = 'https://planning-import.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture'
 process.env.COACH_SESSION_SECRET = 'planning-import-fixture'
@@ -42,6 +43,37 @@ test('API requires coach, explicit preview and overwrite approval; stale state n
     rows = []
     assert.equal((await call({ action: 'planning-import-apply', importId, weeks: [week], previewToken: preview.data.previewToken })).code, 200)
     assert.equal(writes.length, 1); assert.equal(writes[0].p_rows[0].target_groups[0], 'junior')
+  } finally { globalThis.fetch = original }
+})
+test('analysis API uses explicit group/week scope and returns missing weeks without reading unrelated calendar or plans', async () => {
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ['Veckoplanering Junior-Ungdom Svart'], [null, 'Vecka', 'Datum'], [null, 46, '9-15 november'], [], ['Medel', 'Morgon', null, null, null, null, 'Eftermiddag'],
+    ['Dag', 'Inriktning', 'Huvudserie', 'Längd', 'Banor', 'Tränare', 'Inriktning', 'Huvudserie', 'Längd', 'Banor', 'Tränare'],
+    ['Måndag', null, null, null, null, null, 'Återhämtning', null, 3500],
+  ]), 'Planering')
+  const body = { action: 'planning-import-analyze', fileName: 'Planering.xlsx', fileData: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' })}`, sheets: ['Planering'], groups: ['ungdom_svart'], mondays: ['2026-11-09'], useAi: false }
+  const original = globalThis.fetch, reads = []
+  globalThis.fetch = async raw => {
+    const url = new URL(raw), table = url.pathname.split('/').at(-1)
+    reads.push(table)
+    if (table === 'app_settings') return json([{ setting_value: { sportAdminCalendars: [] } }])
+    if (table === 'training_plans') { assert.match(url.search, /2026-11-09/); assert.match(url.search, /2026-11-15/); return json([]) }
+    throw Error(`Unexpected request: ${table}`)
+  }
+  try {
+    const scoped = await call(body)
+    assert.equal(scoped.code, 200); assert.equal(scoped.data.weeks.length, 1)
+    assert.deepEqual(scoped.data.weeks[0].groups, ['ungdom_svart'])
+    assert.equal(scoped.data.weeks[0].sessions[0].distanceMeters, 3500)
+    assert.deepEqual(scoped.data.missing, [])
+    reads.length = 0
+    const missing = await call({ ...body, mondays: ['2026-11-16'] })
+    assert.equal(missing.code, 200); assert.deepEqual(missing.data.weeks, [])
+    assert.deepEqual(missing.data.missing, [{ monday: '2026-11-16', group: 'ungdom_svart' }])
+    assert.deepEqual(reads, [])
+    assert.equal((await call({ ...body, groups: [] })).code, 400)
+    assert.equal((await call({ ...body, mondays: ['2026-11-10'] })).code, 400)
   } finally { globalThis.fetch = original }
 })
 test('planning view loads beyond the former 200-row limit without treating later published workouts as deleted', async () => {

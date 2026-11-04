@@ -13,6 +13,19 @@ export function isoWeekMonday(year, week) {
   if (isoWeek(monday).year !== year) throw new Error(`År ${year} har inte vecka ${week}.`)
   return monday
 }
+export const MAX_PLANNING_IMPORT_WEEKS = 4
+export function planningImportMondays(year, week, count = 1) {
+  if (!Number.isInteger(count) || count < 1 || count > MAX_PLANNING_IMPORT_WEEKS) throw new Error('Välj 1–4 veckor åt gången.')
+  const first = isoWeekMonday(year, week)
+  const mondays = Array.from({ length: count }, (_, index) => planningAddDays(first, index * 7))
+  if (mondays.some(date => isoWeek(date).year > 2100)) throw new Error('Välj ett år till och med 2100.')
+  return mondays
+}
+export function validatePlanningSelection({ groups, mondays }) {
+  if (!Array.isArray(groups) || !groups.length || groups.length > 3 || new Set(groups).size !== groups.length || groups.some(group => !Object.hasOwn(PLANNING_GROUPS, group))) throw Object.assign(new Error('Välj grupper i planeringsvyn före analysen.'), { status: 400 })
+  if (!Array.isArray(mondays) || !mondays.length || mondays.length > MAX_PLANNING_IMPORT_WEEKS || new Set(mondays).size !== mondays.length || mondays.some(date => !validPlanningDate(date) || Number(date.slice(0, 4)) < 2000 || Number(date.slice(0, 4)) > 2100 || planningMonday(date) !== date || isoWeek(date).year < 2000 || isoWeek(date).year > 2100)) throw Object.assign(new Error('Välj 1–4 giltiga veckor före analysen.'), { status: 400 })
+  return { groups: [...groups], mondays: [...mondays].sort() }
+}
 export function planningDriveId(value) {
   const text = String(value || '').trim()
   const match = text.match(/^https:\/\/(?:docs\.google\.com\/spreadsheets|drive\.google\.com\/file)\/d\/([a-zA-Z0-9_-]+)(?:[/?#].*)?$/)

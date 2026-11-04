@@ -20,7 +20,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { loadWorkoutOccasions, workoutOccasionChoices, prepareWorkoutOccasion, persistWorkoutOccasion } from '../server/workout-occasions.js'
 import { importDriveWorkbook } from '../server/drive-workout-import.js'
 import { loadPlanningFile, inspectPlanningFile, analyzePlanningFile, loadPlanningRows, preparePlanningImport, planningCalendarChoices } from '../server/planning-import.js'
-import { validatePlanningDraft } from '../shared/planning-import.js'
+import { validatePlanningDraft, validatePlanningSelection } from '../shared/planning-import.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 import { analyticsRows } from '../server/analytics-rows.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
@@ -782,6 +782,7 @@ export default async function handler(request, response) {
         const body = request.body
         try {
           if (body.action === 'planning-import-inspect' || body.action === 'planning-import-analyze') {
+            if (body.action === 'planning-import-analyze') validatePlanningSelection(body)
             if (body.action === 'planning-import-analyze' && body.useAi === true) {
               const availability = await aiAvailability()
               if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'AI-budgeten är nådd. Prova tabelläsning utan AI.' : 'AI-stöd är avstängt. Du kan använda tabelläsning utan AI.' })
@@ -789,6 +790,7 @@ export default async function handler(request, response) {
             const file = await loadPlanningFile(body, driveConfig().apiKey)
             if (body.action === 'planning-import-inspect') return sendJson(response, 200, inspectPlanningFile(file))
             const draft = await analyzePlanningFile(request, file, body)
+            if (!draft.weeks.length) return sendJson(response, 200, { ...draft, calendarChoices: [], existing: [] })
             const starts = draft.weeks.map(week => week.monday).sort()
             const calendar = await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, from: starts[0], to: planningAddDays(starts.at(-1), 6) })
             const rows = await loadPlanningRows(draft.weeks)

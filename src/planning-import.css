@@ -17,6 +17,29 @@
 .planning-import-sheets label, .planning-import-check { display: flex; align-items: flex-start; gap: .3rem; }
 .planning-import-sheets small { margin-left: auto; font-weight: 400; color: #617b80; }
 .planning-import-year { display: block; max-width: 11rem; margin: 1rem 0; }
+.planning-import-selection { min-width: 0; margin: 1rem 0; padding: 1rem; border: 1px solid #c5ddda; border-radius: 16px; background: white; }
+.planning-import-selection legend { padding: 0 .4rem; font-weight: 700; }
+.planning-import-selection > small { display: block; color: #617b80; }
+.planning-import-presets { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.planning-import-presets button { min-height: 44px; font-size: .9rem; padding: .6rem .85rem; }
+.planning-import-presets button[aria-pressed=true] { background: #e0f0eb; color: #116e72; border-color: #147578; box-shadow: inset 0 0 0 1px #147578; }
+.planning-import-range { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; max-width: 36rem; }
+.planning-import-selected-weeks { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0; margin: .8rem 0 0; list-style: none; }
+.planning-import-selected-weeks li { background: #eef6f3; padding: .35rem .6rem; border-radius: 8px; font-size: .85rem; }
+.planning-import-tab-options { margin: 1rem 0; }
+.planning-import-tab-options > summary { cursor: pointer; padding: .7rem 0; color: #126d71; font-weight: 650; }
+.planning-import-overview { max-width: 100%; overflow-x: auto; margin-top: 1rem; border: 1px solid #e0ebe8; border-radius: 12px; }
+.planning-import-overview:focus-visible { outline: 3px solid #7dbcb5; outline-offset: 2px; }
+.planning-import-overview table { width: 100%; min-width: 540px; border-collapse: collapse; font-size: .85rem; }
+.planning-import-overview caption { text-align: left; color: #617b80; padding: .7rem; font-size: .8rem; }
+.planning-import-overview th, .planning-import-overview td { padding: .7rem; text-align: left; vertical-align: top; border-top: 1px solid #e0ebe8; }
+.planning-import-overview thead { background: #eef6f3; }
+.planning-import-overview th:first-child { width: 6rem; }
+.planning-import-overview td { width: 43%; }
+.planning-import-overview td > div + div { margin-top: .65rem; padding-top: .65rem; border-top: 1px dashed #d6e5e1; }
+.planning-import-overview td small { display: block; margin-top: .2rem; font-weight: 400; color: #526e73; overflow-wrap: anywhere; }
+.planning-import-empty { color: #617b80; font-size: .8rem; }
+.planning-import-scroll-hint { display: none; }
 .planning-import-check { margin: .9rem 0; }
 .planning-import-check small { display: block; font-weight: 400; max-width: 65ch; }
 .planning-import-week { margin: 1rem 0; background: white; border: 1px solid #ccdedb; border-radius: 18px; padding: 1rem; }
@@ -46,6 +69,7 @@
 @keyframes planning-import-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .planning-import-spinner { animation: none; } }
 @media (max-width: 650px) {
+  .planning-import-scroll-hint { display: block; margin-top: .8rem; color: #617b80; }
   .planning-import-link { align-items: stretch; flex-direction: column; }
   .planning-import-sources > *, .planning-import-confirm .primary-button { width: 100%; justify-content: center; }
   .planning-import-row-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }

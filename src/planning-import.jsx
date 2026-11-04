@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { apiRequest } from './api-request.js'
-import { PLANNING_GROUPS, isoWeek, planningDriveId } from '../shared/planning-import.js'
-import { planningAddDays } from '../shared/weekly-planning.js'
+import { PLANNING_GROUPS, isoWeek, planningDriveId, planningImportMondays } from '../shared/planning-import.js'
+import { planningAddDays, planningMonday } from '../shared/weekly-planning.js'
 import { SWIM_WORKBOOK_TYPES } from '../shared/swim-workbook.js'
 import './planning-import.css'
 
@@ -9,19 +9,29 @@ const label = date => new Date(`${date}T12:00:00Z`).toLocaleDateString('sv-SE', 
 const compatibleChoices = (row, groups, choices) => row.activityType === 'swim' ? choices.filter(choice => choice.date === row.date && choice.timeOfDay === row.timeOfDay && groups.every(group => choice.groups.includes(group))) : []
 const chooseCalendar = (row, groups, choices) => { const compatible = compatibleChoices(row, groups, choices); return compatible.length === 1 ? compatible[0].key : compatible.length ? 'unresolved' : 'none' }
 
-export default function PlanningImport({ code, selectedGroups = Object.keys(PLANNING_GROUPS), onClose, onSaved }) {
+export default function PlanningImport({ code, selectedGroups = [], initialMonday, onClose, onSaved }) {
+  const todayMonday = planningMonday(new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' }))
+  const viewMonday = initialMonday || todayMonday, initialWeek = isoWeek(viewMonday)
   const [source, setSource] = useState(null), [inspection, setInspection] = useState(null), [sheets, setSheets] = useState([])
-  const [year, setYear] = useState(new Date().getFullYear()), [useAi, setUseAi] = useState(true)
+  const [year, setYear] = useState(initialWeek.year), [weekNumber, setWeekNumber] = useState(initialWeek.week), [weekCount, setWeekCount] = useState(1)
+  const [weekPreset, setWeekPreset] = useState('view'), [useAi, setUseAi] = useState(true), [analysisFailed, setAnalysisFailed] = useState(false)
   const [drive, setDrive] = useState(null), [link, setLink] = useState('')
   const [draft, setDraft] = useState(null), [weeks, setWeeks] = useState([]), [preview, setPreview] = useState(null)
   const [confirmReplace, setConfirmReplace] = useState(false), [reviewed, setReviewed] = useState(false)
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [success, setSuccess] = useState(null)
   const [importId] = useState(() => crypto.randomUUID())
+  let requestedMondays = [], selectionError = ''
+  try { requestedMondays = planningImportMondays(Number(year), Number(weekNumber), Number(weekCount)) } catch (error) { selectionError = error.message }
+  const selectWeek = (preset, monday) => {
+    setWeekPreset(preset)
+    if (monday) { const week = isoWeek(monday); setYear(week.year); setWeekNumber(week.week); setWeekCount(1) }
+    setAnalysisFailed(false); setError('')
+  }
   const post = (action, payload = {}) => apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...payload }) })
   const run = async (message, task) => { setError(''); setBusy(message); try { await task() } catch (error) { setError(error.message || 'Det gick inte att fortsätta. Inget har sparats.') } finally { setBusy('') } }
   const inspect = payload => run('Läser filens flikar…', async () => {
     const data = await post('planning-import-inspect', payload)
-    setSource(payload); setInspection(data); setSheets(data.sheets.filter(sheet => sheet.suggested).slice(0, 5).map(sheet => sheet.name)); setDraft(null); setPreview(null); setDrive(null)
+    setSource(payload); setInspection(data); setSheets(data.sheets.filter(sheet => sheet.suggested).slice(0, 5).map(sheet => sheet.name)); setDraft(null); setPreview(null); setDrive(null); setAnalysisFailed(false)
   })
   const readLocal = event => {
     const file = event.target.files?.[0]; event.target.value = ''
@@ -33,12 +43,14 @@ export default function PlanningImport({ code, selectedGroups = Object.keys(PLAN
     reader.readAsDataURL(file)
   }
   const browse = (folderId = '') => run('Öppnar Google Drive…', async () => setDrive(await apiRequest(`/api/workouts?drive=true${folderId ? `&folderId=${encodeURIComponent(folderId)}` : ''}`, code)))
-  const analyze = () => run(useAi ? 'GPT-6.1 läser veckor och grupper… Det kan ta någon minut.' : 'Läser veckotabeller…', async () => {
-    const data = await post('planning-import-analyze', { ...source, sheets, year: Number(year), useAi })
+  const analyze = (withAi = useAi) => run(withAi ? `GPT-6.1 läser ${requestedMondays.length} valda veckor för ${selectedGroups.map(group => PLANNING_GROUPS[group]).join(' och ')}… Det kan ta några minuter.` : 'Läser valda veckor och grupper direkt från Excel…', async () => {
+    setAnalysisFailed(false)
+    let data
+    try { data = await post('planning-import-analyze', { ...source, sheets, groups: selectedGroups, mondays: requestedMondays, useAi: withAi }) }
+    catch (error) { setAnalysisFailed(withAi); throw error }
     setDraft(data); setReviewed(false); setConfirmReplace(false); setPreview(null)
     setWeeks(data.weeks.map(week => {
-      const groups = week.groups.filter(group => selectedGroups.includes(group))
-      return { ...week, groups: groups.length ? groups : week.groups, selected: groups.length > 0 && !week.dateConflict && isoWeek(week.monday).year === Number(year), mode: 'add', sessions: week.sessions.map(row => ({ ...row, calendarKey: chooseCalendar(row, groups.length ? groups : week.groups, data.calendarChoices), separate: false })) }
+      return { ...week, selected: !week.dateConflict, mode: 'add', sessions: week.sessions.map(row => ({ ...row, calendarKey: chooseCalendar(row, week.groups, data.calendarChoices), separate: false })) }
     }))
   })
   const change = (index, patch) => {
@@ -65,15 +77,36 @@ export default function PlanningImport({ code, selectedGroups = Object.keys(PLAN
       {!draft && <><div className="planning-import-sources"><label className="secondary-button planning-import-file">📄 Välj Excel-fil<input type="file" accept=".xls,.xlsx" onChange={readLocal} /></label><button className="secondary-button" onClick={() => browse()}>📁 Välj från delad Drive-mapp</button></div>
         <form className="planning-import-link" onSubmit={event => { event.preventDefault(); try { inspect({ driveId: planningDriveId(link) }) } catch (error) { setError(error.message) } }}><label>Google Kalkylark- eller Drive-länk<input type="url" value={link} onChange={event => setLink(event.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" /></label><button className="secondary-button" disabled={!link}>Läs länk</button></form>
         {drive && <div className="planning-import-drive"><div><strong>Delad Drive-mapp</strong><button className="text-button" onClick={() => browse()}>Till huvudmappen</button></div>{drive.items.map(item => <button className="drive-item" key={item.id} disabled={!item.folder && !Object.hasOwn(SWIM_WORKBOOK_TYPES, item.mimeType)} onClick={() => item.folder ? browse(item.id) : inspect({ driveId: item.id })}><span>{item.folder ? '📁' : '📊'}</span><span>{item.name}</span><span>→</span></button>)}{!drive.items.length && <p>Mappen är tom.</p>}</div>}
-        {inspection && <div className="planning-import-file-options"><h3>{inspection.fileName}</h3><p>Välj relevanta flikar. Arkiv och tillfälliga planer är inte förvalda.</p><div className="planning-import-sheets">{inspection.sheets.map(sheet => <label key={sheet.name}><input type="checkbox" checked={sheets.includes(sheet.name)} onChange={event => setSheets(current => event.target.checked ? [...current, sheet.name] : current.filter(name => name !== sheet.name))} />{sheet.name}<small>{sheet.range}</small></label>)}</div><label className="planning-import-year">Planeringsår<input type="number" min="2000" max="2100" value={year} onChange={event => setYear(event.target.value)} /></label><label className="planning-import-check"><input type="checkbox" checked={useAi} onChange={event => setUseAi(event.target.checked)} /><span>Analysera med GPT-6.1<small>Valda flikars innehåll skickas till OpenAI. Avmarkera för vanlig tabelläsning. Ingen simmardagbok eller hälsodata hämtas.</small></span></label><button className="primary-button" disabled={!sheets.length || sheets.length > 5} onClick={analyze}>Analysera {sheets.length} {sheets.length === 1 ? 'flik' : 'flikar'} →</button></div>}
+        {inspection && <div className="planning-import-file-options"><h3>{inspection.fileName}</h3>
+          <fieldset className="planning-import-selection"><legend>Vad ska hämtas?</legend>
+            <p>Grupper från planeringsvyn: <strong>{selectedGroups.map(group => PLANNING_GROUPS[group]).join(' och ') || 'Inga grupper valda'}</strong></p><small>Ändra grupper i toppmenyn om du vill hämta en annan grupp. Gemensam planering behålls som ett block.</small>
+            <div className="planning-import-presets" role="group" aria-label="Välj veckor att läsa">
+              <button type="button" className="secondary-button" aria-pressed={weekPreset === 'view'} onClick={() => selectWeek('view', viewMonday)}>Visad vecka · v{isoWeek(viewMonday).week}</button>
+              <button type="button" className="secondary-button" aria-pressed={weekPreset === 'current'} onClick={() => selectWeek('current', todayMonday)}>Denna vecka · v{isoWeek(todayMonday).week}</button>
+              <button type="button" className="secondary-button" aria-pressed={weekPreset === 'next'} onClick={() => selectWeek('next', planningAddDays(todayMonday, 7))}>Nästa vecka · v{isoWeek(planningAddDays(todayMonday, 7)).week}</button>
+              <button type="button" className="secondary-button" aria-pressed={weekPreset === 'custom'} onClick={() => selectWeek('custom')}>Välj flera veckor…</button>
+            </div>
+            {weekPreset === 'custom' && <div className="planning-import-range"><label>ISO-år<input type="number" min="2000" max="2100" value={year} onChange={event => { setYear(event.target.value); setAnalysisFailed(false) }} /></label><label>Från vecka<input type="number" min="1" max="53" value={weekNumber} onChange={event => { setWeekNumber(event.target.value); setAnalysisFailed(false) }} /></label><label>Antal veckor<select value={weekCount} onChange={event => { setWeekCount(event.target.value); setAnalysisFailed(false) }}>{[1, 2, 3, 4].map(count => <option key={count} value={count}>{count} {count === 1 ? 'vecka' : 'veckor'}</option>)}</select></label></div>}
+            {selectionError ? <p className="form-error" role="alert">{selectionError}</p> : <ul className="planning-import-selected-weeks">{requestedMondays.map(monday => <li key={monday}>v{isoWeek(monday).week} · {isoWeek(monday).year} · {label(monday)}–{label(planningAddDays(monday, 6))}</li>)}</ul>}
+            {!selectedGroups.length && <p className="form-error">Välj minst en grupp i toppmenyn innan du analyserar.</p>}
+          </fieldset>
+          <details className="planning-import-tab-options"><summary>Flikar som läses ({sheets.length})</summary><p>Välj relevanta flikar. Arkiv och tillfälliga planer är inte förvalda.</p><div className="planning-import-sheets">{inspection.sheets.map(sheet => <label key={sheet.name}><input type="checkbox" checked={sheets.includes(sheet.name)} onChange={event => { setSheets(current => event.target.checked ? [...current, sheet.name] : current.filter(name => name !== sheet.name)); setAnalysisFailed(false) }} />{sheet.name}<small>{sheet.range}</small></label>)}</div></details>
+          <label className="planning-import-check"><input type="checkbox" checked={useAi} onChange={event => setUseAi(event.target.checked)} /><span>Analysera med GPT-6.1<small>Excel-innehåll från valda flikar skickas till OpenAI, avgränsat till veckor och grupper när tabellstrukturen känns igen. Modellen söker bara efter ditt urval. Ingen simmardagbok eller hälsodata hämtas. Avmarkera för tabelläsning.</small></span></label>
+          <div className="planning-import-sources"><button className="primary-button" disabled={!sheets.length || sheets.length > 5 || !selectedGroups.length || Boolean(selectionError)} onClick={() => analyze()}>Hämta valda veckor →</button>{analysisFailed && <button className="secondary-button" disabled={!sheets.length || sheets.length > 5 || !selectedGroups.length || Boolean(selectionError)} onClick={() => analyze(false)}>Läs samma urval utan AI</button>}</div>
+        </div>}
       </>}
       {draft && <><div className="planning-import-draft-heading"><div><strong>{draft.fileName}</strong><p>{draft.weeks.length} veckoblock hittade · {draft.usedAi ? 'AI-tolkning att granska' : 'Tabelläsning'}</p></div><button className="text-button" onClick={() => { setDraft(null); setPreview(null) }}>← Ändra fil eller flikar</button></div>
         {!!draft.warnings?.length && <ul className="planning-import-warnings">{draft.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+        {!weeks.length && <p role="status">Ingen planering hittades för urvalet. Ändra veckor, grupper eller flikar och försök igen. Inget har sparats.</p>}
         <p>Komplettera lägger till utan att skriva över. Ersätt gäller endast grundplanen för valda grupper. Pass på samma halvdag räknas som alternativ om du inte väljer separata tillfällen.</p>
         {weeks.map((week, wi) => {
           const existing = draft.existing.filter(row => row.date >= week.monday && row.date <= planningAddDays(week.monday, 6) && row.targetGroups.some(group => week.groups.includes(group)))
           return <article className={`planning-import-week${week.selected ? ' is-selected' : ''}`} key={wi}><header><label><input type="checkbox" checked={week.selected} onChange={event => change(wi, { selected: event.target.checked })} /><span><strong>Vecka {isoWeek(week.monday).week} · {isoWeek(week.monday).year}</strong><small>{label(week.monday)}–{label(planningAddDays(week.monday, 6))} · {week.groups.map(group => PLANNING_GROUPS[group]).join(' / ')}</small></span></label><span>{existing.length ? `${existing.length} befintliga rader` : 'Ny vecka för grupperna'}</span></header>
             {week.dateConflict && <p className="form-error">⚠ Källans datum ”{week.sourceDateLabel}” stämmer inte med denna vecka. Kontrollera år och flik.</p>}
+            <small className="planning-import-scroll-hint">Svep tabellen i sidled för att se hela dagen.</small><div className="planning-import-overview" role="region" aria-label={`Veckotabell vecka ${isoWeek(week.monday).week}`} tabIndex={0}><table><caption>Planering att granska · flera upplägg är alternativ, inte extra meter</caption><thead><tr><th scope="col">Dag</th><th scope="col">Morgon</th><th scope="col">Eftermiddag / kväll</th></tr></thead><tbody>{Array.from({ length: 7 }, (_, day) => {
+              const date = planningAddDays(week.monday, day)
+              return <tr key={date}><th scope="row">{new Date(`${date}T12:00:00Z`).toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'numeric' })}</th>{['morning', 'afternoon'].map(slot => { const rows = week.sessions.filter(row => row.date === date && row.timeOfDay === slot); return <td key={slot}>{rows.length ? rows.map((row, index) => <div key={index}><strong>{row.title}</strong>{row.distanceMeters && <span> · {Number(row.distanceMeters).toLocaleString('sv-SE')} m</span>}{row.notes && <small>{row.notes}</small>}</div>) : <span className="planning-import-empty">Inget pass angivet</span>}</td> })}</tr>
+            })}</tbody></table></div>
             {week.selected && <details className="planning-import-week-content" open={wi === 0}><summary>Granska {week.sessions.length} rader · {week.mode === 'replace' ? 'Ersätt grundplan' : 'Komplettera'}{week.sessions.some(row => row.calendarKey === 'unresolved') && ' · ⚠ Välj träningstider'}</summary><div className="planning-import-week-settings"><div className="planning-import-groups">{Object.entries(PLANNING_GROUPS).map(([group, title]) => <label key={group}><input type="checkbox" checked={week.groups.includes(group)} onChange={event => { const groups = event.target.checked ? [...week.groups, group] : week.groups.filter(value => value !== group); change(wi, { groups, sessions: week.sessions.map(row => ({ ...row, calendarKey: chooseCalendar(row, groups, draft.calendarChoices) })) }) }} />{title}</label>)}</div><label>Hur ska veckan läggas in?<select value={week.mode} onChange={event => change(wi, { mode: event.target.value })}><option value="add">Komplettera — behåll befintligt</option><option value="replace">Ersätt grundplan för valda grupper</option></select></label></div>
               <details className="planning-import-source"><summary>Källa och anmärkningar</summary><p>{week.sourceSheet}!{week.sourceRange} · {week.sourceDateLabel}</p><ul>{week.warnings?.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>
               <div className="planning-import-rows">{week.sessions.map((row, ri) => {
