@@ -1,5 +1,5 @@
 import XLSX from 'xlsx'
-import { isoWeekMonday } from '../shared/planning-import.js'
+import { isoWeekMonday, PLANNING_GROUPS } from '../shared/planning-import.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 
 const text = value => String(value ?? '').trim()
@@ -108,16 +108,22 @@ export function planningModelFile(sheets, blocks = null) {
 }
 
 const dayIndex = value => ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'].findIndex(day => text(value).toLowerCase().startsWith(day.slice(0, 3)))
-const groupsIn = value => {
-  const s = text(value).toLowerCase(), groups = []
-  if (/junior/.test(s)) groups.push('junior')
-  if (/svart/.test(s)) groups.push('ungdom_svart')
-  if (/orange/.test(s)) groups.push('ungdom_orange')
-  return groups
+const groupText = value => text(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+const groupsIn = (value, labels) => {
+  let rest = groupText(value)
+  const groups = []
+  // Match longer group names first: "Junior Elit" must not also match Junior.
+  const names = Object.entries(labels).flatMap(([id, label]) => [...new Set([groupText(label), groupText(id)])].map(name => ({ id, name }))).sort((a, b) => b.name.length - a.name.length)
+  for (const { id, name } of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, 'g')
+    if (pattern.test(rest)) { groups.push(id); rest = rest.replace(pattern, ' ') }
+  }
+  return Object.keys(labels).filter(id => groups.includes(id))
 }
 // Known weekly table layout: each horizontal group block has Vecka / Dag,
 // followed by morning and afternoon columns. Cell addresses stay visible.
-export function parsePlanningTables(workbook, names, year) {
+export function parsePlanningTables(workbook, names, year, groupLabels = PLANNING_GROUPS) {
   const weeks = [], warnings = []
   for (const name of names) {
     const sourceYear = Number(name.match(/\b(20\d{2})\b/)?.[1] || year)
@@ -132,9 +138,9 @@ export function parsePlanningTables(workbook, names, year) {
       let heading = ''
       for (let h = r; h >= 0; h--) {
         const candidate = at(h, c - 1)
-        if (groupsIn(candidate).length && /planering/i.test(candidate)) { heading = candidate; break }
+        if (groupsIn(candidate, groupLabels).length && /planering/i.test(candidate)) { heading = candidate; break }
       }
-      const groups = groupsIn(heading), sourceDateLabel = at(r + 1, c + 1)
+      const groups = groupsIn(heading, groupLabels), sourceDateLabel = at(r + 1, c + 1)
       let header = -1
       for (let h = r + 2; h <= Math.min(r + 6, range.e.r); h++) if (/^dag$/i.test(at(h, c - 1))) { header = h; break }
       if (header < 0 || !groups.length) { warnings.push(`${name}, vecka ${weekNumber}: grupp eller tabellrubrik kunde inte identifieras.`); continue }

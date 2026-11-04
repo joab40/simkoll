@@ -4,9 +4,13 @@ Planering har **Importera veckoplanering** för lokal XLS/XLSX, befintlig delad 
 
 ## Aktivering
 
+Kör även `supabase/migrations/114_planning_import_dynamic_groups.sql` efter 113. Den ersätter tregruppsbegränsningen i RPC:n med kontroll mot aktiva `training_groups`. Inga befintliga planeringsrader ändras. Analys, granskning, kalenderkopplingar och sparande använder samma serverhämtade aktiva grupp-ID:n och namn som tränarvyn, även för egna grupper. Grupphämtfel stoppar importen, inte ett tyst byte till alla grupper. UI får `availableGroups` från den riktiga tränarvyn, och AI:s grupp-enum byggs av det verifierade urvalet.
+
 Kör `supabase/migrations/113_weekly_planning_import.sql` innan sparande används. Den skapar en privat importlogg och en transaktionell RPC; inga befintliga planeringar ändras när migrationen körs. Befintliga miljövariabler `GOOGLE_DRIVE_API_KEY`, `GOOGLE_DRIVE_FOLDER_ID` och `OPENAI_API_KEY` används. AI använder `gpt-6.1-sol`, Responses Structured Outputs, `store:false`, befintlig AI-budget och användningslogg. Inga dagboks-/hälsodata hämtas till filanalysen. Filens valda cellinnehåll (inklusive eventuella namn som står där) skickas när tränaren väljer AI. Filinnehåll behandlas som data, inte instruktioner.
 
 ## Flöde och avgränsning
+
+Drive-mappar för pass och veckoplanering kan konfigureras separat av superadmin under Inställningar → Google Drive. Se `docs/google-drive-settings.md`. Planeringsfilväljaren skickar `purpose=planning`; passfilväljaren behåller standardtypen `workout`.
 
 1. Inspektera flikar utan databasändringar. Välj högst fem flikar; arkiv/stödflikar är inte förvalda. Toppmenyns grupper följer med före analysen (inget tomt urval tolkas som alla grupper). Visad planeringsvecka är förvald. Snabbval: visad vecka, denna vecka, nästa vecka eller intervall på 1–4 veckor. Veckonummer, ISO-år och datum visas, även över årsskifte. Servern kräver giltiga gruppnycklar och måndagar.
 2. Analysera med GPT-6.1 eller tabelläsaren. Analysens urval skickas uttryckligen i prompten och servern avvisar AI-resultat utanför urvalet. Varje AI-anrop gäller en vecka (högst två samtidiga). En värdebaserad XLSX-bilaga innehåller bara valda flikar utan formler, externa länkar eller arbetsboksmetadata; i fullt igenkända tabellayouter avgränsas även cellerna till valda grupp/veckoblock samt grupprubriken. Vid okänd layout används valda flikars cellvärden och originaladresser. Originalfilen ändras inte. En gemensam Junior/Svart-tabell är ett block; Orange hålls separat. Veckofokus, intervall, huvudserier och anteckningar bevaras. Ingen saknad vecka ersätts med en angränsande vecka. Varje saknat grupp/vecko-par visas med varning; helt tomt resultat kan visas utan kalender/DB-läsning eller sparande.

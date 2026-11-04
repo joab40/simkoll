@@ -21,8 +21,9 @@ export function planningImportMondays(year, week, count = 1) {
   if (mondays.some(date => isoWeek(date).year > 2100)) throw new Error('Välj ett år till och med 2100.')
   return mondays
 }
-export function validatePlanningSelection({ groups, mondays }) {
-  if (!Array.isArray(groups) || !groups.length || groups.length > 3 || new Set(groups).size !== groups.length || groups.some(group => !Object.hasOwn(PLANNING_GROUPS, group))) throw Object.assign(new Error('Välj grupper i planeringsvyn före analysen.'), { status: 400 })
+export function validatePlanningSelection({ groups, mondays }, groupLabels = PLANNING_GROUPS) {
+  if (!Array.isArray(groups) || !groups.length) throw Object.assign(new Error('Inga grupper följde med från tränarvyn. Kontrollera gruppvalet i toppmenyn.'), { status: 400 })
+  if (groups.length > 20 || new Set(groups).size !== groups.length || groups.some(group => !Object.hasOwn(groupLabels, group))) throw Object.assign(new Error('En vald grupp är inte längre aktiv eller känns inte igen. Uppdatera gruppvalet i toppmenyn och försök igen.'), { status: 400 })
   if (!Array.isArray(mondays) || !mondays.length || mondays.length > MAX_PLANNING_IMPORT_WEEKS || new Set(mondays).size !== mondays.length || mondays.some(date => !validPlanningDate(date) || Number(date.slice(0, 4)) < 2000 || Number(date.slice(0, 4)) > 2100 || planningMonday(date) !== date || isoWeek(date).year < 2000 || isoWeek(date).year > 2100)) throw Object.assign(new Error('Välj 1–4 giltiga veckor före analysen.'), { status: 400 })
   return { groups: [...groups], mondays: [...mondays].sort() }
 }
@@ -33,14 +34,14 @@ export function planningDriveId(value) {
   if (!/^[a-zA-Z0-9_-]{8,160}$/.test(id)) throw new Error('Ange en Google Kalkylark-/Drive-länk eller välj fil i mappen.')
   return id
 }
-export function validatePlanningDraft(input) {
+export function validatePlanningDraft(input, groupLabels = PLANNING_GROUPS) {
   const fail = message => { throw Object.assign(new Error(message), { status: 400 }) }
   if (!Array.isArray(input) || !input.length || input.length > 20) fail('Välj 1–20 veckor åt gången.')
   const seen = new Set()
   return input.map(week => {
     if (!validPlanningDate(week.monday) || planningMonday(week.monday) !== week.monday) fail('En vecka måste börja på en giltig måndag.')
     const groups = [...new Set(week.groups || [])]
-    if (!groups.length || groups.some(group => !Object.hasOwn(PLANNING_GROUPS, group))) fail('Välj berörda grupper för varje vecka.')
+    if (!groups.length || groups.length > 20 || groups.some(group => !Object.hasOwn(groupLabels, group))) fail('En vald grupp saknas eller är inte längre aktiv. Kontrollera berörda grupper för veckan.')
     for (const group of groups) {
       const key = `${week.monday}|${group}`
       if (seen.has(key)) fail('Samma vecka och grupp förekommer flera gånger. Välj bara ett underlag för gruppen.')

@@ -21,6 +21,8 @@ import { loadWorkoutOccasions, workoutOccasionChoices, prepareWorkoutOccasion, p
 import { importDriveWorkbook } from '../server/drive-workout-import.js'
 import { loadPlanningFile, inspectPlanningFile, analyzePlanningFile, loadPlanningRows, preparePlanningImport, planningCalendarChoices } from '../server/planning-import.js'
 import { validatePlanningDraft, validatePlanningSelection } from '../shared/planning-import.js'
+import { loadPlanningGroups } from '../server/planning-groups.js'
+import { driveApiKey, loadDriveConfig, listDriveFolder, verifyDriveFolder, saveDriveSettings } from '../server/drive-settings.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 import { analyticsRows } from '../server/analytics-rows.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
@@ -53,24 +55,6 @@ function normalizeImportedWorkoutFocus(value) {
 let assistantCalendarCache = { expiresAt: 0, activities: [] }
 const assistantRowsCache = new Map()
 
-const DEFAULT_DRIVE_FOLDER_ID = '10yTsKP2-Z4a1oNafx76MyyybkOzydBO1'
-function driveConfig() {
-  return { apiKey: String(process.env.GOOGLE_DRIVE_API_KEY || '').trim(), folderId: String(process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID).trim() }
-}
-async function listGoogleDriveFolder(folderId) {
-  const { apiKey } = driveConfig()
-  if (!apiKey) throw new Error('Google Drive API-nyckel saknas i Vercel.')
-  const query = `'${String(folderId).replace(/'/g, '')}' in parents and trashed = false`
-  const params = new URLSearchParams({ q: query, key: apiKey, pageSize: '100', orderBy: 'folder,name', fields: 'files(id,name,mimeType,modifiedTime,size,webViewLink)' })
-  const result = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`)
-  if (!result.ok) throw new Error(`Google Drive kunde inte läsas (${result.status}).`)
-  const payload = await result.json()
-  return (Array.isArray(payload.files) ? payload.files : []).map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType, modifiedTime: item.modifiedTime || null, size: item.size ? Number(item.size) : null, webViewLink: item.webViewLink || null, folder: item.mimeType === 'application/vnd.google-apps.folder' })).sort((a, b) => {
-    if (a.folder !== b.folder) return a.folder ? -1 : 1
-    const timeDifference = (Date.parse(b.modifiedTime || '') || 0) - (Date.parse(a.modifiedTime || '') || 0)
-    return timeDifference || a.name.localeCompare(b.name, 'sv')
-  })
-}
 async function cachedAssistantRows(path) {
   const hit = assistantRowsCache.get(path)
   if (hit && hit.expiresAt > Date.now()) return hit
@@ -644,12 +628,19 @@ export default async function handler(request, response) {
     if (request.method === 'GET') {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })
+      if (request.query?.driveSettings === 'true') {
+        if (role !== 'coach' || coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan läsa Drive-inställningar.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        try { return sendJson(response, 200, await loadDriveConfig()) }
+        catch (error) { return sendJson(response, error.status || 503, { error: error.message }) }
+      }
       if (role === 'coach' && request.query?.drive === 'true') {
         try {
-          const { folderId } = driveConfig()
-          const requestedFolder = String(request.query.folderId || folderId).trim()
-          if (!/^[a-zA-Z0-9_-]+$/.test(requestedFolder)) return sendJson(response, 400, { error: 'Ogiltigt Google Drive-mapp-ID.' })
-          return sendJson(response, 200, { folderId: requestedFolder, items: await listGoogleDriveFolder(requestedFolder) })
+          const purpose = request.query.purpose || 'workout'
+          if (!['workout', 'planning'].includes(purpose)) return sendJson(response, 400, { error: 'Välj passmapp eller planeringsmapp.' })
+          const config = await loadDriveConfig()
+          response.setHeader('Cache-Control', 'private, no-store')
+          return sendJson(response, 200, await listDriveFolder(request.query.folderId || config.folders[purpose].id))
         } catch (error) {
           return sendJson(response, 502, { error: error.message || 'Google Drive-mappen kunde inte läsas.' })
         }
@@ -776,27 +767,39 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (['test-drive-folder', 'save-drive-settings'].includes(request.body?.action)) {
+        if (role !== 'coach' || coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan ändra Drive-inställningar.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        try {
+          if (request.body.action === 'save-drive-settings') return sendJson(response, 200, await saveDriveSettings(request.body.settings))
+          const purpose = request.body.purpose
+          if (!['workout', 'planning'].includes(purpose)) return sendJson(response, 400, { error: 'Välj passmapp eller planeringsmapp.' })
+          const config = request.body.folder ? null : await loadDriveConfig()
+          return sendJson(response, 200, { verified: await verifyDriveFolder(request.body.folder || config.folders[purpose].id) })
+        } catch (error) { return sendJson(response, [400, 503].includes(error.status) ? error.status : 503, { error: error.status ? error.message : 'Drive-inställningen kunde inte sparas eller kontrolleras. Försök igen.' }) }
+      }
       if (['planning-import-inspect', 'planning-import-analyze', 'planning-import-preview', 'planning-import-apply'].includes(request.body?.action)) {
         if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan importera veckoplanering.' })
         response.setHeader('Cache-Control', 'private, no-store')
         const body = request.body
         try {
+          const groupLabels = body.action === 'planning-import-inspect' ? null : await loadPlanningGroups()
           if (body.action === 'planning-import-inspect' || body.action === 'planning-import-analyze') {
-            if (body.action === 'planning-import-analyze') validatePlanningSelection(body)
+            if (body.action === 'planning-import-analyze') validatePlanningSelection(body, groupLabels)
             if (body.action === 'planning-import-analyze' && body.useAi === true) {
               const availability = await aiAvailability()
               if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? 'AI-budgeten är nådd. Prova tabelläsning utan AI.' : 'AI-stöd är avstängt. Du kan använda tabelläsning utan AI.' })
             }
-            const file = await loadPlanningFile(body, driveConfig().apiKey)
+            const file = await loadPlanningFile(body, driveApiKey())
             if (body.action === 'planning-import-inspect') return sendJson(response, 200, inspectPlanningFile(file))
-            const draft = await analyzePlanningFile(request, file, body)
+            const draft = await analyzePlanningFile(request, file, body, { groupLabels })
             if (!draft.weeks.length) return sendJson(response, 200, { ...draft, calendarChoices: [], existing: [] })
             const starts = draft.weeks.map(week => week.monday).sort()
             const calendar = await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, from: starts[0], to: planningAddDays(starts.at(-1), 6) })
             const rows = await loadPlanningRows(draft.weeks)
             return sendJson(response, 200, { ...draft, calendarChoices: planningCalendarChoices(calendar), existing: rows.map(publicPlan) })
           }
-          const weeks = validatePlanningDraft(body.weeks)
+          const weeks = validatePlanningDraft(body.weeks, groupLabels)
           const digest = createHash('sha256').update(JSON.stringify(weeks)).digest('hex')
           if (body.action === 'planning-import-apply') {
             if (weeks.some(week => week.mode === 'replace') && body.confirmReplace !== true) return sendJson(response, 400, { error: 'Bekräfta att befintlig grundplan får ersättas för valda veckor och grupper.' })
@@ -808,14 +811,14 @@ export default async function handler(request, response) {
           }
           const starts = weeks.map(week => week.monday).sort()
           const calendar = await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, from: starts[0], to: planningAddDays(starts.at(-1), 6) })
-          const prepared = preparePlanningImport(weeks, await loadPlanningRows(weeks), calendar, body.importId)
+          const prepared = preparePlanningImport(weeks, await loadPlanningRows(weeks), calendar, body.importId, groupLabels)
           const previewToken = createHash('sha256').update(JSON.stringify([prepared.scopes, prepared.rows])).digest('hex')
           if (body.action === 'planning-import-preview') return sendJson(response, 200, { summary: prepared.summary, previewToken })
           if (body.previewToken !== previewToken) return sendJson(response, 409, { error: 'Planeringen eller kalendern har ändrats. Granska importen igen innan du sparar.' })
           const saved = await supabaseRequest('rpc/apply_weekly_planning_import', { method: 'POST', body: JSON.stringify({ p_id: body.importId, p_digest: digest, p_weeks: prepared.scopes, p_rows: prepared.rows, p_summary: prepared.summary }) })
           if (!saved.ok) {
             const detail = await saved.json().catch(() => ({}))
-            return sendJson(response, detail.code === '40001' ? 409 : 503, { error: detail.code === '40001' ? 'Planeringen ändrades under tiden. Granska importen igen.' : 'Importen kunde inte sparas. Kontrollera att SQL-migration 113 är körd. Inga delar av importen har sparats.' })
+            return sendJson(response, detail.code === '40001' ? 409 : 503, { error: detail.code === '40001' ? 'Planeringen ändrades under tiden. Granska importen igen.' : 'Importen kunde inte sparas. Kontrollera att SQL-migration 113 och 114 är körda. Inga delar av importen har sparats.' })
           }
           return sendJson(response, 200, { saved: true, summary: await saved.json() })
         } catch (error) {
@@ -1051,7 +1054,7 @@ export default async function handler(request, response) {
         const fileId = String(request.body.fileId || '').trim()
         if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) return sendJson(response, 400, { error: 'Ogiltigt Google Drive-fil-ID.' })
         try {
-          return sendJson(response, 200, await importDriveWorkbook(fileId, driveConfig().apiKey))
+          return sendJson(response, 200, await importDriveWorkbook(fileId, driveApiKey()))
         } catch (error) {
           return sendJson(response, 502, { error: error.message || 'Google Drive-filen kunde inte läsas.' })
         }

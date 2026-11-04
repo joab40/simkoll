@@ -46,6 +46,31 @@ test('analysis selection validates actual groups and dates and supports four wee
   assert.throws(() => planningImportMondays(2025, 53, 1))
   assert.throws(() => planningImportMondays(2026, 46, 5))
 })
+test('active dynamic coach groups are passed to analysis instead of rejected by the old three-group whitelist', async () => {
+  const labels = { junior: 'Junior', ungdom_svart: 'Ungdom Svart', ungdom_orange: 'Ungdom Orange', junior_elit: 'Junior Elit' }
+  const all = { groups: Object.keys(labels), mondays: [week.monday] }
+  assert.deepEqual(validatePlanningSelection(all, labels), all)
+  assert.throws(() => validatePlanningSelection({ ...all, groups: ['inactive_group'] }, labels), /inte längre aktiv/)
+  const file = fixture()
+  file.workbook.Sheets['Närmsta veckorna'].A1.v = 'Veckoplanering Junior Elit-Ungdom Svart'
+  file.bytes = XLSX.write(file.workbook, { type: 'buffer', bookType: 'xlsx' })
+  const draft = await analyzePlanningFile({}, file, { ...all, sheets: ['Närmsta veckorna'], useAi: false }, { groupLabels: labels })
+  assert.equal(draft.weeks.length, 1)
+  assert.deepEqual(draft.weeks[0].groups, ['ungdom_svart', 'junior_elit'])
+  assert.ok(draft.missing.some(item => item.group === 'junior')) // Junior Elit is not Junior.
+  const prepared = preparePlanningImport([{ ...week, groups: ['junior_elit'] }], [], [], id, labels)
+  assert.deepEqual(prepared.rows[0].target_groups, ['junior_elit'])
+  const original = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = 'fixture-only'
+  try {
+    const ai = await analyzePlanningFile({}, file, { groups: ['junior_elit'], mondays: [week.monday], sheets: ['Närmsta veckorna'], useAi: true }, { groupLabels: labels, log: async () => {}, fetch: async (_, options) => {
+      const body = JSON.parse(options.body)
+      assert.deepEqual(body.text.format.schema.properties.weeks.items.properties.groups.items.enum, ['junior_elit'])
+      assert.match(body.input[1].content[0].text, /Junior Elit \(junior_elit\)/)
+      return new Response(JSON.stringify({ status: 'completed', output_text: JSON.stringify({ warnings: [], weeks: [{ year: 2026, weekNumber: 46, groups: ['junior_elit'], sourceSheet: 'Närmsta veckorna', sourceRange: 'A2:K15', sourceDateLabel: '9-15 november', warnings: [], sessions: [{ ...row, sourceCells: 'G7:K7' }] }] }) }))
+    } })
+    assert.equal(ai.usedAi, true); assert.deepEqual(ai.weeks[0].groups, ['junior_elit'])
+  } finally { if (original === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = original }
+})
 test('model file contains selected values only, not archive sheets, formulas or out-of-scope group tables', () => {
   const { workbook } = fixture()
   workbook.Sheets['Närmsta veckorna'].G7 = { t: 's', v: 'Återhämtning', f: 'EXTERNAL()' }

@@ -10,6 +10,7 @@ const code = createCoachToken({ id: '22222222-2222-4222-8222-222222222222', role
 const importId = '11111111-1111-4111-8111-111111111111'
 const week = { monday: '2026-11-09', mode: 'add', groups: ['junior'], sessions: [{ date: '2026-11-09', title: 'Fart', activityType: 'swim', timeOfDay: 'afternoon', calendarKey: 'none' }] }
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status })
+const groupRows = [{ id: 'junior', name: 'Junior' }, { id: 'ungdom_svart', name: 'Ungdom Svart' }, { id: 'ungdom_orange', name: 'Ungdom Orange' }, { id: 'junior_elit', name: 'Junior Elit' }]
 async function call(body, token = code) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
   await handler({ method: 'POST', headers: { 'x-simkoll-code': token }, body, query: {} }, response)
@@ -25,6 +26,7 @@ test('API requires coach, explicit preview and overwrite approval; stale state n
   const original = globalThis.fetch; const writes = []; let rows = []
   globalThis.fetch = async (raw, options = {}) => {
     const path = new URL(raw).pathname.split('/').at(-1)
+    if (path === 'training_groups') return json(groupRows)
     if (path === 'app_settings') return json([{ setting_value: { sportAdminCalendars: [] } }])
     if (path === 'training_plans') return json(rows)
     if (path === 'planning_import_batches') return json([])
@@ -57,6 +59,7 @@ test('analysis API uses explicit group/week scope and returns missing weeks with
   globalThis.fetch = async raw => {
     const url = new URL(raw), table = url.pathname.split('/').at(-1)
     reads.push(table)
+    if (table === 'training_groups') return json(groupRows)
     if (table === 'app_settings') return json([{ setting_value: { sportAdminCalendars: [] } }])
     if (table === 'training_plans') { assert.match(url.search, /2026-11-09/); assert.match(url.search, /2026-11-15/); return json([]) }
     throw Error(`Unexpected request: ${table}`)
@@ -67,11 +70,15 @@ test('analysis API uses explicit group/week scope and returns missing weeks with
     assert.deepEqual(scoped.data.weeks[0].groups, ['ungdom_svart'])
     assert.equal(scoped.data.weeks[0].sessions[0].distanceMeters, 3500)
     assert.deepEqual(scoped.data.missing, [])
+    const fourGroups = await call({ ...body, groups: groupRows.map(group => group.id) })
+    assert.equal(fourGroups.code, 200)
+    assert.deepEqual(fourGroups.data.weeks[0].groups, ['junior', 'ungdom_svart'])
+    assert.ok(fourGroups.data.missing.some(item => item.group === 'junior_elit'))
     reads.length = 0
     const missing = await call({ ...body, mondays: ['2026-11-16'] })
     assert.equal(missing.code, 200); assert.deepEqual(missing.data.weeks, [])
     assert.deepEqual(missing.data.missing, [{ monday: '2026-11-16', group: 'ungdom_svart' }])
-    assert.deepEqual(reads, [])
+    assert.deepEqual(reads, ['training_groups'])
     assert.equal((await call({ ...body, groups: [] })).code, 400)
     assert.equal((await call({ ...body, mondays: ['2026-11-10'] })).code, 400)
   } finally { globalThis.fetch = original }
