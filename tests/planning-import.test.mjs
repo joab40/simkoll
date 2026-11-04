@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import XLSX from 'xlsx'
 import { isoWeek, isoWeekMonday, planningDriveId, validatePlanningDraft } from '../shared/planning-import.js'
-import { openPlanningSpreadsheet, inspectPlanningSpreadsheet, planningSource, parsePlanningTables } from '../server/planning-spreadsheet.js'
+import { openPlanningSpreadsheet, inspectPlanningSpreadsheet, planningSource, parsePlanningTables, validPlanningSourceReference, normalizePlanningSourceReference, planningSourceReferenceHasContent } from '../server/planning-spreadsheet.js'
 import { analyzePlanningFile, planningCalendarChoices, preparePlanningImport, loadPlanningFile, loadPlanningRows, planningDateConflict } from '../server/planning-import.js'
 import { groupSwimOccasions } from '../shared/swim-workout-options.js'
 
@@ -71,6 +71,20 @@ test('invalid, oversized and uncached formula sources fail safely', async () => 
   assert.throws(() => planningSource(workbook, ['Närmsta veckorna']), /saknar sparat resultat/)
   await assert.rejects(loadPlanningFile({ fileName: 'x.png', fileData: 'data:image/png;base64,AA==' }), /XLS/)
 })
+test('source references allow blank leading cells, absolute/sheet-qualified ranges, unions and merged weekdays', () => {
+  const { workbook } = fixture()
+  workbook.Sheets['Närmsta veckorna']['!merges'] = [{ s: { r: 7, c: 0 }, e: { r: 8, c: 0 } }]
+  const sheet = planningSource(workbook, ['Närmsta veckorna']).sheets[0]
+  assert.equal(normalizePlanningSourceReference(sheet, "'Närmsta veckorna'!$A$9 : $K$9"), 'A9:K9')
+  assert.equal(planningSourceReferenceHasContent(sheet, 'A9:K9'), true) // A9 is blank, G9 has the activity.
+  assert.equal(planningSourceReferenceHasContent(sheet, 'A9'), true) // Merged weekday anchored at A8.
+  assert.equal(planningSourceReferenceHasContent(sheet, 'G9, I9:K9'), true)
+  assert.equal(validPlanningSourceReference(sheet, 'G9–K9'), true)
+  assert.equal(planningSourceReferenceHasContent(sheet, 'B8:F8'), false)
+  assert.equal(validPlanningSourceReference(sheet, 'A999:K999'), false)
+  assert.equal(validPlanningSourceReference(sheet, "'Wrong sheet'!A9:K9"), false)
+  assert.equal(validPlanningSourceReference(sheet, 'K9:A9'), false)
+})
 test('draft validation rejects overlapping group weeks, dates outside week, missing slot and negative quantity', () => {
   assert.equal(validatePlanningDraft([week])[0].sessions[0].distanceMeters, 3000)
   assert.throws(() => validatePlanningDraft([week, week]), /förekommer/)
@@ -131,7 +145,16 @@ test('GPT-6.1 uses selected source only, structured output, no storage, and vali
     assert.equal(body.model, 'gpt-6.1-sol'); assert.equal(body.store, false); assert.equal(body.text.format.strict, true)
     assert.ok(!body.input[1].content.includes('Genomförda veckor 2025'))
     assert.equal(logs[0].feature, 'weekly_planning_import')
+    aiWeek.sessions[0].sourceCells = "'Närmsta veckorna'!$A$9:$K$9"
+    const blankLeading = await analyzePlanningFile({}, { bytes, fileName }, { sheets: ['Närmsta veckorna'], year: 2026, useAi: true }, dependencies)
+    assert.equal(blankLeading.usedAi, true); assert.equal(blankLeading.weeks[0].sessions[0].sourceCells, 'A9:K9')
     aiWeek.sessions[0].sourceCells = 'A999:K999'
-    await assert.rejects(analyzePlanningFile({}, { bytes, fileName }, { sheets: ['Närmsta veckorna'], year: 2026, useAi: true }, dependencies), /källhänvisningar/)
+    const fallback = await analyzePlanningFile({}, { bytes, fileName }, { sheets: ['Närmsta veckorna'], year: 2026, useAi: true }, dependencies)
+    assert.equal(fallback.usedAi, false); assert.match(fallback.warnings.join(' '), /direkt från Excel/)
+    assert.ok(fallback.weeks[0].sessions.length > 1)
+    const unknown = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(unknown, XLSX.utils.aoa_to_sheet([['Titel'], ['Fart']]), 'Planering')
+    aiWeek.sourceSheet = 'Planering'; aiWeek.sourceRange = 'A1:A2'
+    await assert.rejects(analyzePlanningFile({}, { bytes: XLSX.write(unknown, { type: 'buffer', bookType: 'xlsx' }), fileName }, { sheets: ['Planering'], year: 2026, useAi: true }, dependencies), /cellhänvisningar/)
   } finally { if (original === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = original }
 })

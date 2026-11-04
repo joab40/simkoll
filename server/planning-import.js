@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { downloadDriveWorkbook } from './drive-workout-import.js'
-import { openPlanningSpreadsheet, inspectPlanningSpreadsheet, planningSource, parsePlanningTables, validPlanningSourceReference } from './planning-spreadsheet.js'
+import { openPlanningSpreadsheet, inspectPlanningSpreadsheet, planningSource, parsePlanningTables, normalizePlanningSourceReference, planningSourceReferenceHasContent } from './planning-spreadsheet.js'
 import { planningDriveId, validatePlanningDraft, isoWeekMonday, isoWeek } from '../shared/planning-import.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 import { calendarActivityKey, calendarFormValues, calendarLinkKeys } from '../shared/planning-calendar.js'
@@ -32,6 +32,21 @@ export async function loadPlanningFile(options, apiKey) {
 }
 export function inspectPlanningFile(file) { return inspectPlanningSpreadsheet(openPlanningSpreadsheet(file.bytes), file.fileName) }
 
+function normalizeSourceReferences(draft, sheets) {
+  return draft.weeks.every(week => {
+    const name = String(week.sourceSheet || '').trim().replace(/^'(.*)'$/, '$1').replace(/''/g, "'").normalize('NFC')
+    const sheet = sheets.find(sheet => sheet.name.normalize('NFC') === name)
+    if (!sheet || !planningSourceReferenceHasContent(sheet, week.sourceRange) || !Array.isArray(week.sessions)) return false
+    week.sourceSheet = sheet.name
+    week.sourceRange = normalizePlanningSourceReference(sheet, week.sourceRange)
+    return week.sessions.every(row => {
+      if (!planningSourceReferenceHasContent(sheet, row.sourceCells)) return false
+      row.sourceCells = normalizePlanningSourceReference(sheet, row.sourceCells)
+      return true
+    })
+  })
+}
+
 export async function analyzePlanningFile(request, file, options, dependencies = {}) {
   const workbook = openPlanningSpreadsheet(file.bytes), year = Number(options.year)
   isoWeekMonday(year, 1)
@@ -60,18 +75,23 @@ export async function analyzePlanningFile(request, file, options, dependencies =
     }
   } else draft = parsePlanningTables(workbook, options.sheets, year)
   if (!Array.isArray(draft.weeks) || !draft.weeks.length || draft.weeks.length > 20) fail('Inga tydliga veckotabeller hittades, eller fler än 20 veckoblock. Prova AI eller välj färre flikar.')
-  // Each source reference must belong to a selected sheet and actual non-empty cells.
+  let usedAi = options.useAi === true
+  // Blank leading cells and merged weekdays are valid. Require content within
+  // the referenced area, not specifically in its upper-left cell.
+  if (!normalizeSourceReferences(draft, sheets)) {
+    const fallback = usedAi ? parsePlanningTables(workbook, options.sheets, year) : null
+    if (!fallback?.weeks.length || fallback.weeks.length > 20 || !options.sheets.every(name => fallback.weeks.some(week => week.sourceSheet === name)) || !normalizeSourceReferences(fallback, sheets)) fail('Tolkningens cellhänvisningar kunde inte bekräftas. Avmarkera AI för att prova vanlig tabelläsning, eller välj en annan flik. Inget har sparats.')
+    draft = { ...fallback, warnings: [...fallback.warnings, 'AI-tolkningens cellhänvisningar kunde inte bekräftas. De igenkända veckotabellerna har lästs direkt från Excel i stället. Granska veckor, grupper och innehåll innan du sparar.'] }
+    usedAi = false
+  }
   for (const week of draft.weeks) {
-    const sheet = sheets.find(sheet => sheet.name === week.sourceSheet)
-    const cells = new Set(sheet?.rows.flatMap(row => Object.keys(row.cells)) || [])
-    if (!sheet || !validPlanningSourceReference(sheet, week.sourceRange) || !Array.isArray(week.sessions) || week.sessions.some(row => !validPlanningSourceReference(sheet, row.sourceCells) || !cells.has(row.sourceCells.split(':')[0]))) fail('Tolkningen saknar giltiga källhänvisningar. Prova igen eller en annan flik.')
     if (isoWeek(week.monday).year !== year) week.warnings = [...(week.warnings || []), `Källan gäller ${isoWeek(week.monday).year}, inte valt år ${year}. Kontrollera innan du väljer veckan.`]
     week.dateConflict = planningDateConflict(week.monday, week.sourceDateLabel)
     if (week.dateConflict) week.warnings = [...(week.warnings || []), 'Källans datum stämmer inte med veckonumret i valt år. Veckan är inte förvald. Kontrollera år/flik innan du väljer den.']
     // Reuse the same strict validator as saving, without merging separate blocks.
     validatePlanningDraft([{ ...week, mode: 'add' }])
   }
-  return { ...draft, fileName: file.fileName, usedAi: options.useAi === true }
+  return { ...draft, fileName: file.fileName, usedAi }
 }
 
 export function planningCalendarChoices(activities) {

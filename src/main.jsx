@@ -42,6 +42,7 @@ import { programActivityDirection } from '../shared/swimmer-card-direction.js'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import IllnessHistory, { IllnessQuestion } from './daily-illness.jsx'
 import Scale from './checkin-scale.jsx'
+import { TodayMildIllness } from './coach-mild-illness.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
 import PrivateChatReply from './private-chat-reply.jsx'
@@ -2662,6 +2663,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
           </div></details>
         </nav>
         {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
+        {view === 'today' && <TodayMildIllness code={code} profiles={groupFilteredProfiles} date={summaryDate} asOf={todayKey()} onOpenSwimmer={profileId => { setFocusedSwimmerId(profileId); setView('swimmers') }} />}
         {view === 'today' && <CompetitionDaySummary date={summaryDate} plans={summaryCompetitionPlans} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
         {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} hasCompetition={hasCompetitionOnSummaryDate} date={summaryDate} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}

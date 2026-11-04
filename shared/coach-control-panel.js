@@ -1,6 +1,7 @@
 import { shortSleepWarning } from './sleep-warning.js'
 import { followupSignals } from './followup-signals.js'
 import { illnessDays } from './illness.js'
+import { buildMildIllnessSummary } from './mild-illness-summary.js'
 
 const dayBefore = (day, days) => new Date(Date.parse(`${day}T12:00:00Z`) - days * 86400000).toISOString().slice(0, 10)
 const mean = (values) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
@@ -74,6 +75,7 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
       reasons: signals.reasons, signalColor: signals.color, illness: signals.illness,
     }
   })
+  const mild = buildMildIllnessSummary(profiles, illnessRecords, start, asOf)
   return {
     start, end: asOf, signalStart, symptomStart: recentStart,
     profileCount: swimmers.length,
@@ -84,7 +86,7 @@ export function buildCoachControlPanel(profiles, responses, asOf, sleepRecords =
     loadAnswers: knownLoads.length,
     sickSwimmers: swimmers.filter((swimmer) => swimmer.sickDays > 0).length,
     sickDays: swimmers.reduce((sum, swimmer) => sum + swimmer.sickDays, 0),
-    mildSwimmers: swimmers.filter(swimmer => swimmer.mildDays > 0).length,
+    mildSwimmers: mild.count, mild,
     sleep: sleepSummary(periodSleep),
     followUps: swimmers.filter((swimmer) => swimmer.signalColor === 'red').sort((a, b) => b.reasons.length - a.reasons.length || a.displayName.localeCompare(b.displayName, 'sv')),
     watchList: swimmers.filter((swimmer) => swimmer.signalColor === 'yellow').sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv')),

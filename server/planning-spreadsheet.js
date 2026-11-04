@@ -3,10 +3,44 @@ import { isoWeekMonday } from '../shared/planning-import.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 
 const text = value => String(value ?? '').trim()
+export function normalizePlanningSourceReference(sheet, reference) {
+  if (typeof reference !== 'string' || reference.length > 1200) return ''
+  const parts = reference.split(/[;,]/).map(value => value.trim())
+  if (!parts.length || parts.length > 32) return ''
+  const normalized = []
+  for (let part of parts) {
+    const separator = part.lastIndexOf('!')
+    if (separator >= 0) {
+      const name = part.slice(0, separator).replace(/^'(.*)'$/, '$1').replace(/''/g, "'").normalize('NFC')
+      if (name !== sheet.name.normalize('NFC')) return ''
+      part = part.slice(separator + 1)
+    }
+    part = part.replace(/\$/g, '').replace(/\s+/g, '').replace(/[-–—]/g, ':').toUpperCase()
+    if (!/^[A-Z]{1,2}[1-9]\d{0,3}(?::[A-Z]{1,2}[1-9]\d{0,3})?$/.test(part)) return ''
+    normalized.push(part)
+  }
+  return normalized.join(',')
+}
 export function validPlanningSourceReference(sheet, reference) {
-  if (!sheet?.range || !/^[A-Z]{1,2}[1-9]\d{0,3}(?::[A-Z]{1,2}[1-9]\d{0,3})?$/.test(String(reference || ''))) return false
-  const bounds = XLSX.utils.decode_range(sheet.range), range = XLSX.utils.decode_range(reference)
-  return range.s.r >= bounds.s.r && range.s.c >= bounds.s.c && range.e.r <= bounds.e.r && range.e.c <= bounds.e.c && range.e.r >= range.s.r && range.e.c >= range.s.c
+  if (!sheet?.range) return false
+  const normalized = normalizePlanningSourceReference(sheet, reference)
+  if (!normalized) return false
+  const bounds = XLSX.utils.decode_range(sheet.range)
+  return normalized.split(',').every(value => {
+    const range = XLSX.utils.decode_range(value)
+    return range.s.r >= bounds.s.r && range.s.c >= bounds.s.c && range.e.r <= bounds.e.r && range.e.c <= bounds.e.c && range.e.r >= range.s.r && range.e.c >= range.s.c
+  })
+}
+export function planningSourceReferenceHasContent(sheet, reference) {
+  if (!validPlanningSourceReference(sheet, reference)) return false
+  const ranges = normalizePlanningSourceReference(sheet, reference).split(',').map(value => XLSX.utils.decode_range(value))
+  const inside = (cell, range) => cell.r >= range.s.r && cell.r <= range.e.r && cell.c >= range.s.c && cell.c <= range.e.c
+  const cells = sheet.rows.flatMap(row => Object.keys(row.cells)).map(value => XLSX.utils.decode_cell(value))
+  if (cells.some(cell => ranges.some(range => inside(cell, range)))) return true
+  return (sheet.mergedCells || []).some(value => {
+    const merge = XLSX.utils.decode_range(value)
+    return cells.some(cell => cell.r === merge.s.r && cell.c === merge.s.c) && ranges.some(range => range.s.r <= merge.e.r && range.e.r >= merge.s.r && range.s.c <= merge.e.c && range.e.c >= merge.s.c)
+  })
 }
 export function openPlanningSpreadsheet(bytes) {
   if (!bytes?.length || bytes.length > 3 * 1024 * 1024 || !(bytes[0] === 0x50 && bytes[1] === 0x4b || bytes[0] === 0xd0 && bytes[1] === 0xcf)) throw new Error('Välj en riktig XLS/XLSX-fil under 3 MB.')
@@ -36,7 +70,7 @@ export function planningSource(workbook, names) {
       }
       if (Object.keys(cells).length) rows.push({ row: r + 1, cells })
     }
-    return { name, range: sheet['!ref'], rows }
+    return { name, range: sheet['!ref'], mergedCells: (sheet['!merges'] || []).map(range => XLSX.utils.encode_range(range)), rows }
   })
   const source = JSON.stringify({ sheets })
   if (count > 10000 || source.length > 160000) throw new Error('De valda flikarna är för stora. Importera färre veckor åt gången.')
