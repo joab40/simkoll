@@ -14,6 +14,12 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'coach-hidden-calendar', roles: ['coach'], section: 'coach', question: 'Hur döljer jag en inställd SportAdmin-aktivitet i Simkoll?', answer: [
+    'I Planering finns Dölj i Simkoll på SportAdmin-aktiviteter och på kort med en kopplad kalenderaktivitet. Bekräfta vilka tillfällen som ska döljas. Bara det aktuella datumet påverkas, inte samma återkommande pass andra veckor. Döljningen gäller alla tränare och simmare, även kalenderförslag i pass- och veckoplaneringsimport. Den ligger kvar efter synk och omladdning. Källkalendern i SportAdmin ändras inte.',
+    'Visa dolda aktiviteter visar dolda tillfällen för vald vecka och valda grupper. Välj Återställ aktivitet för att ta bort döljningen. Aktiviteten visas igen om den fortfarande finns i källkalendern. För kalendrar med UID följer markeringen med även om passets namn eller tid ändras; utan UID kan en ändrad aktivitet behöva döljas på nytt.',
+    'Döljning av kalendern är inte samma sak som att avpublicera ett simpass eller ta bort grundplanen. Kopplade planeringar och publicerade pass ligger kvar, liksom simmarnas incheckningar och historik. Finns kopplad planering krävs en extra bekräftelse; ändra eller avpublicera passen separat om träningen är inställd. SQL 115 behövs för de återställbara markeringarna.',
+    'Vid veckoplaneringsimport matchas varje grupp separat mot kalendern. En gemensam Excel-planering kan därför kopplas till Junior 14:00 och Svart 16:00, med samma upplägg men rätt tid och minuter per grupp. En simmare får bara sin grupps pass; passalternativ på samma tillfälle räknas inte ihop. Vid flera tider eller ofullständig gruppmatchning måste tränaren välja kalenderträning eller uttryckligen Utan kalender.',
+  ] },
   { id: 'coach-mild-illness', roles: ['coach'], section: 'coach', question: 'Var ser jag vilka simmare som har lite sjukdomskänningar?', answer: [
     'I Idag finns kortet Lite känningar med antal unika simmare i valda grupper som svarat Lite känningar för det valda datumet. Öppna kortet för namn och tryck på ett namn för simmarkortet. Svaret visas även om simmaren har tränat; träningsstatusen ändras inte.',
     'Kontrollpanelen har samma kort för den valda veckan, hittills pågående vecka. Namnlistan visar vilka dagar varje simmare rapporterat känningar. Ett senare Nej, Jag känner mig sjuk eller överhoppat dagsvar visas separat så att veckans historik inte förväxlas med ett aktuellt svar. Antalet räknar varje simmare en gång, inte varje träningspass.',

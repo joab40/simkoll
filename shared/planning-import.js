@@ -14,6 +14,15 @@ export function isoWeekMonday(year, week) {
   return monday
 }
 export const MAX_PLANNING_IMPORT_WEEKS = 4
+// Match each group independently. Two group calendars need not share a time.
+export const planningGroupChoices = (row, group, choices) => row.activityType === 'swim' ? choices.filter(choice => choice.date === row.date && choice.timeOfDay === row.timeOfDay && choice.groups.includes(group)) : []
+export function defaultPlanningCalendars(row, groups, choices) {
+  const nearby = row.activityType === 'swim' && choices.some(choice => choice.date === row.date && choice.timeOfDay === row.timeOfDay && choice.groups.some(group => groups.includes(group)))
+  return Object.fromEntries(groups.map(group => {
+    const matches = planningGroupChoices(row, group, choices)
+    return [group, matches.length === 1 ? matches[0].key : matches.length || nearby ? 'unresolved' : 'none']
+  }))
+}
 export function planningImportMondays(year, week, count = 1) {
   if (!Number.isInteger(count) || count < 1 || count > MAX_PLANNING_IMPORT_WEEKS) throw new Error('Välj 1–4 veckor åt gången.')
   const first = isoWeekMonday(year, week)
@@ -58,7 +67,8 @@ export function validatePlanningDraft(input, groupLabels = PLANNING_GROUPS) {
         if (row[key] !== null && row[key] !== '' && row[key] !== undefined && (!Number.isInteger(Number(row[key])) || Number(row[key]) < 1 || Number(row[key]) > maximum)) fail('Meter och minuter måste vara positiva heltal inom rimliga gränser.')
       }
       if (row.calendarKey !== undefined && (typeof row.calendarKey !== 'string' || row.calendarKey.length > 2000)) fail('Ogiltig kalenderkoppling.')
-      return { date: row.date, activityType: row.activityType, timeOfDay: row.timeOfDay, title: row.title.trim(), focus: String(row.focus || '').slice(0, 80), distanceMeters: row.distanceMeters ? Number(row.distanceMeters) : null, durationMinutes: row.durationMinutes ? Number(row.durationMinutes) : null, notes: String(row.notes || '').slice(0, 500), calendarKey: row.calendarKey || '', separate: row.separate === true }
+      if (row.calendarByGroup !== undefined && (!row.calendarByGroup || typeof row.calendarByGroup !== 'object' || Array.isArray(row.calendarByGroup) || Object.keys(row.calendarByGroup).length !== groups.length || groups.some(group => !Object.hasOwn(row.calendarByGroup, group) || typeof row.calendarByGroup[group] !== 'string' || !row.calendarByGroup[group] || row.calendarByGroup[group].length > 2000) || Object.keys(row.calendarByGroup).some(group => !groups.includes(group)))) fail('Välj kalenderkoppling för varje berörd grupp.')
+      return { date: row.date, activityType: row.activityType, timeOfDay: row.timeOfDay, title: row.title.trim(), focus: String(row.focus || '').slice(0, 80), distanceMeters: row.distanceMeters ? Number(row.distanceMeters) : null, durationMinutes: row.durationMinutes ? Number(row.durationMinutes) : null, notes: String(row.notes || '').slice(0, 500), calendarKey: row.calendarKey || '', ...(row.calendarByGroup ? { calendarByGroup: { ...row.calendarByGroup } } : {}), separate: row.separate === true }
     })
     return { monday: week.monday, groups, mode: week.mode, sessions }
   })

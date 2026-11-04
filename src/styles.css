@@ -2227,7 +2227,8 @@ button { cursor: pointer; }
 .workout-library-details aside strong { display: block; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .workout-library-title { display: flex; justify-content: space-between; gap: 12px; }.workout-incomplete-flag { color: #c55252; font-size: 24px; }.workout-library-list article.incomplete { border-color: #e6bcbc; }.workout-edit-button { margin: 10px 0 14px; }
 .workout-library-stats { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
-.coach-planning { display: grid; gap: 18px; }
+.coach-planning { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.coach-planning > * { min-width: 0; }
 .coach-planning .period-heading { margin-bottom: 0; }
 .coach-planning .period-heading small { color: var(--muted); }
 .planning-controls { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }

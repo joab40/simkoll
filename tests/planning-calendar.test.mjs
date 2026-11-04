@@ -23,6 +23,7 @@ function fixture({ missingColumn = false, reordered = false } = {}) {
     if (url.hostname === 'calendar-fixture.invalid') return new Response(['BEGIN:VCALENDAR', ...(reordered ? [later, sharedActivity, { ...activity, title: 'Uppdaterad träning' }] : [activity, sharedActivity, later]).map(event), 'END:VCALENDAR'].join('\r\n'))
     assert.equal(url.hostname, 'planning-calendar.invalid')
     const table = url.pathname.split('/').at(-1)
+    if (table === 'sportadmin_hidden_activities') return json([])
     if (method !== 'GET') writes.push({ table, method, body: JSON.parse(options.body) })
     if (table === 'app_settings') return json([{ setting_value: { sportAdminCalendars: [{ id: 'junior', url: 'https://calendar-fixture.invalid/feed', groups: ['junior'] }] } }])
     if (table === 'training_plans' && method !== 'GET') return missingColumn ? json({ code: 'PGRST204' }, 400) : json([{ id, ...JSON.parse(options.body) }])

@@ -42,7 +42,7 @@
 .planning-import-scroll-hint { display: none; }
 .planning-import-check { margin: .9rem 0; }
 .planning-import-check small { display: block; font-weight: 400; max-width: 65ch; }
-.planning-import-week { margin: 1rem 0; background: white; border: 1px solid #ccdedb; border-radius: 18px; padding: 1rem; }
+.planning-import-week { min-width: 0; margin: 1rem 0; background: white; border: 1px solid #ccdedb; border-radius: 18px; padding: 1rem; }
 .planning-import-week.is-selected { border-color: #5caaa3; }
 .planning-import-week > header label { display: flex; align-items: flex-start; }
 .planning-import-week > header strong, .planning-import-week > header small { display: block; }

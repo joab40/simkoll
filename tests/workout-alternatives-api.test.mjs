@@ -34,6 +34,7 @@ function fixture({ missingMigration = false, missingMigrationOnWrite = false, in
     const url = new URL(raw), method = options.method || 'GET', table = url.pathname.split('/').at(-1)
     if (url.hostname === 'occasion-calendar.invalid') return calendarFailure ? json({}, 503) : new Response(['BEGIN:VCALENDAR', ...calendarEvents.map(item => ['BEGIN:VEVENT', `UID:${item.uid}`, `DTSTART:${item.date.replaceAll('-', '')}T${item.time.replace(':', '')}00`, `SUMMARY:${item.title}`, `LOCATION:${item.location || ''}`, 'END:VEVENT'].join('\r\n')), 'END:VCALENDAR'].join('\r\n'))
     assert.equal(url.hostname, 'workout-alternatives.invalid')
+    if (table === 'sportadmin_hidden_activities') return json([])
     if (method !== 'GET') writes.push({ table, method, body: options.body ? JSON.parse(options.body) : null })
     if (table === 'app_settings') return json(calendarEvents ? [{ setting_value: { sportAdminCalendars: [{ id: 'shared', url: 'https://occasion-calendar.invalid/feed', groups: ['junior'] }] } }] : [])
     if (table === 'daily_workouts') {

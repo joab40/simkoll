@@ -96,6 +96,7 @@ test('planning view loads beyond the former 200-row limit without treating later
     if (table === 'training_plans') return json(plans.slice(offset, offset + limit))
     if (table === 'daily_workouts') return json(workouts.slice(offset, offset + limit))
     if (table === 'training_cycles') return json([])
+    if (table === 'sportadmin_hidden_activities') return json([])
     throw Error(`Unexpected request: ${table}`)
   }
   try {

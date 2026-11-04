@@ -162,26 +162,36 @@ export function preparePlanningImport(input, existing, calendars, importId, grou
     if (week.mode === 'replace') summary.replaced += current.filter(row => !protectedRow(row)).length
     const fingerprints = [...(week.mode === 'add' ? current : protectedPlans)]
     for (const [ri, row] of week.sessions.entries()) {
-      const compatible = choices.filter(choice => choice.date === row.date && choice.timeOfDay === row.timeOfDay && week.groups.every(group => choice.groups.includes(group)))
-      if (row.calendarKey === 'unresolved' || (!row.calendarKey && compatible.length)) fail('Välj kalenderträning eller ”Utan kalender” för varje pass före granskning.')
-      const choice = row.calendarKey && row.calendarKey !== 'none' ? compatible.find(choice => choice.key === row.calendarKey) : null
-      if (row.calendarKey && row.calendarKey !== 'none' && !choice) fail('En kalenderträning har ändrats eller passar inte alla valda grupper. Matcha om passet.', 409)
-      // Never attach an import next to a published workout on the same occasion.
-      if (protectedPlans.some(plan => plan.plan_date === row.date && plan.activity_type === row.activityType && (choice ? calendarLinkKeys(plan.calendar_link).some(key => choice.calendarLink.keys.includes(key)) || !calendarLinkKeys(plan.calendar_link).length && plan.time_of_day === row.timeOfDay : plan.time_of_day === row.timeOfDay))) { summary.protected++; continue }
-      const payload = { id: uuid(`${importId}|${wi}|${ri}`), plan_date: row.date, activity_type: row.activityType, title: row.title, focus: row.focus, distance_meters: row.distanceMeters, duration_minutes: row.durationMinutes || choice?.durationMinutes || null, time_of_day: choice?.timeOfDay || row.timeOfDay, target_groups: week.groups, location: choice?.location || '', notes: row.notes, calendar_link: choice?.calendarLink || { mode: 'none' }, alternative_group_id: row.activityType === 'swim' ? uuid(`${importId}|${row.date}|${choice?.key || (row.separate ? `${wi}|${ri}` : row.timeOfDay)}`) : null, sync_status: 'manual' }
-      const print = fingerprint(payload)
-      const covered = new Set(fingerprints.filter(item => fingerprint(item) === print).flatMap(item => item.target_groups || []))
-      payload.target_groups = payload.target_groups.filter(group => !covered.has(group))
-      if (!payload.target_groups.length) { summary.duplicates++; continue }
-      if (row.activityType === 'swim' && !row.separate) {
-        const sameOccasion = current.filter(plan => plan.plan_date === row.date && plan.activity_type === 'swim' && (choice ? calendarLinkKeys(plan.calendar_link).some(key => choice.calendarLink.keys.includes(key)) : plan.time_of_day === row.timeOfDay && plan.alternative_group_id && !calendarLinkKeys(plan.calendar_link).length))
-        const groupIds = [...new Set(sameOccasion.map(plan => plan.alternative_group_id || null))]
-        // Preserve the existing occasion instead of creating a second counted
-        // occasion when a new import complements its alternatives.
-        if (groupIds.length === 1) payload.alternative_group_id = groupIds[0]
+      const allocations = new Map()
+      for (const group of week.groups) {
+        const key = row.calendarByGroup ? row.calendarByGroup[group] : row.calendarKey
+        allocations.set(key, [...(allocations.get(key) || []), group])
       }
-      fingerprints.push(payload); rows.push(payload); summary.added++
+      for (const [calendarKey, targetGroups] of allocations) {
+        const compatible = row.activityType === 'swim' ? choices.filter(choice => choice.date === row.date && choice.timeOfDay === row.timeOfDay && targetGroups.every(group => choice.groups.includes(group))) : []
+        if (calendarKey === 'unresolved' || (!calendarKey && compatible.length)) fail('Välj kalenderträning eller ”Utan kalender” för varje grupp före granskning.')
+        const choice = calendarKey && calendarKey !== 'none' ? compatible.find(choice => choice.key === calendarKey) : null
+        if (calendarKey && calendarKey !== 'none' && !choice) fail('En kalenderträning har ändrats eller passar inte den valda gruppen. Matcha om passet.', 409)
+        if (choice && week.mode === 'add' && current.some(plan => !protectedRow(plan) && !calendarLinkKeys(plan.calendar_link).length && plan.plan_date === row.date && plan.activity_type === row.activityType && plan.time_of_day === row.timeOfDay && plan.title === row.title && Number(plan.distance_meters || 0) === Number(row.distanceMeters || 0) && plan.target_groups?.some(group => targetGroups.includes(group)))) fail('Det finns redan en okopplad grundplan för samma pass. Välj ”Ersätt grundplan för valda grupper” eller ändra den befintliga raden först, så att passet inte räknas dubbelt.')
+        // Never attach an import next to a published workout on the same occasion.
+        const unprotectedGroups = targetGroups.filter(group => !protectedPlans.some(plan => plan.target_groups?.includes(group) && plan.plan_date === row.date && plan.activity_type === row.activityType && (choice ? calendarLinkKeys(plan.calendar_link).some(key => choice.calendarLink.keys.includes(key)) || !calendarLinkKeys(plan.calendar_link).length && plan.time_of_day === row.timeOfDay : plan.time_of_day === row.timeOfDay)))
+        if (!unprotectedGroups.length) { summary.protected++; continue }
+        const payload = { id: uuid(`${importId}|${wi}|${ri}${row.calendarByGroup ? `|${calendarKey}` : ''}`), plan_date: row.date, activity_type: row.activityType, title: row.title, focus: row.focus, distance_meters: row.distanceMeters, duration_minutes: row.durationMinutes || choice?.durationMinutes || null, time_of_day: choice?.timeOfDay || row.timeOfDay, target_groups: unprotectedGroups, location: choice?.location || '', notes: row.notes, calendar_link: choice?.calendarLink || { mode: 'none' }, alternative_group_id: row.activityType === 'swim' ? uuid(`${importId}|${row.date}|${choice?.key || (row.separate ? `${wi}|${ri}` : row.timeOfDay)}`) : null, sync_status: 'manual' }
+        const print = fingerprint(payload)
+        const covered = new Set(fingerprints.filter(item => fingerprint(item) === print).flatMap(item => item.target_groups || []))
+        payload.target_groups = payload.target_groups.filter(group => !covered.has(group))
+        if (!payload.target_groups.length) { summary.duplicates++; continue }
+        if (row.activityType === 'swim' && !row.separate) {
+          const sameOccasion = current.filter(plan => plan.target_groups?.some(group => payload.target_groups.includes(group)) && plan.plan_date === row.date && plan.activity_type === 'swim' && (choice ? calendarLinkKeys(plan.calendar_link).some(key => choice.calendarLink.keys.includes(key)) : plan.time_of_day === row.timeOfDay && plan.alternative_group_id && !calendarLinkKeys(plan.calendar_link).length))
+          const groupIds = [...new Set(sameOccasion.map(plan => plan.alternative_group_id || null))]
+          // Preserve the existing occasion instead of creating a second counted
+          // occasion when a new import complements its alternatives.
+          if (groupIds.length === 1) payload.alternative_group_id = groupIds[0]
+        }
+        fingerprints.push(payload); rows.push(payload); summary.added++
+      }
     }
   }
+  if (rows.length > 800) fail('Importen ger fler än 800 gruppvisa planeringsrader. Välj färre veckor eller grupper.')
   return { rows, scopes, summary, choices }
 }

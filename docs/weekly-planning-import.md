@@ -1,5 +1,7 @@
 # Import av veckoplanering
 
+Gruppvis kalenderkoppling och återställbar döljning av SportAdmin-aktiviteter beskrivs i [calendar-visibility.md](calendar-visibility.md). SQL 115 behövs för döljmarkeringarna. En gemensam Excel-rad kan nu kopplas till olika tider för olika grupper, utan dubbel mängd för en simmare. En befintlig okopplad grundplan behöver ersättas uttryckligen för att rätta en tidigare import, inte kompletteras med dubbla tillfällen.
+
 Planering har **Importera veckoplanering** för lokal XLS/XLSX, befintlig delad Drive-mapp och Google Sheets/Drive-länk. Veckonummer visas även i simmarens planering.
 
 ## Aktivering

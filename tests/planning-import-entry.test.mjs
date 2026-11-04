@@ -31,3 +31,11 @@ test('import form sends top-menu groups and explicit ISO weeks before analysis, 
   assert.match(form, /week.groups.map\(group => \(draft.groupLabels \|\| groupLabels\)\[group\] \|\| group\)/)
   assert.match(form, /<table><caption>Planering att granska/)
 })
+test('real planning view exposes reversible calendar visibility and import matches per group', () => {
+  assert.match(planning, /<HiddenCalendarActivities code=\{code\}/)
+  assert.match(planning, /<CalendarVisibilityButton code=\{code\} activities=\{plan.calendarItems/)
+  assert.match(planning, /addEventListener\('simkoll-calendar-visibility'/)
+  assert.match(form, /defaultPlanningCalendars\(row, week.groups, data.calendarChoices\)/)
+  assert.match(form, /planningGroupChoices\(row, group, draft.calendarChoices\)/)
+  assert.match(form, /SportAdmin-träning per grupp/)
+})

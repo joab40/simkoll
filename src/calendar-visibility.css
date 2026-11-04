@@ -1,0 +1,14 @@
+.calendar-visibility-button { min-height: 44px; }
+.calendar-visibility-dialog { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box; overflow: auto; border: 1px solid #c6dcd8; border-radius: 20px; padding: 24px; background: #fbfcf6; color: #12313a; font: inherit; }
+.calendar-visibility-dialog::backdrop { background: #12313a80; }
+.calendar-visibility-dialog h2 { margin-top: 0; }
+.calendar-visibility-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
+.calendar-visibility-warning { background: #fff2d5; border-radius: 12px; padding: 14px; }
+.hidden-calendar-activities { border: 1px solid #c6dcd8; border-radius: 16px; padding: 12px 16px; margin: 16px 0; }
+.hidden-calendar-activities summary { cursor: pointer; color: #147578; font-weight: 650; min-height: 32px; }
+.hidden-calendar-activities > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #dbe8e5; padding: 12px 0; }
+.hidden-calendar-activities small { display: block; color: #60777b; }
+.planning-import-calendar-groups { min-width: 0; border: 1px solid #c6dcd8; border-radius: 12px; padding: 14px; }
+.planning-import-calendar-groups > label { display: block; margin: 12px 0; }
+.planning-import-calendar-groups select { width: 100%; min-width: 0; }
+@media (max-width: 600px) { .calendar-visibility-dialog { padding: 18px; } .calendar-visibility-actions > button { width: 100%; white-space: normal; } }

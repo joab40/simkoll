@@ -22,6 +22,7 @@ import { importDriveWorkbook } from '../server/drive-workout-import.js'
 import { loadPlanningFile, inspectPlanningFile, analyzePlanningFile, loadPlanningRows, preparePlanningImport, planningCalendarChoices } from '../server/planning-import.js'
 import { validatePlanningDraft, validatePlanningSelection } from '../shared/planning-import.js'
 import { loadPlanningGroups } from '../server/planning-groups.js'
+import { loadHiddenCalendarActivities, visibleCalendarActivities, setCalendarVisibility } from '../server/calendar-visibility.js'
 import { driveApiKey, loadDriveConfig, listDriveFolder, verifyDriveFolder, saveDriveSettings } from '../server/drive-settings.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 import { analyticsRows } from '../server/analytics-rows.js'
@@ -68,7 +69,7 @@ async function freshAssistantRows(path) {
   return { ok: result.ok, data: result.ok ? await result.json() : [] }
 }
 async function cachedAssistantCalendarActivities() {
-  if (assistantCalendarCache.expiresAt > Date.now()) return assistantCalendarCache.activities
+  if (assistantCalendarCache.expiresAt > Date.now()) return visibleCalendarActivities(assistantCalendarCache.activities, await loadHiddenCalendarActivities())
   const calendars = await configuredSportAdminCalendars()
   const activities = await readSportAdminCalendars(calendars)
   assistantCalendarCache = { expiresAt: Date.now() + 5 * 60 * 1000, activities }
@@ -465,7 +466,7 @@ async function updatePlanningHiddenDate(date, hidden) {
   await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, planningHiddenDates: [...dates].slice(-120) }, updated_at: new Date().toISOString() }) })
 }
 
-async function readSportAdminCalendars(calendars, { strict = false, from = '', to = '' } = {}) {
+async function readSportAdminCalendars(calendars, { strict = false, from = '', to = '', includeHidden = false, hiddenActivities = null } = {}) {
   const safe = Array.isArray(calendars) ? calendars : []
   const results = await Promise.all(safe.filter((calendar) => calendar.enabled !== false && calendar.url).map(async (calendar) => {
     try {
@@ -476,7 +477,8 @@ async function readSportAdminCalendars(calendars, { strict = false, from = '', t
   }))
   const activities = results.flat()
   if (strict && activities.length > 1000) throw planningLinkError('För många kalenderträningar för säker import. Välj färre veckor.')
-  return activities.slice(0, 1000)
+  if (includeHidden || !activities.length) return activities.slice(0, 1000)
+  return visibleCalendarActivities(activities, hiddenActivities || await loadHiddenCalendarActivities()).slice(0, 1000)
 }
 
 async function importWorkoutOccasions(date, includeCalendar = true) {
@@ -664,6 +666,7 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { options: await loadWorkoutChoices(date, choiceProfile.training_group) })
       }
       if (request.query?.planning === 'true') {
+        const hiddenCalendar = await loadHiddenCalendarActivities()
         const result = await analyticsRows('training_plans?select=*&order=plan_date.asc,id.asc')
         if (!result.ok || result.truncated) throw planningLinkError('Planeringen kunde inte läsas fullständigt. Försök igen.')
         const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
@@ -672,7 +675,7 @@ export default async function handler(request, response) {
         const visiblePlans = plans.filter((item) => !item.calendar_link?.detachedWorkoutId && (role === 'coach' || !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
         const [workoutsResult, sportAdminActivities, cyclesResult] = await Promise.all([
           analyticsRows('daily_workouts?select=*&order=workout_date.asc,created_at.asc,id.asc'),
-          configuredSportAdminCalendars().then(readSportAdminCalendars),
+          configuredSportAdminCalendars().then(calendars => readSportAdminCalendars(calendars, { hiddenActivities: hiddenCalendar })),
           supabaseRequest('training_cycles?select=*&order=start_date.asc&limit=300'),
         ])
         if (!workoutsResult.ok || workoutsResult.truncated) throw planningLinkError('Publicerade pass kunde inte läsas fullständigt. Försök igen.')
@@ -680,7 +683,7 @@ export default async function handler(request, response) {
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const visibleSportAdminActivities = role === 'coach' ? sportAdminActivities : sportAdminActivities.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const cycles = cyclesResult.ok ? await cyclesResult.json() : []
-        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities: visibleSportAdminActivities, cycles: role === 'coach' ? cycles.map(publicCycle) : [], cyclesAvailable: cyclesResult.ok })
+        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities: visibleSportAdminActivities, ...(role === 'coach' ? { hiddenCalendarActivities: hiddenCalendar.map(row => ({ ...row.snapshot, hiddenAt: row.hidden_at })) } : {}), cycles: role === 'coach' ? cycles.map(publicCycle) : [], cyclesAvailable: cyclesResult.ok })
       }
       if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
@@ -767,6 +770,16 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (request.body?.action === 'set-calendar-visibility') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan dölja kalenderaktiviteter.' })
+        try {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(request.body.date || '')) return sendJson(response, 400, { error: 'Välj datum för kalenderaktiviteten.' })
+          const activities = request.body.hidden === true ? await readSportAdminCalendars(await configuredSportAdminCalendars({ strict: true }), { strict: true, includeHidden: true, from: request.body.date || '', to: request.body.date || '' }) : []
+          const result = await setCalendarVisibility(request.body, activities, coachAccount?.id)
+          assistantCalendarCache = { expiresAt: 0, activities: [] }
+          return sendJson(response, 200, result)
+        } catch (error) { return sendJson(response, error.status || 503, { error: error.message, ...(error.needsConfirmation ? { needsConfirmation: true, impact: error.impact } : {}) }) }
+      }
       if (['test-drive-folder', 'save-drive-settings'].includes(request.body?.action)) {
         if (role !== 'coach' || coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan ändra Drive-inställningar.' })
         response.setHeader('Cache-Control', 'private, no-store')

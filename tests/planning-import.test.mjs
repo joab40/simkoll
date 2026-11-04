@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import XLSX from 'xlsx'
-import { isoWeek, isoWeekMonday, planningImportMondays, validatePlanningSelection, planningDriveId, validatePlanningDraft } from '../shared/planning-import.js'
+import { isoWeek, isoWeekMonday, planningImportMondays, validatePlanningSelection, planningDriveId, validatePlanningDraft, defaultPlanningCalendars, planningGroupChoices } from '../shared/planning-import.js'
 import { openPlanningSpreadsheet, inspectPlanningSpreadsheet, planningSource, planningModelFile, parsePlanningTables, validPlanningSourceReference, normalizePlanningSourceReference, planningSourceReferenceHasContent } from '../server/planning-spreadsheet.js'
 import { analyzePlanningFile, planningCalendarChoices, preparePlanningImport, loadPlanningFile, loadPlanningRows, planningDateConflict } from '../server/planning-import.js'
 import { groupSwimOccasions } from '../shared/swim-workout-options.js'
@@ -155,6 +155,39 @@ test('alternatives share an occasion, independent sessions do not; repeated impo
   const split = preparePlanningImport([{ ...week, sessions: [row, { ...row, title: 'Eget pass', separate: true }] }], [], [], id)
   assert.notEqual(split.rows[0].alternative_group_id, split.rows[1].alternative_group_id)
   assert.equal(preparePlanningImport([week], prepared.rows, [], id).summary.duplicates, 1)
+})
+test('shared Excel plan splits into group-specific calendar times with no duplicated swimmer volume', () => {
+  const calendars = [{ ...event, time: '14:00' }, { ...black, time: '16:00', durationMinutes: 110 }]
+  const choices = planningCalendarChoices(calendars)
+  const calendarByGroup = defaultPlanningCalendars(row, week.groups, choices)
+  assert.equal(planningGroupChoices(row, 'junior', choices).length, 1)
+  const prepared = preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup }] }], [], calendars, id)
+  assert.equal(prepared.rows.length, 2)
+  assert.deepEqual(prepared.rows.map(p => [p.target_groups, p.calendar_link.time, p.duration_minutes, p.distance_meters]), [[['junior'], '14:00', 120, 3000], [['ungdom_svart'], '16:00', 110, 3000]])
+  assert.notEqual(prepared.rows[0].id, prepared.rows[1].id)
+  assert.notEqual(prepared.rows[0].alternative_group_id, prepared.rows[1].alternative_group_id)
+  assert.equal(preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup }] }], prepared.rows, calendars, id).rows.length, 0)
+  const oldUnlinked = preparePlanningImport([week], [], [], id).rows
+  assert.throws(() => preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup }] }], oldUnlinked, calendars, id), /okopplad grundplan/)
+  assert.equal(preparePlanningImport([{ ...week, mode: 'replace', sessions: [{ ...row, calendarByGroup }] }], oldUnlinked, calendars, id).rows.length, 2)
+  const alternatives = preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup }, { ...row, calendarByGroup, title: 'Bröstsim' }] }], [], calendars, id).rows
+  for (const group of week.groups) {
+    const own = alternatives.filter(p => p.target_groups.includes(group))
+    assert.equal(own.length, 2)
+    assert.equal(groupSwimOccasions(own.map(p => ({ date: p.plan_date, activityType: p.activity_type, alternativeGroupId: p.alternative_group_id }))).length, 1)
+  }
+  const simultaneous = [event, black], together = defaultPlanningCalendars(row, week.groups, planningCalendarChoices(simultaneous))
+  assert.equal(preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup: together }] }], [], simultaneous, id).rows.length, 1)
+  assert.throws(() => preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup }] }], [], [calendars[0]], id), /ändrats/)
+  assert.throws(() => validatePlanningDraft([{ ...week, sessions: [{ ...row, calendarByGroup: { junior: 'none' } }] }]), /varje/)
+  assert.throws(() => validatePlanningDraft([{ ...week, sessions: [{ ...row, calendarByGroup: { ...calendarByGroup, other: 'none' } }] }]), /varje/)
+})
+test('partial or ambiguous calendar coverage requires an explicit per-group choice', () => {
+  const choices = planningCalendarChoices([event, { ...event, uid: 'two', time: '19:00' }])
+  const partial = defaultPlanningCalendars(row, week.groups, choices)
+  assert.deepEqual(partial, { junior: 'unresolved', ungdom_svart: 'unresolved' })
+  assert.throws(() => preparePlanningImport([{ ...week, sessions: [{ ...row, calendarByGroup: partial }] }], [], [event], id), /varje grupp/)
+  assert.deepEqual(defaultPlanningCalendars(row, week.groups, []), { junior: 'none', ungdom_svart: 'none' })
 })
 test('published workouts and competition plans are protected from replacing', () => {
   const existing = [{ ...preparePlanningImport([week], [], [], id).rows[0], source_workout_id: id, updated_at: '2026-11-01T00:00:00Z' }]
