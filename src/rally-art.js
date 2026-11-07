@@ -1,4 +1,4 @@
-import { projectRally, rallyTrackAt, RALLY_LAPS } from './rally-engine.js'
+import { projectRally, rallyTrackAt, rallyGhostAt, RALLY_LAPS } from './rally-engine.js'
 
 const scenes = new WeakMap()
 const palettes = {
@@ -38,6 +38,20 @@ function createScene(track) {
     ctx.fillStyle=colors.leaf;ctx.beginPath();ctx.arc(x-4,y-5,radius*.79,0,Math.PI*2);ctx.fill()
     ctx.fillStyle='#ffffff0a';ctx.beginPath();ctx.arc(x-7,y-8,radius*.44,0,Math.PI*2);ctx.fill()
   }
+  for (const obstacle of track.obstacles) {
+    ctx.save();ctx.translate(obstacle.x,obstacle.y);ctx.rotate(obstacle.angle)
+    ctx.fillStyle='#102a384a';ctx.beginPath();ctx.ellipse(4,5,obstacle.radius+3,obstacle.radius,0,0,Math.PI*2);ctx.fill()
+    if(obstacle.kind==='barrel'){
+      ctx.fillStyle='#e99a56';ctx.beginPath();ctx.arc(0,0,obstacle.radius,0,Math.PI*2);ctx.fill()
+      ctx.strokeStyle='#ffe4b8';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,obstacle.radius-4,0,Math.PI*2);ctx.stroke()
+      ctx.strokeStyle='#714936';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-7,0);ctx.lineTo(7,0);ctx.stroke()
+    }else{
+      ctx.fillStyle='#273840';ctx.beginPath();ctx.roundRect(-14,-14,28,28,4);ctx.fill()
+      ctx.fillStyle='#ff9d57';ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()
+      ctx.strokeStyle='#fff5db';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.stroke()
+    }
+    ctx.restore()
+  }
   const start=rallyTrackAt(track,0);ctx.save();ctx.translate(start.x,start.y);ctx.rotate(start.angle)
   for(let i=0;i<2;i++)for(let j=0;j<10;j++){ctx.fillStyle=(i+j)%2?'#e9eedb':'#172b32';ctx.fillRect(i*8-8,-track.width/2+j*track.width/10,8,track.width/10)}
   ctx.fillStyle='#dce4d1';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.rotate(-Math.PI/2);ctx.fillText('SIMKOLL',0,39);ctx.restore()
@@ -66,15 +80,16 @@ function drawCar(ctx, car, time, reduced) {
   ctx.restore()
   if(car.id===0){ctx.fillStyle='#edffd5';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('DU',car.x,car.y-24)}
 }
-function minimap(ctx, game, width) {
+function minimap(ctx, game, width, ghost) {
   const w=132,h=92,x=width-w-14,y=14
   ctx.save();ctx.fillStyle='#112b38cc';ctx.beginPath();ctx.roundRect(x,y,w,h,12);ctx.fill()
   ctx.translate(x+8,y+6);ctx.scale((w-16)/1500,(h-12)/1000)
   route(ctx,game.track,24,'#d8e7d05c')
+  if(ghost){ctx.strokeStyle='#b7f5ff';ctx.lineWidth=15;ctx.beginPath();ctx.arc(ghost.x,ghost.y,40,0,Math.PI*2);ctx.stroke()}
   game.cars.forEach(car=>{ctx.fillStyle=car.color;ctx.beginPath();ctx.arc(car.x,car.y,car.id===0?36:27,0,Math.PI*2);ctx.fill()})
   ctx.restore()
 }
-export function drawRally(canvas, game, { reducedMotion = false } = {}) {
+export function drawRally(canvas, game, { reducedMotion = false, ghost = null } = {}) {
   if(!canvas)return
   const rect=canvas.getBoundingClientRect(), width=rect.width||880, height=rect.height||560, dpr=Math.min(window.devicePixelRatio||1,2)
   if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr)}
@@ -88,8 +103,14 @@ export function drawRally(canvas, game, { reducedMotion = false } = {}) {
   ctx.drawImage(scenes.get(game.track)||createScene(game.track),0,0)
   game.track.boosts.forEach(s=>boostPad(ctx,rallyTrackAt(game.track,s),game.elapsed,reducedMotion))
   for(const other of game.cars){ctx.fillStyle='#10232c35';for(const mark of other.marks){ctx.save();ctx.translate(mark.x,mark.y);ctx.rotate(mark.heading);ctx.fillRect(-8,-11,9,2);ctx.fillRect(-8,9,9,2);ctx.restore()}}
+  const ghostCar = rallyGhostAt(ghost,game.elapsed)
+  if(ghostCar){
+    ctx.save();ctx.globalAlpha=.45;drawCar(ctx,ghostCar,game.elapsed,true);ctx.restore()
+    ctx.strokeStyle='#c2f9ff';ctx.lineWidth=2;ctx.save();ctx.translate(ghostCar.x,ghostCar.y);ctx.rotate(ghostCar.heading);ctx.beginPath();ctx.roundRect(-20,-13,41,26,6);ctx.stroke();ctx.restore()
+    ctx.fillStyle='#d6fcff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('GHOST',ghostCar.x,ghostCar.y-25)
+  }
   for(const other of [...game.cars].sort((a,b)=>a.id===0?1:b.id===0?-1:0))drawCar(ctx,other,game.elapsed,reducedMotion)
-  ctx.restore();minimap(ctx,game,width)
+  ctx.restore();minimap(ctx,game,width,ghostCar)
   ctx.fillStyle='#112b38b8';ctx.beginPath();ctx.roundRect(14,14,86,60,12);ctx.fill();ctx.fillStyle='#d6e8df';ctx.font='bold 10px sans-serif';ctx.textAlign='left';ctx.fillText('VARV',26,34);ctx.fillStyle='#fff';ctx.font='bold 21px sans-serif';ctx.fillText(`${Math.min(RALLY_LAPS,car.laps+1)} / ${RALLY_LAPS}`,26,59)
   if(game.status==='countdown'){ctx.fillStyle='#15323d99';ctx.fillRect(0,0,width,height);ctx.fillStyle='#e3f66d';ctx.textAlign='center';ctx.font=`900 ${Math.min(width*.22,100)}px sans-serif`;ctx.fillText(Math.max(1,Math.ceil(game.countdown)),width/2,height/2+30)}
 }

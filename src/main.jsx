@@ -103,7 +103,7 @@ const GAME_CATALOG = [
   { key: 'sprint100', title: '100m Sprint', emoji: '⚡', description: 'Växla stegen, hitta rytmen och jaga din bästa tid.', route: 'sprint100' },
   { key: 'longjump', title: 'Längdhopp', emoji: '🏅', description: 'Bygg fart, sikta på 45° och landa ditt längsta hopp.', route: 'longjump' },
   { key: 'hurdles100', title: '100 meter häck', emoji: '🏃', description: 'Bygg fart och tajma tio häckar. Snabbaste tiden vinner.', route: 'hurdles100' },
-  { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'Tre varv, fyra bilar och blå boostplattor. Hitta din racinglinje.', route: 'rally' },
+  { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'En kurvig kustbana med hinder, boost och en ghost av din bästa tid.', route: 'rally' },
   { key: 'dino', title: 'Huggorm Runner', emoji: '🐍', description: 'Hjälp huggormen hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
   { key: 'balance', title: 'Preppes balansjakt', emoji: '🚲', description: 'Håll framhjulet i luften, hitta balansen och samla bonus längs vattnet.', route: 'balance' },
 ]
@@ -348,7 +348,7 @@ function App() {
       {screen === 'longjump' && <LongJumpGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'hurdles100' && <HurdlesGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'dino' && <DinoRunner code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
-      {screen === 'rally' && <RallyGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
+      {screen === 'rally' && <RallyGame key={profile?.id || 'guest'} profileId={profile?.id} code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'balance' && <BalanceGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'bikerun' && <BikeRun code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'twenty48' && <Twenty48 code={auth.code} onBack={() => setScreen('home')} />}

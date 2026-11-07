@@ -3,24 +3,19 @@ export const RALLY_STEP = 1 / 120
 export const RALLY_LAPS = 3
 export const RALLY_LIMIT = 180
 export const RALLY_MAX_SCORE = 33999
+export const RALLY_REPLAY_VERSION = 'kustslingan-2'
 const TAU = Math.PI * 2
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 const wrap = (v, length) => ((v % length) + length) % length
 export const rallyAngle = value => wrap(value + Math.PI, TAU) - Math.PI
 export const RALLY_TRACKS = [
-  { name: 'Kustslingan', theme: 'coast', width: 120, anchors: [[300,230],[700,180],[1150,250],[1320,480],[1130,780],[720,830],[280,720],[160,470]] },
-  { name: 'Tallkurvan', theme: 'forest', width: 110, anchors: [[260,220],[650,160],[1110,200],[1300,420],[1080,540],[1170,790],[720,830],[360,730],[170,460]] },
-  { name: 'Midnattsrundan', theme: 'dusk', width: 104, anchors: [[280,200],[700,180],[1220,230],[1300,470],[1060,700],[800,550],[560,820],[200,750],[150,440]] },
+  { name: 'Kustslingan', theme: 'coast', width: 120, anchors: [[300,200],[600,170],[790,300],[1020,190],[1260,260],[1340,470],[1160,570],[1240,780],[950,850],[740,680],[500,830],[250,770],[160,550],[220,410],[180,300]] },
 ]
 export const validRallyScore = score => Number.isInteger(score) && score >= 10000 && score <= RALLY_MAX_SCORE && score % 10000 < 4000
 export function rallyScore(stage, rank, elapsed) {
-  if (!Number.isInteger(stage) || stage < 0 || stage >= RALLY_TRACKS.length || !Number.isInteger(rank) || rank < 1 || rank > 4 || !Number.isFinite(elapsed) || elapsed <= 0 || elapsed > RALLY_LIMIT) return 0
+  // Keep the original score format readable for already saved results.
+  if (!Number.isInteger(stage) || stage < 0 || stage > 2 || !Number.isInteger(rank) || rank < 1 || rank > 4 || !Number.isFinite(elapsed) || elapsed <= 0 || elapsed > RALLY_LIMIT) return 0
   return (stage + 1) * 10000 + (4 - rank) * 1000 + clamp(Math.round(999 * (1 - elapsed / RALLY_LIMIT)), 0, 999)
-}
-export function rallyUnlocked(score) {
-  if (!validRallyScore(score)) return 0
-  const stage = Math.floor(score / 10000) - 1, rank = 4 - Math.floor(score % 10000 / 1000)
-  return Math.min(RALLY_TRACKS.length - 1, stage + (rank <= 2 ? 1 : 0))
 }
 const mix = (a, b, t) => a + (b - a) * t
 function catmull(a, b, c, d, t) {
@@ -39,7 +34,12 @@ export function createRallyTrack(stage = 0) {
     const segment = { ...p, dx: q.x - p.x, dy: q.y - p.y, size, s: length }; length += size
     return segment
   })
-  return { ...config, stage, points, segments, length, boosts: [.19 * length, .64 * length] }
+  const track = { ...config, stage, points, segments, length, boosts: [.19 * length, .64 * length] }
+  track.obstacles = [.11,.25,.34,.46,.55,.69,.78,.91].map((fraction, i) => ({
+    ...rallyTrackAt(track, fraction * length, (i % 2 ? -1 : 1) * 39),
+    radius: i % 3 ? 12 : 15, kind: i % 3 ? 'cone' : 'barrel',
+  }))
+  return track
 }
 export function rallyTrackAt(track, distance, offset = 0) {
   const s = wrap(distance, track.length), part = track.segments.find(p => s < p.s + p.size) || track.segments.at(-1)
@@ -59,9 +59,43 @@ export function createRallyGame(stage = 0) {
   const track = createRallyTrack(stage)
   const cars = ['#d8f453', '#ed805c', '#67c6df', '#d5a5e9'].map((color, i) => {
     const startS = -32 - Math.floor(i / 2) * 47, p = rallyTrackAt(track, startS, i % 2 ? 22 : -22)
-    return { id: i, color, x: p.x, y: p.y, heading: p.angle, vx: 0, vy: 0, speed: 0, s: p.s, gates: 0, started: false, progress: startS, laps: 0, lapStart: 0, bestLap: null, finishedAt: null, boost: 0, boostCooldown: 0, offroad: false, skid: 0, marks: [], lastSafe: { x: p.x, y: p.y, angle: p.angle } }
+    return { id: i, color, x: p.x, y: p.y, heading: p.angle, vx: 0, vy: 0, speed: 0, s: p.s, gates: 0, started: false, progress: startS, laps: 0, lapStart: 0, bestLap: null, finishedAt: null, boost: 0, boostCooldown: 0, hitCooldown: 0, offroad: false, skid: 0, marks: [], lastSafe: { x: p.x, y: p.y, angle: p.angle } }
   })
-  return { track, stage, cars, status: 'countdown', countdown: 3, elapsed: 0, accumulator: 0, rank: 1, score: 0, recoveries: 0 }
+  const game = { track, stage, cars, status: 'countdown', countdown: 3, elapsed: 0, accumulator: 0, rank: 1, score: 0, recoveries: 0, replayFrames: [] }
+  recordRallyFrame(game, true)
+  return game
+}
+function recordRallyFrame(game, force = false, snap = false) {
+  const frames = game.replayFrames, t = Math.round(game.elapsed * 1000), previous = frames.at(-1)
+  if (!force && previous && t - previous[0] < 50) return
+  const car = game.cars[0], frame = [t, Math.round(car.x * 10) / 10, Math.round(car.y * 10) / 10, Math.round(car.heading * 1000) / 1000, snap ? 1 : 0]
+  if (previous && previous[0] === t) frames[frames.length - 1] = frame
+  else if (frames.length < 4000) frames.push(frame)
+}
+export function finishRallyReplay(game) {
+  if (game.status !== 'finished' || game.cars[0].gates < RALLY_LAPS * 12) return null
+  return { version: RALLY_REPLAY_VERSION, duration: Math.round(game.elapsed * 1000), frames: game.replayFrames.map(frame => [...frame]) }
+}
+export function validRallyReplay(replay) {
+  if (!replay || replay.version !== RALLY_REPLAY_VERSION || !Number.isInteger(replay.duration) || replay.duration <= 0 || replay.duration > RALLY_LIMIT * 1000 || !Array.isArray(replay.frames) || replay.frames.length < 2 || replay.frames.length > 4000) return false
+  let previous = -1
+  for (const frame of replay.frames) {
+    if (!Array.isArray(frame) || frame.length !== 5 || !frame.every(Number.isFinite)) return false
+    const [t, x, y, angle, snap] = frame
+    if (!Number.isInteger(t) || t <= previous || t > replay.duration || x < 0 || x > 1500 || y < 0 || y > 1000 || Math.abs(angle) > 3.143 || ![0, 1].includes(snap)) return false
+    previous = t
+  }
+  return replay.frames[0][0] === 0 && previous === replay.duration
+}
+// Read a validated replay at race time, never wall-clock time (pause stays exact).
+export function rallyGhostAt(replay, seconds) {
+  if (!replay?.frames?.length || !Number.isFinite(seconds)) return null
+  const frames = replay.frames, t = clamp(seconds * 1000, 0, replay.duration)
+  let lo = 0, hi = frames.length - 1
+  while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (frames[mid][0] <= t) lo = mid; else hi = mid - 1 }
+  const a = frames[lo], b = frames[Math.min(lo + 1, frames.length - 1)]
+  const fraction = b[0] === a[0] || b[4] ? 0 : (t - a[0]) / (b[0] - a[0])
+  return { x: mix(a[1], b[1], fraction), y: mix(a[2], b[2], fraction), heading: rallyAngle(a[3] + rallyAngle(b[3] - a[3]) * fraction), id: -1, color: '#b7f5ff', boost: 0 }
 }
 // Ordered gates: a finish-line crossing or reverse lap cannot award a lap.
 export function advanceRallyGates(car, previousS, nextS, track, onRoad, dt) {
@@ -76,26 +110,34 @@ export function advanceRallyGates(car, previousS, nextS, track, onRoad, dt) {
   car.progress = car.started ? car.gates / 12 * track.length + Math.min(track.length / 12, wrap(nextS - gateS, track.length)) : -wrap(-nextS, track.length)
 }
 export function rallyAiInput(game, car) {
-  const look = rallyTrackAt(game.track, car.s + 66 + car.speed * .22, (car.id - 2) * 10)
+  const look = rallyTrackAt(game.track, car.s + 54 + car.speed * .20, (car.id - 2) * 10)
   const error = rallyAngle(Math.atan2(look.y - car.y, look.x - car.x) - car.heading)
   const bend = Math.abs(rallyAngle(rallyTrackAt(game.track, car.s + 150).angle - look.angle))
-  const target = [240, 174, 210, 192][car.id] + game.stage * 7
-  return { steer: clamp(error * 1.8, -1, 1), brake: car.speed > target || (bend > .65 && car.speed > 155) }
+  const target = [205, 174, 200, 192][car.id]
+  return { steer: clamp(error * 1.8, -1, 1), targetSpeed: Math.min(target, bend > .65 ? 155 : target) }
 }
 function carStep(game, car, input, dt) {
   if (car.finishedAt !== null) return
   const track = game.track, previousS = car.s, beforeLaps = car.laps
-  car.boost = Math.max(0, car.boost - dt); car.boostCooldown = Math.max(0, car.boostCooldown - dt)
+  car.boost = Math.max(0, car.boost - dt); car.boostCooldown = Math.max(0, car.boostCooldown - dt); car.hitCooldown = Math.max(0, car.hitCooldown - dt)
   const road = projectRally(track, car.x, car.y)
   car.offroad = road.distance > track.width / 2 - 5
-  const target = car.offroad ? 78 : input.brake ? 100 : car.boost ? 320 : 240
-  car.speed += (target - car.speed) * (1 - Math.exp(-(input.brake || car.offroad ? 4.5 : 1.25) * dt))
+  const target = car.offroad ? 78 : car.boost ? 280 : car.id === 0 ? 205 : clamp(input.targetSpeed || 192, 155, 205)
+  car.speed += (target - car.speed) * (1 - Math.exp(-(car.offroad ? 4.5 : 1.25) * dt))
   const steer = clamp(Number(input.steer) || 0, -1, 1)
-  car.heading = rallyAngle(car.heading + steer * (1.05 + Math.min(car.speed, 180) / 180 * 1.3) * dt)
-  const grip = car.offroad ? 4.5 : input.brake ? 7 : 5.5
+  car.heading = rallyAngle(car.heading + steer * (1.2 + Math.min(car.speed, 180) / 180 * 1.5) * dt)
+  const grip = car.offroad ? 4.5 : 7.5
   car.vx = mix(car.vx, Math.cos(car.heading) * car.speed, 1 - Math.exp(-grip * dt))
   car.vy = mix(car.vy, Math.sin(car.heading) * car.speed, 1 - Math.exp(-grip * dt))
   car.x = clamp(car.x + car.vx * dt, 12, 1488); car.y = clamp(car.y + car.vy * dt, 12, 988)
+  // Solid roadside obstacles slow and deflect cars, but never award gates.
+  for (const obstacle of track.obstacles) {
+    const dx = car.x - obstacle.x, dy = car.y - obstacle.y, distance = Math.hypot(dx, dy), radius = obstacle.radius + 12
+    if (distance >= radius) continue
+    const nx = distance > .001 ? dx / distance : -Math.sin(obstacle.angle), ny = distance > .001 ? dy / distance : Math.cos(obstacle.angle)
+    car.x = obstacle.x + nx * (radius + .5); car.y = obstacle.y + ny * (radius + .5)
+    if (car.hitCooldown <= 0) { car.speed *= .35; car.vx *= .25; car.vy *= .25; car.boost = 0; car.hitCooldown = .7 }
+  }
   const next = projectRally(track, car.x, car.y); car.s = next.s
   const onRoad = next.distance <= track.width / 2 + 12
   advanceRallyGates(car, previousS, car.s, track, onRoad, dt)
@@ -112,11 +154,13 @@ function carStep(game, car, input, dt) {
 }
 export function recoverRallyCar(game) {
   if (game.status !== 'racing') return
+  recordRallyFrame(game, true)
   const car = game.cars[0], p = car.lastSafe
   car.x = p.x; car.y = p.y; car.heading = p.angle; car.speed = 40; car.vx = 0; car.vy = 0; car.boost = 0
   car.s = projectRally(game.track, car.x, car.y).s; game.recoveries++
   // Fixed time penalty, including for lap records. Does not skip any gates.
   game.elapsed += 3
+  recordRallyFrame(game, true, true)
 }
 export function advanceRally(game, elapsed, input = {}) {
   if (!['countdown', 'racing'].includes(game.status) || !Number.isFinite(elapsed) || elapsed <= 0) return game
@@ -130,6 +174,7 @@ export function advanceRally(game, elapsed, input = {}) {
     game.rank = order.findIndex(car => car.id === 0) + 1
     if (game.elapsed >= RALLY_LIMIT) { game.elapsed = RALLY_LIMIT; game.status = 'timeout'; game.score = 0 }
     else if (game.cars[0].finishedAt !== null) { game.status = 'finished'; game.score = rallyScore(game.stage, game.rank, game.elapsed) }
+    recordRallyFrame(game, game.status === 'finished')
   }
   return game
 }
