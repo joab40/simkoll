@@ -104,7 +104,7 @@ const GAME_CATALOG = [
   { key: 'sprint100', title: '100m Sprint', emoji: '⚡', description: 'Växla stegen, hitta rytmen och jaga din bästa tid.', route: 'sprint100' },
   { key: 'longjump', title: 'Längdhopp', emoji: '🏅', description: 'Bygg fart, sikta på 45° och landa ditt längsta hopp.', route: 'longjump' },
   { key: 'hurdles100', title: '100 meter häck', emoji: '🏃', description: 'Bygg fart och tajma tio häckar. Snabbaste tiden vinner.', route: 'hurdles100' },
-  { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'En kort kustbana med mjuka kurvor, boost och din egen ghostbil.', route: 'rally' },
+  { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'Mjuka kurvor, boost och ghostbilar — slå din egen eller veckans snabbaste tid.', route: 'rally' },
   { key: 'dino', title: 'Huggorm Runner', emoji: '🐍', description: 'Hjälp huggormen hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
   { key: 'balance', title: 'Preppes balansjakt', emoji: '🚲', description: 'Håll framhjulet i luften, hitta balansen och samla bonus längs vattnet.', route: 'balance' },
 ]

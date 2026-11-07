@@ -1,9 +1,11 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { loadGameBeta, saveGameBeta, requireBetaProfile } from '../server/game-beta.js'
+import { sharedRallyReplay, loadWeeklyRallyGhost, saveWeeklyRallyGhost } from '../server/rally-weekly.js'
+import { rallyWeekStart } from '../shared/rally-weekly.js'
 import { SPRINT_BASE, SPRINT_MIN_MS, SPRINT_MAX_MS, sprintTime, validSprintScore } from '../src/sprint-engine.js'
 import { jumpMetres, validJumpScore, JUMP_MAX_SCORE } from '../src/long-jump-engine.js'
-import { RALLY_MAX_SCORE, validRallyScore } from '../src/rally-engine.js'
+import { RALLY_MAX_SCORE, RALLY_REPLAY_VERSION, validRallyScore } from '../src/rally-engine.js'
 import { BALANCE_MAX_SCORE, validBalanceScore } from '../src/balance-engine.js'
 import { HURDLE_BASE, HURDLE_MIN_MS, HURDLE_MAX_MS, hurdleTime, validHurdleScore } from '../src/hurdles-engine.js'
 
@@ -47,6 +49,10 @@ async function loadGameSchedule() {
   const row = (await result.json())[0]
   return Array.isArray(row?.setting_value?.schedule) ? row.setting_value.schedule.filter((item) => GAME_CATALOG.some((game) => game.key === item.gameKey)) : defaultGameSchedule()
 }
+// Same featured publication as the swimmer home screen, including overlaps.
+const weeklyRallyActive = (schedule, today = stockholmDate()) => schedule
+  .filter(item => item.published !== false && item.startDate <= today && item.endDate >= today)
+  .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)) || String(b.endDate).localeCompare(String(a.endDate)))[0]?.gameKey === 'rally'
 const activeGames = (schedule, today = stockholmDate()) => schedule
   .filter((item) => item.published !== false && item.startDate <= today && item.endDate >= today)
   .map((item) => GAME_CATALOG.find((game) => game.key === item.gameKey)).filter(Boolean)
@@ -124,6 +130,24 @@ const POINT_RULES = [
 export default async function handler(request, response) {
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
+    if (request.query?.rallyGhost === 'true' || request.body?.action === 'submit-rally-ghost') {
+      const submitting = request.body?.action === 'submit-rally-ghost'
+      if (request.method !== (submitting ? 'POST' : 'GET')) return sendJson(response, 405, { error: 'Metoden stöds inte.' })
+      if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din simmarprofil för veckans ghost.' })
+      const profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil för veckans ghost.' })
+      const week = rallyWeekStart(), active = !profile.is_test_profile && weeklyRallyActive(await loadGameSchedule())
+      if (submitting) {
+        if (!active) return sendJson(response, 409, { error: 'Veckans ghost gäller bara när Kustrally är publicerat som veckans spel. Testlopp delas inte.' })
+        if (request.body.weekStart !== week) return sendJson(response, 409, { error: 'Veckan har ändrats. Loppet kan inte läggas till i den nya veckans ghost. Starta ett nytt lopp.' })
+        const replay = sharedRallyReplay(request.body.replay)
+        if (!replay) return sendJson(response, 400, { error: 'Ghosten måste vara en giltig, fullständig trevarvskörning på den aktuella banan.' })
+        try { await saveWeeklyRallyGhost(profile.id, week, replay) }
+        catch { return sendJson(response, 503, { error: 'Veckans ghost kunde inte sparas. Ditt vanliga rallyresultat sparas separat. Försök igen senare.' }) }
+      }
+      try { return sendJson(response, 200, { weekStart: week, trackVersion: RALLY_REPLAY_VERSION, active, leader: active ? await loadWeeklyRallyGhost(week) : null }) }
+      catch { return sendJson(response, 503, { error: 'Veckans ghost kunde inte hämtas. Du kan fortfarande spela och spara ditt vanliga rallyresultat.' }) }
+    }
     if (request.method === 'POST') {
       const action = request.body?.action
       if (role === 'swimmer' && action === 'submit-game-score') {
