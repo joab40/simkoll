@@ -38,20 +38,6 @@ function createScene(track) {
     ctx.fillStyle=colors.leaf;ctx.beginPath();ctx.arc(x-4,y-5,radius*.79,0,Math.PI*2);ctx.fill()
     ctx.fillStyle='#ffffff0a';ctx.beginPath();ctx.arc(x-7,y-8,radius*.44,0,Math.PI*2);ctx.fill()
   }
-  for (const obstacle of track.obstacles) {
-    ctx.save();ctx.translate(obstacle.x,obstacle.y);ctx.rotate(obstacle.angle)
-    ctx.fillStyle='#102a384a';ctx.beginPath();ctx.ellipse(4,5,obstacle.radius+3,obstacle.radius,0,0,Math.PI*2);ctx.fill()
-    if(obstacle.kind==='barrel'){
-      ctx.fillStyle='#e99a56';ctx.beginPath();ctx.arc(0,0,obstacle.radius,0,Math.PI*2);ctx.fill()
-      ctx.strokeStyle='#ffe4b8';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,obstacle.radius-4,0,Math.PI*2);ctx.stroke()
-      ctx.strokeStyle='#714936';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-7,0);ctx.lineTo(7,0);ctx.stroke()
-    }else{
-      ctx.fillStyle='#273840';ctx.beginPath();ctx.roundRect(-14,-14,28,28,4);ctx.fill()
-      ctx.fillStyle='#ff9d57';ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill()
-      ctx.strokeStyle='#fff5db';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.stroke()
-    }
-    ctx.restore()
-  }
   const start=rallyTrackAt(track,0);ctx.save();ctx.translate(start.x,start.y);ctx.rotate(start.angle)
   for(let i=0;i<2;i++)for(let j=0;j<10;j++){ctx.fillStyle=(i+j)%2?'#e9eedb':'#172b32';ctx.fillRect(i*8-8,-track.width/2+j*track.width/10,8,track.width/10)}
   ctx.fillStyle='#dce4d1';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.rotate(-Math.PI/2);ctx.fillText('SIMKOLL',0,39);ctx.restore()

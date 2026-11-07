@@ -1,13 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createRallyGame, createRallyTrack, rallyTrackAt, projectRally, advanceRally, advanceRallyGates, recoverRallyCar, rallyAiInput, rallyScore, validRallyScore, RALLY_MAX_SCORE, RALLY_LIMIT, RALLY_TRACKS } from '../src/rally-engine.js'
+import { createRallyGame, createRallyTrack, rallyTrackAt, projectRally, rallyAngle, advanceRally, advanceRallyGates, recoverRallyCar, rallyAiInput, rallyScore, validRallyScore, RALLY_MAX_SCORE, RALLY_LIMIT, RALLY_TRACKS } from '../src/rally-engine.js'
 
 test('original circuits are closed, finite and share renderer/physics geometry',()=>{
   assert.equal(RALLY_TRACKS.length,1)
   assert.ok(RALLY_TRACKS[0].anchors.length>8)
   for(let stage=0;stage<RALLY_TRACKS.length;stage++){
     const track=createRallyTrack(stage)
-    assert.ok(track.length>2200&&track.length<5000)
+    assert.ok(track.length>2000&&track.length<2600)
     for(let s=0;s<track.length;s+=83){const p=rallyTrackAt(track,s),q=projectRally(track,p.x,p.y);assert.ok(q.distance<.01);assert.ok(Number.isFinite(p.angle))}
     assert.deepEqual(rallyTrackAt(track,0),rallyTrackAt(track,track.length))
   }
@@ -72,19 +72,13 @@ test('score prioritizes place then race time and preserves historical score form
   for(const value of [0,-1,14000,19999,RALLY_MAX_SCORE+1,1.5,NaN,Infinity])assert.equal(validRallyScore(value),false)
   assert.equal(rallyScore(0,1,0),0);assert.equal(rallyScore(3,1,40),0)
 })
-test('eight solid obstacles slow cars without closing the road or skipping gates',()=>{
-  const game=createRallyGame();game.status='racing'
-  assert.equal(game.track.obstacles.length,8)
-  for(const obstacle of game.track.obstacles){
-    assert.ok(projectRally(game.track,obstacle.x,obstacle.y).distance>=38)
-    assert.ok(projectRally(game.track,obstacle.x,obstacle.y).distance-obstacle.radius>20)
-  }
-  const car=game.cars[0],obstacle=game.track.obstacles[0]
-  Object.assign(car,{x:obstacle.x,y:obstacle.y,s:obstacle.s,speed:205,heading:obstacle.angle})
-  advanceRally(game,1/120)
-  assert.ok(car.speed<90);assert.ok(car.hitCooldown>0)
-  assert.ok(Math.hypot(car.x-obstacle.x,car.y-obstacle.y)>obstacle.radius+12)
-  assert.equal(car.gates,0)
+test('short course has no obstacles and a smooth tangent even at the start seam',()=>{
+  const track=createRallyTrack()
+  assert.deepEqual(track.obstacles,[])
+  let maxTurn=0
+  for(let s=0;s<track.length;s+=5)maxTurn=Math.max(maxTurn,Math.abs(rallyAngle(rallyTrackAt(track,s+5).angle-rallyTrackAt(track,s).angle)))
+  assert.ok(maxTurn<.08,`Abrupt turn ${maxTurn}`)
+  assert.ok(Math.abs(rallyAngle(rallyTrackAt(track,.01).angle-rallyTrackAt(track,track.length-.01).angle))<.001)
 })
 test('player only steers: legacy brake and speed inputs have no effect',()=>{
   const a=createRallyGame(),b=createRallyGame()
@@ -93,4 +87,42 @@ test('player only steers: legacy brake and speed inputs have no effect',()=>{
     advanceRally(b,1/120,{steer:.3,brake:true,targetSpeed:1})
   }
   assert.deepEqual(a.cars[0],b.cars[0])
+})
+test('inner/outer kerbs and wide grass corners all count exactly three laps without a hidden lost gate',()=>{
+  for(const offset of[-75,-50,0,50,75]){
+    const game=createRallyGame(),lapChanges=[]
+    let previous=0
+    for(let i=0;i<22000&&!['finished','timeout'].includes(game.status);i++){
+      const car=game.cars[0],p=rallyTrackAt(game.track,car.s+85,offset)
+      const error=rallyAngle(Math.atan2(p.y-car.y,p.x-car.x)-car.heading)
+      advanceRally(game,1/120,{steer:Math.max(-1,Math.min(1,error*1.8))})
+      if(car.laps!==previous){lapChanges.push(car.laps);previous=car.laps}
+    }
+    assert.equal(game.status,'finished',`offset ${offset}, gate ${game.cars[0].gates}`)
+    assert.deepEqual(lapChanges,[1,2,3]);assert.equal(game.cars[0].gates,36)
+    assert.equal(game.cars[0].missedGate,false)
+  }
+})
+test('far shortcut is flagged, recovery returns before the missed gate and lets the lap continue',()=>{
+  const game=createRallyGame(),car=game.cars[0],track=game.track
+  game.status='racing';car.started=true;car.speed=200;car.gates=4
+  const gate=5/12*track.length
+  advanceRallyGates(car,gate-.5,gate+.5,track,false,1/120)
+  assert.equal(car.gates,4);assert.equal(car.missedGate,true)
+  const time=game.elapsed;recoverRallyCar(game)
+  assert.equal(game.elapsed,time+3);assert.equal(car.gates,4);assert.equal(car.missedGate,false)
+  assert.ok(Math.abs(car.s-(gate-24))<.01)
+  advanceRallyGates(car,gate-.5,gate+.5,track,true,1/120)
+  assert.equal(car.gates,5)
+})
+test('restart creates a clean countdown with no elapsed time, gates, controls or replay from old run',()=>{
+  const old=createRallyGame();old.status='racing'
+  for(let i=0;i<400;i++)advanceRally(old,1/120,{steer:.2})
+  old.cars[0].gates=17;old.recoveries=3
+  const fresh=createRallyGame()
+  assert.equal(fresh.status,'countdown');assert.equal(fresh.countdown,3)
+  assert.equal(fresh.elapsed,0);assert.equal(fresh.accumulator,0);assert.equal(fresh.recoveries,0)
+  assert.ok(fresh.cars.every(car=>car.gates===0&&car.laps===0&&car.speed===0&&car.finishedAt===null))
+  assert.equal(fresh.replayFrames.length,1)
+  assert.notEqual(fresh.track,old.track);assert.notEqual(fresh.cars,old.cars)
 })
