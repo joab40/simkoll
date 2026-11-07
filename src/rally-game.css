@@ -1,6 +1,9 @@
 .rally-page{max-width:1440px;margin:auto;color:#15333d;--rally-lime:#dbf26a;--rally-ink:#15333d}
 .rally-toolbar,.rally-toolbar>div{flex-wrap:wrap}
 .rally-toolbar button{min-width:44px}
+.rally-controls,.rally-controls *{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.rally-controls{overscroll-behavior:contain}
+.rally-drive>*{pointer-events:none}
 .rally-course-warning{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;flex:none;padding:8px 14px;background:#fff0d4;color:#61452a;font-size:.75rem}.rally-course-warning button{min-height:44px;padding:8px 12px;font-size:.75rem;white-space:nowrap}
 .rally-ghost-toggle{display:flex;align-items:center;gap:10px;min-height:44px;margin-top:12px;font-size:.85rem;font-weight:700;cursor:pointer}
 .rally-ghost-toggle input{width:20px;height:20px;margin:0;accent-color:#287b72}

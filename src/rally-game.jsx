@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { advanceRally, createRallyGame, recoverRallyCar, finishRallyReplay, validRallyScore, RALLY_TRACKS, RALLY_LAPS } from './rally-engine.js'
 import { loadRallyGhost, keepFasterRallyGhost, saveRallyGhost } from './rally-ghost.js'
 import { drawRally } from './rally-art.js'
+import { guardRallyTouches } from './rally-touch.js'
 import { enterBalanceFullscreen as enterFullscreen, exitBalanceFullscreen as exitFullscreen } from './balance-fullscreen.js'
 import './rally-game.css'
 
@@ -116,12 +117,7 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
     document.addEventListener('keydown',escape)
     return ()=>{document.body.style.overflow=previous;document.removeEventListener('keydown',escape)}
   },[full,closeFull])
-  useEffect(()=>{
-    const target=area.current, prevent=event=>{if(event.cancelable)event.preventDefault()}
-    const controls=[...target.querySelectorAll('[data-drive]')]
-    for(const control of controls){control.addEventListener('touchstart',prevent,{passive:false});control.addEventListener('contextmenu',prevent);control.addEventListener('selectstart',prevent)}
-    return ()=>{for(const control of controls){control.removeEventListener('touchstart',prevent);control.removeEventListener('contextmenu',prevent);control.removeEventListener('selectstart',prevent)}}
-  },[])
+  useEffect(()=>guardRallyTouches(area.current,release),[release])
   const racing=phase==='running', finished=phase==='finished'
   const recover=()=>{release();recoverRallyCar(game.current);setView(snapshot(game.current));draw();canvas.current?.focus({preventScroll:true})}
   return <section className="rally-page" onKeyDown={event=>keyboard(event,true)} onKeyUp={event=>keyboard(event,false)} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))release()}}>
