@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import FeatureFaq from './feature-faq.jsx'
+import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
 import { apiRequest } from './api-request.js'
 import { chatBackgroundUrl } from './chat-background.js'
@@ -167,6 +168,8 @@ function App() {
   const [competitionsLoaded, setCompetitionsLoaded] = useState(false)
   const [availableGames, setAvailableGames] = useState([])
   const [previousGames, setPreviousGames] = useState([])
+  const [betaGames, setBetaGames] = useState([]), [betaGameKey, setBetaGameKey] = useState('')
+  useEffect(() => { setBetaGames([]); setBetaGameKey('') }, [profile?.id, auth?.code])
   usePushSession(auth, profile, (target) => {
     if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
     else if (target.screen === 'talks') { setSelectedDevelopmentTalkId(target.talkId || null); setScreen('talks') }
@@ -216,7 +219,7 @@ function App() {
       load('/api/activity?streak=true', (data) => { setActiveProfilesToday(data.activeProfilesToday); setActivityDates(data.activityDates || []) }),
       load('/api/workouts?calendar=true', (data) => { setCompetitions(data.competitions || []); setCompetitionsLoaded(true) }).catch(() => { if (active) { setCompetitions([]); setCompetitionsLoaded(true) } }),
       load('/api/points', setPoints),
-      load('/api/points?games=true', (data) => { setAvailableGames(data.catalog || []); setPreviousGames(data.previousGames || []) }),
+      load('/api/points?games=true', (data) => { setAvailableGames(data.catalog || []); setPreviousGames(data.previousGames || []); setBetaGames(data.betaGames || []) }),
     ])
     const refresh = createVisibleRefresh(loadProfileData, { minInterval: 15000 })
     const refreshOnFocus = () => { void refresh.refresh().catch(() => {}) }
@@ -352,6 +355,7 @@ function App() {
       {screen === 'balance' && <BalanceGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'bikerun' && <BikeRun code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'twenty48' && <Twenty48 code={auth.code} onBack={() => setScreen('home')} />}
+      {screen === 'beta-game' && profile && <BetaGamePanel key={`${profile.id}:${betaGameKey}`} game={betaGames.find(game => game.key === betaGameKey)} code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'alltime-games' && <AllTimeGames code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'talks' && <DevelopmentTalkSwimmer code={auth.code} talkId={selectedDevelopmentTalkId} onBack={() => { setSelectedDevelopmentTalkId(null); setScreen('home') }} />}
       {screen === 'planning' && <SwimmerPlanning code={auth.code} onBack={() => setScreen('home')} />}
@@ -375,7 +379,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           // A previous after-registration can leave yesterday selected.
           // Every normal check-in must start on the current activity date.
           setCheckinActivityDate(todayKey())
@@ -951,7 +955,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = false, profile, points, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
+function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = false, profile, points, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
   const [communityPreview, setCommunityPreview] = useState(null)
   const [communityPreviewError, setCommunityPreviewError] = useState(false)
   const chatVisible = communityPreview?.openChat?.enabled ?? (openChatEnabled === true)
@@ -1046,6 +1050,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <PushNotificationControl code={code} compact />}
       {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
+      {profile && <GameBetaList games={betaGames} onPlay={onBetaGame} />}
       {profile && <GameCard games={availableGames} previousGames={previousGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBreakout={onBreakout} onSprint={onSprint} onLongJump={onLongJump} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} onDino={onDino} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
       {!profile && <StartCard profile={profile} onStart={onStart} followUp={followUp} raceFollowUp={raceFollowUp} />}
@@ -1249,6 +1254,20 @@ function GameCard({ games = GAME_CATALOG, previousGames = [], onOpen, onVanda, o
     <section className="game-card game-archive"><div><p className="eyebrow">Spelhistorik</p><h2>Tidigare veckors spel 📚</h2><p>{previousGames.length ? `${previousGames.length} tidigare spel att välja mellan.` : 'Här samlas spelen när en ny spelvecka börjar.'}</p><div className="previous-games-list">{previousGames.map((game) => <button type="button" className="secondary-button" key={game.key} onClick={() => actions[game.key]?.()}>{game.title} {game.emoji} →</button>)}</div></div></section>
     <section className="game-card game-records"><div><p className="eyebrow">Rekord genom tiderna</p><h2>All time-topplista 🏆</h2><p>Se de bästa resultaten från alla spel och tidigare veckor.</p><button type="button" className="primary-button" onClick={onAllTime}>Öppna topplistan →</button></div></section>
   </SwimmerHeroCarousel>
+}
+
+function BetaGamePanel({ game, code, onBack }) {
+  const [access,setAccess] = useState('loading')
+  useEffect(() => {
+    let active = true
+    apiRequest('/api/points?games=true',code).then(data => { if(active)setAccess(data.betaGames?.some(item => item.key === game?.key) ? 'allowed' : 'denied') }).catch(() => { if(active)setAccess('error') })
+    return () => { active = false }
+  },[code,game?.key])
+  if(access !== 'allowed') return <section className="settings-card"><button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button><p role="status">{access === 'loading' ? 'Kontrollerar ditt betatest…' : access === 'error' ? 'Betatestet kunde inte öppnas. Gå tillbaka och försök igen.' : 'Du har inte längre betatillgång till det här spelet.'}</p></section>
+  const games = { swimgames: Swimgames, vanda: Vandningsmastaren, simpaus: Simpaus, aljakten: Aljakten, breakout: PreppeBreakout, sprint100: SprintGame, longjump: LongJumpGame, hurdles100: HurdlesGame, bikerun: BikeRun, twenty48: Twenty48, rally: RallyGame, balance: BalanceGame, dino: DinoRunner }
+  const Game = games[game?.key]
+  if(!Game)return <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka till spelen</button>
+  return <section><div className="game-test-banner"><strong>🧪 Betatest · {game.title}</strong><span>Du har fått förhandstillgång av tränaren. Resultat och poäng sparas inte.</span></div><Game code={code} onBack={onBack} preview request={apiRequest} /></section>
 }
 
 function useLegacyGameFullscreen(selector) {
@@ -5264,6 +5283,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             <SwimmerNotes profile={profile} code={code} />
             {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.temperature ? ` · 🌡️ ${TEMPERATURE_LABELS[Number(item.temperature) - 1] || `${item.temperature}/5`}` : ''}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}
             {artifactCatalog.length > 0 && <details className="artifact-picker"><summary>⭐ Artefakter för {profile.displayName}</summary><div>{artifactCatalog.map((artifact) => { const key = `${profile.id}-${artifact.artifact_key}`; const assigned = earnedArtifacts.some((item) => item.id === artifact.id); const busy = artifactStatus[key] === 'Sparar…' || artifactStatus[key] === 'Återkallar…'; return <button type="button" key={artifact.id} disabled={busy} className={assigned ? 'assigned' : ''} onClick={() => assigned ? revokeArtifact(profile, artifact) : grantArtifact(profile, artifact)} title={artifact.description}>{artifact.emoji} <span>{assigned ? 'Återkalla' : `Ge ${artifact.name}`}</span>{artifactStatus[key] && <small>{artifactStatus[key]}</small>}</button> })}</div></details>}
+            <GameBetaSettings key={profile.id} profile={profile} code={code} />
             <details className="profile-tools profile-settings"><summary>⚙️ Profilinställningar</summary><div>
               <small className="profile-settings-section-title">Träningsprofil</small>
               <div className="tempus-edit"><div><strong>Tempus-ID</strong><small>{profile.tempusId ? 'Används i Tävlingsresultat' : 'Lägg till för att koppla resultat'}</small></div><form onSubmit={(event) => { event.preventDefault(); const value = event.currentTarget.elements.tempusId.value.trim(); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-tempus-id', profileId: profile.id, tempusId: value }) }).then(() => onProfilesChange()).catch((error) => window.alert(error.message)) }}><label><input name="tempusId" inputMode="numeric" pattern="[0-9]{1,12}" maxLength="12" defaultValue={profile.tempusId || ''} placeholder="t.ex. 273688" /></label><button type="submit">Spara</button></form></div>

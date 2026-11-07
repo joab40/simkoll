@@ -1,5 +1,6 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
+import { loadGameBeta, saveGameBeta, requireBetaProfile } from '../server/game-beta.js'
 import { SPRINT_BASE, SPRINT_MIN_MS, SPRINT_MAX_MS, sprintTime, validSprintScore } from '../src/sprint-engine.js'
 import { jumpMetres, validJumpScore, JUMP_MAX_SCORE } from '../src/long-jump-engine.js'
 import { RALLY_MAX_SCORE, validRallyScore } from '../src/rally-engine.js'
@@ -187,6 +188,11 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { ok: true })
       }
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ändra nivåer.' })
+      if (action === 'save-game-beta') {
+        const result = await saveGameBeta(request.body?.profileId, request.body?.games, request.body?.revision, GAME_CATALOG)
+        const { status, ...data } = result
+        return sendJson(response, status, data)
+      }
       if (action === 'save-game-schedule') {
         const entries = Array.isArray(request.body?.schedule) ? request.body.schedule : []
         const schedule = entries.map((item) => ({
@@ -264,6 +270,12 @@ export default async function handler(request, response) {
       return sendJson(response, 400, { error: 'Okänd åtgärd.' })
     }
     if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
+    if (request.query?.gameBetaProfileId !== undefined) {
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan hantera betaspel.' })
+      const profileId = request.query.gameBetaProfileId
+      if (!await requireBetaProfile(profileId)) return sendJson(response, 404, { error: 'Ingen aktiv, godkänd simmare hittades.' })
+      return sendJson(response, 200, { catalog: GAME_CATALOG, ...await loadGameBeta(profileId, GAME_CATALOG) })
+    }
     const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'alltime'].includes(request.query?.game) ? request.query.game : null
     if (request.query?.games === 'true') {
       const schedule = await loadGameSchedule()
@@ -284,7 +296,10 @@ export default async function handler(request, response) {
         .sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)))
         .map((item) => item.gameKey))]
       const previousGames = previousKeys.map((key) => GAME_CATALOG.find((game) => game.key === key)).filter(Boolean)
-      return sendJson(response, 200, { catalog: currentGames, previousGames, schedule: [] })
+      const profile = await getSessionProfile(request)
+      const beta = profile ? await loadGameBeta(profile.id, GAME_CATALOG) : { games: [] }
+      const betaGames = GAME_CATALOG.filter(game => beta.games.includes(game.key))
+      return sendJson(response, 200, { catalog: currentGames, previousGames, betaGames, schedule: [] })
     }
     if (requestedGame) {
       const profile = await getSessionProfile(request)

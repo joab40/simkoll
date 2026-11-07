@@ -14,6 +14,11 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'game-beta', section: 'messages', question: 'Hur fungerar betatest av spel för utvalda simmare?', answer: [
+    'Tränaren öppnar Simmare, fäller ut simmarkortet och öppnar Betatesta spel. Markera ett eller flera spel och välj Spara betaspel. Tilldelningen gäller bara den simmaren, inte hela gruppen. Det krävs en aktiv, godkänd simmarprofil. Detta är inte samma sak som att markera en profil som testprofil: simmarens riktiga träning och gruppstatistik påverkas inte.',
+    'Simmaren får en egen ruta Prova nya spel på startsidan med de tilldelade betaspelen. Uppdatera startsidan eller öppna appen igen om rutan inte syns direkt. Spelen kan testas även innan vanlig publicering. Tillgången kontrolleras igen när ett betaspel öppnas. Inga testresultat, rekord eller spelpoäng sparas; även en rallyghost finns bara kvar under det aktuella betatestbesöket.',
+    'Avmarkera spelet och spara för att återkalla betatest. Vanligt publicerade spel och tidigare intjänade rekord påverkas inte. En redan pågående testomgång kan slutföras, men nästa öppning kontrollerar tillgången på nytt. Spelbibliotekets vanliga publiceringsplanering fortsätter fungera som tidigare. Betatilldelning behöver ingen ny SQL.',
+  ] },
   { id: 'rally-game', section: 'messages', question: 'Hur spelar jag Simkoll Kustrally?', answer: [
     'Kustrally är Simkolls eget top-down-racing på en kurvig Kustslinga. Kör tre varv mot tre datorstyrda rivaler. Bilen gasar själv och har ingen bromsknapp. På mobil håller du Vänster/Höger; på dator styr du med vänster/höger piltangent eller A/D. P eller pausknappen pausar. Fullskärm fungerar på både mobil och dator; vrid gärna mobilen. Flikbyte eller tappat fönsterfokus pausar automatiskt.',
     'Blå boostplattor ger en kort fartökning. Gräset bromsar bilen kraftigt. Undvik koner och tunnor: en kollision sänker farten. Styr med korta, mjuka tag. Tillbaka på banan hjälper om du fastnat men kostar tre sekunder. Du måste passera banans kontrollpunkter i rätt ordning; genvägar eller baklängesvarv ger inte gratis varv. Rivalerna kan passera genom varandra och dig utan att knuffas.',

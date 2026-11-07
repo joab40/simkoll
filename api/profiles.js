@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto'
+import { removeGameBeta } from '../server/game-beta.js'
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import { estimatedCostUsd } from '../server/ai-costs.js'
@@ -547,6 +548,7 @@ export default async function handler(request, response) {
       if (groupRole(request) !== 'coach') return sendJson(response, 403, { error: 'Endast tränaren kan ta bort profiler.' })
       const profileId = String(request.body.profileId || '')
       if (!profileId) return sendJson(response, 400, { error: 'Profil saknas.' })
+      await removeGameBeta(profileId)
       const result = await supabaseRequest(`profiles?id=eq.${profileId}`, { method: 'DELETE' })
       if (result.ok) return sendJson(response, 200, { ok: true })
       // Äldre profiler kan ha svar, poäng eller meddelanden som hindrar fysisk radering.
