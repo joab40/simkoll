@@ -4,7 +4,7 @@ import { TRAINING_HEART_EXAMPLE_ANSWERS } from './training-heart-examples.js'
 import { TRAINING_STATE_RULES } from './training-heart-state.js'
 import { FOLLOWUP_RULES } from './followup-signals.js'
 import { HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
-export const FEATURE_FAQ_UPDATED = '2026-11-08'
+export const FEATURE_FAQ_UPDATED = '2026-11-09'
 export const FEATURE_FAQ_SECTIONS = [
   ['checkin', 'Incheckning och planering'],
   ['diary', 'Min träningsdagbok'],
@@ -14,6 +14,10 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'reward-level-colours', section: 'messages', question: 'Vad betyder färgen på kortet Din nivå?', answer: [
+    'Bakgrunden följer nivåns emoji: brons har en varm kopparton, silver en sval silverton, guld en gyllene ton och diamant en ljusblå ton. Nivåns namn, poängen och stapeln visas fortfarande. Samma färg används i det stora kortet på startsidan och den kompakta varianten.',
+    'Vanliga egna symboler som en gul pokal, blå delfin eller ett grönt/lila/rosa hjärta har matchande mjuka färgtoner. Okända emojis får en neutral bakgrund. Detta är en visuell markering av din poängnivå, inte en tränings- eller hälsobedömning. Färgen ändrar inte nivågränser, intjänade poäng eller belöningar.',
+  ] },
   { id: 'game-beta', section: 'messages', question: 'Hur fungerar betatest av spel för utvalda simmare?', answer: [
     'Tränaren öppnar Simmare, fäller ut simmarkortet och öppnar Betatesta spel. Markera ett eller flera spel och välj Spara betaspel. Tilldelningen gäller bara den simmaren, inte hela gruppen. Det krävs en aktiv, godkänd simmarprofil. Detta är inte samma sak som att markera en profil som testprofil: simmarens riktiga träning och gruppstatistik påverkas inte.',
     'Simmaren får en egen ruta Prova nya spel på startsidan med de tilldelade betaspelen. Uppdatera startsidan eller öppna appen igen om rutan inte syns direkt. Spelen kan testas även innan vanlig publicering. Tillgången kontrolleras igen när ett betaspel öppnas. Inga testresultat, rekord eller spelpoäng sparas; även en rallyghost finns bara kvar under det aktuella betatestbesöket.',

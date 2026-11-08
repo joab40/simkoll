@@ -258,16 +258,17 @@ button { cursor: pointer; }
 .locked-workout > span { width: 42px; height: 42px; display: grid; place-items: center; background: #edf5f2; border-radius: 50%; }
 .locked-workout > div { display: flex; flex-direction: column; }
 .locked-workout small { color: var(--muted); margin-top: 3px; }
-.reward-card { margin-top: 12px; background: #e4f2ee; border-radius: 18px; padding: 18px 22px; display: grid; grid-template-columns: 45px 1fr auto; align-items: center; gap: 14px; }
+.reward-card { --level-start: #e6f4ee; --level-end: #f8fbf3; --level-glow: #dceee4; --level-border: #c4dcd1; --level-track: #c8ddd7; margin-top: 12px; color: #102d37; border: 1px solid var(--level-border); background: radial-gradient(circle at 85% 15%, var(--level-glow), transparent 60%), linear-gradient(135deg, var(--level-start), var(--level-end)); border-radius: 18px; padding: 18px 22px; display: grid; grid-template-columns: 45px 1fr auto; align-items: center; gap: 14px; }
 .reward-card > span { font-size: 31px; }
 .reward-card h3 { margin: 0 0 7px; font: 700 15px 'Manrope'; }
-.reward-card .eyebrow { margin-bottom: 3px; }
+.reward-card .eyebrow { margin-bottom: 3px; color: #235e64; }
 .reward-progress { width: min(100%, 300px); height: 6px; background: #c8ddd7; border-radius: 5px; overflow: hidden; }
 .reward-progress i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
-.reward-card small { color: var(--muted); font-size: 10px; }
-.reward-card > button { border: 1px solid #bdd4ce; background: white; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; }
-.swimmer-hero-slide .hero-level-card { margin: 0; padding: 30px 26px; border: 1px solid #d2e4d8; border-radius: 30px; background: radial-gradient(circle at 80% 20%, #f1f8d5, transparent 50%), linear-gradient(135deg, #e6f4ee, #f8fbf3); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; text-align: center; }
-.hero-level-card > span { display: grid; place-items: center; width: 80px; height: 80px; font-size: 50px; background: rgba(255,255,255,.65); border: 1px solid #d3e5da; border-radius: 25px; }
+.reward-card .reward-progress { background: var(--level-track); }
+.reward-card small { color: #3f565d; font-size: 10px; }
+.reward-card > button { border: 1px solid var(--level-border); background: white; border-radius: 10px; padding: 10px 13px; font-size: 12px; font-weight: 700; }
+.swimmer-hero-slide .hero-level-card { margin: 0; padding: 30px 26px; border-radius: 30px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; text-align: center; }
+.hero-level-card > span { display: grid; place-items: center; width: 80px; height: 80px; font-size: 50px; background: rgba(255,255,255,.65); border: 1px solid var(--level-border); border-radius: 25px; }
 .hero-level-card > div { width: 100%; max-width: 420px; }
 .hero-level-card .eyebrow { margin-bottom: 8px; }
 .hero-level-card h3 { font-size: clamp(21px, 3vw, 28px); margin-bottom: 16px; }

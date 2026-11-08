@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import FeatureFaq from './feature-faq.jsx'
+import RewardLevelCard from './reward-level-card.jsx'
 import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
 import { apiRequest } from './api-request.js'
@@ -1781,10 +1782,7 @@ function MiniGoal({ icon, label, completed, target }) {
 
 function RewardCard({ points, onCommunity, featured = false }) {
   if (!points?.current) return null
-  const remaining = points.next ? points.next.minPoints - points.total : 0
-  const range = points.next ? points.next.minPoints - points.current.minPoints : 1
-  const progress = points.next ? ((points.total - points.current.minPoints) / range) * 100 : 100
-  return <>{!featured && points.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}<section className={`reward-card${featured ? ' hero-level-card' : ''}`}><span aria-hidden="true">{points.current.emoji}</span><div><p className="eyebrow">Din nivå</p><h3>{points.current.name} · {points.total} poäng</h3><div className="reward-progress"><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div><small>{points.next ? `${remaining} poäng till ${points.next.name}` : 'Du har nått högsta nivån!'}</small></div><button type="button" onClick={onCommunity}>Ge pepp →</button></section></>
+  return <>{!featured && points.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}<RewardLevelCard points={points} onCommunity={onCommunity} featured={featured} /></>
 }
 
 function RewardCelebration({ rewards }) {
