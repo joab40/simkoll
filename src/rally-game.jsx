@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { advanceRally, createRallyGame, recoverRallyCar, finishRallyReplay, validRallyScore, RALLY_TRACKS, RALLY_LAPS } from './rally-engine.js'
+import { advanceRally, createRallyGame, recoverRallyCar, finishRallyReplay, validRallyReplay, RALLY_TRACKS, RALLY_LAPS } from './rally-engine.js'
 import { loadRallyGhost, keepFasterRallyGhost, saveRallyGhost } from './rally-ghost.js'
 import { drawRally } from './rally-art.js'
 import { guardRallyTouches } from './rally-touch.js'
 import { requestWeeklyGhost } from './rally-weekly-client.js'
 import { rallyWeekStart } from '../shared/rally-weekly.js'
+import { rallyTimeText, preferRallyTime } from '../shared/rally-times.js'
+import { submitRallyTime } from './rally-time-client.js'
 import { enterBalanceFullscreen as enterFullscreen, exitBalanceFullscreen as exitFullscreen } from './balance-fullscreen.js'
 import './rally-game.css'
 
-const timeText = seconds => `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(2).padStart(5,'0')}`
+const timeText = seconds => rallyTimeText(Math.round(seconds * 1000))
 const snapshot = game => ({ elapsed: game.elapsed, rank: game.rank, laps: game.cars[0].laps, missedGate: game.cars[0].missedGate, speed: game.cars[0].speed, offroad: game.cars[0].offroad, boost: game.cars[0].boost, score: game.score, bestLap: game.cars[0].bestLap, countdown: Math.ceil(game.countdown), status: game.status })
 
 const browserStorage = () => { try { return window.localStorage } catch { return null } }
@@ -26,6 +28,8 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
   const [showWeekly,setShowWeekly] = useState(true), [weeklySaving,setWeeklySaving] = useState(false), [starting,setStarting] = useState(false)
   const [view,setView] = useState(()=>snapshot(game.current)), [held,setHeld] = useState({}), [full,setFull] = useState(null)
   const [board,setBoard] = useState(null), [boardError,setBoardError] = useState(false), [saving,setSaving] = useState(false), [saveError,setSaveError] = useState(false), [message,setMessage] = useState('')
+  const pendingTime = useRef(null), restoreAttempt = useRef(null)
+  const [restoreMessage,setRestoreMessage] = useState('')
   const release = useCallback(()=>{keys.current.clear();pointers.current.clear();setHeld({})},[])
   const pause = useCallback(()=>{release();setPhase(current=>current==='running'?'paused':current)},[release])
   const draw = useCallback(()=>drawRally(canvas.current,game.current,{reducedMotion:reduced.current,ghost:ghostVisible.current?raceGhost.current:null,weeklyGhost:weeklyVisible.current?raceWeekly.current:null}),[])
@@ -44,11 +48,19 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
     if(preview)return
     const current=++version.current;setBoardError(false)
     try {
-      const result=await request('/api/points?game=rally&lifetime=true',code)
+      const result=await request('/api/points?game=rally&time=true',code)
       if(!mounted.current||current!==version.current)return
       setBoard(result)
+      const local=loadRallyGhost(browserStorage(),profileId), candidate=local?{durationMs:local.duration,timeSource:'recovered'}:null
+      if(local&&restoreAttempt.current!==local.duration&&preferRallyTime(result.ownBest,candidate)===candidate){
+        restoreAttempt.current=local.duration;setRestoreMessage('Återhämtar din sparade originaltid från den egna ghosten…')
+        try {
+          const restored=await submitRallyTime(request,code,local,true)
+          if(mounted.current&&current===version.current){setBoard(restored);setRestoreMessage('✓ Din sparade originaltid är återhämtad.')}
+        } catch {if(mounted.current&&current===version.current){restoreAttempt.current=null;setRestoreMessage('Din lokala originaltid kunde inte återhämtas. Hämta topplistan igen för att försöka på nytt.')}}
+      }
     } catch {if(mounted.current&&current===version.current)setBoardError(true)}
-  },[code,preview,request])
+  },[code,preview,profileId,request])
   useEffect(()=>{
     mounted.current=true;loadBoard();loadWeekly();draw()
     const preference=matchMedia('(prefers-reduced-motion: reduce)'), change=()=>{reduced.current=preference.matches;draw()}
@@ -56,15 +68,16 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
     const resize=new ResizeObserver(draw);resize.observe(canvas.current)
     return ()=>{mounted.current=false;version.current++;weeklyVersion.current++;resize.disconnect();preference.removeEventListener('change',change)}
   },[loadBoard,loadWeekly,draw])
-  const save = useCallback(async score=>{
-    if(preview||!validRallyScore(score)||saveLock.current)return
+  const save = useCallback(async replay=>{
+    if(preview||!validRallyReplay(replay)||saveLock.current)return
+    pendingTime.current=replay;version.current++
     saveLock.current=true;setSaving(true);setSaveError(false);setMessage('Sparar ditt rallyresultat…')
     try {
-      await request('/api/points',code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'submit-game-score',gameKey:'rally',score})})
-      if(mounted.current){setMessage('✓ Sparat! Ditt bästa rallyresultat räknas.');setBoard(old=>({...old,ownBest:Math.max(old?.ownBest||0,score)}));loadBoard()}
+      const result=await submitRallyTime(request,code,replay)
+      if(mounted.current){pendingTime.current=null;setMessage('✓ Tiden sparad! Snabbaste tid räknas i All time.');setBoard(result)}
     }catch{if(mounted.current){setSaveError(true);setMessage('Resultatet kunde inte sparas. Försök igen eller välj uttryckligen att fortsätta utan att spara.')}}
     finally{saveLock.current=false;if(mounted.current)setSaving(false)}
-  },[code,preview,request,loadBoard])
+  },[code,preview,request])
   const saveWeekly = useCallback(async()=>{
     if(preview||weeklyLock.current||!pendingWeekly.current)return
     weeklyLock.current=true;setWeeklySaving(true);setWeeklySaveError('')
@@ -99,7 +112,7 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
       if(['finished','timeout'].includes(game.current.status)){
         release();setPhase(game.current.status)
         if(game.current.status==='finished'){
-          const candidate=keepGhost();save(game.current.score);shareGhost(candidate)
+          const candidate=keepGhost();save(candidate);shareGhost(candidate)
         }
         return
       }
@@ -170,14 +183,14 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
       <div className="rally-hud"><div><small>Placering</small><strong>{view.rank}<span> / 4</span></strong></div><div><small>Racetid</small><strong>{timeText(view.elapsed)}</strong></div><div><small>Fart</small><strong>{Math.round(view.speed*.35)}<span> km/h</span></strong></div></div>
       {racing&&view.missedGate&&<div className="rally-course-warning" role="alert"><span>Kontrollpunkt missad — återgå för att fortsätta varvet.</span><button type="button" className="secondary-button" onClick={recover}>Återgå · +3 s</button></div>}
       <div className="rally-stage"><canvas ref={canvas} tabIndex="0" aria-label="Kustrally. Bilen gasar själv. Styr med vänster/höger eller A/D. P pausar." />
-        {phase!=='running'&&<div className="rally-overlay"><div><span className="rally-flag" aria-hidden="true">{finished?'🏁':phase==='paused'?'Ⅱ':'↗'}</span><p className="rally-kicker">{RALLY_TRACKS[stage].name}</p><h2>{phase==='ready'?'Hitta flytet. Ta kurvan.':phase==='paused'?'En paus i depån':phase==='timeout'?'Tillbaka till depån':view.rank===1?'Först över linjen!':`I mål på plats ${view.rank}`}</h2><p>{phase==='ready'?'Bilen gasar själv. Styr genom de mjuka kurvorna och sikta på blå boostplattor. Tre hela varv tar dig i mål.':phase==='paused'?'Klockan står still. Fortsätt när du är redo.':phase==='timeout'?'Tiden tog slut. Testa korta styrtag och håll dig på asfalten. Inget resultat sparas.':`${timeText(view.elapsed)} · ${view.score.toLocaleString('sv-SE')} rallypoäng${view.bestLap?' · Bästa varv '+timeText(view.bestLap):''}`}</p>
+        {phase!=='running'&&<div className="rally-overlay"><div><span className="rally-flag" aria-hidden="true">{finished?'🏁':phase==='paused'?'Ⅱ':'↗'}</span><p className="rally-kicker">{RALLY_TRACKS[stage].name}</p><h2>{phase==='ready'?'Hitta flytet. Ta kurvan.':phase==='paused'?'En paus i depån':phase==='timeout'?'Tillbaka till depån':`I mål · ${timeText(view.elapsed)}`}</h2><p>{phase==='ready'?'Bilen gasar själv. Styr genom de mjuka kurvorna och sikta på blå boostplattor. Tre hela varv tar dig i mål.':phase==='paused'?'Klockan står still. Fortsätt när du är redo.':phase==='timeout'?'Tiden tog slut. Testa korta styrtag och håll dig på asfalten. Inget resultat sparas.':`Tre varv · plats ${view.rank} av 4${view.bestLap?' · Bästa varv '+timeText(view.bestLap):''}. Snabbaste totaltid avgör tidsrankingen.`}</p>
           {finished&&newBest&&<p className="rally-unlocked">✓ Ny bästa tid! Ghosten väntar i nästa race.</p>}
           <button type="button" className="primary-button" disabled={busy||saveError} onClick={()=>phase==='paused'?(release(),setPhase('running'),canvas.current?.focus({preventScroll:true})):start()}>{starting?'Hämtar veckans ghost…':saving||weeklySaving?'Sparar…':phase==='ready'?'Till start →':phase==='paused'?'Fortsätt köra →':'Kör igen →'}</button>
         </div></div>}
       </div>
       <div className="rally-controls" role="group" aria-label="Bilens kontroller">{[['left','←','Vänster'],['right','→','Höger']].map(([control,icon,label])=><button type="button" key={control} data-drive={control} aria-label={`${label} – håll inne`} aria-pressed={Boolean(held[control])} className={`rally-drive rally-${control}${held[control]?' is-held':''}`} disabled={!racing} onPointerDown={event=>press(event,control)} onPointerUp={lift} onPointerCancel={lift} onLostPointerCapture={lift}><b aria-hidden="true">{icon}</b><span>{label}</span></button>)}</div>
       <div className="rally-track-status" role="status">{racing?(view.status==='countdown'?`Start om ${Math.max(1,view.countdown)}…`:view.missedGate?'Kontrollpunkt missad. Använd Återgå till kontrollpunkt nedan.':view.offroad?'Ut på gräset! Styr tillbaka mot asfalten.':view.boost>0?'BOOST! Sikta mot nästa kurva.':`Varv ${Math.min(RALLY_LAPS,view.laps+1)} av ${RALLY_LAPS} · Håll en jämn racinglinje.`):preview?'Testläge: resultat och poäng sparas inte.':message||'Mobil: håll styrknapparna. Dator: ← / → eller A / D. Bilen gasar själv.'}</div>
-      {saveError&&<div className="rally-save-error" role="alert"><p>{message}</p><button type="button" className="secondary-button" disabled={saving} onClick={()=>save(view.score)}>Försök spara igen</button><button type="button" className="text-button" disabled={saving} onClick={()=>{setSaveError(false);setMessage('Du valde att fortsätta utan att spara resultatet.')}}>Fortsätt utan att spara</button></div>}
+      {saveError&&<div className="rally-save-error" role="alert"><p>{message}</p><button type="button" className="secondary-button" disabled={saving} onClick={()=>save(pendingTime.current)}>Försök spara igen</button><button type="button" className="text-button" disabled={saving} onClick={()=>{pendingTime.current=null;setSaveError(false);setMessage('Du valde att fortsätta utan att spara tiden.')}}>Fortsätt utan att spara</button></div>}
       <div className="rally-bottom"><span>Fastnat? <button type="button" className="text-button" disabled={!racing||view.status==='countdown'} onClick={()=>{release();recoverRallyCar(game.current);setView(snapshot(game.current));draw();canvas.current?.focus({preventScroll:true})}}>{view.missedGate?'Återgå till kontrollpunkt · +3 s':'Tillbaka på banan · +3 s'}</button></span><span>Vrid gärna mobilen i fullskärm.</span></div>
     </div><aside className="rally-sidebar">
       <section className="rally-weekly"><p className="eyebrow">Veckans utmaning</p><h2>Slå veckans snabbaste <span aria-hidden="true">🏁</span></h2>
@@ -186,7 +199,7 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
           {weeklyError?<><p role="status">{weeklyError}</p><button type="button" className="secondary-button" disabled={busy||weeklyLoading} onClick={loadWeekly}>Försök hämta igen</button></>:weekly?.active===false?<p>När Kustrally är publicerat som veckans spel kan alla jaga veckans snabbaste ghost.</p>:weekly?.active&&<>
             <div className="rally-weekly-record"><span className="rally-ghost-swatch is-weekly" aria-hidden="true"/><div><strong>{weekly.leader?`${weekly.leader.emoji} ${weekly.leader.displayName}`:'Bli veckans första förare'}</strong><b>{weekly.leader?timeText(weekly.leader.durationMs/1000):'—'}</b><small>Tre varv · veckan från {weekly.weekStart}</small></div></div>
             <label className="rally-ghost-toggle"><input type="checkbox" checked={showWeekly} onChange={event=>{weeklyVisible.current=event.target.checked;setShowWeekly(event.target.checked);draw()}} /> Visa veckans ghost</label>
-            <p>Den guldfärgade bilen är veckans snabbaste hela lopp, oavsett rallypoäng. Den kan inte krocka med dig. Ny ledare hämtas inför nästa lopp.</p>
+            <p>Den guldfärgade bilen är veckans snabbaste hela lopp, oavsett placering mot datorbilarna. Den kan inte krocka med dig. Ny ledare hämtas inför nästa lopp.</p>
           </>}
           {weeklySaving&&<p role="status">Delar din veckotid…</p>}
           {weeklySaveError&&<div role="status"><p>{weeklySaveError}</p><button type="button" className="secondary-button" disabled={busy} onClick={saveWeekly}>Försök dela igen</button></div>}
@@ -194,7 +207,11 @@ export default function RallyGame({ code, profileId, onBack, preview = false, re
         </>}
       </section>
       <section className="rally-ghost"><p className="eyebrow">Slå din egen racinglinje</p><h2>Din ghostbil</h2><div className="rally-own"><span className="rally-ghost-swatch" aria-hidden="true"/> Bästa trevarvstid<strong>{ghost?timeText(ghost.duration/1000):'—'}</strong></div><p>{ghost?'Den ljusblå, genomskinliga bilen återspelar ditt snabbaste hela lopp. Den kan inte krocka med dig.':'Kör i mål för att skapa din första ghost. Nästa race kan du jaga din egen bästa tid.'}</p><label className="rally-ghost-toggle"><input type="checkbox" checked={showGhost} onChange={event=>{ghostVisible.current=event.target.checked;setShowGhost(event.target.checked);draw()}} /> Visa egen ghost</label><p>{preview?'Testghost sparas bara under detta besök.':ghostWarning?'Webbläsaren kunde inte spara ghosten. Den finns kvar under detta besök.':'Din egen ghost sparas för profilen i den här webbläsaren, inte mellan enheter. En ändrad bana får en ny ghost.'}</p></section>
-      <section className="rally-board"><p className="eyebrow">Kustrally · alla tider</p><h2>Rekordlistan</h2>{preview?<p>Topplistan visas för simmarna.</p>:!board?<p role="status">{boardError?'Topplistan kunde inte hämtas.':'Hämtar topplistan…'}</p>:board.leaderboard?.length?<ol>{board.leaderboard.map(entry=><li key={entry.profileId}><span>{entry.rank}</span><span aria-hidden="true">{entry.emoji}</span><strong>{entry.displayName}</strong><b>{entry.score.toLocaleString('sv-SE')}</b></li>)}</ol>:<p>Bli först att sätta ett rallyrekord!</p>}{!preview&&<div className="rally-own">Ditt personbästa<strong>{board?.ownBest?.toLocaleString('sv-SE')??'—'} <small>poäng</small></strong></div>}{boardError&&<button type="button" className="secondary-button" onClick={loadBoard}>Hämta topplistan igen</button>}<p>Placering väger före tid i rallypoängen. Ghosten följer däremot din snabbaste tid oavsett placering. Tidigare sparade rallypoäng finns kvar i rekordlistan.</p></section>
+      <section className="rally-board rally-time-board"><p className="eyebrow">Kustrally · alla tider</p><h2>Snabbaste tiderna</h2>{preview?<p>Tidslistan visas för simmarna.</p>:!board?<p role="status">{boardError?'Tidslistan kunde inte hämtas.':'Hämtar tidslistan…'}</p>:board.leaderboard?.length?<ol>{board.leaderboard.map(entry=><li key={entry.profileId}><span>{entry.rank}</span><span aria-hidden="true">{entry.emoji}</span><strong>{entry.displayName}{entry.historicalTrack&&<small>Äldre bana</small>}</strong><b>{entry.displayTime}<small>{entry.rankingPoints} p i All time</small></b></li>)}</ol>:<p>Bli först att sätta ett tidsrekord!</p>}{!preview&&<div className="rally-own">Ditt personbästa<strong>{board?.ownBest?.displayTime||'—'}</strong>{board?.ownBest?.historicalTrack&&<small>Äldre bana</small>}</div>}
+        {!preview&&<button type="button" className="text-button" disabled={saving} onClick={loadBoard}>{boardError?'Försök hämta igen':'Uppdatera tidslistan'}</button>}
+        {restoreMessage&&<p role="status">{restoreMessage}</p>}
+        <details><summary>Så räknas tiderna</summary><p>Snabbaste hela trevarvstid vinner, oavsett placering mot datorbilarna. Bäst tid ger 10 poäng i den gemensamma All time-listan, därefter 9–1. Varje simmare räknas bara en gång.</p><p>Originaltider används när de finns. ≈ är en tid konverterad från äldre poäng, med cirka ±0,09 sekunders avrundning. Äldre banor kan skilja sig från dagens bana och är märkta. Konverteringen kan inte återskapa körningar som aldrig sparades.</p><p>Din sparade lokala ghost kan återställa en originaltid när du öppnar spelet. Den får inget påhittat tävlingsdatum och blir inte automatiskt veckans ghost. Aktivitetspoäng och belöningar påverkas inte av konverteringen.</p></details>
+      </section>
     </aside></div>
   </section>
 }

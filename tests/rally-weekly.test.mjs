@@ -83,7 +83,7 @@ test('game freezes weekly rival per start, isolates preview and leaves touch con
   assert.equal((game.match(/raceWeekly\.current=/g)||[]).length,1)
   assert.match(game,/raceWeekly\.current=next\?\.active\?next.leader:null/)
   assert.match(game,/if\(preview\|\|!candidate\|\|!context\?\.active\)return/)
-  assert.match(game,/const candidate=keepGhost\(\);save\(game.current.score\);shareGhost\(candidate\)/)
+  assert.match(game,/const candidate=keepGhost\(\);save\(candidate\);shareGhost\(candidate\)/)
   assert.match(game,/replay:pending\?\.weekStart===context.weekStart/)
   assert.match(game,/if\(saveLock.current\|\|weeklyLock.current\|\|startLock.current\|\|saveError\)return/)
   assert.match(game,/Visa egen ghost/);assert.match(game,/Visa veckans ghost/)

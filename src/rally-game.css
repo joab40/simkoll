@@ -17,6 +17,12 @@
 .rally-weekly-record b{font-size:1.65rem;font-variant-numeric:tabular-nums;letter-spacing:-.03em;color:#6c4a22}
 .rally-weekly-record small{font-size:.65rem;color:#7d694b}
 .rally-weekly .secondary-button{font-size:.75rem;min-height:44px;padding:8px 12px;max-width:100%;white-space:normal}
+.rally-time-board li{align-items:flex-start}
+.rally-time-board li>b{text-align:right;white-space:nowrap}
+.rally-time-board li small{display:block;font-size:.6rem;font-weight:500;color:#6c8280;margin-top:5px}
+.rally-time-board details{margin-top:14px;font-size:.74rem}
+.rally-time-board summary{cursor:pointer;font-weight:700;min-height:32px;color:#28776f}
+.rally-time-board>.text-button{font-size:.72rem;min-height:44px;padding:8px 0}
 @media(max-width:600px){.rally-toolbar>div{width:100%;justify-content:space-between}}
 .rally-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:20px 0 26px}.rally-heading h1{font-size:clamp(1.8rem,3.7vw,2.8rem);line-height:1.12;letter-spacing:-.045em;margin:8px 0 12px}.rally-heading p:not(.eyebrow){color:#688083;margin:0}.rally-heading>span{font-size:.75rem;background:#e1eee5;border-radius:100px;padding:10px 14px;white-space:nowrap}
 .rally-layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:22px;align-items:start}.rally-main{min-width:0;background:#fcfdf7;border:1px solid #d0e1dc;border-radius:22px;overflow:hidden}.rally-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid #e1e8dc;font-size:.8rem;font-weight:700}.rally-toolbar>div{display:flex;gap:8px}.rally-toolbar button{min-height:44px;padding:8px 10px;font-size:.78rem;white-space:nowrap}.rally-hud{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:14px;padding:16px 22px}.rally-hud>div{display:grid;gap:3px}.rally-hud>div:last-child{text-align:right}.rally-hud small{color:#6a8284;font-size:.7rem}.rally-hud strong{font-size:1.8rem;font-variant-numeric:tabular-nums;letter-spacing:-.04em}.rally-hud strong span{font-size:.75rem;font-weight:500;letter-spacing:0}

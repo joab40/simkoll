@@ -1,6 +1,6 @@
 # Simkoll Kustrally
 
-En egen implementation av en enkel top-down-circuitracer, inspirerad av spelidén i Rally Loop. Ingen extern spelkod, grafik, iframe, spelmotor eller spårning används. Originalbanor och all grafik skapas i Simkoll. Veckans delade ghost kräver SQL 116; inget nytt npm-paket krävs i appen.
+En egen implementation av en enkel top-down-circuitracer, inspirerad av spelidén i Rally Loop. Ingen extern spelkod, grafik, iframe, spelmotor eller spårning används. Originalbanor och all grafik skapas i Simkoll. Veckans delade ghost kräver SQL 116 och tidsrankingen kräver SQL 117; inget nytt npm-paket krävs i appen.
 
 ## Var finns det?
 
@@ -23,15 +23,31 @@ Gräset bromsar kraftigt; blå boostplattor ger 0,9 sekunders extra fart. Tolv o
 
 `rally-engine.js` har fast fysiksteg på 1/120 sekund. Kraftiga tidsluckor kapas, och flikbyte pausar i komponenten. `rally-art.js` använder exakt samma banpunkter som vägprojektion, boost och fysik. Miljön cachas som en offscreen-canvas per aktuell bana; däckspår är begränsade till 110 per bil. Canvasen anpassas till elementets storlek och högst 2× pixeltäthet. Minskad rörelse tar bort kamerans framåtförskjutning och boostpuls. Ingen blinkande helskärm eller automatisk ljuduppspelning.
 
-## Resultat
+## Tidsranking och All time (3.112.0)
+
+Kustrallys nya gränssnitt visar **trevarvstid**, inte placeringsbaserade poäng. Servern validerar en fullständig replay med samma kontroll som för veckoghosten och sparar exakt millisekundtid i `rally_times`. Placering mot datorbilarna visas som spelinformation men påverkar inte tidslistan. Varje simmares snabbaste tid ger en plats: etta 10 rankingpoäng, tvåa 9, ned till 1 för tiondeplatsen i den gemensamma All time-listan. Bara ett rallybidrag per simmare räknas. All time använder inte de gamla rallypoängen parallellt. Övriga spel behåller sin rangordning.
+
+SQL 117 körs **efter 116**, i en transaktion. Den säkerhetskopierar samtliga gamla `game_scores`-rader för rally till privata `rally_score_backup` och konverterar de giltiga resultatens tidsdel till uppskattade millisekunder. `game_scores` och alla `point_events`/belöningar lämnas orörda. Ingen separat poängarkivlista visas i det nya gränssnittet. Den gamla poäng-API-vägen finns kvar för klienter som var öppna under uppdateringen; nya klienter använder `game=rally&time=true` och `submit-rally-time`.
+
+För en gammal poäng `s` beräknas `round(180000 × (999 − s % 1000) / 999)`. Ban- och placeringsbonus tas bort. Det är **inte en återfunnen originaltid**: poängen avrundade tidsdelen till cirka 180 ms-steg, med cirka ±90 ms osäkerhet. Tiden märks `≈` och källan `converted`. Resultat som inte kan ge en giltig positiv tid visas inte, men säkerhetskopieras. Tidigare sparade poäng kan ha valt ett långsammare lopp med bättre placering; förlorade, aldrig sparade försök kan inte återskapas.
+
+Gamla poäng har inget säkert banversions-ID. De behålls under `legacy-stage-0/1/2`, märks **Äldre bana** och följer, enligt önskat historikbevarande, med i den sammanlagda tidsrankingen. Banorna kan skilja sig från dagens bana; detta förklaras under Så räknas tiderna och i FAQ. Inget äldre resultat ges dagens banversions-ID på gissning. Serverghosts har däremot både rätt version och exakt tid och kopieras in som `recorded`. När en egen originaltid och en uppskattning faller i samma gamla avrundningsintervall föredras originaltiden. En tydligt snabbare historisk uppskattning bevaras som uppskattning.
+
+En sparad egen lokal ghost kan återställa en bättre originaltid via `restore-rally-time` när simmaren öppnar spelet. Replays valideras på servern; profilen kommer endast från autentiserad session. Återhämtning lagrar `recovered`, utan påhittat ursprungligt datum (`achieved_at = null`), ger inga aktivitetspoäng och publicerar ingen veckoghost. Ett misslyckat återställningsanrop stoppar inte spelet och kan provas igen med Uppdatera tidslistan. Preview/betatester varken hämtar eller sparar/återställer rekord. Endast aktuell validerad banversion kan återställas från webbläsaren.
+
+`rally_times` behåller en bästa tid per profil/banversion, inte varje försök eller replay. En SQL-RPC skyddar ett snabbare rekord mot långsammare samtidiga försök. `last_played_at` uppdateras för riktiga nya lopp även utan personbästa, för befintlig månadsbonus. Återhämtning uppdaterar inte deltagande. Vanliga riktiga lopp ger fortsatt samma idempotenta dagliga `game_played`-poäng, och månadsbonus räknar unika deltagare från gammal spelhistorik och nya tider tillsammans. Migreringen ger inga retroaktiva belöningar.
+
+RLS/privilegier skyddar både tider och säkerhetskopia; bara service role har åtkomst. Profilradering tar även bort profilens tider och backup. Ledarlistan filtrerar inaktiva, ej godkända och testprofiler, väljer ett personbästa per simmare och använder stabil tid/datum/profil-sortering vid lika tid. Misslyckad hämtning ersätts inte tyst med en poänglista. Nya tidsinspelningar har egna spar-/återförsökskontroller och skickar inte poäng till `game_scores`.
+
+## Äldre poängformat (endast kompatibilitet och konvertering)
 
 Bara färdiga trevarvsrace skickar ett heltalsresultat:
 
 `(bana + 1) × 10000 + (4 − placering) × 1000 + avrundat(999 × (1 − racetid / 180))`
 
-Nya lopp använder bana 0: placering väger före tid. Formatet 10 000–33 999 med giltig nivå/placeringsdel behålls för att inte radera eller ogiltigförklara äldre resultat. Luckorna 14 000–19 999 och 24 000–29 999 avvisas. Gamla resultat från den tidigare trebaneversionen finns kvar och kan väga högre än nya; ingen nollställning eller datamigrering görs automatiskt. Rallypoäng och ghostens bästa tid är separata mått.
+Äldre klienter använder bana 0: placering vägde före tid. Formatet 10 000–33 999 med giltig nivå/placeringsdel behålls i kompatibilitetskoden för att kunna läsa äldre resultat. Luckorna 14 000–19 999 och 24 000–29 999 avvisas. Gamla råpoäng ändras inte. Nya tidslistan och dess All time-bidrag använder enbart tider enligt ovan.
 
-Resultat lagras under egen `game_key=rally` och den autentiserade profilen i befintliga `game_scores`. Bara ett bättre veckobästa ersätter ett tidigare resultat. En egen all-time-lista och den sammanlagda All time-listan inkluderar spelet; ogiltiga historiska rallypoäng filtreras. Existerande dags-/lagpoängregler återanvänds. Vid sparfel visas omförsök, och ett nytt race kräver att man sparar eller uttryckligen väljer att fortsätta utan sparning.
+Kompatibilitetsresultat lagras under `game_key=rally` i befintliga `game_scores`. Ny kod skriver inte hit för nya tidsrekord. En redan öppen äldre klient kan fortfarande spara sitt gamla format; servern tar samtidigt tillvara tidsdelen som en tydligt märkt uppskattning. Vid sparfel i det nya spelet visas omförsök för exakt den avslutade replayen; nytt race kräver att man sparar eller uttryckligen fortsätter utan sparning.
 
 Precis som andra Simkoll-minispel verifierar servern profil och rimligt resultat, inte en kryptografisk uppspelning av körningen. Detta är ett frivilligt minispel, inte ett manipulationssäkert tävlingssystem eller ett mått på simprestation.
 
@@ -55,7 +71,7 @@ SQL 116 skapar privat `rally_weekly_ghosts` med **en bästa körning per profil/
 
 Servern kontrollerar version, ändliga värden, max 4 000 bildrutor/180 sekunder/250 kB, rätt startposition, rimlig hastighet och sampling, betalda tresekundersteleporter samt 36 ordnade kontrollpunkter. Det är en rimlighetskontroll av ett klientspel, inte manipulationssäker fysisk simulering. Maxstorleken gäller endast replay; typiska trevarvslopp är betydligt mindre. SQL har ytterligare format-/storleksvillkor.
 
-Ghosten hämtas när spelet öppnas och inför varje nytt lopp. Den fryses för hela loppet, även under paus; ett nytt svar eller sparat rekord ändrar bara underlaget för nästa start. Ingen realtidspollning. Separat uppladdning ger inga extra spelpoäng och ett fel stoppar inte vanlig resultatsparning. Ghostanrop har åtta sekunders timeout; därefter kan man spela vidare utan veckoghost. Delningsfel visas i ghostkortet med eget återförsök. Ett misslyckat äldre försök kan behållas framför en långsammare ny körning samma vecka. FAQ och båda assistenternas gemensamma funktionsguide beskriver funktionen.
+Ghosten hämtas när spelet öppnas och inför varje nytt lopp. Den fryses för hela loppet, även under paus; ett nytt svar eller sparat rekord ändrar bara underlaget för nästa start. Ingen realtidspollning. Separat uppladdning ger inga extra spelpoäng och ett fel stoppar inte vanlig tidssparning. Ghostanrop har åtta sekunders timeout; därefter kan man spela vidare utan veckoghost. Delningsfel visas i ghostkortet med eget återförsök. Ett misslyckat äldre försök kan behållas framför en långsammare ny körning samma vecka. FAQ och båda assistenternas gemensamma funktionsguide beskriver funktionen.
 
 ## Verifiering
 

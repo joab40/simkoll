@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
-import {rallyScore,RALLY_MAX_SCORE} from '../src/rally-engine.js'
+import {rallyScore,RALLY_MAX_SCORE,RALLY_REPLAY_VERSION} from '../src/rally-engine.js'
 process.env.SUPABASE_URL='https://rally-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY='fixture'
 process.env.SIMKOLL_SWIMMER_CODE='rally-swimmer'
@@ -17,7 +17,7 @@ function fixture({session=true,existing=[],scores=[row],schedule}={}){
   globalThis.fetch=async(raw,options={})=>{
     const path=String(raw).split('/rest/v1/')[1];let data=[]
     if(options.method)writes.push({path,method:options.method,body:JSON.parse(options.body||'{}')})
-    else{reads.push(path);if(path.startsWith('profile_sessions?'))data=session?[{profile_id:'driver'}]:[];else if(path.startsWith('profiles?'))data=[{id:'driver'}];else if(path.startsWith('app_settings?')&&schedule)data=[{setting_value:{schedule}}];else if(path.includes('select=id,score'))data=existing;else if(path.includes('select=profile_id&limit'))data=[{profile_id:'driver'}];else if(path.startsWith('game_scores?'))data=scores}
+    else{reads.push(path);if(path.startsWith('profile_sessions?'))data=session?[{profile_id:'driver'}]:[];else if(path.startsWith('profiles?'))data=[{id:'driver'}];else if(path.startsWith('app_settings?')&&schedule)data=[{setting_value:{schedule}}];else if(path.includes('select=id,score'))data=existing;else if(path.includes('select=profile_id&limit'))data=[{profile_id:'driver'}];else if(path.startsWith('game_scores?'))data=scores;else if(path.startsWith('rally_times?'))data=[{profile_id:'driver',duration_ms:42000,track_version:RALLY_REPLAY_VERSION,time_source:'recorded',saved_at:row.created_at,profiles:row.profiles}]}
     return{ok:true,json:async()=>data}
   }
   return{writes,reads}
@@ -64,7 +64,7 @@ test('both real app entry points lazy-load rally and coach preview cannot save',
   assert.match(main,/rally: \(\) => onOpen\('rally'\)/)
   assert.match(main,/screen === 'rally' && <RallyGame/)
   assert.ok(main.includes("{testing === 'rally' && <RallyGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />"))
-  assert.match(component,/if\(preview\|\|!validRallyScore\(score\)\|\|saveLock.current\)return/)
+  assert.match(component,/if\(preview\|\|!validRallyReplay\(replay\)\|\|saveLock.current\)return/)
   assert.match(component,/visibilitychange/);assert.match(component,/onPointerCancel=\{lift\}/);assert.match(component,/onLostPointerCapture=\{lift\}/)
   assert.doesNotMatch(component,/brake|Broms|nextUnlocked|chooseStage/)
   assert.match(main,/profileId=\{profile\?\.id\} code=\{auth.code\}/)

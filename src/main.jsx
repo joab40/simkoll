@@ -1292,8 +1292,14 @@ function AppFeedbackCard({ code, coach = false }) {
 
 function AllTimeGames({ code, onBack }) {
   const [data, setData] = useState(null)
-  useEffect(() => { apiRequest('/api/points?game=alltime', code).then(setData).catch(() => setData({ leaderboard: [] })) }, [code])
-  return <section className="game-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel</p><h1>All time-topplistan 🏆</h1><p className="game-intro">En permanent ranking från alla spel över tid. Vinnaren i varje spel får 10 poäng, sedan 9–1.</p></div><section className="game-scoreboard"><p className="eyebrow">Alla spel tillsammans</p><h2>Top 10</h2>{data?.leaderboard?.length ? <div>{data.leaderboard.map((item) => <article key={item.displayName}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}</section></div></section>
+  const [loadError, setLoadError] = useState(false), [retry, setRetry] = useState(0)
+  useEffect(() => {
+    let active = true
+    setLoadError(false); setData(null)
+    apiRequest('/api/points?game=alltime', code).then(result => { if (active) setData(result) }).catch(() => { if (active) setLoadError(true) })
+    return () => { active = false }
+  }, [code, retry])
+  return <section className="game-page"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="game-layout"><div><p className="eyebrow">Veckans spel</p><h1>All time-topplistan 🏆</h1><p className="game-intro">En permanent ranking från alla spel över tid. Vinnaren i varje spel får 10 poäng, sedan 9–1. I Kustrally avgör snabbaste trevarvstiden, inte placeringen mot datorbilarna. Äldre konverterade tider märks med ≈ i rallyts tidslista.</p></div><section className="game-scoreboard"><p className="eyebrow">Alla spel tillsammans</p><h2>Top 10</h2>{loadError ? <div role="alert"><p>Topplistan kunde inte hämtas. Det betyder inte att rekorden är borta.</p><button type="button" className="secondary-button" onClick={() => setRetry(value => value + 1)}>Försök igen</button></div> : !data ? <p role="status">Hämtar topplistan…</p> : data.leaderboard?.length ? <div>{data.leaderboard.map((item) => <article key={item.displayName}><b>{item.rank}</b><span>{item.emoji}</span><strong>{item.displayName}</strong><em>{item.score}</em></article>)}</div> : <p className="empty">Ingen har spelat ännu.</p>}</section></div></section>
 }
 
 const formatRaceTime = (milliseconds) => { const total = Math.max(0, Math.round(milliseconds)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const hundredths = Math.floor((total % 1000) / 10); return `${minutes}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}` }

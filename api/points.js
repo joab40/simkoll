@@ -3,6 +3,8 @@ import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { loadGameBeta, saveGameBeta, requireBetaProfile } from '../server/game-beta.js'
 import { sharedRallyReplay, loadWeeklyRallyGhost, saveWeeklyRallyGhost } from '../server/rally-weekly.js'
 import { rallyWeekStart } from '../shared/rally-weekly.js'
+import { loadRallyTimeRows, rallyTimeLeaderboard, saveRallyTime } from '../server/rally-times.js'
+import { convertedRallyTime } from '../shared/rally-times.js'
 import { SPRINT_BASE, SPRINT_MIN_MS, SPRINT_MAX_MS, sprintTime, validSprintScore } from '../src/sprint-engine.js'
 import { jumpMetres, validJumpScore, JUMP_MAX_SCORE } from '../src/long-jump-engine.js'
 import { RALLY_MAX_SCORE, RALLY_REPLAY_VERSION, validRallyScore } from '../src/rally-engine.js'
@@ -31,7 +33,7 @@ const GAME_CATALOG = [
   { key: 'sprint100', title: '100m Sprint', emoji: '⚡', description: 'Växla stegen, hitta rytmen och jaga din bästa tid.', route: 'sprint100' },
   { key: 'longjump', title: 'Längdhopp', emoji: '🏅', description: 'Bygg fart, sikta på 45° och landa ditt längsta hopp.', route: 'longjump' },
   { key: 'hurdles100', title: '100 meter häck', emoji: '🏃', description: 'Bygg fart och tajma tio häckar. Snabbaste tiden vinner.', route: 'hurdles100' },
-  { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'En kort kustbana med mjuka kurvor, boost och din egen ghostbil.', route: 'rally' },
+  { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'Tre varv mot klockan. Jaga din egen eller veckans ghost och slå snabbaste tiden.', route: 'rally' },
   { key: 'dino', title: 'Huggorm Runner', emoji: '🐍', description: 'Hjälp huggormen hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
   { key: 'balance', title: 'Preppes balansjakt', emoji: '🚲', description: 'Håll framhjulet i luften, hitta balansen och samla bonus längs vattnet.', route: 'balance' },
 ]
@@ -62,7 +64,13 @@ async function awardTeamGameBonus(key) {
   const start = monthStart()
   const result = await supabaseRequest(`game_scores?game_key=eq.${key}&created_at=gte.${start}T00:00:00.000Z&select=profile_id&limit=10000`)
   if (!result.ok) throw new Error(`Team game lookup failed: ${result.status}`)
-  const participants = [...new Set((await result.json()).map((row) => row.profile_id))]
+  const ids = (await result.json()).map(row => row.profile_id)
+  if (key === 'rally') {
+    const times = await supabaseRequest(`rally_times?last_played_at=gte.${start}T00:00:00.000Z&select=profile_id&limit=10000`)
+    if (!times.ok) throw new Error('Rally participants lookup failed')
+    ids.push(...(await times.json()).map(row=>row.profile_id))
+  }
+  const participants = [...new Set(ids)]
   if (participants.length < TEAM_GAME_TARGET) return { unlocked: false, participants: participants.length }
   await Promise.all(participants.map((profileId) => awardPoints(profileId, 'game_played', 20, `team-${key}-${start}`)))
   return { unlocked: true, participants: participants.length }
@@ -99,9 +107,13 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,hurdles100,rally,dino,balance)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
+  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,hurdles100,dino,balance)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
-  const rows = (await result.json()).filter((item) => (item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE) && (item.game_key !== 'sprint100' || validSprintScore(Number(item.score))) && (item.game_key !== 'hurdles100' || validHurdleScore(Number(item.score))) && (item.game_key !== 'longjump' || validJumpScore(Number(item.score))) && (item.game_key !== 'balance' || validBalanceScore(Number(item.score))) && (item.game_key !== 'rally' || validRallyScore(Number(item.score)))); const games = new Map()
+  // Legacy rally points must not contribute alongside rally's time ranking.
+  const rows = (await result.json()).filter((item) => item.game_key !== 'rally' && (item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE) && (item.game_key !== 'sprint100' || validSprintScore(Number(item.score))) && (item.game_key !== 'hurdles100' || validHurdleScore(Number(item.score))) && (item.game_key !== 'longjump' || validJumpScore(Number(item.score))) && (item.game_key !== 'balance' || validBalanceScore(Number(item.score))))
+  const rally = await loadRallyTimeRows()
+  rows.push(...rally.map(row=>({profile_id:row.profileId,game_key:'rally',score:-row.durationMs,created_at:row.savedAt,profiles:{display_name:row.displayName,emoji:row.emoji}})))
+  const games = new Map()
   rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
   const totals = new Map()
   games.forEach((items) => { const best = new Map(); items.forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) }); [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10).forEach((item, index) => { const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += 10 - index; totals.set(item.profile_id, current) }) })
@@ -130,6 +142,21 @@ const POINT_RULES = [
 export default async function handler(request, response) {
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
+    if (request.body?.action === 'submit-rally-time' || request.body?.action === 'restore-rally-time') {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
+      if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att spara rallytid.' })
+      const profile = await getSessionProfile(request)
+      if (!profile || profile.is_test_profile) return sendJson(response, 403, { error: 'En aktiv simmarprofil krävs. Testlopp ger inga tidsrekord.' })
+      const replay = sharedRallyReplay(request.body.replay), restoring = request.body.action === 'restore-rally-time'
+      if (!replay) return sendJson(response, 400, { error: 'Tiden måste komma från ett giltigt, fullständigt trevarvslopp på den aktuella banan.' })
+      await saveRallyTime(profile.id, replay.duration, replay.version, restoring ? 'recovered' : 'recorded')
+      let teamBonus = null
+      if (!restoring) {
+        await awardPoints(profile.id, 'game_played', 1, `rally:${stockholmDate()}`)
+        teamBonus = await awardTeamGameBonus('rally')
+      }
+      return sendJson(response, 200, { ...await rallyTimeLeaderboard(profile.id), teamBonus })
+    }
     if (request.query?.rallyGhost === 'true' || request.body?.action === 'submit-rally-ghost') {
       const submitting = request.body?.action === 'submit-rally-ghost'
       if (request.method !== (submitting ? 'POST' : 'GET')) return sendJson(response, 405, { error: 'Metoden stöds inte.' })
@@ -172,6 +199,12 @@ export default async function handler(request, response) {
         } else if (score > existing.score) {
           const update = await supabaseRequest(`game_scores?id=eq.${existing.id}`, { method: 'PATCH', body: JSON.stringify({ score, created_at: new Date().toISOString() }) })
           if (!update.ok) throw new Error(`Game score update failed: ${update.status}`)
+        }
+        if (key === 'rally') {
+          // Compatibility for a previously opened client during rollout. Its
+          // rounded score is only an estimate, never promoted to an original.
+          const converted = convertedRallyTime(score)
+          if (converted) await saveRallyTime(profile.id, converted.durationMs, converted.trackVersion, 'converted')
         }
         await awardPoints(profile.id, 'game_played', 1, `${key}:${stockholmDate()}`)
         const teamBonus = await awardTeamGameBonus(key)
@@ -328,6 +361,7 @@ export default async function handler(request, response) {
     if (requestedGame) {
       const profile = await getSessionProfile(request)
       if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
+      if (requestedGame === 'rally' && request.query?.time === 'true') return sendJson(response, 200, await rallyTimeLeaderboard(profile.id))
       if (requestedGame === 'alltime') return sendJson(response, 200, await allTimeGameLeaderboard())
       if (request.query?.lifetime === 'true') return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, requestedGame))
       return sendJson(response, 200, request.query?.monthly === 'true' ? await monthlyGameLeaderboard(profile.id, requestedGame) : await gameLeaderboard(profile.id, weekStart(), requestedGame))
