@@ -10,6 +10,7 @@ import { isTimeId } from '../shared/swim-times.js'
 import { writeAuditLog } from '../server/audit.js'
 import { loadCoachWeek } from '../server/coach-week.js'
 import { loadSwimmerTraffic } from '../server/swimmer-traffic.js'
+import { loadPeriodization } from '../server/periodization.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
 import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 import { validProgramType } from '../shared/program-kind.js'
@@ -140,6 +141,24 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if (request.query?.periodization === 'true') {
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Periodisering kan bara läsas.' })
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se periodisering i simmarkortet.' })
+      const coach = coachFromRequest(request)
+      if (!coach || !isTimeId(coach.sub)) return sendJson(response, 403, { error: 'Logga in med ditt personliga tränarkonto.' })
+      const membership = await supabaseRequest(`coach_accounts?id=eq.${coach.sub}&status=eq.active&select=id,role&limit=1`)
+      if (!membership.ok) return sendJson(response, 503, { error: 'Tränarbehörigheten kunde inte verifieras.' })
+      const account = (await membership.json())[0]
+      if (!account || account.role !== coach.role || !['coach', 'head_coach', 'superadmin'].includes(account.role)) return sendJson(response, 403, { error: 'Tränarkontot saknar behörighet.' })
+      const profileId = String(request.query.profileId || '')
+      if (!isTimeId(profileId)) return sendJson(response, 400, { error: 'Välj en simmare.' })
+      const found = await supabaseRequest(`profiles?id=eq.${profileId}&active=eq.true&approval_status=eq.approved&select=id,training_group&limit=1`)
+      if (!found.ok) return sendJson(response, 502, { error: 'Simmaren kunde inte hämtas.' })
+      const profile = (await found.json())[0]
+      if (!profile) return sendJson(response, 404, { error: 'Simmarprofilen är inte tillgänglig.' })
+      try { return sendJson(response, 200, await loadPeriodization(profile, stockholmDate())) } catch (error) { return sendJson(response, 502, { error: error.message }) }
+    }
     if (request.method === 'GET' && request.query?.traffic === 'true') {
       if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se gruppens trafikljus.' })
       response.setHeader?.('Cache-Control', 'private, no-store')

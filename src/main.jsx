@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import FeatureFaq from './feature-faq.jsx'
 import RewardLevelCard from './reward-level-card.jsx'
+import SwimmerPeriodization from './swimmer-periodization.jsx'
 import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
 import { apiRequest } from './api-request.js'
@@ -5275,7 +5276,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             </button>
             <SwimmerAgreementCard profile={profile} code={code} request={apiRequest} onOpenTalk={onOpenTalk ? (talkId) => onOpenTalk(profile.id, talkId) : undefined} />
             <SwimmerCompactWeek training={training} profileId={profile.id} />
-            {profilePoints[profile.id] && <PointProgress info={profilePoints[profile.id]} compact />}
+            <SwimmerPeriodization key={profile.id} profile={profile} code={code} request={apiRequest} />
             <section className="swimmer-training-goals"><p className="eyebrow">Simning, landträning och styrka</p>{trainingGoals.length ? <div>{trainingGoals.map((item) => <div key={item.label}><span>{item.icon}</span><p><strong>{item.completed} av {item.target} {item.label.toLowerCase()}</strong><i><b style={{ width: `${Math.min(100, Math.round((item.completed / item.target) * 100))}%` }} /></i></p></div>)}</div> : <small>Inga aktiva träningsmål registrerade.</small>}<details className="swimmer-goal-edit"><summary>Ändra överenskomna mål</summary><form onSubmit={(event) => { event.preventDefault(); saveTrainingGoals(profile, swimGoal, crossGoal) }}><label>Simning / vecka<input type="number" min="1" max="14" value={trainingGoalDrafts[profile.id]?.swim ?? swimGoal?.target ?? ''} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), swim: event.target.value } }))} /></label><label>Land / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.dryland ?? crossGoal?.drylandTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), dryland: event.target.value } }))} /></label><label>Styrka / vecka<input type="number" min="0" max="7" value={trainingGoalDrafts[profile.id]?.strength ?? crossGoal?.strengthTarget ?? 3} onChange={(event) => setTrainingGoalDrafts((current) => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), strength: event.target.value } }))} /></label><button type="submit">Spara mål</button>{trainingGoalStatus[profile.id] && <small>{trainingGoalStatus[profile.id]}</small>}</form><small>Ändras efter dialog med simmaren.</small></details></section>
             <SwimmerStrengthProgramCard profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerStrengthProgramCard programType="dryland" profile={profile} training={training} code={code} onChanged={loadTraining} />

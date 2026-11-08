@@ -1,0 +1,26 @@
+.swimmer-periodization { min-width: 0; margin: 14px 0; border: 1px solid #c5dfd8; border-radius: 18px; background: linear-gradient(120deg, #f2faf6, #fff); }
+.periodization-body { padding: 0 14px 14px; min-width: 0; }
+.periodization-toolbar, .periodization-toolbar > div, .periodization-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.periodization-toolbar { justify-content: space-between; border-top: 1px solid #dce8e4; padding-top: 12px; }
+.periodization-toolbar button { min-height: 44px; padding: 8px 10px; font-size: 11px; border: 1px solid #bdd7ce; border-radius: 11px; background: #fff; font-weight: 700; }
+.periodization-toolbar > .text-button { background: transparent; border-color: transparent; color: #126e71; }
+.swimmer-periodization button:focus-visible { outline: 3px solid #126e71; outline-offset: 2px; }
+.periodization-toolbar button[aria-pressed="true"] { background: #126e71; color: #fff; border-color: #126e71; }
+.periodization-range, .periodization-selection, .periodization-method p { font-size: 11px; color: #526b70; line-height: 1.6; }
+.periodization-legend { font-size: 10px; color: #38585e; gap: 12px; }
+.periodization-legend span { display: inline-flex; gap: 5px; align-items: center; }
+.periodization-legend i { width: 14px; height: 3px; background: #c44b67; }
+.periodization-chart-scroll { overflow-x: auto; max-width: 100%; overscroll-behavior-x: contain; margin-top: 10px; border-radius: 8px; }
+.periodization-chart-scroll svg { display: block; min-width: 100%; height: auto; font-family: inherit; }
+.periodization-chart-scroll text { fill: #48646a; font-size: 10px; }
+.periodization-chart-scroll .periodization-axis-title { font-size: 11px; font-weight: 700; }
+.periodization-bar-target { cursor: pointer; outline: none; }
+.periodization-bar-target:focus-visible > rect:first-of-type { stroke: #126e71; stroke-width: 2; }
+.periodization-selection { min-height: 36px; margin: 0; }
+.periodization-table, .periodization-method { margin-top: 6px; font-size: 11px; }
+.periodization-table > summary, .periodization-method > summary { padding: 10px 36px 10px 0; cursor: pointer; color: #126e71; }
+.periodization-table > div { max-width: 100%; overflow-x: auto; }
+.periodization-table table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; }
+.periodization-table :is(th, td) { border-bottom: 1px solid #dce8e4; padding: 8px 6px; }
+.periodization-table th small { display: block; font-weight: 400; white-space: nowrap; }
+@media (max-width: 480px) { .periodization-toolbar > div { width: 100%; display: grid; grid-template-columns: 1fr 1fr; } .periodization-body { padding-inline: 10px; } }
