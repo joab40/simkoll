@@ -1279,6 +1279,10 @@ button { cursor: pointer; }
 .planning-foundation > div { padding: 8px 0; }
 .planning-foundation > div > strong { color: var(--ink); }
 .planning-foundation > div > p { margin: 8px 0; white-space: pre-line; }
+.program-source-page { display: grid; gap: 6px; max-width: 480px; margin: 12px 0; font-size: 12px; font-weight: 700; }
+.program-source-page > input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #bfd8d0; border-radius: 11px; background: #fff; color: var(--ink); }
+.program-source-page > small, .program-column-source { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.6; }
+.program-column-source { padding: 10px 12px; background: #edf7f2; border: 1px solid #d2e6de; border-radius: 10px; }
 .swimmer-trend-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px 12px; width: 100%; margin: 12px 0 16px; padding: 13px 15px; border: 1px solid #dbe7e3; border-radius: 14px; background: linear-gradient(115deg, #f4faf6, #fff); color: var(--ink); text-align: left; cursor: pointer; }
 .swimmer-trend-card:hover { border-color: #a9ccc1; background: #f0f8f4; }
 .swimmer-trend-card:focus-visible { outline: 3px solid rgba(45, 126, 115, .25); outline-offset: 2px; }

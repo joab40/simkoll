@@ -3881,6 +3881,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
   const [sessions, setSessions] = useState([])
   const [draft, setDraft] = useState(null)
   const [source, setSource] = useState(null)
+  const [programSourcePage, setProgramSourcePage] = useState('')
   const [loading, setLoading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -3902,6 +3903,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
     if (!file) return
     const type = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : '')
     if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type)) return setError('Välj en bild eller PDF. Exportera Word till PDF för att bevara tabellernas layout.')
+    if (programSourcePage && (type !== 'application/pdf' || !Number.isInteger(Number(programSourcePage)) || Number(programSourcePage) < 1 || Number(programSourcePage) > 999)) return setError('Sidval gäller PDF: välj ett helt sidnummer 1–999, eller lämna fältet tomt för hela dokumentet.')
     if (file.size > 3 * 1024 * 1024) return setError('Välj en fil under 3 MB så att den ryms i uppladdningen. Exportera eller komprimera dokumentet och försök igen.')
     setImporting(true); setError(''); setSuccess('')
     if (!await load()) { setImporting(false); return }
@@ -3909,7 +3911,7 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
     reader.onerror = () => { setError('Filen kunde inte läsas.'); setImporting(false) }
     reader.onload = async () => {
       try {
-        const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-competition-program', competitionId: competition.id, fileData: reader.result, mimeType: type, fileName: file.name }) })
+        const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-competition-program', competitionId: competition.id, fileData: reader.result, mimeType: type, fileName: file.name, sourcePage: programSourcePage ? Number(programSourcePage) : null }) })
         if (!data.draft) throw new Error('Inget granskningsutkast kom tillbaka.')
         if (sourceRef.current) URL.revokeObjectURL(sourceRef.current)
         sourceRef.current = URL.createObjectURL(file)
@@ -3934,7 +3936,8 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
       <button type="button" className="secondary-button" onClick={() => { if (draft && !window.confirm('Lämna det osparade utkastet och visa det sparade grenprogrammet?')) return; setDraft(null); load() }} disabled={loading || importing || saving}>{loading ? 'Laddar…' : 'Visa sparat program'}</button>
       {canManage ? <><label className={`secondary-button competition-import-button${importing ? ' is-importing' : ''}`}><span className="competition-import-label"><span className="competition-import-icon" aria-hidden="true">{importing ? '🧠' : '📎'}</span>{importing ? 'Analyserar pass och grenar…' : 'Läs in bild / PDF'}</span><input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={importFile} disabled={importing || saving || !!draft} /></label><small>AI läser pass och grenrader separat. Du granskar och godkänner innan något sparas. Word? Exportera först till PDF.</small></> : <small>Inläsning och AI-analys av tävlings-PM hanteras av huvudtränare eller superadmin.</small>}
     </div>
-    {importing && <p role="status" className="program-analysis-status">Läser tabellernas struktur och kontrollerar grenordningen. Större dokument kan ta ett par minuter.</p>}
+    {canManage && <label className="program-source-page">PDF-sida att läsa (valfritt)<input type="number" min="1" max="999" step="1" inputMode="numeric" placeholder="Alla sidor / automatiskt bilageval" value={programSourcePage} disabled={importing || saving || !!draft} onChange={event => setProgramSourcePage(event.target.value)} /><small>Flera bilagor i samma PDF? Ange sidan med rätt grenordning, till exempel 5. Tävlingens namn och datum används för att skilja programmen åt.</small></label>}
+    {importing && <p role="status" className="program-analysis-status">Väljer rätt grenordning, läser varje dag/tid-kolumn och kontrollerar grenarnas passkoppling. Större dokument kan ta ett par minuter.</p>}
     {error && !draft && <p role="alert" className="program-warning">{error}</p>}
     {success && <p role="status" className="program-save-success">{success}</p>}
     {draft && <CompetitionProgramReview draft={draft} setDraft={setDraft} saving={saving} publishError={error} onPublish={publish} onCancel={() => { setDraft(null); setError('') }} sourceUrl={source.url} sourceType={source.type} />}

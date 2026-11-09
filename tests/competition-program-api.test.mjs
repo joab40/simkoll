@@ -19,6 +19,7 @@ test('analysis endpoint never replaces saved events', async () => {
   const replies = [{ sessions: salsimmet.sessions, ageClasses: 'A–F', warnings: [] }, { events: salsimmet.events, warnings: [] }]
   globalThis.fetch = async (url, init) => {
     if (String(url).startsWith('https://api.openai.com/')) return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify(replies.shift()) }) }
+    if (String(url).includes('/competition_calendar?')) return { ok: true, json: async () => [{ id: 'fixture-competition', title: 'Sälsimmet', start_date: '2026-10-17', end_date: '2026-10-18' }] }
     if (init?.method === 'POST' || init?.method === 'DELETE') writes.push(url)
     return { ok: true, json: async () => [] }
   }
@@ -76,4 +77,28 @@ test('publishing allows missing classes and free text session times', async () =
     return { ok: true, json: async () => [] }
   }
   assert.equal((await post({ ...publish, draft })).code, 200)
+})
+
+test('import uses saved competition context, not caller-supplied dates, and fails before AI when unavailable', async () => {
+  const replies = [{ sessions: salsimmet.sessions, warnings: [] }, { events: salsimmet.events, warnings: [] }]
+  let aiCalls = 0
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/competition_calendar?')) return { ok: true, json: async () => [{ title: 'Sparad tävling', start_date: '2026-10-17', end_date: '2026-10-18' }] }
+    if (String(url).startsWith('https://api.openai.com/')) {
+      aiCalls++
+      const prompt = JSON.parse(init.body).input[1].content[0].text
+      assert.match(prompt, /Sparad tävling/); assert.doesNotMatch(prompt, /1999-01-01/)
+      return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify(replies.shift()) }) }
+    }
+    return { ok: true, json: async () => [] }
+  }
+  const body = { action: 'import-competition-program', competitionId: 'fixture-competition', competition: { startDate: '1999-01-01' }, fileData: 'data:image/jpeg;base64,dGVzdA==' }
+  assert.equal((await post(body)).code, 200); assert.equal(aiCalls, 2)
+  for (const available of [false, true]) {
+    globalThis.fetch = async url => {
+      assert(!String(url).startsWith('https://api.openai.com/'), 'no AI charge if competition context is missing')
+      return { ok: String(url).includes('/competition_calendar?') ? available : true, json: async () => [] }
+    }
+    assert.equal((await post(body)).code, available ? 404 : 502)
+  }
 })

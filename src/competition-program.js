@@ -11,7 +11,7 @@ export function normalizeProgram(draft = {}) {
     return match ? `${match[1].padStart(2, '0')}:${match[2]}` : text
   }
   return {
-    sessions: Array.isArray(draft.sessions) ? draft.sessions.map((s) => ({ label: trim(s.label, 60), date: trim(s.date, 40), warmup: time(s.warmup), start: time(s.start), expectedNumbers: Array.isArray(s.expectedNumbers) ? s.expectedNumbers.map((n) => trim(n, 20)) : [] })) : [],
+    sessions: Array.isArray(draft.sessions) ? draft.sessions.map((s) => ({ label: trim(s.label, 60), date: trim(s.date, 40), warmup: time(s.warmup), start: time(s.start), expectedNumbers: Array.isArray(s.expectedNumbers) ? s.expectedNumbers.map((n) => trim(n, 20)) : [], ...(Number.isInteger(s.sourcePage) && s.sourcePage > 0 ? { sourcePage: s.sourcePage } : {}), ...(s.sourceHeader ? { sourceHeader: trim(s.sourceHeader, 150) } : {}) })) : [],
     warnings: Array.isArray(draft.warnings) ? draft.warnings.map((w) => trim(w, 400)) : [],
     events: Array.isArray(draft.events) ? draft.events.map((e, i) => ({
       eventOrder: i + 1, eventNumber: trim(e.eventNumber, 20), sessionLabel: trim(e.sessionLabel, 60),

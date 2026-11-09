@@ -1168,7 +1168,11 @@ export default async function handler(request, response) {
         const availability = await aiAvailability(); if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         const competitionId = String(request.body.competitionId || '')
         if (!competitionId) return sendJson(response, 400, { error: 'Tävling saknas.' })
-        const parsed = await interpretCompetitionProgram(request, request.body)
+        const lookup = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(competitionId)}&select=id,title,start_date,end_date&limit=1`)
+        if (!lookup.ok) return sendJson(response, 502, { error: 'Den valda tävlingen kunde inte hämtas. Inget har analyserats eller sparats.' })
+        const competition = (await lookup.json())[0]
+        if (!competition) return sendJson(response, 404, { error: 'Den valda tävlingen finns inte längre.' })
+        const parsed = await interpretCompetitionProgram(request, { ...request.body, competition: { title: competition.title, startDate: competition.start_date, endDate: competition.end_date } })
         if (parsed.error) return sendJson(response, 422, parsed)
         return sendJson(response, 200, parsed)
       }
