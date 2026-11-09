@@ -1,3 +1,5 @@
+import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
+
 const groupKey = (value) => ({
   'ungdom orange': 'ungdom_orange',
   'ungdom svart': 'ungdom_svart',
@@ -33,7 +35,8 @@ function publicWorkout(item) {
 
 export function deduplicatePlannedActivities({ plans = [], workouts = [], from, to, selectedGroups = null }) {
   const inDateRange = (date) => date >= from && date < to
-  const scopedPlans = plans.filter((item) => inDateRange(item.plan_date) && ['swim', 'strength', 'dryland', 'competition'].includes(item.activity_type) && matchesScope(item, selectedGroups)).map(publicPlan)
+  const effectivePlans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(item => item.id)) }).rows
+  const scopedPlans = effectivePlans.filter((item) => inDateRange(item.plan_date) && ['swim', 'strength', 'dryland', 'competition'].includes(item.activity_type) && matchesScope(item, selectedGroups)).map(publicPlan)
   const scopedWorkouts = workouts.filter((item) => inDateRange(item.workout_date) && matchesScope(item, selectedGroups)).map(publicWorkout)
 
   const findLinkedWorkout = (plan) => {

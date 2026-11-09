@@ -1,9 +1,11 @@
 import { plannedSwimTime } from './planned-swim-time.js'
+import { calendarPlanComplements } from './calendar-plan-complements.js'
 
 // References distinguish a published workout from a manual planning row.
 export const workoutReference = (item) => item.workoutReference || (item.sourceWorkoutId ? `workout:${item.sourceWorkoutId}` : `${item.activityType ? 'plan' : 'workout'}:${item.id}`)
 
 export function swimWorkoutOptions(workouts = [], plans = []) {
+  plans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(item => item.id)) }).rows
   const published = workouts.map((item) => {
     const linked = plans.find((plan) => plan.sourceWorkoutId === item.id && plan.calendarLink?.mode === 'linked')
     const linkedMinutes = plans.filter(plan => plan.sourceWorkoutId === item.id && plan.date === item.date && !plan.calendarLink?.detachedWorkoutId).map(plan => plan.durationMinutes)

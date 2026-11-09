@@ -39,9 +39,9 @@ export async function loadSwimmerTraffic(asOf, read = supabaseRequest) {
   const needsEstimates = [...own.values()].some(reports => trainingHeartAfterReports(reports.filter(row => row.date >= start)).some(canEstimateTrainingTime))
   const [workouts, trainingPlans] = needsEstimates ? await Promise.all([
     rows(`daily_workouts?${dated('workout_date')}&select=id,workout_date,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,id.asc`),
-    rows(`training_plans?activity_type=eq.swim&${dated('plan_date')}&select=id,plan_date,activity_type,distance_meters,duration_minutes,time_of_day,target_groups,source_workout_id,calendar_mode:calendar_link->>mode,detached_workout_id:calendar_link->>detachedWorkoutId&order=plan_date.asc,id.asc`),
+    rows(`training_plans?activity_type=eq.swim&${dated('plan_date')}&select=id,plan_date,activity_type,distance_meters,duration_minutes,time_of_day,target_groups,source_workout_id,calendar_link&order=plan_date.asc,id.asc`),
   ]) : [[], []]
-  const linkedPlans = trainingPlans.map(row => ({ ...row, calendar_link: { mode: row.calendar_mode, detachedWorkoutId: row.detached_workout_id } }))
+  const linkedPlans = trainingPlans.map(row => ({ ...row, calendar_link: row.calendar_link || { mode: row.calendar_mode, detachedWorkoutId: row.detached_workout_id } }))
   const enriched = profiles.flatMap(profile => withLinkedTrainingAmounts(own.get(profile.id) || [], { workouts, plans: linkedPlans, trainingGroup: profile.training_group, asOf }))
   return buildSwimmerTraffic(profiles.map(row => ({ id: row.id, createdAt: row.created_at, active: row.active, approvalStatus: row.approval_status, isTestProfile: row.is_test_profile })), {
     responses: enriched,

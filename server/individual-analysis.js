@@ -1,4 +1,5 @@
 import { plannedSwimTime, commonPlannedSwimTime } from '../shared/planned-swim-time.js'
+import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
 
 const number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
 const keys = ['feeling', 'energy', 'body', 'rpe', 'speedFeeling', 'temperature', 'passRating']
@@ -19,6 +20,8 @@ export const analysisResponse = (row) => {
 // Use explicit AM/PM links when present. Never attach the same day's feedback to both
 // AM and PM, or count a planned workout's full distance as actually swum.
 export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], trainingGroup }) {
+  const originalPlans = plans
+  plans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(row => row.id)) }).rows
   const inGroup = (row) => !row.target_groups?.length || Boolean(trainingGroup && row.target_groups.includes(trainingGroup))
   const candidates = workouts.filter(inGroup).map((row) => ({ ...row, duration_minutes: plannedSwimTime(row.duration_minutes, plans.filter(plan => plan.source_workout_id === row.id && plan.plan_date === row.workout_date && !plan.calendar_link?.detachedWorkoutId && inGroup(plan)).map(plan => plan.duration_minutes)) ?? row.duration_minutes, time_of_day: plans.find((plan) => plan.source_workout_id === row.id && plan.calendar_link?.mode === 'linked' && inGroup(plan))?.time_of_day || row.time_of_day, source: 'published', note: [row.note, ...plans.filter((plan) => plan.source_workout_id === row.id && inGroup(plan)).map((plan) => plan.notes)].filter(Boolean).join('\n').slice(0, 2500) }))
   plans.filter((row) => row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && (!row.source_workout_id || !workouts.some((workout) => workout.id === row.source_workout_id)) && inGroup(row)).forEach((row) => candidates.push({ ...row, workout_date: row.plan_date, note: row.notes, source: 'plan' }))
@@ -52,6 +55,10 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     const selectedReference = (feedbackLink === 'slot' ? slotFeedback[0] : feedbackLink === 'day_only' ? legacyFeedback[0] : null)?.workout_reference
     if (selectedReference) {
       candidate = sameDay.find((row) => `${row.source === 'published' ? 'workout' : 'plan'}:${row.id}` === selectedReference && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay)) || null
+      // Retain an explicit historical choice of the base plan; don't rewrite
+      // that old report to the later publication's potentially different meters.
+      const historicalPlan = selectedReference.startsWith('plan:') && originalPlans.find(row => `plan:${row.id}` === selectedReference && !row.source_workout_id && row.plan_date === day && row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && inGroup(row) && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay))
+      if (!candidate && historicalPlan) candidate = { ...historicalPlan, workout_date: day, source: 'plan' }
       matchStatus = candidate ? 'slot' : 'ambiguous'
       const selected = workouts.find(row => `workout:${row.id}` === selectedReference) || plans.find(row => `plan:${row.id}` === selectedReference)
       if (candidate) matchReason = null

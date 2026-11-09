@@ -2,6 +2,8 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import FeatureFaq from './feature-faq.jsx'
 import RewardLevelCard from './reward-level-card.jsx'
 import SwimmerPeriodization from './swimmer-periodization.jsx'
+import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
+import PlanningFoundation from './planning-foundation.jsx'
 import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
 import { apiRequest } from './api-request.js'
@@ -576,9 +578,10 @@ function SwimmerPlanning({ code, onBack }) {
   const selectedEnd = useMemo(() => { const end = new Date(selectedStart); end.setDate(end.getDate() + 7); return end }, [selectedStart])
   const startKey = dateKey(selectedStart), endKey = dateKey(selectedEnd)
   const calendarTimeOfDay = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
-  const linkedWorkoutIds = new Set(plans.map((plan) => plan.sourceWorkoutId).filter(Boolean))
+  const displayPlans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(item => item.id)) }).rows
+  const linkedWorkoutIds = new Set(displayPlans.map((plan) => plan.sourceWorkoutId).filter(Boolean))
   const publishedWorkoutPlans = workouts.filter((workout) => !linkedWorkoutIds.has(workout.id)).map((workout) => ({ ...workout, activityType: 'swim', sourceWorkoutId: workout.id, syncStatus: 'linked' }))
-  const planningRows = [...plans, ...publishedWorkoutPlans].filter((plan) => plan.date >= startKey && plan.date < endKey)
+  const planningRows = [...displayPlans, ...publishedWorkoutPlans].filter((plan) => plan.date >= startKey && plan.date < endKey)
   // Äldre importer kan ha lämnat flera identiska planeringskort efter sig.
   // Behåll den mest informativa raden, men slå inte ihop separata morgon- och
   // eftermiddagspass (timeOfDay ingår därför i nyckeln).
@@ -3543,7 +3546,8 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
         return { workout, score }
       }).sort((a, b) => b.score - a.score)[0]?.workout || null
     }
-    const planned = uniqueActivities(plans.filter((item) => item.date === key && matchesGroup(item)).map((item) => { const linkedWorkout = findLinkedWorkout(item); return { ...item, alternativeGroupId: item.alternativeGroupId || linkedWorkout?.alternativeGroupId || null, linkedWorkout } }), (item) => item.sourceWorkoutId ? `workout:${item.sourceWorkoutId}` : `plan:${item.date}|${item.activityType}|${item.title}|${item.focus}|${item.distanceMeters}|${item.durationMinutes}|${item.timeOfDay}|${(item.targetGroups || []).slice().sort().join(',')}`)
+    const displayPlans = calendarPlanComplements(plans.filter(item => item.date === key), { workoutIds: new Set(workouts.map(item => item.id)) }).rows
+    const planned = uniqueActivities(displayPlans.filter((item) => item.date === key && matchesGroup(item)).map((item) => { const linkedWorkout = findLinkedWorkout(item); return { ...item, alternativeGroupId: item.alternativeGroupId || linkedWorkout?.alternativeGroupId || null, linkedWorkout } }), (item) => item.sourceWorkoutId ? `workout:${item.sourceWorkoutId}` : `plan:${item.date}|${item.activityType}|${item.title}|${item.focus}|${item.distanceMeters}|${item.durationMinutes}|${item.timeOfDay}|${(item.targetGroups || []).slice().sort().join(',')}`)
     const linkedIds = new Set(planned.map((item) => item.sourceWorkoutId).filter(Boolean))
     const linkedFingerprints = new Set(planned.map((item) => item.linkedWorkout).filter(Boolean).map(workoutFingerprint))
     const published = uniqueActivities(workouts.filter((workout) => workout.date === key && !linkedIds.has(workout.id) && !linkedFingerprints.has(workoutFingerprint(workout)) && matchesGroup(workout)).map((workout) => ({ id: `workout-${workout.id}`, date: key, activityType: 'swim', title: workout.title, focus: workout.focus, distanceMeters: workout.distanceMeters, durationMinutes: workout.durationMinutes, targetGroups: workout.targetGroups, sourceWorkoutId: workout.id, alternativeGroupId: workout.alternativeGroupId || null, timeOfDay: workout.timeOfDay, linkedWorkout: workout, syncStatus: 'linked' })), (item) => `workout-fingerprint:${workoutFingerprint(item.linkedWorkout || item)}`)
@@ -3980,14 +3984,15 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
   const openEditor = (onlyCalendar = false) => {
     if (plan?.linkedWorkout && !onlyCalendar) { window.dispatchEvent(new CustomEvent('simkoll-open-workout', { detail: plan.linkedWorkout })); return }
     setCalendarOnly(Boolean(plan?.linkedWorkout && onlyCalendar))
-    const activityType = plan?.activityType || 'swim'
-    const distance = Number(plan?.distanceMeters) || ''
+    const editingPlan = plan?.foundationOriginal || plan
+    const activityType = editingPlan?.activityType || 'swim'
+    const distance = Number(editingPlan?.distanceMeters) || ''
     setCustomDistance(Boolean(distance && !swimDistanceOptions.includes(distance)))
-    setForm({ activityType, title: plan?.title || suggestions[activityType], focus: plan?.focus || '', distanceMeters: distance, durationMinutes: plan?.durationMinutes || (activityType === 'swim' ? 120 : ''), timeOfDay: plan?.timeOfDay || '', targetGroups: plan?.targetGroups?.length ? plan.targetGroups : group === 'all' ? ['ungdom_orange', 'ungdom_svart', 'junior'] : Array.isArray(group) ? group : [group], location: plan?.location || '', notes: plan?.originalNotes ?? plan?.notes ?? '' })
+    setForm({ activityType, title: editingPlan?.title || suggestions[activityType], focus: editingPlan?.focus || '', distanceMeters: distance, durationMinutes: editingPlan?.durationMinutes || (activityType === 'swim' ? 120 : ''), timeOfDay: editingPlan?.timeOfDay || '', targetGroups: editingPlan?.targetGroups?.length ? editingPlan.targetGroups : group === 'all' ? ['ungdom_orange', 'ungdom_svart', 'junior'] : Array.isArray(group) ? group : [group], location: editingPlan?.location || '', notes: editingPlan?.originalNotes ?? editingPlan?.notes ?? '' })
     setForm((current) => {
       const activities = calendarActivity ? calendarActivity.calendarItems?.length ? calendarActivity.calendarItems : [calendarActivity] : []
       const values = activities.length ? calendarFormValues(activities) : null
-      return { ...current, calendarLink: plan?.calendarLink || null, ...values, targetGroups: [...new Set([...(current.targetGroups || []), ...(values?.targetGroups || [])])] }
+      return { ...current, calendarLink: editingPlan?.calendarLink || null, ...values, targetGroups: [...new Set([...(current.targetGroups || []), ...(values?.targetGroups || [])])] }
     })
     setSaveError('')
     setOpen(true)
@@ -4020,6 +4025,7 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
     <div className="planning-group-pills">{plan?.targetGroups?.length ? plan.targetGroups.map((value) => <span className="planning-type" key={value}>{({ ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }[value] || value)}</span>) : null}</div>
     <button type="button" className="text-button" onClick={() => openEditor()}>{label}</button>
     {plan?.linkedWorkout && <button type="button" className="text-button" onClick={() => openEditor(true)}>Ändra kalenderkoppling</button>}
+    <PlanningFoundation plans={plan?.foundationPlans} renderEditor={base => <PlanningEditButton code={code} plan={base} date={date} group={group} calendarActivities={calendarActivities} onSaved={onSaved} label="Redigera grundplan" />} />
     {open && form && <div className="planning-editor-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
       <form className="planning-editor" onSubmit={save}>
         <div className="planning-editor-head"><h2>{plan ? 'Redigera aktivitet' : 'Lägg till aktivitet'}</h2><button type="button" className="text-button" onClick={() => setOpen(false)}>Stäng</button></div>

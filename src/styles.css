@@ -1274,6 +1274,11 @@ button { cursor: pointer; }
 .swimmer-setup-help p { margin: 4px 0 0; line-height: 1.4; }
 .swimmer-expand-hint { color: var(--teal); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .swimmer-card-details { padding: 0 22px 22px; }
+.planning-foundation { margin: 10px 0; border-top: 1px solid #d7e8e2; padding-top: 8px; font-size: 12px; color: var(--muted); }
+.planning-foundation > summary { cursor: pointer; color: var(--teal); font-weight: 700; padding: 8px 0; }
+.planning-foundation > div { padding: 8px 0; }
+.planning-foundation > div > strong { color: var(--ink); }
+.planning-foundation > div > p { margin: 8px 0; white-space: pre-line; }
 .swimmer-trend-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px 12px; width: 100%; margin: 12px 0 16px; padding: 13px 15px; border: 1px solid #dbe7e3; border-radius: 14px; background: linear-gradient(115deg, #f4faf6, #fff); color: var(--ink); text-align: left; cursor: pointer; }
 .swimmer-trend-card:hover { border-color: #a9ccc1; background: #f0f8f4; }
 .swimmer-trend-card:focus-visible { outline: 3px solid rgba(45, 126, 115, .25); outline-offset: 2px; }
