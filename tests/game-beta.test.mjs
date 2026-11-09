@@ -116,7 +116,7 @@ test('simultaneous first assignments cannot overwrite the winning insert',async(
 })
 test('real swimmer/card wiring uses independent beta route, lazy settings fetch and preview-only games',()=>{
   const main=readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8'),ui=readFileSync(new URL('../src/game-beta-settings.jsx',import.meta.url),'utf8')
-  assert.match(main,/<GameBetaSettings key=\{profile.id\} profile=\{profile\} code=\{code\}/)
+  assert.match(main,/<GameBetaSettings key=\{`game-beta-\$\{profile.id\}`\} profile=\{profile\} code=\{code\}/)
   assert.match(main,/<GameBetaList games=\{betaGames\} onPlay=\{onBetaGame\}/)
   assert.match(main,/screen === 'beta-game'/)
   assert.match(main,/<Game code=\{code\} onBack=\{onBack\} preview request=\{apiRequest\}/)

@@ -76,7 +76,7 @@ test('loader scopes private sources, paginates, reads only aggregates and fails 
 test('integration replaces only the coach swimmer point card and loads history lazily', () => {
   const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const ui = readFileSync(new URL('../src/swimmer-periodization.jsx', import.meta.url), 'utf8')
-  assert.match(main, /<SwimmerPeriodization key=\{profile.id\}/)
+  assert.match(main, /<SwimmerPeriodization key=\{`periodization-\$\{profile.id\}`\}/)
   assert.doesNotMatch(main, /<PointProgress info=\{profilePoints\[profile.id\]\} compact/)
   assert.match(main, /<RewardCard key="level"/)
   assert.match(ui, /if \(!open\) return/); assert.match(ui, /useState\('macro'\)/)
