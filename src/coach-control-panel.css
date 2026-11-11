@@ -31,6 +31,12 @@
 .coach-panel-metrics details { font-size: 12px; line-height: 1.5; }
 .coach-panel-metrics summary { cursor: pointer; color: var(--teal); font-weight: 700; }
 .coach-panel-metrics details p { margin: 8px 0 0; color: var(--muted); }
+.coach-metric-trend-wrap { min-width: 0; }
+.coach-metric-trend > summary { display: flex; align-items: center; gap: 7px; list-style: none; min-height: 30px; }
+.coach-metric-trend > summary::-webkit-details-marker { display: none; }
+.coach-metric-trend > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 6px; }
+.coach-panel-metrics article .coach-metric-trend-arrow { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #e8f1ee; color: #476f6b; font-size: 21px; line-height: 1; }
+.coach-panel-metrics article .coach-metric-comparison-period { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
 .coach-panel-metric-list { list-style: none; padding: 0; margin: 8px 0 0; }
 .coach-panel-metric-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .coach-panel-metric-list .text-button { padding: 4px 0; text-align: left; }
