@@ -52,6 +52,7 @@ import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import IllnessHistory, { IllnessQuestion } from './daily-illness.jsx'
 import Scale from './checkin-scale.jsx'
 import { TodayMildIllness } from './coach-mild-illness.jsx'
+import CoachFeelingTrend from './coach-feeling-trend.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
 import PrivateChatReply from './private-chat-reply.jsx'
@@ -2715,7 +2716,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
         ) : view === 'control-panel' ? (
-          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
         ) : view === 'rewards' ? (
@@ -5297,7 +5298,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false, overviewExtra }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false, overviewExtra, feelingComparison, hideActivityComments = false }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
   const [selectedMetric, setSelectedMetric] = useState(null)
   useEffect(() => { setSelectedMetric(null); setSelectedFeeling(null) }, [periodLabel])
@@ -5323,7 +5324,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
   }, [])
   const signalFor = (item) => item.raceConcern === 'sick_or_pain' ? '⚠️ Sjuk eller ont inför tävling' : item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
 
-  if (!responses.length) {
+  if (!responses.length && !feelingComparison) {
     return <><EmptyPeriod title={title} periodLabel={periodLabel} />{overviewExtra && <section className="coach-card"><div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>{overviewExtra}</section>}</>
   }
 
@@ -5338,20 +5339,21 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
       </section>
       {selectedMetric && <CoachMetricDetails key={selectedMetric} metricKey={selectedMetric} responses={responses} profiles={profiles} periodLabel={periodLabel} onClose={() => setSelectedMetric(null)} />}
 
-      {showDays && <WeekDays responses={responses} weekStart={weekStart} />}
+      {showDays && <WeekDays responses={responses} weekStart={weekStart} feelingComparison={feelingComparison} />}
 
       <section className="coach-card">
         <div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>
+        <CoachFeelingTrend comparison={feelingComparison} />
         <div className="distribution">
           {distribution.map((item) => (
-            <button type="button" className={`distribution-item ${selectedFeeling === item.value ? 'selected' : ''}`} key={item.value} onClick={() => setSelectedFeeling(selectedFeeling === item.value ? null : item.value)}><span className="dist-emoji">{item.emoji}</span><span className="bar-track"><span style={{ height: `${Math.max(8, (item.count / responses.length) * 100)}%` }} /></span><strong>{item.count}</strong><small>{item.label}</small></button>
+            <button type="button" className={`distribution-item ${selectedFeeling === item.value ? 'selected' : ''}`} key={item.value} onClick={() => setSelectedFeeling(selectedFeeling === item.value ? null : item.value)}><span className="dist-emoji">{item.emoji}</span><span className="bar-track"><span style={{ height: `${Math.max(8, (item.count / Math.max(1, responses.length)) * 100)}%` }} /></span><strong>{item.count}</strong><small>{item.label}</small></button>
           ))}
         </div>
         {selectedFeeling && <section className="feeling-followup"><div><p className="eyebrow">Profilerade svar · {FEELINGS[selectedFeeling - 1].label}</p><h3>Vilka valde detta?</h3></div><button type="button" onClick={() => setSelectedFeeling(null)}>Stäng</button>{latestByProfile.length ? <div className="feeling-profile-list">{latestByProfile.map((item) => { const owner = profileById.get(item.profileId); return <article key={item.profileId}><span>{owner.emoji}</span><div><strong>{owner.displayName}</strong><small>{signalFor(item) || 'Svarade på känslan'} · {new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div></article> })}</div> : <p className="empty">Inga profilerade svar på denna nivå.</p>}<small className="feeling-anonymous">{selectedItems.length - identifiedItems.length} anonyma svar visas inte individuellt.</small></section>}
         {overviewExtra}
       </section>
 
-      <div className="coach-columns">
+      {!hideActivityComments && <div className="coach-columns">
         <section className="coach-card">
           <p className="eyebrow">Aktivitet</p><h2>Vad har gruppen gjort?</h2>
           <div className="type-list">
@@ -5362,12 +5364,12 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
           <p className="eyebrow">Anonymt</p><h2>Kommentarer</h2>
           {(() => { const comments = [...new Map(responses.filter((item) => item.comment?.trim()).map((item) => [item.comment.trim().toLocaleLowerCase('sv-SE'), item.comment.trim()])).values()]; return comments.length ? comments.map((comment) => <blockquote key={comment}>“{comment}”</blockquote>) : <p className="empty">Inga kommentarer under perioden.</p> })()}
         </section>
-      </div>
+      </div>}
     </>
   )
 }
 
-function WeekDays({ responses, weekStart }) {
+function WeekDays({ responses, weekStart, feelingComparison }) {
   const start = new Date(`${weekStart}T12:00:00`)
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start)
@@ -5379,6 +5381,7 @@ function WeekDays({ responses, weekStart }) {
   return (
     <section className="coach-card week-card">
       <p className="eyebrow">Dag för dag</p><h2>Veckans utveckling</h2>
+      <CoachFeelingTrend comparison={feelingComparison} />
       <div className="week-days">
         {days.map(({ date, items }) => (
           <div key={dateKey(date)} className={items.length ? '' : 'no-data'}>

@@ -32,7 +32,7 @@ test('actual Idag and Kontrollpanel pages both mount mild reports with scoped pr
   assert.match(app, /view === 'today' && <TodayMildIllness code=\{code\} profiles=\{groupFilteredProfiles\} date=\{summaryDate\}/)
   assert.match(app, /overviewExtra=\{view === 'today' && <TodayMildIllness/)
   assert.equal((app.match(/<TodayMildIllness/g) || []).length, 1)
-  assert.match(app, /\{overviewExtra\}\s*<\/section>\s*<div className="coach-columns">/)
+  assert.match(app, /\{overviewExtra\}\s*<\/section>\s*\{!hideActivityComments && <div className="coach-columns">/)
   assert.match(panel, /<CoachMildIllnessCard summary=\{report.mild\} period="week"/)
   assert.equal((panel.match(/<CoachMildIllnessCard/g) || []).length, 1)
   assert.ok(panel.indexOf('Rapporterad sjukdom') < panel.indexOf('<CoachMildIllnessCard'))

@@ -1212,6 +1212,11 @@ button { cursor: pointer; }
 .week-days strong { font-size: 30px; margin: 8px 0 3px; }
 .week-days small { color: var(--muted); font-size: 10px; }
 .week-days .no-data { opacity: .55; }
+.coach-feeling-comparison { margin: 0 0 16px; color: var(--teal); font-size: 13px; }
+.coach-feeling-comparison summary { cursor: pointer; font-weight: 700; }
+.coach-feeling-comparison .coach-metric-trend-arrow { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #e8f1ee; color: #476f6b; font-size: 21px; }
+.coach-feeling-comparison .coach-metric-comparison-period { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.coach-feeling-comparison details p { color: var(--muted); line-height: 1.5; }
 .coach-columns { display: grid; grid-template-columns: .8fr 1.2fr; gap: 12px; margin-top: 12px; align-items: start; }
 .type-list > div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid #e4ece9; }
 .type-list strong { color: var(--teal); }

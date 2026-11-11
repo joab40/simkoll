@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { buildCoachMetricComparison } from '../shared/coach-metric-comparison.js'
 import CoachMetricTrend from './coach-metric-trend.jsx'
+import { buildCoachFeelingComparison } from './coach-feeling-comparison.js'
 import './coach-control-panel.css'
 import CoachWeek from './coach-week.jsx'
 import CoachFollowUpReason from './coach-followup-reason.jsx'
@@ -54,6 +55,7 @@ export default function CoachControlPanel({ profiles, asOf, code, request, onOpe
     const date = String(row.activityDate || row.createdAt || '').slice(0, 10)
     return date >= weekStart && date <= observedEnd && (row.profileId ? ids.has(row.profileId) : includeAnonymous)
   })
+  const feelingComparison = buildCoachFeelingComparison(responses.filter(row => row.profileId ? ids.has(row.profileId) : includeAnonymous), weekStart, observedEnd)
   const periodLabel = dayLabel(weekStart) + '–' + dayLabel(weekEnd)
   return <section className="coach-control-panel">
     <div className="period-heading"><div><p className="eyebrow">Tränarens kontrollpanel</p><h1>Gruppen i korthet</h1><small>{periodLabel} · {report.profileCount} simmare i valda grupper</small></div></div>
@@ -88,7 +90,7 @@ export default function CoachControlPanel({ profiles, asOf, code, request, onOpe
     </details>
     <details className="coach-panel-followups"><summary><span><span className="eyebrow">Individuell uppföljning</span><span className="coach-panel-followup-title">Bevaka utvecklingen</span></span><span className="coach-panel-dialog-count"><strong>{report.watchList.length}</strong><small>simmare</small></span><span className="coach-panel-chevron" aria-hidden="true">⌄</span></summary><p>2 = segt är ingen varning i sig. Här finns aktuella ettor innan ett ihållande mönster hunnit bildas, samt andra gula signaler. Tung kropp och hög ansträngning är inte i sig bevis på sjukdom.</p><FollowupList items={report.watchList} report={report} onOpenSwimmer={onOpenSwimmer} onMessage={onMessage} /></details>
     <details className="coach-panel-roster"><summary>Visa hela gruppens översikt ({report.swimmers.length})</summary><div className="coach-panel-table-wrap"><table><thead><tr><th>Simmare</th><th>Pass</th><th>RPE</th><th>Återkoppling</th><th>Fartkänsla</th><th></th></tr></thead><tbody>{report.swimmers.map((item) => <tr key={item.profileId}><th>{item.emoji} {item.displayName}</th><td>{item.completed}</td><td>{fmt(item.rpe)}</td><td>{item.feedback}</td><td>{item.speedCurrent != null && item.speedPrevious != null ? `${fmt(item.speedPrevious)} → ${fmt(item.speedCurrent)}` : 'För lite data'}</td><td><button type="button" className="text-button" onClick={() => onOpenSwimmer(item.profileId)}>Öppna</button></td></tr>)}</tbody></table></div><small>Fartkänsla jämför den valda veckan med föregående kalendervecka och kräver minst två svar i vardera veckan. Det är självskattning, inte ett tävlingsresultat.</small></details>
-    {renderWeekOverview && !future && <section className="coach-panel-week-overview">{renderWeekOverview({ responses: weekResponses, periodLabel, weekStart })}</section>}
+    {renderWeekOverview && !future && <section className="coach-panel-week-overview">{renderWeekOverview({ responses: weekResponses, periodLabel, weekStart, feelingComparison })}</section>}
     </div>}
   </section>
 }
