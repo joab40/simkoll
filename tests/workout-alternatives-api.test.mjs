@@ -12,7 +12,7 @@ const { default: handler } = await import('../api/workouts.js')
 const { loadWorkoutChoices } = await import('../server/workout-choice.js')
 const code = createCoachToken({ id: '22222222-2222-4222-8222-222222222222', role: 'head_coach', email: 'coach@example.invalid' })
 const date = '2026-10-29', groupId = '11111111-1111-4111-8111-111111111111'
-const requestBody = () => ({ action: 'publish-workout-alternatives', publicationId: groupId, date, timeOfDay: 'afternoon', targetGroups: ['junior'], workouts: [['Bröstsim', 4400], ['Fjärilsim', 4400], ['Frisim-Ryggsim', 4900]].map(([title, distanceMeters], index) => ({ key: `sheet-${index}`, title, content: 'Insim\n200 eget\nSS:\n2x [\n  4x100 spec\n]', focus: 'f2_spec', distanceMeters, durationMinutes: 115 })) })
+const requestBody = () => ({ action: 'publish-workout-alternatives', occasionMode: 'new', publicationId: groupId, date, timeOfDay: 'afternoon', targetGroups: ['junior'], workouts: [['Bröstsim', 4400], ['Fjärilsim', 4400], ['Frisim-Ryggsim', 4900]].map(([title, distanceMeters], index) => ({ key: `sheet-${index}`, title, content: 'Insim\n200 eget\nSS:\n2x [\n  4x100 spec\n]', focus: 'f2_spec', distanceMeters, durationMinutes: 115 })) })
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status })
 async function call(body, token = code, method = 'POST') {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
@@ -69,6 +69,22 @@ function fixture({ missingMigration = false, missingMigrationOnWrite = false, in
   }
   return { workouts, plans, writes }
 }
+
+test('publication requires an explicit occasion mode and a valid existing target before any writes', async () => {
+  for (const extra of [
+    { occasionMode: undefined }, { occasionMode: '' },
+    { occasionMode: 'existing' },
+    { occasionMode: 'existing', alternativeToWorkoutId: 'missing' },
+    { occasionMode: 'new', alternativeToPlanId: randomUUID() },
+  ]) {
+    const state = fixture()
+    const response = await call({ ...requestBody(), ...extra })
+    assert.equal(response.code, 400)
+    assert.equal(state.writes.length, 0)
+    assert.equal(state.workouts.length, 0)
+    assert.equal(state.plans.length, 0)
+  }
+})
 
 test('publication persists every alternative in one insert and creates separate linked planning rows', async () => {
   const state = fixture()

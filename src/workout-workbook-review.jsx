@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import WorkoutOccasionChoice from './workout-occasion-choice.jsx'
 import WorkoutPreview from './workout-preview.jsx'
 import { workbookPreviewWorkouts } from '../shared/workout-preview.js'
-import { clearOccasionTarget, hasOccasionTarget } from '../shared/workout-occasion-selection.js'
+import { clearOccasionTarget, hasOccasionTarget, occasionValidationKey } from '../shared/workout-occasion-selection.js'
 import './workout-workbook-review.css'
 
 export default function WorkoutWorkbookReview({ workbook, date: initialDate, timeOfDay: initialTime, groups: initialGroups, initialOccasion, loadChoices, availableGroups, focuses, onPublish, onClose }) {
@@ -18,6 +18,8 @@ export default function WorkoutWorkbookReview({ workbook, date: initialDate, tim
   const [busy, setBusy] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [error, setError] = useState('')
+  const [choiceValidation, setChoiceValidation] = useState(null)
+  const occasionValid = Boolean(occasion.occasionMode && choiceValidation?.key === occasionValidationKey({ ...occasion, date, targetGroups: groups }) && choiceValidation.valid)
   const active = sheets.find((sheet) => sheet.key === activeKey)
   const selected = sheets.filter((sheet) => sheet.selected)
   const change = (key, update) => { setSheets((current) => current.map((sheet) => sheet.key === key ? { ...sheet, ...update } : sheet)); setReviewed(false); setError('') }
@@ -27,6 +29,7 @@ export default function WorkoutWorkbookReview({ workbook, date: initialDate, tim
     if (!selected.length || !groups.length || !reviewed) { setError('Välj minst ett helt pass, berörda grupper och bekräfta granskningen.'); return }
     if (!occasion.occasionMode) { setError('Vänta tills dagens träningar hämtats eller välj Nytt träningstillfälle.'); return }
     if (occasion.occasionMode === 'existing' && !hasOccasionTarget(occasion)) { setError('Välj ett befintligt träningstillfälle för de nya passalternativen.'); return }
+    if (!occasionValid) { setError('Kontrollera träningstillfället. Välj en giltig befintlig träning eller välj Nytt träningstillfälle.'); return }
     const invalid = selected.find(({ draft }) => !draft.title.trim() || !draft.content.trim() || draft.title.length > 80 || draft.content.length > 5000 || draft.note.length > 500 || (draft.distanceMeters !== '' && (!Number.isInteger(Number(draft.distanceMeters)) || Number(draft.distanceMeters) < 1 || Number(draft.distanceMeters) > 50000)) || (draft.durationMinutes !== '' && (!Number.isInteger(Number(draft.durationMinutes)) || Number(draft.durationMinutes) < 1 || Number(draft.durationMinutes) > 600)))
     if (invalid) { setActiveKey(invalid.key); setError(`Kontrollera rubrik, text, meter och minuter på fliken ${invalid.sheetName}.`); return }
     setBusy(true); setError('')
@@ -42,7 +45,7 @@ export default function WorkoutWorkbookReview({ workbook, date: initialDate, tim
         <div className="workbook-groups" role="group" aria-label="Berörda grupper">{availableGroups.map(([value, label]) => <label key={value}><input type="checkbox" checked={groups.includes(value)} onChange={(event) => { setGroups((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value)); setReviewed(false) }} />{label}</label>)}</div>
         <p>Flikarna blir alternativ för ett träningstillfälle. Simmaren väljer vilket upplägg hen genomförde. Mängderna adderas inte.</p>
       </fieldset>
-      <WorkoutOccasionChoice autoDefault form={{ ...occasion, timeOfDay, targetGroups: groups }} loadChoices={loadOccasions} disabled={busy} onChange={(update) => { setOccasion((current) => ({ ...current, ...update })); if (update.timeOfDay !== undefined) setTimeOfDay(update.timeOfDay); if (update.targetGroups) setGroups(update.targetGroups); setReviewed(false); setError('') }} />
+      <WorkoutOccasionChoice autoDefault form={{ ...occasion, date, timeOfDay, targetGroups: groups }} loadChoices={loadOccasions} disabled={busy} onValidationChange={setChoiceValidation} onChange={(update) => { setChoiceValidation(null); setOccasion((current) => ({ ...current, ...update })); if (update.timeOfDay !== undefined) setTimeOfDay(update.timeOfDay); if (update.targetGroups) setGroups(update.targetGroups); setReviewed(false); setError('') }} />
       <div className="workbook-review-layout"><div className="workbook-sheet-list" role="group" aria-label="Dokumentets flikar">{sheets.map((sheet) => <div key={sheet.key} className={`workbook-sheet${activeKey === sheet.key ? ' active' : ''}`}>
         <label className="workbook-sheet-check"><input type="checkbox" aria-label={`Publicera ${sheet.sheetName} som ett helt pass`} checked={sheet.selected} disabled={busy} onChange={(event) => change(sheet.key, { selected: event.target.checked })} /></label>
         <button type="button" disabled={busy} aria-pressed={activeKey === sheet.key} onClick={() => setActiveKey(sheet.key)}><strong>{sheet.sheetName}</strong><small>{sheet.kind === 'warmup' ? 'Insimsvarianter · inte förvalt' : sheet.kind === 'review' ? 'Behöver granskas · inte förvalt' : [sheet.draft.distanceMeters ? `${Number(sheet.draft.distanceMeters).toLocaleString('sv-SE')} m` : 'Meter saknas', sheet.draft.durationMinutes ? `${sheet.draft.durationMinutes} min` : 'Tid saknas'].join(' · ')}</small><span>{activeKey === sheet.key ? 'Visas för granskning' : 'Granska och redigera →'}</span></button>
@@ -57,7 +60,7 @@ export default function WorkoutWorkbookReview({ workbook, date: initialDate, tim
       </fieldset></div>
       <div className="workbook-publish"><label><input type="checkbox" checked={reviewed} disabled={busy} onChange={(event) => setReviewed(event.target.checked)} />Jag har granskat de valda flikarna som hela pass och kontrollerat deras meter och minuter.</label>
         {error && <p role="alert" className="form-error">{error}</p>}
-        <div className="workbook-publish-actions"><button type="button" className="secondary-button" disabled={busy || !selected.length} onClick={() => setPreviewOpen(true)}>Förhandsgranska som simmare</button><button className="primary-button" type="submit" disabled={busy || !selected.length || !groups.length || !reviewed || !occasion.occasionMode || (occasion.occasionMode === 'existing' && !hasOccasionTarget(occasion))}>{busy ? 'Publicerar passalternativen…' : `Publicera ${selected.length} ${selected.length === 1 ? 'pass' : 'passalternativ'} →`}</button></div><small>Berörda simmare får en gemensam pushnotis om nya simpass är aktiverat.</small>
+        <div className="workbook-publish-actions"><button type="button" className="secondary-button" disabled={busy || !selected.length} onClick={() => setPreviewOpen(true)}>Förhandsgranska som simmare</button><button className="primary-button" type="submit" disabled={busy || !selected.length || !groups.length || !reviewed || !occasionValid}>{busy ? 'Publicerar passalternativen…' : `Publicera ${selected.length} ${selected.length === 1 ? 'pass' : 'passalternativ'} →`}</button></div><small>Berörda simmare får en gemensam pushnotis om nya simpass är aktiverat.</small>
       </div>
     </form>
     {previewOpen && <WorkoutPreview workouts={workbookPreviewWorkouts(sheets, { date, timeOfDay, targetGroups: groups })} date={date} timeOfDay={timeOfDay} onClose={() => setPreviewOpen(false)} />}

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { defaultOccasionUpdate, occasionChoiceUpdate, occasionChoiceKey, occasionSelectionKey } from '../shared/workout-occasion-selection.js'
+import { defaultOccasionUpdate, occasionChoiceUpdate, occasionChoiceKey, occasionSelectionKey, hasOccasionTarget, validOccasionSelection, occasionValidationKey } from '../shared/workout-occasion-selection.js'
 const choice = (extra = {}) => ({ targetWorkoutId: 'one', timeOfDay: 'afternoon', targetGroups: ['junior', 'ungdom_svart'], ...extra })
 const form = { targetGroups: ['junior'], timeOfDay: 'morning' }
 
@@ -43,4 +43,17 @@ test('import loads planning, resets targets on date changes, hides redundant tim
   assert.match(review, /publicationId, \.\.\.occasion, date, timeOfDay, targetGroups: groups/)
   assert.match(component, /latest.current.form.occasionMode == null/)
   assert.match(component, /controller.signal.aborted/)
+})
+
+test('existing requires exactly one available target for the current groups', () => {
+  const selected = { ...form, occasionMode: 'existing', alternativeToWorkoutId: 'one' }
+  assert.equal(validOccasionSelection(selected, [choice()]), true)
+  assert.equal(validOccasionSelection({ ...selected, alternativeToWorkoutId: '' }, [choice()]), false)
+  assert.equal(validOccasionSelection(selected, []), false)
+  assert.equal(validOccasionSelection(selected, [choice({ targetWorkoutId: 'two' })]), false)
+  assert.equal(validOccasionSelection({ ...selected, targetGroups: ['other'] }, [choice()]), false)
+  assert.equal(hasOccasionTarget({ ...selected, alternativeToPlanId: 'another' }), false)
+  assert.equal(validOccasionSelection({ ...selected, alternativeToPlanId: 'another' }, [choice()]), false)
+  assert.equal(validOccasionSelection({ ...form, occasionMode: 'new' }, []), true)
+  assert.notEqual(occasionValidationKey({ ...selected, date: '2026-11-11' }), occasionValidationKey({ ...selected, date: '2026-11-12' }))
 })

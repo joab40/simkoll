@@ -4,6 +4,9 @@
 .workout-occasion-modes > button { flex: 1 1 220px; display: grid; gap: 6px; text-align: left; padding: 14px; border: 1px solid #d3e2dd; border-radius: 11px; background: white; color: var(--ink); font: inherit; }
 .workout-occasion-modes > button[aria-pressed=true] { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); background: #e5f3ec; }
 .workout-occasion-modes > button:focus-visible { outline: 3px solid #b7dfd1; outline-offset: 2px; }
+.workout-occasion-modes > button:disabled { opacity: .55; cursor: not-allowed; }
+.workout-occasion-target select[aria-invalid=true] { border-color: #a86121; background: #fffaf1; }
+.workout-occasion-target .form-error { color: #8b4b18; font-weight: 600; }
 .workout-occasion-modes strong { font-size: .9rem; }
 .workout-occasion-modes small, .workout-occasion-target p { font-size: .81rem; color: var(--muted); line-height: 1.5; margin: 0; }
 .workout-occasion-target { display: grid; gap: 10px; margin-top: 16px; }
