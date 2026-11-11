@@ -1,10 +1,11 @@
 export function createApiRequest({ fetcher = (...args) => fetch(...args), pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
   return async function apiRequest(url, code, options = {}) {
-    const canRetry = !options.method || options.method.toUpperCase() === 'GET'
+    const { retry = true, ...fetchOptions } = options
+    const canRetry = retry && (!options.method || options.method.toUpperCase() === 'GET')
     let lastError
     for (let attempt = 0; attempt < (canRetry ? 3 : 1); attempt++) {
       try {
-        const result = await fetcher(url, { ...options, headers: { ...options.headers, 'x-simkoll-code': code } })
+        const result = await fetcher(url, { ...fetchOptions, headers: { ...options.headers, 'x-simkoll-code': code } })
         const data = await result.json().catch(() => ({}))
         if (result.ok) return data
         lastError = new Error(data.error || 'Något gick fel. Försök igen.')

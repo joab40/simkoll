@@ -14,6 +14,10 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'home-refresh', section: 'messages', question: 'Hur snabbt uppdateras startsidans notiser och sammanfattningar?', answer: [
+    'När appen är synlig kontrolleras simmarens notislista ungefär varje minut, nya utvecklingsmål var femte minut och utvecklingssamtal var tionde minut. Gruppflödets förhandsvisning på startsidan kontrolleras varannan minut. Information hämtas också när du återvänder till appen eller startsidan. Den öppna meddelandevyn och chatten har fortsatt tätare uppdateringar.',
+    'Vid upprepade anslutnings- eller serverfel väntar appen successivt längre mellan kontrollerna, högst 30 minuter. Senast hämtad information kan därför vara äldre tills anslutningen fungerar igen. Automatiska kontroller pausas när appfliken är dold. Pushnotiser till enheten skickas separat och följer inte startsidans uppdateringsintervall.',
+  ] },
   { id: 'calendar-planning-complement', section: 'checkin', question: 'Varför visas grundplanering och upplagt pass som samma träning?', answer: [
     'Även när du skriver ett pass själv, hämtar ett tidigare pass eller skapar ett AI-förslag kontrollerar Lägg upp ett pass dagens planering och SportAdmin-kalender. Ett matchande tillfälle förväljs; vid flera väljer du själv. Befintlig träning kräver ett valt tillfälle. Kalendern bestämmer starttid och plats, och den separata frågan om tid på dagen döljs när tiden redan är känd. När du redigerar ett publicerat pass behålls kopplingen tills du väljer något annat.',
     'Vid import från Drive kontrolleras befintliga träningar för datumet och dina valda grupper. Finns ett tillfälle väljs det automatiskt; finns flera måste du välja vilket passet hör till. Alternativ till befintlig träning kräver ett giltigt valt tillfälle innan Publicera blir tillgängligt. Finns inget tillfälle väljs Nytt träningstillfälle. Misslyckad hämtning betyder inte att kalendern är tom: försök hämta igen eller välj uttryckligen Nytt träningstillfälle.',

@@ -27,3 +27,18 @@ test('exhausted reads stop after the final attempt without an extra delay',async
   await assert.rejects(request('/api/test','code'))
   assert.equal(calls,3);assert.deepEqual(waits,[600,1200])
 })
+
+test('background polling can opt out of immediate retries without passing internal options to fetch', async () => {
+  for (const offline of [false, true]) {
+    let calls = 0
+    const request = createApiRequest({ fetcher: async (url, options) => {
+      calls++
+      assert.equal(Object.hasOwn(options, 'retry'), false)
+      assert.equal(options.headers['x-simkoll-code'], 'session')
+      if (offline) throw new Error('offline')
+      return new Response('{}', { status: 500 })
+    }, pause: () => assert.fail('polling schedules its own next attempt') })
+    await assert.rejects(request('/api/notifications', 'session', { retry: false }))
+    assert.equal(calls, 1)
+  }
+})

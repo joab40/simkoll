@@ -261,27 +261,27 @@ function App() {
   useEffect(() => {
     if (!auth || !profile) return undefined
     let active = true
-    const stop = startVisiblePolling(() => apiRequest('/api/notifications', auth.code).then((data) => { if (active) setNotifications(data.notifications || []) }))
+    const stop = startVisiblePolling(() => apiRequest('/api/notifications', auth.code, { retry: false }).then((data) => { if (active) setNotifications(data.notifications || []) }), 60000)
     return () => { active = false; stop() }
   }, [auth, profile?.id])
 
   useEffect(() => {
     if (!auth || !profile) { setNewDevelopmentGoals([]); return undefined }
     let active = true
-    const refresh = () => apiRequest('/api/goals?home=true', auth.code).then((data) => { if (active) setNewDevelopmentGoals(data.goals || []) }).catch(() => {})
-    const stop = startVisiblePolling(refresh)
+    const refresh = () => apiRequest('/api/goals?home=true', auth.code, { retry: false }).then((data) => { if (active) setNewDevelopmentGoals(data.goals || []) })
+    const stop = startVisiblePolling(refresh, 300000)
     return () => { active = false; stop() }
   }, [auth, profile?.id])
 
   useEffect(() => {
     if (!auth || !profile) { setDevelopmentTalks([]); setTalksEnabled(false); return }
     let active = true
-    const refreshTalks = () => apiRequest('/api/goals?talks=true', auth.code).then((data) => {
+    const refreshTalks = () => apiRequest('/api/goals?talks=true', auth.code, { retry: false }).then((data) => {
       if (!active) return
       setTalksEnabled(data.globalEnabled !== false)
       setDevelopmentTalks(data.globalEnabled === false ? [] : (data.talks || []).filter((talk) => talk.enabled !== false))
-    }).catch(() => { if (active) { setTalksEnabled(false); setDevelopmentTalks([]) } })
-    const stop = startVisiblePolling(refreshTalks)
+    })
+    const stop = startVisiblePolling(refreshTalks, 600000)
     return () => { active = false; stop() }
   }, [auth, profile?.id])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setAiEnabled(savedSettings.aiEnabled !== false); setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setOpenChatEnabled(savedSettings.openChat?.enabled === true); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setAiEnabled(true); setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setOpenChatEnabled(false); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
@@ -972,7 +972,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
     if (!profile) return
     let active = true
     setCommunityPreview(null); setCommunityPreviewError(false)
-    const stop = startVisiblePolling(() => apiRequest('/api/community?preview=true', code).then((data) => { if (active) { setCommunityPreview(data); setCommunityPreviewError(false) } }).catch(() => { if (active) setCommunityPreviewError(true) }), 15000)
+    const stop = startVisiblePolling(() => apiRequest('/api/community?preview=true', code, { retry: false }).then((data) => { if (active) { setCommunityPreview(data); setCommunityPreviewError(false) } }).catch((error) => { if (active) setCommunityPreviewError(true); throw error }), 120000)
     return () => { active = false; stop() }
   }, [code, profile?.id])
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === todayKey())
@@ -2573,11 +2573,10 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   useEffect(() => { const open = () => setView('community'); window.addEventListener('simkoll-coach-open-messages', open); return () => window.removeEventListener('simkoll-coach-open-messages', open) }, [])
   useEffect(() => { const open = () => setView('goals'); window.addEventListener('simkoll-coach-open-goals', open); return () => window.removeEventListener('simkoll-coach-open-goals', open) }, [])
   useEffect(() => {
-    const refresh = () => apiRequest('/api/goals?coachAlerts=true', code).then((data) => setGoalReplyCount(data.count || 0)).catch(() => {})
-    refresh()
-    const timer = window.setInterval(refresh, 30000)
-    window.addEventListener('simkoll-goal-replies-read', refresh)
-    return () => { window.clearInterval(timer); window.removeEventListener('simkoll-goal-replies-read', refresh) }
+    let active = true
+    const refresh = () => apiRequest('/api/goals?coachAlerts=true', code, { retry: false }).then((data) => { if (active) setGoalReplyCount(data.count || 0) })
+    const stop = startVisiblePolling(refresh, 60000, { events: ['focus', 'simkoll-home-open', 'simkoll-goal-replies-read'] })
+    return () => { active = false; stop() }
   }, [code])
   const [coachMessageCount, setCoachMessageCount] = useState(0)
   const [assistantOpen, setAssistantOpen] = useState(false)
