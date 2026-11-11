@@ -73,6 +73,20 @@ test('real alternatives remain distinct choices in one occasion and never gain a
   const [entry] = buildDiaryEntries({ sessions: [{ session_date: date, session_slot: 'afternoon_swim', activity_type: 'swim' }], workouts, plans, trainingGroup: 'junior', today: date })
   assert.equal(entry.estimatedMeters, null, 'no selection must not invent a sum or pick an alternative')
 })
+test('two calendar trainings each consume their own foundation even with an old shared alternative ID', () => {
+  const evening = { ...calendar, key: 'evening', keys: ['evening'], time: '19:00' }
+  const rows = [base(), base({ id: 'evening-base', calendar_link: evening, title: 'Bröstsim–Medley' }),
+    linked(), linked({ id: 'evening-plan', source_workout_id: 'evening-workout', calendar_link: evening })]
+  const projection = calendarPlanComplements(rows).rows
+  assert.equal(projection.length, 2)
+  assert.deepEqual(projection.map(row => row.foundationPlans.map(plan => plan.id)), [['base'], ['evening-base']])
+  const workouts = [workout(), workout({ id: 'evening-workout' })].map(mapped)
+  const options = swimWorkoutOptions(workouts, rows.map(mapped))
+  assert.equal(options.length, 2)
+  assert.deepEqual(groupSwimOccasions(options).map(occasion => [occasion.time, occasion.items.length]), [['17:00', 1], ['19:00', 1]])
+  assert.deepEqual(planningAmountRange(options, 'distanceMeters'), { min: 7000, max: 7000 })
+  assert.deepEqual(planningAmountRange(options, 'durationMinutes'), { min: 240, max: 240 })
+})
 test('all consumers share the same projection, coach can edit original foundation without deleting it', () => {
   const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   assert.equal((main.match(/calendarPlanComplements\(/g) || []).length, 2)

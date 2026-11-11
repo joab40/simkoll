@@ -66,6 +66,22 @@ test('references round-trip and option checks enforce group, day and slot', () =
   assert.equal(options.length, 1)
 })
 
+test('calendar time overrides stale import groups and groups the correct evening alternatives', () => {
+  const item = { date, activityType: 'swim', timeOfDay: 'afternoon', location: 'Himlabadet', durationMinutes: 120 }
+  const items = [
+    { ...item, id: 'distance', alternativeGroupId: 'old-import', time: '17:00', distanceMeters: 5200 },
+    { ...item, id: 'fly', alternativeGroupId: 'old-import', time: '19:00', distanceMeters: 4700 },
+    { ...item, id: 'medley', alternativeGroupId: 'other-import', time: '19:00', distanceMeters: 4400 },
+  ]
+  const occasions = groupSwimOccasions(items)
+  assert.deepEqual(occasions.map(occasion => occasion.items.map(option => option.id)), [['distance'], ['fly', 'medley']])
+  assert.deepEqual(planningAmountRange(items, 'distanceMeters'), { min: 9600, max: 9900 })
+  assert.deepEqual(planningAmountRange(items, 'durationMinutes'), { min: 240, max: 240 })
+  const changed = { ...items[1], time: '17:00', calendarLink: { mode: 'linked', time: '19:00', location: 'Himlabadet' } }
+  assert.deepEqual(groupSwimOccasions([items[0], changed]).map(occasion => occasion.time), ['17:00', '19:00'])
+  assert.equal(groupSwimOccasions([{ ...items[0], location: '' }, { ...items[1], location: '' }]).length, 2)
+})
+
 test('weekly metrics use each swimmer’s choice and never fall back to the other slot', () => {
   const sessions = ['one', 'two', 'three'].map((profile_id) => ({ ...session, profile_id }))
   const responses = [

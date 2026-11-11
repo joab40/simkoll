@@ -591,7 +591,7 @@ function SwimmerPlanning({ code, onBack }) {
   const planningDuplicates = new Map()
   planningRows.forEach((plan) => {
     const groups = [...new Set((plan.targetGroups || []).map((group) => String(group).trim()).filter(Boolean))].sort().join(',')
-    const fingerprint = [plan.date, plan.activityType, plan.distanceMeters || '', plan.durationMinutes || '', plan.timeOfDay || '', groups].join('|')
+    const fingerprint = [plan.date, plan.activityType, plan.distanceMeters || '', plan.durationMinutes || '', plan.timeOfDay || '', plan.calendarLink?.time || plan.time || '', calendarLinkKeys(plan.calendarLink).slice().sort().join(','), groups].join('|')
     const previousIndex = planningDuplicates.get(fingerprint)
     if (previousIndex == null) {
       planningDuplicates.set(fingerprint, deduplicatedPlanningRows.length)
