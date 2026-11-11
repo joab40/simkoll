@@ -55,6 +55,11 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     const selectedReference = (feedbackLink === 'slot' ? slotFeedback[0] : feedbackLink === 'day_only' ? legacyFeedback[0] : null)?.workout_reference
     if (selectedReference) {
       candidate = sameDay.find((row) => `${row.source === 'published' ? 'workout' : 'plan'}:${row.id}` === selectedReference && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay)) || null
+      // A swimmer may have selected the foundation before its published
+      // workout was attached. Retain that explicit plan choice after the row
+      // is completed, following only its persisted source_workout_id.
+      const selectedPlan = selectedReference.startsWith('plan:') && originalPlans.find(row => `plan:${row.id}` === selectedReference && row.plan_date === day && row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && inGroup(row))
+      if (!candidate && selectedPlan?.source_workout_id) candidate = sameDay.find(row => row.source === 'published' && row.id === selectedPlan.source_workout_id && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay)) || null
       // Retain an explicit historical choice of the base plan; don't rewrite
       // that old report to the later publication's potentially different meters.
       const historicalPlan = selectedReference.startsWith('plan:') && originalPlans.find(row => `plan:${row.id}` === selectedReference && !row.source_workout_id && row.plan_date === day && row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && inGroup(row) && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay))

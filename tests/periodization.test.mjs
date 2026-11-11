@@ -73,6 +73,25 @@ test('loader scopes private sources, paginates, reads only aggregates and fails 
   await assert.rejects(loadPeriodization(profile, today, async () => ({ ok: false })), /Hela periodiseringsunderlaget/)
   await assert.rejects(loadPeriodization(profile, today, async () => ({ ok: true, json: async () => Array(500).fill({}) })), /Hela periodiseringsunderlaget/)
 })
+
+test('17:00 and 19:00 choices credit the selected pass, including a foundation later completed by a publication', () => {
+  const day = '2026-11-10', asOf = '2026-11-11'
+  const workouts = [
+    { id: 'early', workout_date: day, time_of_day: 'afternoon', target_groups: ['junior'], distance_meters: 5200 },
+    { id: 'late', workout_date: day, time_of_day: 'afternoon', target_groups: ['junior'], distance_meters: 4400 },
+  ]
+  const plans = workouts.map((workout, index) => ({ id: `plan-${workout.id}`, plan_date: day, activity_type: 'swim', time_of_day: 'afternoon', target_groups: ['junior'], source_workout_id: workout.id, distance_meters: workout.distance_meters, calendar_link: { mode: 'linked', key: workout.id, date: day, time: index ? '19:00' : '17:00', location: 'Himlabadet' } }))
+  for (const [reference, meters] of [['workout:early', 5200], ['workout:late', 4400], ['plan:plan-late', 4400]]) {
+    const entries = buildDiaryEntries({ today: asOf, trainingGroup: 'junior', workouts, plans,
+      sessions: [{ session_date: day, session_slot: 'afternoon_swim', activity_type: 'swim' }],
+      responses: [{ id: 'after', activity_date: day, created_at: `${day}T20:00:00Z`, day_type: 'after', activity_type: 'swim', session_slot: 'afternoon_swim', workout_reference: reference, planned_completion: 'full', rpe: 8 }],
+    })
+    const row = buildPeriodization(entries, asOf).meso.find(row => row.start === day)
+    assert.equal(row.meters, meters, reference)
+    assert.equal(row.swims, 1)
+    assert.equal(row.rpe, 8)
+  }
+})
 test('integration replaces only the coach swimmer point card and loads history lazily', () => {
   const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const ui = readFileSync(new URL('../src/swimmer-periodization.jsx', import.meta.url), 'utf8')

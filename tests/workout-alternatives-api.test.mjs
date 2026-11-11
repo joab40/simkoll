@@ -169,6 +169,43 @@ const secondId = 'bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb'
 const standalone = (extra = {}) => ({ id: firstId, workout_date: date, title: 'Bröstsim', content: '4x100 br', distance_meters: 4400, duration_minutes: 115, time_of_day: 'afternoon', target_groups: ['junior'], alternative_group_id: null, ...extra })
 const saveBody = (extra = {}) => ({ date, title: 'Frisim', content: '4x100 fr', focus: 'f2_spec', timeOfDay: 'afternoon', distanceMeters: 4900, durationMinutes: 115, targetGroups: ['junior'], occasionMode: 'existing', alternativeToWorkoutId: firstId, ...extra })
 
+test('legacy publication cannot overwrite another workout or take over a timed calendar foundation', async () => {
+  const existing = { id: randomUUID(), plan_date: date, activity_type: 'swim', title: 'Tidigare pass', source_workout_id: firstId, focus: 'f2_spec', time_of_day: 'afternoon', target_groups: ['junior'], sync_status: 'linked', calendar_link: { mode: 'linked', key: 'early', time: '17:00', location: 'Himlabadet' } }
+  const foundation = { ...existing, id: randomUUID(), source_workout_id: null, calendar_link: { ...existing.calendar_link, key: 'late', time: '19:00' } }
+  const state = fixture({ initialWorkouts: [standalone()], initialPlans: [existing, foundation] })
+  const before = structuredClone(state.plans)
+  const result = await call(saveBody({ occasionMode: undefined, alternativeToWorkoutId: undefined }))
+  assert.equal(result.code, 200)
+  assert.equal(state.plans.length, 3)
+  assert.deepEqual(state.plans.slice(0, 2), before)
+  assert.equal(state.plans.at(-1).source_workout_id, result.data.workout.id)
+})
+
+test('calendar editor rejects an attempt to replace another workout identity', async () => {
+  const plan = { id: randomUUID(), plan_date: date, activity_type: 'swim', source_workout_id: firstId }
+  const state = fixture({ initialWorkouts: [standalone(), standalone({ id: secondId })], initialPlans: [plan] })
+  const result = await call({ action: 'save-plan', id: plan.id, sourceWorkoutId: secondId, date, activityType: 'swim', title: 'Fel pass', targetGroups: ['junior'] })
+  assert.equal(result.code, 409)
+  assert.equal(state.writes.length, 0)
+  assert.equal(state.plans[0].source_workout_id, firstId)
+})
+
+test('relinking a workout moves only that workout between 17:00 and 19:00', async () => {
+  const key = uid => JSON.stringify(['shared', uid, date])
+  const link = (time, uid) => ({ mode: 'linked', key: key(uid), keys: [key(uid)], date, time, location: 'Himlabadet' })
+  const plans = [firstId, secondId].map((source_workout_id, index) => ({ id: randomUUID(), source_workout_id, plan_date: date, activity_type: 'swim', title: `Pass ${index}`, target_groups: ['junior'], time_of_day: 'afternoon', alternative_group_id: groupId, calendar_link: link('17:00', 'early') }))
+  const state = fixture({ initialWorkouts: [standalone({ alternative_group_id: groupId }), standalone({ id: secondId, alternative_group_id: groupId })], initialPlans: plans,
+    calendarEvents: [{ uid: 'early', date, time: '17:00', title: 'Träning', location: 'Himlabadet' }, { uid: 'late', date, time: '19:00', title: 'Träning', location: 'Himlabadet' }] })
+  const before = structuredClone(state.plans[0])
+  for (const [time, uid] of [['19:00', 'late'], ['17:00', 'early'], ['19:00', 'late']]) {
+    const result = await call({ action: 'save-plan', id: plans[1].id, sourceWorkoutId: secondId, date, activityType: 'swim', title: 'Pass 1', timeOfDay: 'afternoon', targetGroups: ['junior'], calendarLink: link(time, uid) })
+    assert.equal(result.code, 200, JSON.stringify(result.data))
+    assert.deepEqual(state.plans[0], before)
+    assert.equal(state.plans[1].source_workout_id, secondId)
+    assert.equal(state.plans[1].calendar_link.time, time)
+  }
+})
+
 test('a handwritten or generated single workout attaches directly to a calendar training', async () => {
   const state = fixture({ calendarEvents: [{ uid: 'single-evening', date, time: '17:00', title: 'Träning', location: 'Himlabadet' }] })
   const choices = await call({ occasionChoices: 'true', includePlanning: 'true', date }, code, 'GET')

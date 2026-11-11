@@ -3,6 +3,7 @@ import FeatureFaq from './feature-faq.jsx'
 import RewardLevelCard from './reward-level-card.jsx'
 import SwimmerPeriodization from './swimmer-periodization.jsx'
 import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
+import { linkedWorkoutForPlan } from '../shared/planning-workout-link.js'
 import PlanningFoundation from './planning-foundation.jsx'
 import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
@@ -2189,7 +2190,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   const needsWorkoutChoice = needsActivity && form.activityType === 'swim'
   const workoutStep = slotStep + 1
   const slotTime = form.trainingSlot === 'morning_swim' ? 'morning' : 'afternoon'
-  const slotOptions = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === slotTime)
+  const slotOptions = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === slotTime).sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
   const selectedOption = slotOptions.find((plan) => workoutReference(plan) === form.workoutReference)
   const questionOffset = (needsActivity ? 3 : 2) + (needsPassChoice ? 1 : 0) + (needsWorkoutChoice ? 1 : 0)
   const total = questionOffset + questions.length
@@ -2262,7 +2263,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   } else if (needsWorkoutChoice && step === workoutStep) {
     content = <Question eyebrow="Ditt simpass" title={slotOptions.length > 1 ? 'Vilket upplägg körde du?' : 'Stämmer passuppgifterna?'} hint="Bara det valda upplägget räknas. Justera mängden om du simmade något annat.">
       {optionsStatus === 'loading' ? <p role="status">Hämtar passalternativ…</p> : optionsStatus === 'error' ? <div><p className="form-error">Passalternativen kunde inte hämtas.</p><button type="button" className="secondary-button" onClick={() => setOptionsRetry((value) => value + 1)}>Försök igen</button></div> : <>
-        <div className="choice-stack">{slotOptions.map((plan) => <button type="button" key={workoutReference(plan)} className={`choice-card choice-card-with-description${form.workoutReference === workoutReference(plan) ? ' selected' : ''}`} aria-pressed={form.workoutReference === workoutReference(plan)} onClick={() => setForm((current) => ({ ...current, workoutReference: workoutReference(plan), activityDistanceMeters: null, activityMinutes: null }))}><span>{plan.title}<small>{[plan.focus, plan.distanceMeters && `${Number(plan.distanceMeters).toLocaleString('sv-SE')} m`, plan.durationMinutes && `${plan.durationMinutes} min`].filter(Boolean).join(' · ')}</small></span><span>{form.workoutReference === workoutReference(plan) ? '✓' : '○'}</span></button>)}</div>
+        <div className="choice-stack">{slotOptions.map((plan) => <button type="button" key={workoutReference(plan)} className={`choice-card choice-card-with-description${form.workoutReference === workoutReference(plan) ? ' selected' : ''}`} aria-pressed={form.workoutReference === workoutReference(plan)} onClick={() => setForm((current) => ({ ...current, workoutReference: workoutReference(plan), activityDistanceMeters: null, activityMinutes: null }))}><span>{plan.time ? `${plan.time} · ` : ''}{plan.title}<small>{[plan.location, plan.focus, plan.distanceMeters && `${Number(plan.distanceMeters).toLocaleString('sv-SE')} m`, plan.durationMinutes && `${plan.durationMinutes} min`].filter(Boolean).join(' · ')}</small></span><span>{form.workoutReference === workoutReference(plan) ? '✓' : '○'}</span></button>)}</div>
         {!slotOptions.length && <p>Inget upplagt pass hittades för den här träningen. Du kan ange mängden själv.</p>}
         {(selectedOption || !slotOptions.length) && <div className="workout-choice-amounts"><label>Simmade meter <small>{selectedOption?.distanceMeters ? `Planerat: ${selectedOption.distanceMeters.toLocaleString('sv-SE')} m` : 'Frivilligt'}</small><input type="number" min="1" max="1000000" inputMode="numeric" value={form.activityDistanceMeters ?? ''} placeholder={form.plannedCompletion === 'full' ? String(selectedOption?.distanceMeters || '') : 'Ange om du vet'} onChange={(event) => update('activityDistanceMeters', event.target.value ? Number(event.target.value) : null)} /></label><label>Träningstid i minuter <small>{selectedOption?.durationMinutes ? `Planerat: ${selectedOption.durationMinutes} min` : 'Frivilligt'}</small><input type="number" min="1" max="1440" inputMode="numeric" value={form.activityMinutes ?? ''} placeholder={String(selectedOption?.durationMinutes || 'Ange om du vet')} onChange={(event) => update('activityMinutes', event.target.value ? Number(event.target.value) : null)} /></label></div>}
         <p className="settings-help">{selectedOption?.durationMinutes > 0 && <><strong>{selectedOption.durationMinutes} minuter från tränarens planering räknas automatiskt.</strong> </>}Du behöver inte fylla i eller bekräfta planerad tid igen. Tiden märks som hämtad från planeringen, inte som egenrapporterad. {form.plannedCompletion === 'partial' ? 'Delvis gäller passets innehåll. Tränade du kortare eller längre tid? Ange då dina minuter. Simmade meter räknas bara om du anger dem.' : 'Ange egna minuter om tiden avviker. Planerade meter används om du lämnar distansen tom.'}</p>
@@ -3528,24 +3529,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     }
     const workoutFingerprint = (item) => [item.date || item.workoutDate || '', item.title || '', item.focus || '', item.distanceMeters || '', item.durationMinutes || '', item.timeOfDay || '', Array.isArray(item.targetGroups) ? [...item.targetGroups].sort().join(',') : '', item.content || ''].join('|')
     const uniqueActivities = (items, keyFor) => { const seen = new Set(); return items.filter((item) => { const keyValue = keyFor(item); if (seen.has(keyValue)) return false; seen.add(keyValue); return true }) }
-    const findLinkedWorkout = (plan) => {
-      const exact = workouts.find((workout) => workout.id === plan.sourceWorkoutId)
-      const exactMatchesPlan = exact && exact.date === key && (!plan.timeOfDay || !exact.timeOfDay || exact.timeOfDay === plan.timeOfDay) && (!plan.distanceMeters || !exact.distanceMeters || Number(plan.distanceMeters) === Number(exact.distanceMeters))
-      if (exactMatchesPlan) return exact
-      if (plan.calendarLink && !plan.sourceWorkoutId) return null
-      if (plan.activityType !== 'swim') return null
-      const planGroups = new Set(plan.targetGroups || [])
-      const candidates = workouts.filter((workout) => workout.date === key && (!plan.timeOfDay || !workout.timeOfDay || workout.timeOfDay === plan.timeOfDay) && (!planGroups.size || !workout.targetGroups?.length || workout.targetGroups.some((group) => planGroups.has(group))))
-      return candidates.map((workout) => {
-        let score = 0
-        if (plan.focus && workout.focus === plan.focus) score += 5
-        if (Number(plan.distanceMeters) > 0 && Number(workout.distanceMeters) === Number(plan.distanceMeters)) score += 4
-        if (Number(plan.durationMinutes) > 0 && Number(workout.durationMinutes) === Number(plan.durationMinutes)) score += 3
-        if (plan.timeOfDay && workout.timeOfDay === plan.timeOfDay) score += 3
-        if (workout.title && plan.title && workout.title !== plan.title) score += 1
-        return { workout, score }
-      }).sort((a, b) => b.score - a.score)[0]?.workout || null
-    }
+    const findLinkedWorkout = plan => linkedWorkoutForPlan(plan, workouts, key)
     const displayPlans = calendarPlanComplements(plans.filter(item => item.date === key), { workoutIds: new Set(workouts.map(item => item.id)) }).rows
     const planned = uniqueActivities(displayPlans.filter((item) => item.date === key && matchesGroup(item)).map((item) => { const linkedWorkout = findLinkedWorkout(item); return { ...item, alternativeGroupId: item.alternativeGroupId || linkedWorkout?.alternativeGroupId || null, linkedWorkout } }), (item) => item.sourceWorkoutId ? `workout:${item.sourceWorkoutId}` : `plan:${item.date}|${item.activityType}|${item.title}|${item.focus}|${item.distanceMeters}|${item.durationMinutes}|${item.timeOfDay}|${(item.targetGroups || []).slice().sort().join(',')}`)
     const linkedIds = new Set(planned.map((item) => item.sourceWorkoutId).filter(Boolean))

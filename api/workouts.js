@@ -507,10 +507,13 @@ async function syncPlanningFromWorkout(workout, occasionPlan = null) {
   // never overwrite another alternative merely because focus/groups match.
   const own = eligible.find((item) => item.source_workout_id === workout.id)
   const explicitPlans = occasionPlan?.planIds ? eligible.filter(item => occasionPlan.planIds.includes(item.id) && unlinked(item)) : []
-  const current = own || (occasionPlan ? explicitPlans[0] : workout.alternative_group_id
-    ? sameTime.find((item) => unlinked(item) && !item.alternative_group_id && sameGroup(item))
-    : sameTime.find((item) => unlinked(item) && sameFocus(item) && closeDistance(item) && sameGroup(item)) || sameTime.find((item) => unlinked(item) && (sameFocus(item) || closeDistance(item)) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameFocus(item) && sameGroup(item)) || eligible.find((item) => unlinked(item) && sameGroup(item)) || sameTime.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find((item) => item.source_workout_id && !item.alternative_group_id && sameFocus(item) && sameGroup(item)) || eligible.find(unlinked))
-  const sibling = workout.alternative_group_id && plans.find((item) => item.alternative_group_id === workout.alternative_group_id && item.calendar_link?.mode === 'linked')
+  const automatic = sameTime.filter(item => unlinked(item) && !item.calendar_link && !item.alternative_group_id && sameGroup(item) && (!workout.focus || !item.focus || sameFocus(item)) && (!distance || !item.distance_meters || closeDistance(item)))
+  const current = own || (occasionPlan ? explicitPlans[0] : automatic.length === 1 ? automatic[0] : null)
+  const siblings = workout.alternative_group_id ? plans.filter(item => item.alternative_group_id === workout.alternative_group_id && item.calendar_link?.mode === 'linked') : []
+  const siblingKeys = new Set(siblings.map(item => JSON.stringify([item.calendar_link.date, item.calendar_link.time, item.calendar_link.location, calendarLinkKeys(item.calendar_link).slice().sort()])))
+  // An old import group may now span 17:00 and 19:00. Its first row is not
+  // authority to move a different workout to either calendar training.
+  const sibling = siblingKeys.size === 1 ? siblings[0] : null
   const calendar = occasionPlan ? { calendar_link: occasionPlan.calendar_link, location: occasionPlan.location } : (!current && sibling ? { calendar_link: sibling.calendar_link, location: sibling.location } : {})
   const payload = { title: workout.title || 'Simning', focus: workout.focus || null, distance_meters: workout.distance_meters || null, duration_minutes: workout.duration_minutes || null, time_of_day: workout.time_of_day || null, target_groups: workout.target_groups || [], ...(Object.hasOwn(workout, 'alternative_group_id') ? { alternative_group_id: workout.alternative_group_id || null } : {}), ...calendar, source_workout_id: workout.id, sync_status: 'linked', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   if (!own && explicitPlans.length) {
@@ -1020,6 +1023,12 @@ export default async function handler(request, response) {
         }
         if (body.sourceWorkoutId) {
           if (!competitionUuid.test(body.sourceWorkoutId)) return sendJson(response, 400, { error: 'Ogiltig passkoppling.' })
+          if (body.id) {
+            const currentResult = await supabaseRequest(`training_plans?id=eq.${encodeURIComponent(body.id)}&select=id,source_workout_id&limit=1`)
+            if (!currentResult.ok) return sendJson(response, 503, { error: 'Passkopplingen kunde inte kontrolleras. Inget har sparats.' })
+            const [current] = await currentResult.json()
+            if (!current || (current.source_workout_id && current.source_workout_id !== body.sourceWorkoutId)) return sendJson(response, 409, { error: 'Planeringskortets passkoppling har ändrats. Hämta planeringen igen innan du ändrar kalenderkopplingen.' })
+          }
           const linked = await supabaseRequest(`daily_workouts?id=eq.${encodeURIComponent(body.sourceWorkoutId)}&workout_date=eq.${date}&select=id,alternative_group_id&limit=1`)
           const [linkedWorkout] = linked.ok ? await linked.json() : []
           if (!linkedWorkout) return sendJson(response, 400, { error: 'Det upplagda passet kunde inte hittas för dagen.' })
