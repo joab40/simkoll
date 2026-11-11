@@ -75,3 +75,21 @@ test('illness compares unique swimmers, deduplicating sick days from both report
   assert.equal(result.current.sickDays, 2); assert.equal(result.current.sickSwimmers, 1)
   assert.equal(result.metrics.illness.delta, 0)
 })
+
+test('mild symptoms compare unique swimmers over matching weekdays, not symptom days', () => {
+  const illnessRecords = [
+    { profile_id: 'a', activity_date: '2026-11-02', status: 'mild' },
+    { profile_id: 'a', activity_date: '2026-11-09', status: 'mild' },
+    { profile_id: 'a', activity_date: '2026-11-10', status: 'mild' },
+    { profile_id: 'b', activity_date: '2026-11-11', status: 'mild' },
+    { profile_id: 'b', activity_date: '2026-11-05', status: 'mild' },
+    { profile_id: 'test', activity_date: '2026-11-10', status: 'mild' },
+  ]
+  const result = compare([], { illnessRecords })
+  assert.equal(result.current.mild.count, 2)
+  assert.equal(result.current.mild.days, 3)
+  assert.equal(result.previous.mild.count, 1)
+  assert.equal(result.metrics.mild.delta, 1)
+  assert.equal(compare([], { illnessRecords, illnessError: true }).metrics.mild.delta, null)
+  assert.equal(compare([]).metrics.mild.delta, 0)
+})

@@ -21,7 +21,7 @@
 .coach-panel-intro, .coach-panel-method, .coach-panel-roster > small { color: var(--muted); line-height: 1.5; font-size: 13px; }
 .coach-panel-intro { margin: 0; }
 .coach-panel-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.coach-panel-wellbeing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.coach-panel-wellbeing { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .coach-panel-metrics article, .coach-panel-followups, .coach-panel-roster { border: 1px solid var(--line); background: var(--paper); border-radius: 18px; padding: 19px; }
 .coach-panel-metrics article { display: grid; gap: 8px; align-content: start; }
 .coach-panel-metrics article small { font-weight: 700; }
