@@ -5325,7 +5325,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
   const signalFor = (item) => item.raceConcern === 'sick_or_pain' ? '⚠️ Sjuk eller ont inför tävling' : item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
 
   if (!responses.length && !feelingComparison) {
-    return <><EmptyPeriod title={title} periodLabel={periodLabel} />{overviewExtra && <section className="coach-card"><div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>{overviewExtra}</section>}</>
+    return <><EmptyPeriod title={title} periodLabel={periodLabel} />{overviewExtra}</>
   }
 
   return (
@@ -5350,8 +5350,8 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
           ))}
         </div>
         {selectedFeeling && <section className="feeling-followup"><div><p className="eyebrow">Profilerade svar · {FEELINGS[selectedFeeling - 1].label}</p><h3>Vilka valde detta?</h3></div><button type="button" onClick={() => setSelectedFeeling(null)}>Stäng</button>{latestByProfile.length ? <div className="feeling-profile-list">{latestByProfile.map((item) => { const owner = profileById.get(item.profileId); return <article key={item.profileId}><span>{owner.emoji}</span><div><strong>{owner.displayName}</strong><small>{signalFor(item) || 'Svarade på känslan'} · {new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div></article> })}</div> : <p className="empty">Inga profilerade svar på denna nivå.</p>}<small className="feeling-anonymous">{selectedItems.length - identifiedItems.length} anonyma svar visas inte individuellt.</small></section>}
-        {overviewExtra}
       </section>
+      {overviewExtra}
 
       {!hideActivityComments && <div className="coach-columns">
         <section className="coach-card">
