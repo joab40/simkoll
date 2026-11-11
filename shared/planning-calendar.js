@@ -40,6 +40,26 @@ export function calendarFormValues(value) {
   }
 }
 
+// Calendar checkboxes represent groups at one training occasion. Selecting a
+// different start time switches this plan's occasion instead of requiring the
+// coach to first clear every old group checkbox by hand.
+export function selectPlanningCalendarActivity(form, key, activities) {
+  const activity = activities.find(item => calendarActivityKey(item) === key)
+  const keys = calendarLinkKeys(form.calendarLink)
+  let selected
+  if (keys.includes(key)) {
+    selected = keys.filter(value => value !== key).map(value => activities.find(item => calendarActivityKey(item) === value))
+    if (selected.some(item => !item)) throw new Error('En tidigare vald kalenderaktivitet saknas. Välj ett nytt träningstillfälle.')
+  } else {
+    if (!activity) throw new Error('Kalenderaktiviteten finns inte längre. Hämta planeringen igen.')
+    const previous = keys.map(value => activities.find(item => calendarActivityKey(item) === value))
+    if (previous.every(Boolean) && sameCalendarOccasion([...previous, activity])) selected = [...previous, activity]
+    else selected = activities.filter(item => sameCalendarOccasion([activity, item]))
+  }
+  const values = selected.length ? calendarFormValues(selected) : { calendarLink: { mode: 'none' }, location: '', timeOfDay: '' }
+  return { ...values, targetGroups: [...new Set([...(form.targetGroups || []), ...(values.targetGroups || [])])] }
+}
+
 export function validateCalendarLink(value) {
   if (value == null) return true
   const validKey = (key) => typeof key === 'string' && key.length > 0 && key.length <= 2000

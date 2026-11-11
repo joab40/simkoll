@@ -16,7 +16,7 @@ import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, 
 import TrendLineChart from './trend-line-chart.jsx'
 import { CHECKIN_ACTIVITIES, activityLabel, BEFORE_TRAINING_CHOICES, selectBeforeTraining } from '../shared/checkin-activity.js'
 import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
-import { calendarActivityKey, calendarFormValues, calendarLinkKeys, sameCalendarOccasion, explicitCalendarMatches } from '../shared/planning-calendar.js'
+import { calendarActivityKey, calendarFormValues, calendarLinkKeys, selectPlanningCalendarActivity, explicitCalendarMatches } from '../shared/planning-calendar.js'
 import './swim-workout-options.css'
 import './planning-calendar.css'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
@@ -3987,16 +3987,11 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
   const selectType = (activityType) => setForm((current) => ({ ...current, activityType, title: current.title === suggestions[current.activityType] || !current.title ? suggestions[activityType] : current.title, durationMinutes: activityType === 'swim' && !current.durationMinutes ? 120 : current.durationMinutes }))
   if (plan?.linkedWorkout) label = 'Öppna upplagt pass →'
   const selectCalendar = (key) => {
-    const keys = calendarLinkKeys(form.calendarLink)
-    const nextKeys = keys.includes(key) ? keys.filter((value) => value !== key) : [...keys, key]
-    const selected = nextKeys.map((value) => dayCalendar.find((item) => calendarActivityKey(item) === value))
-    if (selected.some((item) => !item)) { setSaveError('En tidigare vald kalenderaktivitet saknas. Avmarkera den innan du väljer nya aktiviteter.'); return }
-    if (selected.length && !sameCalendarOccasion(selected)) { setSaveError('Välj kalenderaktiviteter med samma datum, starttid och plats för ett gemensamt pass.'); return }
-    setSaveError('')
-    setForm((current) => {
-      const values = selected.length ? calendarFormValues(selected) : { calendarLink: { mode: 'none' } }
-      return { ...current, ...values, targetGroups: [...new Set([...(current.targetGroups || []), ...(values.targetGroups || [])])] }
-    })
+    try {
+      const update = selectPlanningCalendarActivity(form, key, dayCalendar)
+      setForm(current => ({ ...current, ...update }))
+      setSaveError('')
+    } catch (error) { setSaveError(error.message) }
   }
   const save = async (event) => {
     event.preventDefault(); if (saving) return
@@ -4015,11 +4010,11 @@ function PlanningEditButton({ code, plan, date, group, calendarActivities = [], 
     <PlanningFoundation plans={plan?.foundationPlans} renderEditor={base => <PlanningEditButton code={code} plan={base} date={date} group={group} calendarActivities={calendarActivities} onSaved={onSaved} label="Redigera grundplan" />} />
     {open && form && <div className="planning-editor-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
       <form className="planning-editor" onSubmit={save}>
-        <div className="planning-editor-head"><h2>{plan ? 'Redigera aktivitet' : 'Lägg till aktivitet'}</h2><button type="button" className="text-button" onClick={() => setOpen(false)}>Stäng</button></div>
+        <div className="planning-editor-head"><h2>{calendarOnly ? `Kalenderkoppling · ${plan.title}` : plan ? 'Redigera aktivitet' : 'Lägg till aktivitet'}</h2><button type="button" className="text-button" onClick={() => setOpen(false)}>Stäng</button></div>
         {!calendarOnly && <fieldset><legend>Vad planeras?</legend><div className="planning-type-buttons">{types.map(([value, text]) => <button type="button" className={form.activityType === value ? 'active' : ''} key={value} onClick={() => selectType(value)}>{text}</button>)}</div></fieldset>}
         <fieldset className="planning-calendar-choice"><legend>Koppla till kalenderaktiviteter</legend>
           <div className="planning-calendar-modes"><button type="button" aria-pressed={!form.calendarLink} onClick={() => { setSaveError(''); setForm((current) => ({ ...current, calendarLink: null, location: '', timeOfDay: '' })) }}>Automatisk koppling</button><button type="button" aria-pressed={form.calendarLink?.mode === 'none'} onClick={() => { setSaveError(''); setForm((current) => ({ ...current, calendarLink: { mode: 'none' }, location: '', timeOfDay: '' })) }}>Ingen koppling</button></div>
-          <p>Välj en eller flera gruppers kalenderaktiviteter för samma träning. Starttid och plats ska vara samma. Grupperna läggs till utan att dina tidigare gruppval tas bort.</p>
+          <p>Välj träningstillfälle för det här passet. Klickar du på ett annat klockslag ersätts den tidigare kalenderkopplingen direkt. Andra upplagda pass behåller sina tider. Flera gruppers kalenderaktiviteter med samma starttid och plats kan väljas tillsammans.</p>
           <div className="planning-calendar-list">{dayCalendar.map((item) => <label className="planning-calendar-option" key={calendarActivityKey(item)}><input type="checkbox" checked={calendarLinkKeys(form.calendarLink).includes(calendarActivityKey(item))} onChange={() => selectCalendar(calendarActivityKey(item))} /><span><strong>{item.time || 'Tid saknas'} · {item.title}</strong><small>{[item.location, item.targetGroups?.map((value) => ({ junior: 'Junior', ungdom_svart: 'Svart', ungdom_orange: 'Orange' }[value] || value)).join(', ')].filter(Boolean).join(' · ')}</small></span></label>)}{calendarLinkKeys(form.calendarLink).filter((key) => !dayCalendar.some((item) => calendarActivityKey(item) === key)).map((key) => <label className="planning-calendar-option" key={key}><input type="checkbox" checked onChange={() => selectCalendar(key)} /><span><strong>{form.calendarLink.title}</strong><small>Tidigare vald aktivitet saknas i kalendern. Avmarkera för att ta bort kopplingen.</small></span></label>)}</div>
           {!dayCalendar.length && <p>Inga kalenderaktiviteter hittades för dagen.</p>}
         </fieldset>

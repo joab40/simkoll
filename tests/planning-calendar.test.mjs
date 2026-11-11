@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calendarActivityKey, calendarFormValues, calendarLinkKeys, validateCalendarLink, explicitCalendarMatches } from '../shared/planning-calendar.js'
+import { calendarActivityKey, calendarFormValues, calendarLinkKeys, validateCalendarLink, explicitCalendarMatches, selectPlanningCalendarActivity } from '../shared/planning-calendar.js'
 import { swimWorkoutOptions } from '../shared/swim-workout-options.js'
 import { buildSwimmerPasses } from '../server/individual-analysis.js'
 
@@ -45,6 +45,38 @@ test('explicit match chooses 18:00 even when there is another PM activity', () =
   assert.deepEqual(explicitCalendarMatches({ date, calendarLink: { mode: 'none' } }, [activity]), [])
   assert.equal(explicitCalendarMatches({ date }, [activity]), null)
   assert.deepEqual(explicitCalendarMatches(plan, [later]), [])
+})
+
+test('one click switches 19:00 to 17:00 for this draft without changing the other workout', () => {
+  const early = { ...activity, uid: 'early', time: '17:00' }
+  const earlyBlack = { ...sharedActivity, uid: 'early-black', time: '17:00' }
+  const late = { ...activity, uid: 'late', time: '19:00' }
+  const lateBlack = { ...sharedActivity, uid: 'late-black', time: '19:00' }
+  const choices = [early, earlyBlack, late, lateBlack]
+  const first = { id: 'first', ...calendarFormValues([late, lateBlack]) }
+  const second = { id: 'second', ...calendarFormValues([late, lateBlack]) }
+  const before = structuredClone({ first, second })
+  const update = selectPlanningCalendarActivity(first, calendarActivityKey(early), choices)
+  assert.equal(update.calendarLink.time, '17:00')
+  assert.deepEqual(calendarLinkKeys(update.calendarLink), [calendarActivityKey(early), calendarActivityKey(earlyBlack)])
+  assert.deepEqual({ first, second }, before, 'switching a draft must never mutate sibling state')
+  const back = selectPlanningCalendarActivity({ ...first, ...update }, calendarActivityKey(late), choices)
+  assert.equal(back.calendarLink.time, '19:00')
+  assert.deepEqual(calendarLinkKeys(back.calendarLink), [calendarActivityKey(late), calendarActivityKey(lateBlack)])
+})
+
+test('group checkboxes can still be toggled within an occasion and stale links can be replaced', () => {
+  const first = calendarFormValues(activity)
+  const both = selectPlanningCalendarActivity(first, calendarActivityKey(sharedActivity), [activity, sharedActivity])
+  assert.equal(calendarLinkKeys(both.calendarLink).length, 2)
+  const one = selectPlanningCalendarActivity(both, calendarActivityKey(sharedActivity), [activity, sharedActivity])
+  assert.deepEqual(calendarLinkKeys(one.calendarLink), [calendarActivityKey(activity)])
+  const none = selectPlanningCalendarActivity(one, calendarActivityKey(activity), [activity, sharedActivity])
+  assert.deepEqual(none.calendarLink, { mode: 'none' })
+  assert.equal(none.location, '')
+  const repaired = selectPlanningCalendarActivity({ ...first, calendarLink: { mode: 'linked', key: 'missing' } }, calendarActivityKey(activity), [activity])
+  assert.equal(repaired.calendarLink.time, '18:00')
+  assert.throws(() => selectPlanningCalendarActivity(first, 'missing', [activity]), /finns inte längre/)
 })
 test('several group calendar entries stay linked, including after filtering to a secondary group', () => {
   const values = calendarFormValues([activity, sharedActivity])
