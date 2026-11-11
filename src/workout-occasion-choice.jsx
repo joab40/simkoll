@@ -21,8 +21,6 @@ export default function WorkoutOccasionChoice({ form, loadChoices, onChange, onV
       const options = data.occasions || []
       setChoices(options)
       setLoadedFor(() => loadChoices)
-      // Never overwrite an explicit coach choice while this read was pending.
-      if (autoDefault && latest.current.form.occasionMode == null) latest.current.onChange(defaultOccasionUpdate(options, latest.current.form))
     }).catch((failure) => { if (!controller.signal.aborted) setError(failure.message) }).finally(() => { clearTimeout(timer); if (!controller.signal.aborted) setLoading(false) })
     // An aborted old date must never overwrite the current date's choices.
     return () => { clearTimeout(timer); controller.abort() }
@@ -33,7 +31,11 @@ export default function WorkoutOccasionChoice({ form, loadChoices, onChange, onV
   const valid = validOccasionSelection({ ...form, occasionMode: mode }, choices) && (mode !== 'existing' || ready)
   useEffect(() => { onValidationChange?.({ key: validationKey, valid }) }, [onValidationChange, validationKey, valid])
   useEffect(() => {
-    if (!autoDefault || !ready || mode !== 'existing') return
+    if (!autoDefault || !ready) return
+    // The editor can finish loading/reset its draft after the choices arrive.
+    // Reconcile here so defaults apply in either response order.
+    if (latest.current.form.occasionMode == null) { latest.current.onChange(defaultOccasionUpdate(choices, latest.current.form)); return }
+    if (mode !== 'existing') return
     // Inherited state and changed groups must be checked against this date's
     // actual choices, rather than keeping an empty/stale "existing" selection.
     if (!compatible.length) latest.current.onChange({ occasionMode: 'new', ...clearOccasionTarget })

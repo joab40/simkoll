@@ -28,6 +28,7 @@ import DrylandProgramPage, { DrylandProgramRunner, DrylandHistory } from './dryl
 import ProgramBulkAssign from './program-bulk-assign.jsx'
 import ProgramManagementCard from './program-management-card.jsx'
 import WorkoutOccasionChoice from './workout-occasion-choice.jsx'
+import { clearOccasionTarget, hasOccasionTarget, occasionValidationKey } from '../shared/workout-occasion-selection.js'
 import WorkoutGenerator, { WorkoutGenerationResult, WorkoutGenerationButtonContent } from './workout-generator.jsx'
 import WorkoutCard, { WorkoutContent, WorkoutMeta } from './workout-card.jsx'
 import WorkoutPreview from './workout-preview.jsx'
@@ -4754,6 +4755,9 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
   const blankWorkout = () => ({ title: '', content: '', note: '', focus: '', distanceMeters: '', durationMinutes: '', timeOfDay: '', targetGroups: selectedGroups.length ? selectedGroups : availableGroups.map(([value]) => value) })
   const [date, setDate] = useState(initialWorkout?.date || localDateValue())
   const [form, setForm] = useState(initialWorkout || blankWorkout())
+  const [choiceValidation, setChoiceValidation] = useState(null)
+  const occasionForm = { ...form, date, occasionMode: form.occasionMode || (form.id ? 'keep' : undefined) }
+  const occasionValid = Boolean(occasionForm.occasionMode && choiceValidation?.key === occasionValidationKey(occasionForm) && choiceValidation.valid)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [existingWorkouts, setExistingWorkouts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -4776,7 +4780,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
   const [driveLoading, setDriveLoading] = useState(false)
   const [workbookImport, setWorkbookImport] = useState(null)
   const [publishedAlternatives, setPublishedAlternatives] = useState(0)
-  const loadOccasionChoices = useMemo(() => (requestedDate, exclude, signal) => apiRequest(`/api/workouts?occasionChoices=true&date=${encodeURIComponent(requestedDate)}${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ''}`, code, { signal }), [code])
+  const loadOccasionChoices = useMemo(() => (requestedDate, exclude, signal) => apiRequest(`/api/workouts?occasionChoices=true&includePlanning=true&date=${encodeURIComponent(requestedDate)}${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ''}`, code, { signal }), [code])
   const loadSingleOccasions = useMemo(() => (signal) => loadOccasionChoices(date, form.id || '', signal), [loadOccasionChoices, date, form.id])
   const loadImportOccasions = useMemo(() => (requestedDate, exclude, signal) => apiRequest(`/api/workouts?occasionChoices=true&includePlanning=true&date=${encodeURIComponent(requestedDate)}`, code, { signal }), [code])
   const [criteria, setCriteria] = useState(['focus', 'pass', 'rpe'])
@@ -4840,7 +4844,7 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
       const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate-from-library', ...settings, request: String(settings.request || '').slice(0, 300), library: source }) })
       if (data.error) throw new Error(data.error)
       if (!data.draft?.content) throw new Error('Inget passförslag kunde hämtas. Försök igen.')
-      setForm((current) => ({ ...current, ...data.draft, targetGroups: settings.groups }))
+      setForm((current) => ({ ...current, ...data.draft, ...(current.occasionMode === 'existing' && hasOccasionTarget(current) && !current.requiresTimeOfDay ? { timeOfDay: current.timeOfDay } : {}), targetGroups: settings.groups }))
       setGenerationResult({ ...data.provenance, model: data.model })
       setSaved(false); setGeneratorOpen(false)
     } catch (error) { window.alert(error.message) }
@@ -4893,8 +4897,8 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
 
   const save = async (event) => {
     event.preventDefault()
-    const occasionMode = form.occasionMode || (form.id ? 'keep' : 'new')
-    if (occasionMode === 'existing' && !form.alternativeToWorkoutId) { window.alert('Välj vilket befintligt träningstillfälle passet hör till.'); return }
+    const occasionMode = occasionForm.occasionMode
+    if (!occasionValid || (occasionMode === 'existing' && !hasOccasionTarget(form))) { window.alert('Välj ett giltigt befintligt träningstillfälle eller välj Nytt träningstillfälle.'); return }
     setLoading(true)
     setSaved(false)
     try {
@@ -4943,14 +4947,14 @@ function WorkoutEditor({ code, responses, aiEnabled = true, initialWorkout = nul
         </>}
       </section>}
       <form onSubmit={save}>
-        <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setDate(event.target.value); setForm((current) => ({ ...current, alternativeToWorkoutId: '' })) }} /></label>
-        <WorkoutOccasionChoice form={form} loadChoices={loadSingleOccasions} disabled={loading} onChange={(update) => { setForm((current) => ({ ...current, ...update })); setSaved(false) }} />
+        <label>Datum<input type="date" value={date} onChange={(event) => { setSaved(false); setChoiceValidation(null); setDate(event.target.value); setForm((current) => ({ ...current, ...clearOccasionTarget, occasionMode: undefined })) }} /></label>
+        <WorkoutOccasionChoice autoDefault={!form.id} form={occasionForm} loadChoices={loadSingleOccasions} disabled={loading} onValidationChange={setChoiceValidation} onChange={(update) => { setChoiceValidation(null); setForm((current) => ({ ...current, ...update })); setSaved(false) }} />
         <label>Rubrik<input required maxLength="80" placeholder="Till exempel: Tröskel + teknik" value={form.title || ''} onChange={(event) => { setSaved(false); setForm({ ...form, title: event.target.value }) }} /></label>
-        <div className="workout-meta-fields"><label>Huvudinriktning<select value={form.focus || ''} onChange={(event) => { setSaved(false); setForm({ ...form, focus: event.target.value }) }}><option value="">Välj inriktning…</option>{WORKOUT_FOCUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Tid på dagen<select value={form.timeOfDay || ''} onChange={(event) => { setSaved(false); setForm({ ...form, timeOfDay: event.target.value }) }}><option value="">Välj tid…</option><option value="morning">Förmiddag / morgon</option><option value="afternoon">Eftermiddag / kväll</option></select></label><label>Längd (meter)<input type="number" min="1" max="50000" placeholder="t.ex. 4000" value={form.distanceMeters ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, distanceMeters: event.target.value }) }} /></label><label>Tidsåtgång (minuter)<input type="number" min="1" max="600" placeholder="t.ex. 75" value={form.durationMinutes ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, durationMinutes: event.target.value }) }} /></label></div>
+        <div className="workout-meta-fields"><label>Huvudinriktning<select value={form.focus || ''} onChange={(event) => { setSaved(false); setForm({ ...form, focus: event.target.value }) }}><option value="">Välj inriktning…</option>{WORKOUT_FOCUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>{(occasionForm.occasionMode !== 'existing' || form.requiresTimeOfDay) && <label>Tid på dagen<select required={occasionForm.occasionMode === 'existing'} value={form.timeOfDay || ''} onChange={(event) => { setSaved(false); setForm({ ...form, timeOfDay: event.target.value }) }}><option value="">Välj tid…</option><option value="morning">Förmiddag / morgon</option><option value="afternoon">Eftermiddag / kväll</option></select></label>}<label>Längd (meter)<input type="number" min="1" max="50000" placeholder="t.ex. 4000" value={form.distanceMeters ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, distanceMeters: event.target.value }) }} /></label><label>Tidsåtgång (minuter)<input type="number" min="1" max="600" placeholder="t.ex. 75" value={form.durationMinutes ?? ''} onChange={(event) => { setSaved(false); setForm({ ...form, durationMinutes: event.target.value }) }} /></label></div>
         <fieldset className="workout-groups"><legend>Passet gäller för</legend><div>{[['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']].map(([value, label]) => <label key={value}><input type="checkbox" checked={(form.targetGroups || []).includes(value)} onChange={(event) => { setSaved(false); const groups = new Set(form.targetGroups || []); event.target.checked ? groups.add(value) : groups.delete(value); setForm({ ...form, targetGroups: [...groups] }) }} />{label}</label>)}</div><small>Välj en eller flera grupper. Passet visas bara för valda grupper.</small></fieldset>
         <label>Huvudserie<textarea required maxLength="5000" placeholder={'Till exempel:\n8 × 50 m teknik\nHuvudserie…'} value={form.content || ''} onChange={(event) => { setSaved(false); setForm({ ...form, content: event.target.value }) }} /><div className="workout-ai-actions">{aiEnabled && <button type="button" className={`secondary-button${polishing ? ' ai-working' : ''}`} onClick={polishContent} disabled={polishing || loading || recording || transcribing || !form.content?.trim()}>{polishing ? 'Förbättrar passet…' : '✨ Förbättra träningspass med AI'}</button>}{aiEnabled && <button type="button" className={recording ? 'recording-button' : transcribing ? 'secondary-button ai-working' : 'secondary-button'} onClick={recording ? stopWorkoutRecording : startWorkoutRecording} disabled={loading || polishing || transcribing}>{recording ? '⏹ Stoppa inspelning' : transcribing ? 'Transkriberar…' : '🎙️ Läs in med röst'}</button>}<label className={`secondary-button workout-upload-button${loading ? ' ai-working' : ''}`}>🖼️ {loading ? 'Tolkar passbild…' : 'Tolka bild av pass'}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={importImage} disabled={loading || polishing || recording || transcribing} /></label></div><small className="settings-note">Du kan läsa in passet med rösten. Kontrollera alltid texten och formateringen före publicering.</small></label>
         <label>Meddelande till simmarna <small>Frivilligt</small><textarea className="short" maxLength="500" placeholder="Fokus för dagen eller något att tänka på…" value={form.note || ''} onChange={(event) => { setSaved(false); setForm({ ...form, note: event.target.value }) }} /></label>
-        <div className="editor-actions">{form.id && <button type="button" className="delete-workout" onClick={remove}>Radera pass</button>}<span>{saved ? '✓ Sparat och publicerat' : ''}</span>{onClose && <button type="button" className="secondary-button" onClick={onClose}>Avbryt</button>}<button type="button" className="secondary-button" disabled={loading || polishing || recording || transcribing} onClick={() => setPreviewOpen(true)}>Förhandsgranska som simmare</button><button className="primary-button" disabled={loading}>{loading ? 'Vänta…' : initialWorkout ? 'Spara ändringar →' : 'Publicera passet →'}</button></div>
+        <div className="editor-actions">{form.id && <button type="button" className="delete-workout" onClick={remove}>Radera pass</button>}<span>{saved ? '✓ Sparat och publicerat' : ''}</span>{onClose && <button type="button" className="secondary-button" onClick={onClose}>Avbryt</button>}<button type="button" className="secondary-button" disabled={loading || polishing || recording || transcribing} onClick={() => setPreviewOpen(true)}>Förhandsgranska som simmare</button><button className="primary-button" disabled={loading || !occasionValid}>{loading ? 'Vänta…' : initialWorkout ? 'Spara ändringar →' : 'Publicera passet →'}</button></div>
       </form>
       {previewOpen && <WorkoutPreview workouts={[{ ...form, date, id: form.id || 'preview-draft' }]} date={date} timeOfDay={form.timeOfDay} onClose={() => setPreviewOpen(false)} />}
     </section>

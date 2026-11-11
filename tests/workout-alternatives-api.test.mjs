@@ -169,6 +169,50 @@ const secondId = 'bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb'
 const standalone = (extra = {}) => ({ id: firstId, workout_date: date, title: 'Bröstsim', content: '4x100 br', distance_meters: 4400, duration_minutes: 115, time_of_day: 'afternoon', target_groups: ['junior'], alternative_group_id: null, ...extra })
 const saveBody = (extra = {}) => ({ date, title: 'Frisim', content: '4x100 fr', focus: 'f2_spec', timeOfDay: 'afternoon', distanceMeters: 4900, durationMinutes: 115, targetGroups: ['junior'], occasionMode: 'existing', alternativeToWorkoutId: firstId, ...extra })
 
+test('a handwritten or generated single workout attaches directly to a calendar training', async () => {
+  const state = fixture({ calendarEvents: [{ uid: 'single-evening', date, time: '17:00', title: 'Träning', location: 'Himlabadet' }] })
+  const choices = await call({ occasionChoices: 'true', includePlanning: 'true', date }, code, 'GET')
+  assert.equal(choices.code, 200)
+  const target = choices.data.occasions.find(item => item.targetCalendarKey)
+  assert.ok(target)
+  const response = await call(saveBody({ alternativeToWorkoutId: '', alternativeToCalendarKey: target.targetCalendarKey }))
+  assert.equal(response.code, 200)
+  assert.equal(state.workouts.length, 1)
+  assert.equal(state.plans.length, 1)
+  assert.equal(state.plans[0].source_workout_id, response.data.workout.id)
+  assert.equal(state.plans[0].calendar_link.time, '17:00')
+  assert.equal(state.plans[0].location, 'Himlabadet')
+})
+
+test('a single workout reuses the chosen foundation and leaves the other calendar training alone', async () => {
+  const planId = randomUUID(), otherId = randomUUID()
+  const calendarLink = { mode: 'linked', key: 'evening', date, time: '19:00', location: 'Himlabadet' }
+  const state = fixture({ initialPlans: [
+    { id: planId, plan_date: date, activity_type: 'swim', title: 'Grundplan', time_of_day: 'afternoon', target_groups: ['junior'], calendar_link: calendarLink },
+    { id: otherId, plan_date: date, activity_type: 'swim', title: 'Tidigare träning', time_of_day: 'afternoon', target_groups: ['junior'], calendar_link: { ...calendarLink, key: 'earlier', time: '17:00' } },
+  ] })
+  const response = await call(saveBody({ alternativeToWorkoutId: '', alternativeToPlanId: planId }))
+  assert.equal(response.code, 200)
+  assert.equal(state.plans.length, 2)
+  const saved = state.plans.find(plan => plan.id === planId)
+  assert.equal(saved.source_workout_id, response.data.workout.id)
+  assert.equal(saved.calendar_link.time, '19:00')
+  assert.equal(state.plans.find(plan => plan.id === otherId).source_workout_id, undefined)
+})
+
+test('a single workout cannot use ambiguous, removed or unrelated planning targets', async () => {
+  for (const extra of [
+    { alternativeToPlanId: randomUUID() },
+    { alternativeToWorkoutId: '', alternativeToPlanId: randomUUID() },
+    { alternativeToWorkoutId: '', alternativeToCalendarKey: 'removed-calendar' },
+  ]) {
+    const state = fixture()
+    const response = await call(saveBody(extra))
+    assert.ok([400, 409].includes(response.code))
+    assert.equal(state.writes.length, 0)
+  }
+})
+
 test('missing migration detected only at publication still returns an actionable error', async () => {
   for (const body of [requestBody(), saveBody({ occasionMode: 'new' })]) {
     const state = fixture({ missingMigrationOnWrite: true })

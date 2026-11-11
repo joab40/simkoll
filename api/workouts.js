@@ -1225,11 +1225,13 @@ export default async function handler(request, response) {
       const payload = { workout_date: date, title, content, note: note || null, focus: focus || null, distance_meters: distanceMeters, duration_minutes: durationMinutes, time_of_day: timeOfDay || null, target_groups: targetGroups, updated_at: new Date().toISOString() }
       const workoutId = String(request.body?.id || '')
       const mode = request.body?.occasionMode
-      if ((workoutId && !competitionUuid.test(workoutId)) || (mode && !['keep', 'new', 'existing'].includes(mode)) || (mode === 'keep' && !workoutId) || (mode === 'existing' && !competitionUuid.test(String(request.body.alternativeToWorkoutId || '')))) return sendJson(response, 400, { error: 'Välj ett giltigt pass och träningstillfälle.' })
+      const targets = [request.body.alternativeToWorkoutId, request.body.alternativeToPlanId, request.body.alternativeToCalendarKey].filter(Boolean)
+      if ((workoutId && !competitionUuid.test(workoutId)) || (mode && !['keep', 'new', 'existing'].includes(mode)) || (mode === 'keep' && !workoutId) || (mode === 'existing' && (targets.length !== 1 || (request.body.alternativeToWorkoutId && !competitionUuid.test(String(request.body.alternativeToWorkoutId))) || (request.body.alternativeToPlanId && !competitionUuid.test(String(request.body.alternativeToPlanId))) || (request.body.alternativeToCalendarKey && (typeof request.body.alternativeToCalendarKey !== 'string' || request.body.alternativeToCalendarKey.length > 2000))))) return sendJson(response, 400, { error: 'Välj ett giltigt pass och träningstillfälle.' })
       let link = null
       if (mode === 'new') payload.alternative_group_id = randomUUID()
       if (mode === 'existing') {
-        link = prepareWorkoutOccasion(await loadWorkoutOccasions(date), { targetId: request.body.alternativeToWorkoutId, workoutId, timeOfDay, targetGroups })
+        const context = request.body.alternativeToCalendarKey ? await importWorkoutOccasions(date) : await loadWorkoutOccasions(date)
+        link = prepareWorkoutOccasion(context, { targetId: request.body.alternativeToWorkoutId, targetPlanId: request.body.alternativeToPlanId, targetCalendarKey: request.body.alternativeToCalendarKey, workoutId, timeOfDay, targetGroups })
         payload.alternative_group_id = link.groupId
         for (const member of await persistWorkoutOccasion(link)) await syncPlanningFromWorkout(member)
       }
@@ -1246,7 +1248,7 @@ export default async function handler(request, response) {
       }
       const savedWorkout = (await result.json())[0]
       if (!savedWorkout) return sendJson(response, 409, { error: 'Passet finns inte längre. Hämta dagens pass igen.' })
-      await syncPlanningFromWorkout(savedWorkout, link ? { calendar_link: link.calendarPlan?.calendar_link || { mode: 'none' }, location: link.calendarPlan?.location || null } : null)
+      await syncPlanningFromWorkout(savedWorkout, link ? { calendar_link: link.calendarPlan?.calendar_link || { mode: 'none' }, location: link.calendarPlan?.location || null, planIds: link.planIds || [] } : null)
       // A newly-created daily workout is published immediately. Updates to an
       // existing pass are intentionally quiet to avoid notifying on every edit.
       if (!workoutId && savedWorkout) queueCategoryPush({ category: 'publishedWorkouts', id: savedWorkout.id, targetGroups: savedWorkout.target_groups || [], date: savedWorkout.workout_date, timeOfDay: savedWorkout.time_of_day || '' })
