@@ -2696,7 +2696,6 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
           </div></details>
         </nav>
         {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
-        {view === 'today' && <TodayMildIllness code={code} profiles={groupFilteredProfiles} date={summaryDate} asOf={todayKey()} onOpenSwimmer={profileId => { setFocusedSwimmerId(profileId); setView('swimmers') }} />}
         {view === 'today' && <CompetitionDaySummary date={summaryDate} plans={summaryCompetitionPlans} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
         {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} hasCompetition={hasCompetitionOnSummaryDate} date={summaryDate} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
@@ -2767,6 +2766,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
             title={summaryDate === todayKey() ? 'Idag' : 'Vald dag'}
             profiles={groupFilteredProfiles}
             hasPlannedCompetition={view === 'today' && summaryCompetitionPlans.length > 0}
+            overviewExtra={view === 'today' && <TodayMildIllness code={code} profiles={groupFilteredProfiles} date={summaryDate} asOf={todayKey()} onOpenSwimmer={profileId => { setFocusedSwimmerId(profileId); setView('swimmers') }} />}
             periodLabel={summaryDateLabel}
           />{view === 'today' && <CoachActivitySummary code={code} selectedDate={summaryDate} onDateChange={setSummaryDate} aiEnabled={aiEnabled} />}</>
         )}
@@ -5297,7 +5297,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false, overviewExtra }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
   const [selectedMetric, setSelectedMetric] = useState(null)
   useEffect(() => { setSelectedMetric(null); setSelectedFeeling(null) }, [periodLabel])
@@ -5324,7 +5324,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
   const signalFor = (item) => item.raceConcern === 'sick_or_pain' ? '⚠️ Sjuk eller ont inför tävling' : item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
 
   if (!responses.length) {
-    return <EmptyPeriod title={title} periodLabel={periodLabel} />
+    return <><EmptyPeriod title={title} periodLabel={periodLabel} />{overviewExtra && <section className="coach-card"><div className="section-heading"><div><p className="eyebrow">Överblick</p><h2>Så känns det i gruppen</h2></div></div>{overviewExtra}</section>}</>
   }
 
   return (
@@ -5348,6 +5348,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
           ))}
         </div>
         {selectedFeeling && <section className="feeling-followup"><div><p className="eyebrow">Profilerade svar · {FEELINGS[selectedFeeling - 1].label}</p><h3>Vilka valde detta?</h3></div><button type="button" onClick={() => setSelectedFeeling(null)}>Stäng</button>{latestByProfile.length ? <div className="feeling-profile-list">{latestByProfile.map((item) => { const owner = profileById.get(item.profileId); return <article key={item.profileId}><span>{owner.emoji}</span><div><strong>{owner.displayName}</strong><small>{signalFor(item) || 'Svarade på känslan'} · {new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div></article> })}</div> : <p className="empty">Inga profilerade svar på denna nivå.</p>}<small className="feeling-anonymous">{selectedItems.length - identifiedItems.length} anonyma svar visas inte individuellt.</small></section>}
+        {overviewExtra}
       </section>
 
       <div className="coach-columns">
