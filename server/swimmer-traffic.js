@@ -16,7 +16,7 @@ export async function loadSwimmerTraffic(asOf, read = supabaseRequest) {
     return result.json()
   }
   const illnessResult = async () => {
-    const result = await analyticsRows(`profile_daily_illness?${dated('activity_date')}&select=profile_id,activity_date,status,skipped&order=activity_date.asc,profile_id.asc`, read)
+    const result = await analyticsRows(`profile_daily_illness?${dated('activity_date')}&select=profile_id,activity_date,status,skipped,updated_at&order=activity_date.asc,profile_id.asc`, read)
     if (!result.ok && await missingIllnessTable(result)) return { records: [], available: false }
     if (!result.ok || result.truncated) throw new Error('Sjukdomsunderlaget kunde inte hämtas fullständigt. Försök igen.')
     return { records: await result.json(), available: true }

@@ -22,19 +22,12 @@ test('missing, invalid and unavailable comparisons are never labelled zero or un
   }
 })
 
-test('live heart, fictional examples and both FAQ guides share the exact load labels', () => {
+test('live energy details keep historical load labels separate from the star', () => {
   const source = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
-  const live = source('src/training-heart.jsx'), examples = source('src/training-heart-examples.jsx')
-  for (const view of [live, examples]) assert.match(view, /trainingHeartLoadSummary/)
-  assert.match(live, /training-heart-status/)
+  const live = source('src/training-heart.jsx'), details = source('src/training-energy-details.jsx')
+  assert.match(details, /trainingHeartLoadSummary/)
+  assert.match(details, /load.description/)
   assert.match(live, /!excluded && !loading && !error && data\?\.asOf === asOf/)
-  assert.match(live, /loadSummary\.description/)
-  for (const example of TRAINING_HEART_EXAMPLES) {
-    const label = trainingHeartLoadSummary(example.heart.load).label
-    assert.ok(trainingHeartExampleFacts(example).find(([key]) => key === 'Belastning')[1].includes(label))
-    for (const role of ['coach', 'swimmer']) assert.ok(featureFaqGuide(role).includes(label))
-  }
-  const css = source('src/training-heart.css')
-  assert.match(css, /\.training-heart-ring \{[^}]*animation: none !important; rotate: none; transition: none/)
-  assert.doesNotMatch(css, /load-(up|down)[^{]*\{[^}]*color:/)
+  assert.match(details, /Belastningen ändrar inte stjärnans storlek/)
+  for (const role of ['coach', 'swimmer']) assert.ok(featureFaqGuide(role).includes('Belastningen finns kvar i detaljerna'))
 })
