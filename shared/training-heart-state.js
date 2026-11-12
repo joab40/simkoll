@@ -1,6 +1,7 @@
 // Transparent product rules for conversation support, not a validated form,
 // recovery or competition-readiness model. Never prescribe training from this.
 import { HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
+import { heartDuration } from './training-heart-display.js'
 
 export const TRAINING_STATES = {
   turbo: { label: 'Turbo · toppningssignal', description: 'Mycket god kropp-, dags- och fartkänsla, positivt sömnunderlag och minskad belastning sammanfaller. Ett mönster att stämma av inför tävling, inte bekräftad toppform.' },
@@ -8,7 +9,7 @@ export const TRAINING_STATES = {
   rising: { label: 'På väg mot fart', description: 'Fartkänslan har ökat mellan två delar av senaste veckan, samtidigt som aktuella kropp- och dagssvar inte är låga. Detta är upplevd fart, inte uppmätt förbättring.' },
   fast: { label: 'Hög fartkänsla', description: 'Simmaren rapporterar hög aktuell fartkänsla. Övriga signaler räcker inte tillsammans för ett redo- eller toppningsläge.' },
   heavy: { label: 'Tung i träningen', description: 'Upprepad låg kroppkänsla, eller tung kropp tillsammans med låg fartkänsla. Kan passa en tung träningsperiod, men bekräftar inte nedträning eller överträning.' },
-  watch: { label: 'Återhämtning att följa upp', description: 'Sömn eller rapporterad sjukdom behöver uppmärksammas. God fart eller kroppkänsla får inte dölja signalen.' },
+  watch: { label: 'Återhämtning att följa upp', description: 'Rapporterade känningar, sjukdom eller sömnsignaler behöver följas upp. Det betyder inte automatiskt dålig återhämtning. Se den angivna signalen nedan; god kropp- eller fartkänsla tar inte bort den.' },
   steady: { label: 'Tränar på · blandade signaler', description: 'Aktuella kropp- och dagssvar finns, men inget tydligt tungt, stigande, snabbt eller redo-mönster uppfylls.' },
   'load-only': { label: 'Belastning följs', description: 'Belastningen går att jämföra, men tillräckliga aktuella dagsforms- eller fartuppgifter saknas. Belastningsdata är inte samma sak som formdata.' },
   unknown: { label: 'Mer aktuellt underlag behövs', description: 'Underlaget räcker inte för ett träningsläge. Saknade eller gamla svar betyder varken bra eller dålig form.' },
@@ -54,8 +55,8 @@ export function trainingHeartState({ body, feeling, speed, earlierSpeed, load, n
     check('feeling', 'Aktuell dagskänsla', feelingKnown && feeling.value >= 4, value(feeling)),
     check('speed', 'Aktuell simfartkänsla', speedKnown && speed.value >= 3.5, value(speed)),
     check('earlier-speed', 'Tidigare simfartkänsla', known(earlierSpeed), value(earlierSpeed)),
-    check('sleep', 'Aktuellt sömnunderlag', sleepOk, nights.length ? `${nights.length} nätter · ${Math.round(nights.reduce((sum, night) => sum + night.minutes, 0) / nights.length)} min i snitt · kvalitet ${sleepQuality.toLocaleString('sv-SE', { maximumFractionDigits: 1 })}/5` : 'Saknas – utvilad antas inte'),
-    check('load', 'Minskad jämförbar belastning', reduced, Number.isFinite(load?.ratio) ? `${(Math.round(load.ratio * 1000) / 10).toLocaleString('sv-SE', { maximumFractionDigits: 1 })} % av föregående vecka${load.estimated || load.previous?.estimated ? ' · innehåller planerad tid' : ''}` : 'Jämförelse saknas – ingen toppningssignal antas'),
+    check('sleep', 'Sömn · senaste tre dagarna', sleepOk, nights.length ? `${heartDuration(nights.reduce((sum, night) => sum + night.minutes, 0) / nights.length)} i snitt · ${nights.length} nätter · kvalitet ${sleepQuality.toLocaleString('sv-SE', { maximumFractionDigits: 1 })}/5` : 'Saknas – utvilad antas inte'),
+    check('load', 'Belastning jämfört med föregående sju dagar', reduced, Number.isFinite(load?.ratio) ? `${(Math.round(load.ratio * 1000) / 10).toLocaleString('sv-SE', { maximumFractionDigits: 1 })} % av föregående period (100 % = oförändrat)${load.estimated || load.previous?.estimated ? ' · innehåller planerad tid' : ''}` : 'Jämförelse saknas – ingen toppningssignal antas'),
     check('warnings', 'Sömn-/sjukdomssignaler', warnings.length === 0, warnings.length ? warnings.join(' · ') : 'Ingen signal i tillgängliga svar; inte bevis på full återhämtning'),
   ] }
 }

@@ -3230,9 +3230,9 @@ function GroupTrendIndicator({ trend, personal = false }) {
   const heading = personal ? 'Simmarens riktning' : 'Gruppens riktning'
   const directionHelp = personal ? 'Jämför simmarens skattade känsla och kropp med föregående lika långa period. Minst tre dagar med giltiga värden krävs i båda perioderna. Varje dag väger lika. Gränsen för förändring är 0,2 på skalan 1–5.' : HELP_TEXT['Gruppens riktning']
   const states = {
-    up: { arrow: '↗', title: 'Träningsläget förbättras', label: 'Ökar' },
-    down: { arrow: '↘', title: 'Träningsläget har sjunkit', label: 'Minskar' },
-    steady: { arrow: '→', title: 'Träningsläget är stabilt', label: 'Stabilt' },
+    up: { arrow: '↗', title: 'Högre rapporterad kropp- och dagskänsla', label: 'Ökar' },
+    down: { arrow: '↘', title: 'Lägre rapporterad kropp- och dagskänsla', label: 'Minskar' },
+    steady: { arrow: '→', title: 'Liknande rapporterad kropp- och dagskänsla', label: 'Stabilt' },
     mixed: { arrow: '↕', title: 'Blandad utveckling', label: 'Blandat' },
     insufficient: { arrow: '—', title: 'För lite underlag', label: 'För lite underlag' },
   }
@@ -5225,7 +5225,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
         const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
         const trendSummary = swimmerTrendSummaries[profile.id]?.trend
-        const trendStates = { up: { arrow: '↗', title: 'Träningsläget förbättras', tone: 'up' }, down: { arrow: '↘', title: 'Träningsläget har sjunkit', tone: 'down' }, steady: { arrow: '→', title: 'Träningsläget är stabilt', tone: 'neutral' }, mixed: { arrow: '↕', title: 'Blandad utveckling', tone: 'mixed' }, insufficient: { arrow: '—', title: 'För lite underlag', tone: 'neutral' } }
+        const trendStates = { up: { arrow: '↗', title: 'Högre rapporterad kropp- och dagskänsla', tone: 'up' }, down: { arrow: '↘', title: 'Lägre rapporterad kropp- och dagskänsla', tone: 'down' }, steady: { arrow: '→', title: 'Liknande rapporterad kropp- och dagskänsla', tone: 'neutral' }, mixed: { arrow: '↕', title: 'Blandad utveckling', tone: 'mixed' }, insufficient: { arrow: '—', title: 'För lite underlag', tone: 'neutral' } }
         const trendState = trendStates[trendSummary?.state] || trendStates.insufficient
         const trendLoading = !swimmerTrendSummaries[profile.id] || swimmerTrendSummaries[profile.id].loading
         const trendError = swimmerTrendSummaries[profile.id]?.error

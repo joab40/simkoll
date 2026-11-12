@@ -138,6 +138,7 @@ test('diary and heart explain estimates without relabelling them as reported tim
   assert.match(source('src/training-diary.jsx'), /Uppskattad belastning/)
   assert.match(source('src/training-diary.jsx'), /Uppskattad från kopplat pass/)
   assert.match(source('src/training-heart.jsx'), /missingRpe/)
-  assert.match(source('src/training-heart.jsx'), /estimatedValue/)
+  assert.match(source('src/training-heart.jsx'), /heartLoadSources\(heart.load\)/)
+  assert.match(source('shared/training-heart-display.js'), /estimatedValue/)
   assert.doesNotMatch(source('shared/linked-training-amounts.js') + source('server/swimmer-traffic.js'), /method: 'POST'|method: 'PATCH'|method: 'DELETE'/)
 })

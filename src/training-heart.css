@@ -87,3 +87,4 @@
   .swimmer-card-header .swimmer-level { grid-column: 2; justify-self: start; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .training-heart-shape { animation: none !important; } }
+.training-heart-period { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: 400; }
