@@ -30,10 +30,10 @@ test('Izza-like displayed inputs retain follow-up state without claiming reduced
   assert.match(state.checks.find(check => check.key === 'sleep').detail, /7 h 45 min/)
 })
 test('heart explanation shows periods and the swimmer trend no longer claims overall decline', () => {
-  const heart = readFileSync(new URL('../src/training-energy-details.jsx', import.meta.url), 'utf8')
+  const heart = readFileSync(new URL('../src/training-heart.jsx', import.meta.url), 'utf8')
   const app = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
-  assert.match(heart, /heart.periods.feelingStart/)
-  assert.match(heart, /Dessa värden tänder inte dygnseffekten/)
+  assert.match(heart, /checkPeriod\(check.key\)/)
+  assert.match(heart, /Olika perioder kan ge olika snitt/)
   assert.match(heart, /heartLoadSources\(heart.load\)/)
   assert.doesNotMatch(app, /Träningsläget har sjunkit/)
   assert.match(app, /Lägre rapporterad kropp- och dagskänsla/)

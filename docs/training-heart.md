@@ -1,9 +1,5 @@
 # Träningshjärtat – lägen och signaler
 
-> Äldre modell: Simmarkorten använder nu [energistjärnan](training-energy.md).
-> Hjärtfärg, ring, grundstorlek och Turbo nedan behålls som historiskt
-> beräkningsunderlag men styr inte stjärnan.
-
 Hjärtat ger en läsbar träningsbild, inte bekräftad toppform eller ett tävlingsklartecken. Alla trösklar är explicita produktregler för samtalsstöd, inte en validerad prestations-/återhämtningsmodell. Det använder befintliga rapporter och sömn, utan nya frågor, databasfält, SQL, AI-anrop eller träningsbeslut.
 
 ## Visuellt språk

@@ -3,7 +3,6 @@ import { sleepFollowUpReasons } from './coach-control-panel.js'
 import { shortSleepWarning } from './sleep-warning.js'
 import { buildTrainingHeart } from './training-heart.js'
 import { followupSignals } from './followup-signals.js'
-import { buildTrainingEnergy } from './training-energy.js'
 
 export const TRAFFIC_LABELS = {
   red: { color: 'red', label: 'Följ upp', icon: '🔴' },
@@ -36,7 +35,7 @@ export function swimmerTrafficAt({ responses = [], sleep = [], illness = [], ses
     planningNotes: missing ? [`${missing} planerade pass utan registrerat genomförande denna vecka`] : [] }
 }
 
-export function buildSwimmerTraffic(profiles, data, asOf, now = new Date().toISOString()) {
+export function buildSwimmerTraffic(profiles, data, asOf) {
   if (!validTrafficDay(asOf)) throw new Error('Ogiltigt datum för trafikljus.')
   const previousEnd = coachWeekAddDays(asOf, -7)
   const group = rows => {
@@ -49,7 +48,7 @@ export function buildSwimmerTraffic(profiles, data, asOf, now = new Date().toISO
     asOf, illnessAvailable: data.illnessAvailable !== false, range: { start: coachWeekAddDays(asOf, -13), end: asOf, previousStart: coachWeekAddDays(asOf, -20), previousEnd },
     profiles: uniqueProfiles(profiles).map(profile => {
       const own = { responses: responses.get(profile.id) || [], sleep: sleep.get(profile.id) || [], illness: illness.get(profile.id) || [], illnessAvailable: data.illnessAvailable !== false, sessions: sessions.get(profile.id) || [], plans: plans.get(profile.id) || [], createdAt: profile.createdAt }
-      return { profileId: profile.id, current: swimmerTrafficAt(own, asOf), previous: swimmerTrafficAt(own, previousEnd), heart: { ...buildTrainingHeart(own, asOf), energy: buildTrainingEnergy(own, now) } }
+      return { profileId: profile.id, current: swimmerTrafficAt(own, asOf), previous: swimmerTrafficAt(own, previousEnd), heart: buildTrainingHeart(own, asOf) }
     }),
   }
 }

@@ -92,13 +92,19 @@ test('fast, heavy, load-only and unknown keep mixed signals and missing data dis
   assert.ok(!['turbo', 'ready'].includes(state(current({body: '5'}))))
 })
 
-test('FAQ and assistants describe new energy rules rather than legacy readiness states', () => {
+test('both FAQ/assistant guides explain exact shared state rules without adding private context', () => {
   for (const role of ['coach', 'swimmer']) {
     const guide = featureFaqGuide(role)
-    for (const text of ['Energistjärnan', '24 timmar', 'Maxad rapporterad känsla', 'inte faktisk puls', 'Uppföljningsreglerna']) assert.ok(guide.includes(text), text)
+    for (const rule of TRAINING_STATE_RULES) assert.ok(guide.includes(rule))
+    for (const text of ['Turbo', 'Utvilad och redo', 'På väg mot fart', 'Tung i träningen', 'inte faktisk puls']) assert.ok(guide.includes(text))
   }
-  const view = readFileSync(new URL('../src/training-heart.jsx', import.meta.url), 'utf8')
-  assert.match(view, /TrainingEnergyDetails/)
-  assert.match(view, /currentTrainingEnergy/)
+  const source = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+  const css = source('src/training-heart.css'), view = source('src/training-heart.jsx')
+  assert.match(css, /state-turbo \.training-heart-shape.*training-heart-turbo/)
+  assert.match(css, /prefers-reduced-motion: reduce/)
+  assert.match(css, /\.motion-off \.training-heart-shape \{ animation: none/)
+  assert.match(css, /\.training-heart-ring \{[^}]*animation: none !important/)
+  assert.match(view, /Vilka värden ligger bakom signalen/)
+  assert.match(view, /readiness\.label/)
   assert.doesNotMatch(view, /apiRequest|fetch\(/)
 })
