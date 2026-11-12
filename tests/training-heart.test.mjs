@@ -24,13 +24,25 @@ test('heart does not invent scores for empty, single-day, stale or invalid feeli
 test('colour uses daily means of body/feeling, not the number of checkins, speed or RPE', () => {
   const rows = [response(0), response(-1)]
   assert.equal(heart(rows).color, 'green')
-  assert.equal(heart(rows.map(row => ({ ...row, body: 3 }))).color, 'yellow')
+  assert.equal(heart(rows.map(row => ({ ...row, body: 3 }))).color, 'green')
   assert.equal(heart(rows.map(row => ({ ...row, feeling: 2 }))).color, 'yellow')
   assert.equal(heart(rows.map(row => ({ ...row, body: 5, feeling: 5, rpe: 10, speedFeeling: 1 }))).color, 'green')
   const weighted = heart([response(0, { body: 1 }), ...Array.from({ length: 10 }, (_, i) => response(-1, { id: `many${i}`, body: 5 }))])
   assert.equal(weighted.body.value, 3)
-  assert.equal(weighted.color, 'yellow')
+  assert.equal(weighted.color, 'green')
   assert.equal(heart(rows.map(row => ({ ...row, body: 3.5, feeling: 3.5 }))).color, 'green')
+  assert.equal(heart(rows.map(row => ({ ...row, body: 3, feeling: 3 }))).color, 'green')
+  assert.equal(heart(rows.map(row => ({ ...row, body: 2.9, feeling: 4 }))).color, 'yellow')
+  assert.equal(heart(rows.map(row => ({ ...row, body: 4, feeling: 2.9 }))).color, 'yellow')
+  assert.equal(heart(rows.map(row => ({ ...row, body: 3.3, feeling: 4.1 }))).color, 'green')
+})
+
+test('okay feeling is green without suppressing separate mild-illness follow-up', () => {
+  const result = buildTrainingHeart({ responses: [response(0, { body: 3.3, feeling: 4.1 }), response(-1, { body: 3.3, feeling: 4.1 })],
+    illness: [{ activity_date: asOf, status: 'mild' }] }, asOf)
+  assert.equal(result.color, 'green')
+  assert.equal(result.readiness.state, 'watch')
+  assert.equal(result.warnings.length, 1)
 })
 
 test('ring compares explicit reported load only with covered previous periods', () => {

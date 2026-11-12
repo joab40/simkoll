@@ -53,7 +53,7 @@ export function buildTrainingHeart({ responses = [], sleep = [], illness = [], i
   const enough = body.days >= 2 && feeling.days >= 2
   // Explicit product thresholds, not a validated medical/readiness score.
   const heavy = heavyTrainingPattern(responses, asOf)
-  const color = !enough ? 'unknown' : heavy.persistent ? 'red' : body.value < 3.5 || feeling.value < 3.5 ? 'yellow' : 'green'
+  const color = !enough ? 'unknown' : heavy.persistent ? 'red' : body.value < 3 || feeling.value < 3 ? 'yellow' : 'green'
   const currentLoad = load(recent), previousLoad = load(responses.filter(row => within(row, previousStart, previousEnd)))
   const covered = value => value.known >= 3 && value.days >= 2 && value.known / value.total >= .8
   const comparable = covered(currentLoad) && covered(previousLoad) && previousLoad.value > 0

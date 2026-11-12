@@ -12,7 +12,7 @@ test('fictional FAQ scenarios run the real heart rules, including mixed signals 
     ready: ['green', 'similar', 'brisk', 1500, 1620, 0],
     rising: ['green', 'higher', 'gentle', 2000, 1200, 0],
     heavy: ['yellow', 'higher', 'slow', 2100, 1200, 0],
-    mixed: ['yellow', 'similar', 'brisk', 1200, 1200, 0],
+    mixed: ['green', 'similar', 'brisk', 1200, 1200, 0],
     'sleep-warning': ['green', 'lower', 'brisk', 900, 1620, 1],
     missing: ['unknown', 'unknown', 'none', 300, null, 0],
     'load-only': ['unknown', 'similar', 'none', 1200, 1200, 0],

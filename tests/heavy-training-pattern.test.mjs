@@ -56,7 +56,7 @@ test('metrics and days cannot be pooled; duplicates, missing, invalid and future
 test('a stale or resolved pattern cannot stay red solely because old ones remain within fourteen days', () => {
   const responses = rows([-3, -4, -6, -8, -10]).concat(row(0, { body: 2 }), row(-1, { body: 4 }))
   assert.equal(signal(responses).color, 'yellow') // A one is still present in the seven-day watch window.
-  assert.equal(buildTrainingHeart({ responses }, asOf).color, 'yellow')
+  assert.equal(buildTrainingHeart({ responses }, asOf).color, 'green') // Current daily mean is 3; separate follow-up stays yellow.
   assert.equal(signal(rows([-8, -9, -10, -11, -13]).concat(row(0, { body: 2 }))).color, 'green')
 })
 
