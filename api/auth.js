@@ -3,16 +3,19 @@ import { writeAuditLog } from '../server/audit.js'
 import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken, COACH_TERMS_VERSION } from '../server/coach-auth.js'
 import { getSessionDays } from '../server/session-settings.js'
 import { clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, normalizeUsername, publicProfile, validPin, verifyPin } from '../server/profile-auth.js'
+import { handleCoachRecovery } from '../server/coach-recovery.js'
 
 const getCookie = (request, name) => { const match = String(request.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`)); return match ? decodeURIComponent(match.slice(name.length + 1)) : null }
 const setCookie = (response, name, value, maxAge) => response.setHeader('Set-Cookie', `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax${maxAge ? `; Max-Age=${maxAge}` : ''}`)
 const clearCookie = (response, name) => response.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`)
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' })
   if (!isDatabaseConfigured()) return sendJson(response, 503, { error: 'Databasen är inte konfigurerad.' })
 
   const action = request.body?.action
+  if (await handleCoachRecovery(request, response)) return
   if (action === 'restore') {
     const coachToken = getCookie(request, 'simkoll_coach_session')
     const groupCode = getCookie(request, 'simkoll_group_code')
@@ -190,3 +193,4 @@ export default async function handler(request, response) {
   setCookie(response, 'simkoll_group_code', String(request.body.code), request.body?.remember === false ? undefined : (await getSessionDays(role)) * 86400)
   return sendJson(response, 200, { role })
 }
+import { guardCoachSession } from '../server/coach-session.js'

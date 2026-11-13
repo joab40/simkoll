@@ -258,6 +258,7 @@ Data: ${JSON.stringify(safe)}`
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   if (request.method === 'POST' && request.body?.action === 'ai-insights') {
     if (role !== 'coach') return sendJson(response, 403, { error: 'AI-sammanfattningar är bara tillgängliga för tränare.' })
@@ -533,3 +534,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte hämta analysen.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

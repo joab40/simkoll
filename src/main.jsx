@@ -1,4 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import CoachPasswordReset, { coachResetRoute } from './coach-password-reset.jsx'
+import CoachTestEmail from './coach-test-email.jsx'
 import FeatureFaq from './feature-faq.jsx'
 import RewardLevelCard from './reward-level-card.jsx'
 import SwimmerPeriodization from './swimmer-periodization.jsx'
@@ -138,6 +140,7 @@ const average = (key, items) => {
 const confirmDestructive = (description, phrase = 'RADERA') => window.prompt(`${description}\n\nSkriv ${phrase} för att bekräfta.`) === phrase
 
 function App() {
+  const [resetRoute] = useState(() => coachResetRoute(window.location.hash))
   const [auth, setAuth] = useState(null)
   const [coachReturnAuth, setCoachReturnAuth] = useState(null)
   const [checkingSession, setCheckingSession] = useState(true)
@@ -184,6 +187,11 @@ function App() {
   })
 
   useEffect(() => {
+    if (resetRoute.active) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      setCheckingSession(false)
+      return
+    }
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'restore' }) })
       .then((result) => result.json())
       .then((data) => { if (data.role) setAuth({ role: data.role, accountRole: data.accountRole, code: data.code || '', displayName: data.displayName }) })
@@ -288,6 +296,7 @@ function App() {
   }, [auth, profile?.id])
   useEffect(() => { if (!auth || !profile) return; apiRequest('/api/goals?settings=true', auth.code).then((data) => { const savedSettings = data.settings || {}; const savedSwimmerSettings = savedSettings.swimmer || {}; const savedTheme = savedSettings.swimmerTheme || savedSwimmerSettings.theme || 'none'; setAiEnabled(savedSettings.aiEnabled !== false); setPlanningEnabled(savedSwimmerSettings.planning === true); setAppFeedbackEnabled(savedSwimmerSettings.appFeedback !== false); setCustomPepEnabled(savedSwimmerSettings.customPep !== false); setOpenChatEnabled(savedSettings.openChat?.enabled === true); setStarsEnabled(savedSwimmerSettings.stars !== false); setSwimmerEffects(savedSettings.swimmerEffects !== false); setSwimmerThemesEnabled((savedSettings.swimmerThemesEnabled ?? savedSwimmerSettings.themesEnabled) !== false); setSwimmerTheme(['none', 'halloween', 'snow', 'christmas'].includes(savedTheme) ? savedTheme : 'none') }).catch(() => { setAiEnabled(true); setPlanningEnabled(false); setAppFeedbackEnabled(true); setCustomPepEnabled(true); setOpenChatEnabled(false); setStarsEnabled(true); setSwimmerEffects(true); setSwimmerThemesEnabled(true); setSwimmerTheme('none') }) }, [auth, profile])
 
+  if (resetRoute.active) return <CoachPasswordReset token={resetRoute.token} />
   if (checkingSession) return null
   if (!auth) return <Login onLogin={async (nextAuth) => {
     setAuth(nextAuth)
@@ -488,6 +497,12 @@ function Login({ onLogin }) {
     setError(''); setInfo('')
     try {
       if (mode === 'coach') {
+        if (coachMode === 'forgot') {
+          const result = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-forgot-password', email }) })
+          const data = await result.json()
+          if (!result.ok) throw new Error(data.error || 'Kunde inte begära återställning.')
+          setInfo(data.message); return
+        }
         if ((coachMode === 'bootstrap' || coachMode === 'register') && !acceptedCoachTerms) { setError('Läs och godkänn tränarvillkoren först.'); setLoading(false); return }
         if (rememberCoachEmail) window.localStorage.setItem('simkoll_coach_email', email.trim().toLowerCase())
         else window.localStorage.removeItem('simkoll_coach_email')
@@ -528,10 +543,11 @@ function Login({ onLogin }) {
         <form onSubmit={submit} className="code-form">
           {mode === 'coach' ? <>
             <label htmlFor="coach-email">E-post</label><input id="coach-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="namn@klubb.se" />
-            <label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" />
+            {coachMode !== 'forgot' && <><label htmlFor="coach-password">Lösenord</label><input id="coach-password" type="password" autoComplete="current-password" required minLength="10" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minst 10 tecken" /></>}
             {coachMode === 'login' && <><label className="remember-login"><input type="checkbox" checked={rememberCoachEmail} onChange={(event) => setRememberCoachEmail(event.target.checked)} /> Kom ihåg e-post på den här enheten</label><label className="remember-login"><input type="checkbox" checked={rememberCoachSession} onChange={(event) => setRememberCoachSession(event.target.checked)} /> Håll mig inloggad på den här enheten</label></>}
             {(coachMode === 'bootstrap' || coachMode === 'register') && <><label htmlFor="coach-name">Namn</label><input id="coach-name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="För- och efternamn" />{coachMode === 'bootstrap' && <><label htmlFor="bootstrap-token">Bootstrap-token</label><input id="bootstrap-token" type="password" required value={bootstrapToken} onChange={(event) => setBootstrapToken(event.target.value)} placeholder="Från Vercel" /></>}<details className="login-terms"><summary>Visa tränarvillkoren</summary><p>Kontot får bara användas i klubbens tränaruppdrag. Hantera simmarinformation konfidentiellt, skriv inte diagnoser eller personnummer i fritext, och dela inte uppgifter eller exporter med obehöriga. AI-svar ska alltid kontrolleras och får inte användas som automatiska beslut.</p></details><label className="remember-login"><input type="checkbox" checked={acceptedCoachTerms} onChange={(event) => setAcceptedCoachTerms(event.target.checked)} /> Jag har läst och godkänner tränarvillkoren.</label></>}
-            <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : 'Logga in som tränare'}</button>
+            <button className="primary-button login-submit" type="submit" disabled={loading}>{loading ? 'Arbetar…' : coachMode === 'bootstrap' ? 'Skapa superadmin' : coachMode === 'register' ? 'Skicka ansökan' : coachMode === 'forgot' ? 'Skicka återställningslänk' : 'Logga in som tränare'}</button>
+            {coachMode === 'login' && <button type="button" className="text-button" onClick={() => { setCoachMode('forgot'); setPassword(''); setError(''); setInfo('') }}>Glömt lösenord?</button>}
             <button type="button" className="text-button" onClick={() => { setCoachMode((value) => value === 'login' ? 'register' : value === 'register' ? (bootstrapAvailable ? 'bootstrap' : 'login') : 'login'); setError(''); setInfo('') }}>{coachMode === 'login' ? 'Ansök om tränarkonto' : coachMode === 'register' && bootstrapAvailable ? 'Skapa första superadmin' : 'Tillbaka till tränarinloggning'}</button>
             {coachMode === 'login' && bootstrapAvailable && <button type="button" className="text-button" onClick={() => { setCoachMode('bootstrap'); setError(''); setInfo('') }}>Skapa första superadmin</button>}
           </> : <>
@@ -2518,7 +2534,7 @@ function CoachAccountManagement({ code, currentAccountId }) {
   }
   const changeStatus = (account) => { const activating = account.status !== 'active'; if (!activating && !confirmDestructive(`Tränarkontot för ${account.display_name} stängs av och kan inte logga in.`, 'STÄNG AV')) return; update(account.id, { approved: activating }) }
   const changeRole = (account, role) => update(account.id, { role, ...(account.status === 'suspended' ? { approved: true } : {}) })
-  return <section className="coach-account-management"><div className="period-heading"><div><p className="eyebrow">Säkerhet</p><h1>Tränarkonton</h1><small>Godkänn eller ta bort ansökningar, aktivera, stäng av och byt roll. Destruktiva val kräver bekräftelse.</small></div><div className="big-count"><strong>{accounts.filter((item) => item.status === 'active').length}</strong><span>aktiva konton</span></div></div>{message && <p className="settings-saved">{message}</p>}{loading ? <p className="empty">Hämtar tränarkonton…</p> : <section className="settings-card coach-account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.display_name}</strong><small>{account.email} · {coachRoleLabel(account.role)} · {account.status === 'pending' ? 'Väntar på godkännande' : account.status === 'active' ? 'Aktiv' : 'Avstängd'}</small></div><div className="coach-account-actions">{account.status === 'pending' ? <><button className="primary-button" onClick={() => update(account.id, { approved: true })}>Godkänn</button><button className="text-button danger-text" onClick={() => reject(account)}>Ta bort ansökan</button></> : <button className={account.status === 'active' ? 'text-button danger-text' : 'primary-button'} disabled={account.id === currentAccountId && account.status === 'active'} title={account.id === currentAccountId && account.status === 'active' ? 'Du kan inte stänga av ditt eget konto' : undefined} onClick={() => changeStatus(account)}>{account.status === 'active' ? 'Stäng av' : 'Aktivera'}</button>}<select value={account.role} disabled={account.id === currentAccountId && account.role === 'superadmin'} onChange={(event) => changeRole(account, event.target.value)}><option value="coach">Tränare</option><option value="head_coach">Huvudtränare</option><option value="superadmin">Superadmin</option></select></div></article>)}</section>}</section>
+  return <section className="coach-account-management"><div className="period-heading"><div><p className="eyebrow">Säkerhet</p><h1>Tränarkonton</h1><small>Godkänn eller ta bort ansökningar, aktivera, stäng av och byt roll. Destruktiva val kräver bekräftelse.</small></div><div className="big-count"><strong>{accounts.filter((item) => item.status === 'active').length}</strong><span>aktiva konton</span></div></div>{message && <p className="settings-saved">{message}</p>}{loading ? <p className="empty">Hämtar tränarkonton…</p> : <section className="settings-card coach-account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.display_name}</strong><small>{account.email} · {coachRoleLabel(account.role)} · {account.status === 'pending' ? 'Väntar på godkännande' : account.status === 'active' ? 'Aktiv' : 'Avstängd'}</small></div><div className="coach-account-actions"><CoachTestEmail account={account} code={code} />{account.status === 'pending' ? <><button className="primary-button" onClick={() => update(account.id, { approved: true })}>Godkänn</button><button className="text-button danger-text" onClick={() => reject(account)}>Ta bort ansökan</button></> : <button className={account.status === 'active' ? 'text-button danger-text' : 'primary-button'} disabled={account.id === currentAccountId && account.status === 'active'} title={account.id === currentAccountId && account.status === 'active' ? 'Du kan inte stänga av ditt eget konto' : undefined} onClick={() => changeStatus(account)}>{account.status === 'active' ? 'Stäng av' : 'Aktivera'}</button>}<select value={account.role} disabled={account.id === currentAccountId && account.role === 'superadmin'} onChange={(event) => changeRole(account, event.target.value)}><option value="coach">Tränare</option><option value="head_coach">Huvudtränare</option><option value="superadmin">Superadmin</option></select></div></article>)}</section>}</section>
 }
 
 function CoachActivityFeed({ code }) {

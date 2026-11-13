@@ -624,6 +624,7 @@ const mapCompetitionEvent = (item) => {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   const coachAccount = role === 'coach' ? coachFromRequest(request) : null
@@ -1305,3 +1306,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte hämta dagens pass. Försök igen.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

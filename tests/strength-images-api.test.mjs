@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://strength-images.invalid'
@@ -11,7 +12,7 @@ const assetId = '33333333-3333-4333-8333-333333333333'
 const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGasAAAAASUVORK5CYII='
 async function call(handler, role, body) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method: 'POST', headers: { 'x-simkoll-code': createCoachToken({ id: coach, email: 'fixture@example.invalid', display_name: 'Fixture', role }) }, body, query: {} }, response)
+  await coachSessionFixture(handler)({ method: 'POST', headers: { 'x-simkoll-code': createCoachToken({ id: coach, email: 'fixture@example.invalid', display_name: 'Fixture', role }) }, body, query: {} }, response)
   return response
 }
 test('ordinary coaches cannot generate, upload or save exercise images', async () => {
@@ -73,7 +74,7 @@ test('a swimmer receives signed image URLs only for assigned programs', async ()
     return { ok: true, json: async () => [] }
   }
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await training({ method: 'GET', headers: { cookie: 'simkoll_session=fixture' }, query: {} }, response)
+  await coachSessionFixture(training)({ method: 'GET', headers: { cookie: 'simkoll_session=fixture' }, query: {} }, response)
   assert.equal(response.code, 200)
   assert.deepEqual(signedPaths, [ownedPath])
   assert.match(response.data.assignments[0].program.exerciseImages[0].imageUrl, /object\/sign/)

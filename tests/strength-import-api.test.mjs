@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://strength-import.invalid'
@@ -9,7 +10,7 @@ const { default: workouts } = await import('../api/workouts.js')
 const draft = { title: 'Program', description: 'Testprogram', passes: [{ title: 'Bål', exercises: [{ name: 'Planka', prescription: '3 x 30 sek' }] }] }
 async function call(handler, role, body) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method: 'POST', headers: { 'x-simkoll-code': createCoachToken({ id: 'fixture', email: 'fixture@example.invalid', display_name: 'Fixture', role }) }, body, query: {} }, response)
+  await coachSessionFixture(handler)({ method: 'POST', headers: { 'x-simkoll-code': createCoachToken({ id: 'fixture', email: 'fixture@example.invalid', display_name: 'Fixture', role }) }, body, query: {} }, response)
   return response
 }
 test('ordinary coaches cannot import or save strength drafts', async () => {

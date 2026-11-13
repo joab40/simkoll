@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://dryland-api.invalid'
@@ -8,7 +9,7 @@ const { default: training } = await import('../api/training.js')
 const id = '11111111-1111-4111-8111-111111111111', owner = '22222222-2222-4222-8222-222222222222', programId = '33333333-3333-4333-8333-333333333333'
 const token = (role) => createCoachToken({ id, role })
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status })
-async function call(code, body, query = {}) { const res = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }; await training({ method: 'POST', headers: { 'x-simkoll-code': code, cookie: 'simkoll_session=fixture' }, query, body }, res); return res }
+async function call(code, body, query = {}) { const res = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }; await coachSessionFixture(training)({ method: 'POST', headers: { 'x-simkoll-code': code, cookie: 'simkoll_session=fixture' }, query, body }, res); return res }
 test('ordinary coaches may assign dryland but cannot manage its shared library, even through legacy create', async () => {
   const paths = []
   globalThis.fetch = async (url) => { paths.push(String(url)); return json(String(url).includes('coach_accounts?') ? [{ id, role: 'coach' }] : null) }
@@ -76,13 +77,13 @@ test('swimmer reads only own land results and assigned land content, without rea
     return json([])
   }
   const res = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await training({ method: 'GET', headers: { 'x-simkoll-code': 'swimmer-fixture', cookie: 'simkoll_session=fixture' }, query: { profileId: 'ignored' } }, res)
+  await coachSessionFixture(training)({ method: 'GET', headers: { 'x-simkoll-code': 'swimmer-fixture', cookie: 'simkoll_session=fixture' }, query: { profileId: 'ignored' } }, res)
   assert.equal(res.code, 200); assert.equal(res.data.programs.length, 1); assert.equal(res.data.drylandLogs[0].profileId, owner)
   assert.ok(requests.every((r) => !/personal_training_sessions/.test(r.path) || !r.opts.method))
   assert.doesNotMatch(JSON.stringify(res.data), /private unassigned content/)
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (url, options) => String(url).includes('dryland_program_logs?') ? Promise.reject(new Error('optional log unavailable')) : originalFetch(url, options)
-  await training({ method: 'GET', headers: { 'x-simkoll-code': 'swimmer-fixture', cookie: 'simkoll_session=fixture' }, query: {} }, res)
+  await coachSessionFixture(training)({ method: 'GET', headers: { 'x-simkoll-code': 'swimmer-fixture', cookie: 'simkoll_session=fixture' }, query: {} }, res)
   assert.equal(res.code, 200); assert.equal(res.data.drylandLogsAvailable, false)
   assert.equal(res.data.programs.length, 1)
 })

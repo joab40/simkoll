@@ -116,6 +116,7 @@ async function updateProfile(id, values) {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   try {
     if (request.query?.storage === 'true') return handleStorageAdmin(request, response)
     if (request.method === 'GET' && request.query?.cron === 'tempus') {
@@ -622,3 +623,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Något gick fel. Försök igen.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

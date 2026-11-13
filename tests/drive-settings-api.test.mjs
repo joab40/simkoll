@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://drive-settings.invalid'
@@ -11,7 +12,7 @@ const admin = token('superadmin'), coach = token('coach'), head = token('head_co
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status })
 async function call(method, code, body = {}, query = {}) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method, headers: { 'x-simkoll-code': code }, body, query }, response)
+  await coachSessionFixture(handler)({ method, headers: { 'x-simkoll-code': code }, body, query }, response)
   return response
 }
 test('only superadmin sees env status or tests/saves folders; normal coaches can use configured pickers', async () => {

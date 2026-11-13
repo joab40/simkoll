@@ -8,6 +8,7 @@ function stockholmDate() {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
@@ -35,3 +36,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte hämta dagens aktivitet.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

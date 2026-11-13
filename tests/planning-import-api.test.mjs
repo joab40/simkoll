@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import XLSX from 'xlsx'
@@ -13,7 +14,7 @@ const json = (value, status = 200) => new Response(JSON.stringify(value), { stat
 const groupRows = [{ id: 'junior', name: 'Junior' }, { id: 'ungdom_svart', name: 'Ungdom Svart' }, { id: 'ungdom_orange', name: 'Ungdom Orange' }, { id: 'junior_elit', name: 'Junior Elit' }]
 async function call(body, token = code) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method: 'POST', headers: { 'x-simkoll-code': token }, body, query: {} }, response)
+  await coachSessionFixture(handler)({ method: 'POST', headers: { 'x-simkoll-code': token }, body, query: {} }, response)
   return response
 }
 test('calendar parser converts UTC to Stockholm, retains end-time duration and filters before its limit', () => {
@@ -101,7 +102,7 @@ test('planning view loads beyond the former 200-row limit without treating later
   }
   try {
     const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-    await handler({ method: 'GET', headers: { 'x-simkoll-code': code }, query: { planning: 'true' } }, response)
+    await coachSessionFixture(handler)({ method: 'GET', headers: { 'x-simkoll-code': code }, query: { planning: 'true' } }, response)
     assert.equal(response.code, 200); assert.equal(response.data.plans.length, 507); assert.equal(response.data.workouts.length, 507)
     assert.equal(writes.length, 0)
     assert.ok(reads.some(read => read.table === 'training_plans' && read.offset === 500))

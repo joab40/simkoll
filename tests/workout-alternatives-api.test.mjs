@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -16,7 +17,7 @@ const requestBody = () => ({ action: 'publish-workout-alternatives', occasionMod
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status })
 async function call(body, token = code, method = 'POST') {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method, query: method === 'GET' ? body : {}, body: method === 'GET' ? undefined : body, headers: { 'x-simkoll-code': token } }, response)
+  await coachSessionFixture(handler)({ method, query: method === 'GET' ? body : {}, body: method === 'GET' ? undefined : body, headers: { 'x-simkoll-code': token } }, response)
   return response
 }
 function fixture({ missingMigration = false, missingMigrationOnWrite = false, initialWorkouts = [], initialPlans = [], calendarEvents = null, calendarFailure = false, planningFailureAt = null } = {}) {

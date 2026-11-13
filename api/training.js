@@ -138,6 +138,7 @@ async function trainingCheer(profileId, slot) {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
@@ -558,3 +559,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte hantera träningsplaneringen.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

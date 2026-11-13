@@ -219,6 +219,7 @@ async function getCoachFeed() {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   if (request.method === 'POST' && request.body?.action === 'propose-private-reply' && role !== 'coach') return sendJson(response,403,{error:'Endast tränaren kan skapa svarsförslag.'})
@@ -655,3 +656,4 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
     return sendJson(response, 500, { error: 'Kunde inte ladda klubbflödet.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

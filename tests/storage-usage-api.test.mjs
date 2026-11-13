@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://storage-usage.invalid'
@@ -10,7 +11,7 @@ const admin = createCoachToken({ id: '11111111-1111-4111-8111-111111111111', rol
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status })
 async function call(code, method = 'GET', body = {}) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method, headers: { 'x-simkoll-code': code }, query: { storage: 'true', backup: 'export' }, body }, response)
+  await coachSessionFixture(handler)({ method, headers: { 'x-simkoll-code': code }, query: { storage: 'true', backup: 'export' }, body }, response)
   return response
 }
 test('profiles storage route cannot fall through to backup or profile mutations', async () => {

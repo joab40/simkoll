@@ -30,6 +30,7 @@ const findPersonalBests = (rows, startDay, endDay) => {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' })
   if (getRole(String(request.headers['x-simkoll-code'] || '')) !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se veckorapporten.' })
   const start = String(request.query?.start || '')
@@ -138,3 +139,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte skapa veckorapporten.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

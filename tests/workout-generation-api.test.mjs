@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -13,7 +14,7 @@ const body = () => ({ action: 'generate-from-library', focus: 'fart', distanceMe
 const json = (data) => new Response(JSON.stringify(data))
 async function call(input = body(), token = code) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method: 'POST', query: {}, headers: { 'x-simkoll-code': token }, body: input }, response)
+  await coachSessionFixture(handler)({ method: 'POST', query: {}, headers: { 'x-simkoll-code': token }, body: input }, response)
   return response
 }
 function fixture(settings = {}, generated = {}) {

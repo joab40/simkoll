@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { calendarActivityKey } from '../shared/planning-calendar.js'
@@ -11,7 +12,7 @@ const date = '2026-11-15', item = { calendarId: 'junior', uid: 'one', date, time
 const key = calendarActivityKey(item), json = value => new Response(JSON.stringify(value))
 const call = async (body, token = code, method = 'POST') => {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method, headers: { 'x-simkoll-code': token }, body: method === 'POST' ? body : undefined, query: method === 'GET' ? body : {} }, response)
+  await coachSessionFixture(handler)({ method, headers: { 'x-simkoll-code': token }, body: method === 'POST' ? body : undefined, query: method === 'GET' ? body : {} }, response)
   return response
 }
 test('coach can hide and restore an occurrence; planning and import lists respect persistent suppression', async () => {

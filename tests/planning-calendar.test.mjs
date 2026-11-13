@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { calendarActivityKey, calendarFormValues, calendarLinkKeys, validateCalendarLink, explicitCalendarMatches, selectPlanningCalendarActivity } from '../shared/planning-calendar.js'
@@ -34,7 +35,7 @@ function fixture({ missingColumn = false, reordered = false } = {}) {
 const body = (extra = {}) => ({ action: 'save-plan', date, activityType: 'swim', title: 'F2 Spec', distanceMeters: 5000, durationMinutes: 120, targetGroups: ['junior'], calendarLink: calendarFormValues(activity).calendarLink, ...extra })
 async function call(value, token = code) {
   const response = { setHeader() {}, status(value) { this.code = value; return this }, json(value) { this.data = value; return this } }
-  await handler({ method: 'POST', query: {}, body: value, headers: { 'x-simkoll-code': token } }, response)
+  await coachSessionFixture(handler)({ method: 'POST', query: {}, body: value, headers: { 'x-simkoll-code': token } }, response)
   return response
 }
 

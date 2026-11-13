@@ -72,7 +72,8 @@ export async function aiAvailability() {
 export function getRole(code) {
   if (String(code).startsWith('coach.')) {
     const [, encoded, signature] = String(code).split('.')
-    const secret = process.env.COACH_SESSION_SECRET || process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || 'simkoll-change-session-secret'
+    const secret = process.env.COACH_SESSION_SECRET || process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN
+    if (!secret) return null
     if (!encoded || !signature) return null
     const expected = Buffer.from(createHmac('sha256', secret).update(encoded).digest('base64url')), actual = Buffer.from(signature)
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null

@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://swim-times-fixture.invalid'
@@ -14,7 +15,7 @@ const body = { action: 'save-swim-time', date: day, distance: 75, poolLength: 25
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 const call = async (method = 'GET', input = null, code = 'times-swimmer', query = {}) => {
   const result = { setHeader() {}, status(value) { this.code = value; return this }, json(value) { this.data = value; return this } }
-  await handler({ method, headers: { 'x-simkoll-code': code, cookie: 'simkoll_session=fixture' }, query: { swimTimes: 'true', start: day, end: day, ...query }, body: input }, result)
+  await coachSessionFixture(handler)({ method, headers: { 'x-simkoll-code': code, cookie: 'simkoll_session=fixture' }, query: { swimTimes: 'true', start: day, end: day, ...query }, body: input }, result)
   return result
 }
 function fixture({ onWrite = () => {}, onAudit = () => {}, missing = false, absent = false, subject = owner, activeCoach = true, accountRole = 'coach', missingProfile = false } = {}) {

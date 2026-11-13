@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://goal-fixture.invalid'
@@ -12,7 +13,7 @@ const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
 async function call(body, code = coach, options = {}) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(value) { this.data = value; return this } }
-  await handler({ method: 'POST', headers: { 'x-simkoll-code': code, ...options.headers }, body, ...options }, response)
+  await coachSessionFixture(handler)({ method: 'POST', headers: { 'x-simkoll-code': code, ...options.headers }, body, ...options }, response)
   return response
 }
 const goal = { action: 'create', profileId, title: 'Vändning', description: 'Arbeta med vändningen.', nextStep: '', startDate: '2026-10-15' }

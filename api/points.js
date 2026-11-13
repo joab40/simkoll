@@ -140,6 +140,7 @@ const POINT_RULES = [
 ]
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
     if (request.body?.action === 'submit-rally-time' || request.body?.action === 'restore-rally-time') {
@@ -421,3 +422,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte hämta poängen.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

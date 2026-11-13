@@ -105,6 +105,7 @@ export function checkinPointAwards(body, activityDate) {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   if (!role) return sendJson(response, 401, { error: 'Du behöver logga in igen.' })
@@ -225,3 +226,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte kontakta databasen. Försök igen.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

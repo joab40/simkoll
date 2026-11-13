@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://periodization-fixture.invalid'
@@ -12,7 +13,7 @@ const code = createCoachToken({ id: coachId, role: 'coach' })
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status })
 async function call({ auth = code, method = 'GET', profile = profileId } = {}) {
   const response = { headers: {}, setHeader(name, value) { this.headers[name] = value }, status(value) { this.code = value; return this }, json(value) { this.data = value } }
-  await handler({ method, query: { periodization: 'true', profileId: profile }, headers: { 'x-simkoll-code': auth } }, response)
+  await coachSessionFixture(handler)({ method, query: { periodization: 'true', profileId: profile }, headers: { 'x-simkoll-code': auth } }, response)
   return response
 }
 function fixture({ role = 'coach', active = true, found = true, fail = '' } = {}) {

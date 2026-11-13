@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -20,7 +21,7 @@ const draft = { action: 'create-strength-from-library', title: 'Eget program', d
 
 async function call(role, body) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await training({ method: 'POST', headers: { 'x-simkoll-code': createCoachToken({ id: coachId, email: 'coach@example.invalid', display_name: 'Coach', role }) }, body, query: {} }, response)
+  await coachSessionFixture(training)({ method: 'POST', headers: { 'x-simkoll-code': createCoachToken({ id: coachId, email: 'coach@example.invalid', display_name: 'Coach', role }) }, body, query: {} }, response)
   return response
 }
 

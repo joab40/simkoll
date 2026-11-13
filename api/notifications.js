@@ -28,6 +28,7 @@ async function profilesById() {
 }
 
 export default async function handler(request, response) {
+  if (!await guardCoachSession(request, response)) return
   if (request.query?.push === 'true') return pushHandler(request, response)
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   if (request.method !== 'GET' || role !== 'swimmer') return sendJson(response, 403, { error: 'Notiser visas bara för inloggade simmare.' })
@@ -88,3 +89,4 @@ export default async function handler(request, response) {
     return sendJson(response, 500, { error: 'Kunde inte hämta dina nya händelser.' })
   }
 }
+import { guardCoachSession } from '../server/coach-session.js'

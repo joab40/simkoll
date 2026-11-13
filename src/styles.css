@@ -3054,3 +3054,9 @@ button { cursor: pointer; }
   .coach-metric-response-heading { flex-wrap: wrap; }
   .coach-metric-value { max-width: 130px; }
 }
+.coach-test-email { display: grid; gap: 5px; max-width: 260px; }
+.coach-test-email small { display: block; white-space: normal; line-height: 1.5; }
+.coach-reset-page .code-form > input { min-height: 48px; border: 1px solid #bdd3d2; border-radius: 12px; padding: 10px 14px; background: white; color: #16333b; font: inherit; }
+.coach-reset-page .code-form > input:focus-visible { outline: 3px solid #9fd8d2; outline-offset: 2px; }
+.coach-reset-page .code-form > button { width: 100%; }
+.coach-reset-page .login-card > a { display: inline-block; margin-top: 20px; color: #087478; font-weight: 600; }

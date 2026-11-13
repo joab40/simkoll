@@ -5,7 +5,11 @@ import { supabaseRequest } from './supabase.js'
 const scrypt = promisify(scryptCallback)
 const SESSION_TTL_SECONDS = 8 * 60 * 60
 const base64url = (value) => Buffer.from(value).toString('base64url')
-const sessionSecret = () => process.env.COACH_SESSION_SECRET || process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN || 'simkoll-change-session-secret'
+const sessionSecret = () => {
+  const secret = process.env.COACH_SESSION_SECRET || process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN
+  if (!secret) throw new Error('COACH_SESSION_SECRET måste konfigureras för tränarinloggning.')
+  return secret
+}
 const sign = (value) => createHmac('sha256', sessionSecret()).update(value).digest('base64url')
 const normalizeEmail = (value = '') => String(value).trim().toLowerCase()
 export const COACH_TERMS_VERSION = '1.0'
@@ -35,12 +39,13 @@ export async function countCoaches() {
 }
 
 export function createCoachToken(account, ttlSeconds = SESSION_TTL_SECONDS) {
-  const payload = { sub: account.id, email: account.email, name: account.display_name, role: account.role, exp: Math.floor(Date.now() / 1000) + Math.max(60, Number(ttlSeconds) || SESSION_TTL_SECONDS) }
+  const payload = { sub: account.id, email: account.email, name: account.display_name, role: account.role, ver: Number(account.session_version) || 0, exp: Math.floor(Date.now() / 1000) + Math.max(60, Number(ttlSeconds) || SESSION_TTL_SECONDS) }
   const encoded = base64url(JSON.stringify(payload))
   return `coach.${encoded}.${sign(encoded)}`
 }
 
 export function readCoachToken(token) {
+  if (!process.env.COACH_SESSION_SECRET && !process.env.SIMKOLL_COACH_BOOTSTRAP_TOKEN) return null
   const value = String(token || '')
   if (!value.startsWith('coach.')) return null
   const [, encoded, signature] = value.split('.')

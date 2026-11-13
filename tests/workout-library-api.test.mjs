@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -13,7 +14,7 @@ const code = createCoachToken({ id: '22222222-2222-4222-8222-222222222222', emai
 
 async function call(query, token = code) {
   const response = { setHeader() {}, status(status) { this.code = status; return this }, json(data) { this.data = data; return this } }
-  await workouts({ method: 'GET', headers: { 'x-simkoll-code': token }, query }, response)
+  await coachSessionFixture(workouts)({ method: 'GET', headers: { 'x-simkoll-code': token }, query }, response)
   return response
 }
 
@@ -59,7 +60,7 @@ test('competition and warm-up focuses can be saved as distinct workouts', async 
   }
   for (const focus of ['tavlingsinsim', 'tavling']) {
     const response = { setHeader() {}, status(status) { this.code = status; return this }, json(data) { this.data = data; return this } }
-    await workouts({ method: 'POST', headers: { 'x-simkoll-code': code }, body: { date: row.workout_date, title: row.title, content: row.content, focus, targetGroups: ['junior'] } }, response)
+    await coachSessionFixture(workouts)({ method: 'POST', headers: { 'x-simkoll-code': code }, body: { date: row.workout_date, title: row.title, content: row.content, focus, targetGroups: ['junior'] } }, response)
     assert.equal(response.code, 200)
     assert.equal(response.data.workout.focus, focus)
   }

@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { salsimmet } from './fixtures/salsimmet.mjs'
@@ -10,7 +11,7 @@ const { createCoachToken } = await import('../server/coach-auth.js')
 const headCoachCode = createCoachToken({ id: 'fixture-head-coach', email: 'fixture@example.invalid', role: 'head_coach' })
 async function post(body, code = headCoachCode) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method: 'POST', headers: { 'x-simkoll-code': code }, body }, response)
+  await coachSessionFixture(handler)({ method: 'POST', headers: { 'x-simkoll-code': code }, body }, response)
   return response
 }
 const publish = { action: 'publish-competition-program', competitionId: 'fixture-competition', programSnapshot: [], draft: salsimmet, reviewed: true }

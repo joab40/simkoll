@@ -1,3 +1,4 @@
+import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 process.env.SUPABASE_URL = 'https://competition-test.invalid'
@@ -14,7 +15,7 @@ const competition = { id, title: 'Testtävling', start_date: '2026-11-01', end_d
 const reply = (data, ok = true) => ({ ok, status: ok ? 200 : 400, json: async () => data, text: async () => '' })
 async function call(body, { method = 'POST', query = {}, code = coach, swimmer = false } = {}) {
   const response = { setHeader() {}, status(value) { this.code = value; return this }, json(data) { this.data = data; return this } }
-  await handler({ method, query, body, headers: { 'x-simkoll-code': swimmer ? '' : code, ...(swimmer ? { cookie: 'simkoll_session=fixture' } : {}) } }, response)
+  await coachSessionFixture(handler)({ method, query, body, headers: { 'x-simkoll-code': swimmer ? '' : code, ...(swimmer ? { cookie: 'simkoll_session=fixture' } : {}) } }, response)
   return response
 }
 
