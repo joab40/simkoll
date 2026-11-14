@@ -15,23 +15,51 @@ function bottle(ctx, game) {
   ctx.strokeStyle = '#cff9ed'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9, 1); ctx.quadraticCurveTo(-4, -4, 0, 1); ctx.quadraticCurveTo(4, 6, 9, 1); ctx.stroke()
   round(ctx, -11, -17, 3, 12, 1, '#ffffffdd'); ctx.restore()
 }
-function platform(ctx, p) {
-  const colors = ['#dca477', '#e9bc67', '#7cabb0', '#cba49d'], color = colors[p.kind]
+export function drawBottleStartingBlock(ctx, p) {
+  const x = p.x, y = p.y, w = p.width, floor = BOTTLE_FLOOR, h = floor - y, cx = x + w / 2
+  // Rear/deck view: broad numbered pedestal, blue anti-slip deck and kick plate.
+  // The deck's centre and white aiming stripe still coincide with physics y.
+  ctx.save()
   ctx.fillStyle = '#243a3930'; ctx.beginPath(); ctx.ellipse(p.x + p.width / 2 + 12, BOTTLE_FLOOR + 5, p.width / 2 + 15, 9, 0, 0, Math.PI * 2); ctx.fill()
-  if (p.kind === 0 || p.kind === 1) {
-    round(ctx, p.x + 12, p.y, 12, BOTTLE_FLOOR - p.y, 3, '#9a6f54')
-    round(ctx, p.x + p.width - 24, p.y, 12, BOTTLE_FLOOR - p.y, 3, '#9a6f54')
-    round(ctx, p.x + 16, p.y + (BOTTLE_FLOOR - p.y) * .66, p.width - 32, 8, 2, '#be8f6a')
-    round(ctx, p.x, p.y, p.width, 19, 5, color)
-    round(ctx, p.x + 3, p.y + 2, p.width - 6, 4, 2, '#ffe1b3')
-  } else {
-    round(ctx, p.x + 4, p.y + 4, p.width - 8, BOTTLE_FLOOR - p.y - 4, 8, color)
-    round(ctx, p.x, p.y, p.width, 17, 5, p.kind === 2 ? '#abd6cf' : '#eec8b8')
-    round(ctx, p.x + 14, p.y + 38, p.width - 28, 3, 1, '#ffffff44')
-    round(ctx, p.x + p.width / 2 - 12, p.y + 28, 24, 7, 2, '#284a4b66')
-    if (p.kind === 3) { ctx.strokeStyle = '#a17d77'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x + p.width / 2, p.y + 46); ctx.lineTo(p.x + p.width / 2, BOTTLE_FLOOR - 14); ctx.stroke() }
+  const white = ctx.createLinearGradient(x, y, x + w, floor)
+  white.addColorStop(0, '#fffffc'); white.addColorStop(.65, '#ecf1ef'); white.addColorStop(1, '#c7d4d3')
+  ctx.fillStyle = white; ctx.strokeStyle = '#aebfbe'; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(x + 13, y + 9); ctx.lineTo(x + w - 13, y + 9); ctx.lineTo(x + w - 24, y + h * .52); ctx.lineTo(x + w - 9, floor - 8); ctx.lineTo(x + 9, floor - 8); ctx.lineTo(x + 23, y + h * .52); ctx.closePath(); ctx.fill(); ctx.stroke()
+  ctx.fillStyle = '#bccbca'; ctx.beginPath(); ctx.moveTo(x + w - 13, y + 11); ctx.lineTo(x + w - 4, y + 17); ctx.lineTo(x + w - 16, y + h * .52); ctx.lineTo(x + w - 2, floor - 8); ctx.lineTo(x + w - 9, floor - 8); ctx.lineTo(x + w - 24, y + h * .52); ctx.closePath(); ctx.fill()
+  round(ctx, x + 5, floor - 11, w - 10, 9, 3, '#e8eeeb')
+  round(ctx, x + 9, floor - 4, w - 18, 3, 1, '#9eb2b0')
+  // Blue sloping top, with the far edge toward the pool.
+  round(ctx, x, y + 2, w, 13, 3, '#fcfefa')
+  ctx.fillStyle = '#3997bd'; ctx.beginPath(); ctx.moveTo(x + 9, y - 15); ctx.lineTo(x + w - 9, y - 15); ctx.lineTo(x + w - 2, y + 3); ctx.lineTo(x + 2, y + 3); ctx.closePath(); ctx.fill()
+  ctx.strokeStyle = '#91d6e3'; ctx.lineWidth = 1
+  for (let line = 0; line < 3; line++) { ctx.beginPath(); ctx.moveTo(x + 10, y - 11 + line * 4); ctx.lineTo(x + w - 10, y - 11 + line * 4); ctx.stroke() }
+  round(ctx, x + 2, y + 3, w - 4, 5, 1, '#226e95')
+  // Rear kick plate and stainless supports; decorative, not extra obstacles.
+  ctx.strokeStyle = '#8b9e9e'; ctx.lineWidth = 3
+  for (const arm of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx + arm * w * .23, y - 5); ctx.lineTo(cx + arm * w * .23, y - 31); ctx.stroke() }
+  round(ctx, cx - w * .27, y - 35, w * .54, 17, 3, '#aabdbf')
+  round(ctx, cx - w * .25, y - 32, w * .5, 10, 2, '#2f819f')
+  round(ctx, cx - w * .27, y - 35, w * .54, 3, 1, '#edf7f4')
+  ctx.fillStyle = '#203b41'; ctx.font = `800 ${Math.min(36, w * .27, h * .27)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(String(p.index + 1), cx - 2, y + h * .51, w * .55)
+  ctx.fillStyle = '#6d9297'; ctx.font = '700 6px system-ui, sans-serif'; ctx.fillText('SIMKOLL', cx - 2, floor - 21, w * .55)
+  round(ctx, x + w * .35, y - 3, w * .3, 5, 2, '#fff9e8')
+  ctx.restore()
+}
+export function drawBottleBackstrokeFlags(ctx, width) {
+  ctx.save()
+  const heightAt = fraction => 62 + 88 * fraction * (1 - fraction)
+  ctx.strokeStyle = '#638f8c'; ctx.lineWidth = 2
+  ctx.beginPath(); ctx.moveTo(0, heightAt(0)); ctx.quadraticCurveTo(width / 2, 106, width, heightAt(1)); ctx.stroke()
+  const count = Math.max(6, Math.ceil(width / 70)), gap = width / (count + 1), flagWidth = Math.min(31, gap * .58)
+  for (let index = 0; index < count; index++) {
+    const fraction = (index + 1) / (count + 1), x = width * fraction, top = heightAt(fraction), half = flagWidth / 2
+    // Swallow-tail flags, like a backstroke marker rope; no lamps or logos.
+    ctx.fillStyle = index % 2 === 0 ? '#258c91' : '#fffef5'; ctx.strokeStyle = index % 2 === 0 ? '#21787e' : '#a7c7c1'; ctx.lineWidth = .7
+    ctx.beginPath(); ctx.moveTo(x - half, top); ctx.lineTo(x + half, top); ctx.lineTo(x + half, top + 34); ctx.lineTo(x, top + 25); ctx.lineTo(x - half, top + 34); ctx.closePath(); ctx.fill(); ctx.stroke()
+    ctx.strokeStyle = '#ffffff70'; ctx.beginPath(); ctx.moveTo(x - half + 2, top + 3); ctx.lineTo(x + half - 2, top + 3); ctx.stroke()
   }
-  round(ctx, p.x + p.width * .35, p.y - 3, p.width * .3, 5, 2, '#fff9e8')
+  ctx.restore()
 }
 export function drawBottle(canvas, game, reducedMotion = false) {
   const rect = canvas.getBoundingClientRect(), ratio = Math.min(window.devicePixelRatio || 1, 2)
@@ -54,19 +82,18 @@ export function drawBottle(canvas, game, reducedMotion = false) {
   ctx.strokeStyle = '#cdbd9c66'; ctx.lineWidth = 1
   for (let y = 370; y < 540; y += 42) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke() }
   for (let x = -(game.camera * .2 % 110); x < width; x += 110) { ctx.beginPath(); ctx.moveTo(x, 349); ctx.lineTo(x - 40, 540); ctx.stroke() }
-  ctx.strokeStyle = '#447d7266'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 62); ctx.quadraticCurveTo(width * .5, 130, width, 60); ctx.stroke()
-  for (let i = 1; i < 9; i++) { const x = width * i / 9, y = 62 + 125 * (i / 9) * (1 - i / 9); ctx.fillStyle = i % 2 ? '#edb972' : '#faf8df'; ctx.beginPath(); ctx.arc(x, y + 7, 5, 0, Math.PI * 2); ctx.fill() }
+  drawBottleBackstrokeFlags(ctx, width)
   ctx.save(); ctx.translate(-game.camera, 0)
   const visible = game.platforms.filter(p => p.x + p.width > game.camera - 50 && p.x < game.camera + width + 80)
-  for (const p of visible) platform(ctx, p)
+  for (const p of visible) drawBottleStartingBlock(ctx, p)
   const next = game.platforms[game.current + 1]
-  if (game.status === 'playing' && next && game.phase !== 'respawn') {
-    ctx.fillStyle = '#237d82'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('NÄSTA', next.x + next.width / 2, next.y - 21)
-    ctx.beginPath(); ctx.moveTo(next.x + next.width / 2 - 4, next.y - 15); ctx.lineTo(next.x + next.width / 2 + 4, next.y - 15); ctx.lineTo(next.x + next.width / 2, next.y - 9); ctx.fill()
+  if (game.status === 'playing' && next) {
+    ctx.fillStyle = '#237d82'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('NÄSTA', next.x + next.width / 2, next.y - 57)
+    ctx.beginPath(); ctx.moveTo(next.x + next.width / 2 - 4, next.y - 51); ctx.lineTo(next.x + next.width / 2 + 4, next.y - 51); ctx.lineTo(next.x + next.width / 2, next.y - 45); ctx.fill()
   }
   const shadow = game.platforms[game.current]
   ctx.fillStyle = '#194b4a26'; ctx.beginPath(); ctx.ellipse(game.x, shadow.y + 8, 21, 5, 0, 0, Math.PI * 2); ctx.fill()
-  if (game.phase !== 'respawn' || game.respawn > .3) bottle(ctx, game)
+  bottle(ctx, game)
   if (game.feedbackFor > 0 && game.feedback.startsWith('Mitt') && !reducedMotion) {
     const age = 1.3 - game.feedbackFor
     for (let i = 0; i < 9; i++) { ctx.fillStyle = i % 2 ? '#d5a84f' : '#37aaa0'; const x = game.x + Math.cos(i * 2.4) * age * 70, y = game.y - 30 - Math.sin(i * 1.5) * age * 55 + age * age * 30; ctx.fillRect(x, y, 4, 4) }

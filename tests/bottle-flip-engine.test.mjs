@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { advanceBottle, BOTTLE_CHARGE_SECONDS, BOTTLE_ROUND_SECONDS, BOTTLE_MAX_LANDINGS, BOTTLE_MAX_SCORE, bottleLandingTime, createBottleGame, startBottle, pressBottle, releaseBottle, cancelBottleCharge, pauseBottle, resumeBottle, validBottleScore } from '../src/bottle-flip-engine.js'
+import { advanceBottle, BOTTLE_CHARGE_SECONDS, BOTTLE_ROUND_SECONDS, BOTTLE_ATTEMPTS, BOTTLE_MAX_LANDINGS, BOTTLE_MAX_SCORE, bottleLandingTime, createBottleGame, startBottle, pressBottle, releaseBottle, cancelBottleCharge, pauseBottle, resumeBottle, validBottleScore } from '../src/bottle-flip-engine.js'
 
 const advance = (game, seconds, step = 1 / 120) => { let left = seconds; while (left > 1e-9) { const dt = Math.min(left, step); advanceBottle(game, dt); left -= dt } }
 function throwTo(game, offset = 1, fraction = .5, step = 1 / 120) {
@@ -12,18 +12,19 @@ function throwTo(game, offset = 1, fraction = .5, step = 1 / 120) {
   while (game.phase === 'flying' && game.status === 'playing') advanceBottle(game, step)
 }
 
-test('ready game is inert, starts with three bottles and has a deterministic fair course', () => {
+test('ready game is inert, starts with one attempt and has a deterministic fair course', () => {
   const game = createBottleGame(), original = structuredClone(game)
   advanceBottle(game, 1); assert.deepEqual(game, original)
   assert.equal(pressBottle(game), false); assert.equal(releaseBottle(game), false)
   assert.deepEqual(createBottleGame(), original)
-  assert.equal(game.lives, 3); assert.equal(game.platforms.length, 6)
+  assert.equal(BOTTLE_ATTEMPTS, 1); assert.equal(game.lives, 1); assert.equal(game.platforms.length, 6)
+  assert.equal(BOTTLE_ROUND_SECONDS, 60)
 })
 
 test('hold/release lands on the next platform, upright, and rewards perfect streaks', () => {
   const game = startBottle(createBottleGame())
   for (const score of [15, 35, 60, 90, 120]) { throwTo(game); assert.equal(game.score, score); assert.equal(game.angle, 0); assert.equal(game.phase, 'resting') }
-  assert.equal(game.lives, 3); assert.equal(game.bestStreak, 5)
+  assert.equal(game.lives, 1); assert.equal(game.bestStreak, 5)
   throwTo(game, 1, .2)
   assert.equal(game.score, 130); assert.equal(game.streak, 0)
 })
@@ -35,15 +36,14 @@ test('longer holds travel farther and skipping one platform adds a bonus without
   assert.equal(game.score, 25); assert.match(game.feedback, /genväg/)
 })
 
-test('three failed throws finish the round and respawn at the last successful platform', () => {
+test('the first miss finishes the round with no respawn or second attempt', () => {
   const game = startBottle(createBottleGame()); throwTo(game)
-  for (let lives = 2; lives >= 0; lives--) {
-    pressBottle(game); releaseBottle(game)
-    while (game.phase === 'flying') advanceBottle(game, 1 / 60)
-    assert.equal(game.lives, lives); assert.equal(game.score, 15); assert.equal(game.streak, 0)
-    if (lives) { advance(game, .7); assert.equal(game.current, 1); assert.equal(game.phase, 'resting'); assert.equal(game.y, game.platforms[1].y) }
-  }
-  assert.equal(game.status, 'over')
+  pressBottle(game); releaseBottle(game)
+  while (game.phase === 'flying') advanceBottle(game, 1 / 60)
+  assert.equal(game.lives, 0); assert.equal(game.score, 15); assert.equal(game.streak, 0)
+  assert.equal(game.status, 'over'); assert.equal(game.phase, 'fallen')
+  assert.equal(pressBottle(game), false); assert.equal(releaseBottle(game), false)
+  resumeBottle(game); startBottle(game); assert.equal(game.status, 'over')
   const final = structuredClone(game); advanceBottle(game, 100); assert.deepEqual(game, final)
 })
 
@@ -61,7 +61,7 @@ test('cancelled input never throws and full charge saturates rather than wrappin
   const game = startBottle(createBottleGame()); pressBottle(game); advance(game, 2)
   assert.equal(game.charge, 1); assert.equal(pressBottle(game), false)
   cancelBottleCharge(game); assert.equal(game.phase, 'resting'); assert.equal(releaseBottle(game), false)
-  assert.equal(game.lives, 3)
+  assert.equal(game.lives, 1)
 })
 
 test('exact collision crossings give equivalent results at 30, 60 and 120 FPS', () => {
@@ -78,6 +78,14 @@ test('round time and landing count are bounded; generated late platforms stay pl
   for (const p of game.platforms) { assert.ok(p.width >= 77); assert.ok(p.y >= 290 && p.y <= 395) }
   const idle = startBottle(createBottleGame()); advance(idle, BOTTLE_ROUND_SECONDS + 1)
   assert.equal(idle.status, 'complete'); assert.equal(idle.elapsed, BOTTLE_ROUND_SECONDS); assert.equal(idle.score, 0)
+})
+
+test('the 60-second deadline stops a charge immediately and never allows an extra throw', () => {
+  const game = startBottle(createBottleGame()); advance(game, 59.9); pressBottle(game); advance(game, .09)
+  assert.equal(game.status, 'playing'); assert.ok(game.charge > 0)
+  advance(game, .02)
+  assert.equal(game.status, 'complete'); assert.equal(game.elapsed, 60); assert.equal(game.charge, 0)
+  assert.equal(releaseBottle(game), false); assert.equal(game.lives, 1)
 })
 
 test('score validation rejects empty, fractional, nonfinite and over-limit values', () => {

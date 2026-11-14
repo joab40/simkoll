@@ -1,6 +1,7 @@
 // Original Simkoll game logic. Fixed course seed gives every player the same course.
 export const BOTTLE_CHARGE_SECONDS = 1.2
-export const BOTTLE_ROUND_SECONDS = 120
+export const BOTTLE_ROUND_SECONDS = 60
+export const BOTTLE_ATTEMPTS = 1
 export const BOTTLE_MAX_LANDINGS = 80
 export const BOTTLE_MAX_SCORE = BOTTLE_MAX_LANDINGS * 40
 export const BOTTLE_FLOOR = 490
@@ -24,7 +25,7 @@ function ensurePlatforms(game) {
 }
 export function createBottleGame() {
   const first = bottlePlatform(null, 0)
-  const game = { status: 'ready', phase: 'resting', score: 0, lives: 3, elapsed: 0, landings: 0, streak: 0, bestStreak: 0, current: 0, platforms: [first], charge: 0, camera: 0, x: first.x + first.width / 2, y: first.y, angle: 0, flight: null, feedback: '', feedbackFor: 0, respawn: 0 }
+  const game = { status: 'ready', phase: 'resting', score: 0, lives: BOTTLE_ATTEMPTS, elapsed: 0, landings: 0, streak: 0, bestStreak: 0, current: 0, platforms: [first], charge: 0, camera: 0, x: first.x + first.width / 2, y: first.y, angle: 0, flight: null, feedback: '', feedbackFor: 0 }
   ensurePlatforms(game)
   return game
 }
@@ -70,19 +71,14 @@ function land(game, platform, x) {
   if (game.landings >= BOTTLE_MAX_LANDINGS) game.status = 'complete'
 }
 function miss(game) {
-  game.lives -= 1; game.streak = 0; game.phase = 'respawn'; game.respawn = .65; game.flight = null
-  game.feedback = game.lives ? 'En flaska mindre. Prova igen!' : 'Sista flaskan landade på golvet.'; game.feedbackFor = 1.3
-  if (!game.lives) game.status = 'over'
+  game.lives = 0; game.streak = 0; game.phase = 'fallen'; game.flight = null; game.status = 'over'
+  game.feedback = 'Flaskan landade på golvet – rundan är slut.'; game.feedbackFor = 1.3
 }
 function tick(game, dt) {
   game.elapsed = Math.min(BOTTLE_ROUND_SECONDS, game.elapsed + dt)
   game.feedbackFor = Math.max(0, game.feedbackFor - dt)
-  if (game.elapsed >= BOTTLE_ROUND_SECONDS) { cancelBottleCharge(game); game.status = 'complete'; game.feedback = 'Två minuter – bra jobbat!'; return }
+  if (game.elapsed >= BOTTLE_ROUND_SECONDS) { cancelBottleCharge(game); game.status = 'complete'; game.feedback = '60 sekunder – bra jobbat!'; return }
   if (game.phase === 'charging') game.charge = Math.min(1, game.charge + dt / BOTTLE_CHARGE_SECONDS)
-  if (game.phase === 'respawn') {
-    game.respawn -= dt
-    if (game.respawn <= 0) { const platform = game.platforms[game.current]; game.x = platform.x + platform.width / 2; game.y = platform.y; game.angle = 0; game.phase = 'resting' }
-  }
   if (game.phase === 'flying') {
     const flight = game.flight, before = flight.elapsed, after = before + dt
     const obstacles = game.platforms.slice(game.current + 1, game.current + 4)
