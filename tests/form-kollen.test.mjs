@@ -129,7 +129,7 @@ test('card replaces the header heart, sits after direction and supports accessib
   const css = readFileSync(new URL('../src/form-kollen.css', import.meta.url), 'utf8')
   assert.doesNotMatch(main, /<TrainingHeart/)
   assert.match(main, /swimmer-trend-card[\s\S]*?<FormKollenCard[\s\S]*?<SwimmerAgreementCard/)
-  for (const text of ['aria-expanded', 'aria-controls', 'aria-pressed', 'role="status"', '<caption>', "useState(14)", 'retry: false']) assert.ok(view.includes(text), text)
+  for (const text of ['aria-expanded', 'aria-controls', 'aria-pressed', 'role="status"', '<caption>', "useState(2)", 'retry: false']) assert.ok(view.includes(text), text)
   assert.match(css, /prefers-reduced-motion: reduce/)
   assert.doesNotMatch(view, /setInterval|Math.random|createPortal/)
 })

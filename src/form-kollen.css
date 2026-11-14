@@ -1,4 +1,12 @@
 .form-kollen { --form-color: #3979ad; --form-pale: #edf5fa; padding: 22px; margin: 20px 0; border: 1px solid #cce1df; border-radius: 22px; background: linear-gradient(135deg, #f5fbfc, #fffef9); color: #193a43; overflow-wrap: anywhere; }
+.form-kollen-shell { margin: 20px 0; border: 1px solid #cce1df; border-radius: 22px; background: linear-gradient(135deg, #f5fbfc, #fffef9); overflow: hidden; }
+.form-kollen-shell > .form-kollen { margin: 0; border: 0; border-top: 1px solid #d7e6e3; border-radius: 0; }
+.form-live-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.form-live-values > div { padding: 11px; border: 1px solid #d7e6e3; border-radius: 12px; background: #ffffffa0; }
+.form-live-values strong, .form-live-values small { display: block; font-size: 11px; line-height: 1.6; }
+.form-live-values small { margin-top: 5px; color: #59757c; font-size: 10px; }
+.form-live-values .form-live-stale { color: #936d2c; font-weight: 700; }
+@media (max-width: 600px) { .form-live-values { grid-template-columns: 1fr; } }
 .form-kollen.phase-unknown { --form-color: #7f959b; --form-pale: #edf2f3; }
 .form-kollen.phase-loaded, .form-kollen.phase-watch { --form-color: #ba7728; --form-pale: #fbf1df; }
 .form-kollen.phase-improving { --form-color: #109b92; --form-pale: #e0f5ef; }

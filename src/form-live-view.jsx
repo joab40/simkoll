@@ -1,0 +1,36 @@
+import React, { useId, useState } from 'react'
+import { FORM_PERIODS, summarizeFormPeriod } from '../shared/form-period.js'
+import { FormOrb, ObservationChart } from './form-kollen.jsx'
+import FormCoachContext from './form-coach-context.jsx'
+import { heartDuration } from '../shared/training-heart-display.js'
+const n = value => value == null ? 'Saknas' : value.toLocaleString('sv-SE', { maximumFractionDigits: 1 })
+const time = value => value ? new Date(value).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'tid saknas'
+const date = value => value ? new Date(`${value}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' }) : 'saknas'
+const keys = [['body', 'Kropp'], ['feeling', 'Dagskänsla'], ['speed', 'Fartkänsla']]
+const arrows = { up: '↗', down: '↘', steady: '→', mixed: '↕', unknown: '—' }
+
+export default function FormLiveView({ data, name, demo, onPeriodChange, onSaveContext, onRefresh, animate, onAnimate }) {
+  const [open, setOpen] = useState(false), id = useId(), live = data.periods[2], summary = summarizeFormPeriod(live, data)
+  const load = live.load
+  return <section className={`form-kollen phase-${summary.phase}`} aria-labelledby={`${id}-title`}>
+    <header className="form-kollen-header"><div><p className="eyebrow">{demo ? 'Formkollen · endast fiktivt demo' : 'Formkollen'}</p><small>Senaste svar · hämtat {time(live.fetchedAt)}</small></div><span className="form-confidence">Underlag: {summary.confidence}</span></header>
+    <div className="form-periods" role="group" aria-label="Analysperiod">{FORM_PERIODS.map(days => <button type="button" key={days} aria-pressed={days === 2} onClick={() => onPeriodChange(days)}>{days === 2 ? 'Just nu' : `${days} dagar`}</button>)}</div>
+    <div aria-live="polite"><div className="form-kollen-hero"><FormOrb phase={summary.phase} animate={animate} /><div><small className="form-kollen-caption">Just nu · två senaste svar per mått{summary.provisional ? ' · preliminärt underlag' : ''}</small><h3 id={`${id}-title`}>{summary.label}</h3><p>{summary.reason}</p><div className="form-metric-directions">{keys.map(([key, label]) => {
+      const item = live.metrics[key], direction = live.directions[key]
+      return <span className="form-direction" key={key} title={direction.detail}><strong>{label} {item.value == null ? 'saknas' : `${n(item.value)}/5`}</strong><b aria-hidden="true">{arrows[direction.state]}</b><span>{direction.label}</span></span>
+    })}</div></div></div>
+    <p className="form-provisional-note">Senaste giltiga svaret väger 60 %, näst senaste 40 %. De kan komma från samma dag. Varje mått använder sina egna två senaste svar och jämförs med de två före. Ett enstaka svar ger ingen säker trend. Efterregistrering hör till aktivitetsdagen, inte inskickningsdagen.</p>
+    <div className="form-live-values">{keys.map(([key, label]) => {
+      const item = live.metrics[key]
+      return <div key={key}><strong>{label} · {item.answers} svar</strong>{item.samples.length ? item.samples.map((sample, index) => <small key={index}>{index === 0 ? 'Senast' : 'Före'}: {n(sample.value)}/5 · aktivitetsdag {date(sample.date)} · lämnat {time(sample.submittedAt)}</small>) : <small>Svar saknas.</small>}{!item.fresh && item.answers > 0 && <small className="form-live-stale">Äldre svar – inte ett aktuellt nuläge.</small>}</div>
+    })}</div></div>
+    {data.flags.length > 0 && <aside className="form-flags"><strong>Att följa upp · kvar oavsett periodval</strong><ul>{data.flags.map(flag => <li key={flag}>{flag}</li>)}</ul><small>Hög fartkänsla tar inte bort en sömn- eller sjukdomssignal. Inte diagnos eller träningsråd.</small></aside>}
+    <div className="form-signals"><div><small>Belastning · 2 senaste efterrapporterna</small><strong>{load.known ? `${load.estimated ? '≈ ' : ''}${n(load.value)} RPE × min` : 'Tid/RPE saknas'}</strong><small>{load.known}/{load.total} kompletta. Två före: {n(load.previous.value)} · {load.previous.known}/{load.previous.total} kompletta.</small><small>Ovägd summa, inte två dagars total. Olika passlängd kan påverka jämförelsen.</small></div><div><small>Sömn · 2 senaste nätterna</small><strong>{live.sleep.nights ? heartDuration(live.sleep.minutes) : 'Sömn saknas'}</strong><small>{live.sleep.nights} nätter · senast {date(live.sleep.lastDay)} · vanligt snitt, inte viktat.</small></div><div><small>Viktigt att skilja på</small><strong>Upplevd, inte uppmätt fart</strong><small>Blixten på simmarkortet visar senaste enskilda simsvar. Här visas 60/40-viktningen av två svar. Därför kan värdena skilja sig.</small></div></div>
+    {(data.coachContext || demo && data.context) && <FormCoachContext records={data.coachContext || { available: true, current: data.context, revisions: [] }} active={data.context} asOf={data.asOf} onSave={onSaveContext} />}
+    <div className="form-kollen-actions">{onRefresh && <button type="button" className="text-button" onClick={onRefresh}>Uppdatera svar</button>}<button type="button" className="text-button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls={`${id}-details`}>{open ? 'Dölj underlag ↑' : 'Visa utveckling & underlag →'}</button><button type="button" className="text-button" aria-pressed={animate} onClick={onAnimate}>{animate ? 'Pausa rörelse' : 'Visa mjuk rörelse'}</button></div>
+    {open && <div id={`${id}-details`} className="form-kollen-detail"><h4>Senaste svar · {name}</h4><p>Verkliga svar i tidsordning, inte dagsmedel. Två punkter kan avse samma dag. Saknade svar fylls aldrig i. Ingen automatisk polling, AI eller uppmätt formbedömning används.</p><div className="form-charts">{keys.map(([key, label]) => <ObservationChart key={key} history={live.metrics[key].samples.slice().reverse().map(row => ({ ...row, [key]: row.value }))} field={key} label={label} />)}<ObservationChart history={load.samples.map(row => ({ ...row, load: row.value }))} field="load" label="Senaste efterrapporternas belastning" load /></div>
+      <details><summary>Exakta svar och tidigare jämförelse</summary><div className="form-table-scroll"><table><caption>Senaste två svar per mått, jämfört med de två före. Aktivitetsdag och inskickningstid är olika saker.</caption><thead><tr><th>Mått</th><th>Par / vikt</th><th>Aktivitetsdag</th><th>Lämnat</th><th>Värde /5</th></tr></thead><tbody>{keys.flatMap(([key, label]) => [['Nu', live.metrics[key]], ['Tidigare', live.previous.metrics[key]]].flatMap(([pair, item]) => item.samples.map((sample, index) => <tr key={`${key}-${pair}-${index}`}><th scope="row">{label}</th><td>{pair} · {index === 0 ? '60 %' : '40 %'}</td><td>{date(sample.date)}</td><td>{time(sample.submittedAt)}</td><td>{n(sample.value)}</td></tr>)))}</tbody></table></div></details>
+      <p>En aktuell tolkning kräver att det senaste svaret för måttet avser idag/igår och är lämnat inom 48 timmar. Äldre observationer visas daterade men ges ingen aktuell trend. Två giltiga svar i båda paren krävs för jämförelse; gräns 0,5/5. Samma check-in räknas inte flera gånger vid rättning. Det är justerbara produktregler, inte vetenskapligt validerade gränser för form.</p><p>Separat senaste läge från tre kalenderdagar: {data.label}. {data.reasons[0]}</p>
+    </div>}
+  </section>
+}

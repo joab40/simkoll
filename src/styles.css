@@ -1244,6 +1244,10 @@ button { cursor: pointer; }
 .history-mood > span { font-size: 28px; }
 .swimmer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 0; overflow: hidden; }
+.swimmer-card-header { display: flex; align-items: center; }
+.swimmer-card-header > .swimmer-card-toggle { flex: 1; min-width: 0; }
+.swimmer-card-header > .swimmer-setup-indicator { width: 36px; height: 36px; flex-basis: 36px; padding: 0; margin-right: 14px; cursor: pointer; }
+.swimmer-setup-indicator:focus-visible { outline: 3px solid #45b6ab; outline-offset: 3px; }
 .swimmer-card-toggle { display: block; width: 100%; min-height: 0; padding: 16px 18px; border: 0; border-radius: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .swimmer-card-toggle:hover { background: #f7fbf9; }
 .swimmer-card-toggle:focus-visible { outline: 3px solid rgba(45, 126, 115, .25); outline-offset: -3px; }
@@ -1321,13 +1325,13 @@ button { cursor: pointer; }
 .compact-week-help { margin-top: 9px; border-top: 1px solid #dfeae7; padding-top: 7px; }
 .compact-week-help summary { width: fit-content; cursor: pointer; color: var(--teal); font-size: 9px; font-weight: 800; }
 .compact-week-help p { display: flex; flex-wrap: wrap; gap: 6px 13px; margin: 7px 0 0; color: var(--muted); font-size: 9px; }
-.swimmer-card.compact .swimmer-name > span { width: 42px; height: 42px; font-size: 25px; }
+.swimmer-card.compact .swimmer-name > span:not(.swimmer-speed) { width: 42px; height: 42px; font-size: 25px; }
 .swimmer-card.compact .swimmer-level { padding: 5px 8px; }
 .swimmer-search { display: flex; align-items: center; gap: 9px; max-width: 420px; margin: 0 0 14px; border: 1px solid #d6e2df; border-radius: 11px; background: white; padding: 0 12px; }
 .swimmer-search input { width: 100%; min-height: 42px; border: 0; outline: 0; font-size: 14px; background: transparent; }
 .swimmer-traffic-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; color: var(--muted); font-size: 12px; font-weight: 700; }.swimmer-traffic-filters button { border: 1px solid #d5e3df; border-radius: 999px; background: white; padding: 7px 11px; font-size: 12px; }.swimmer-traffic-filters button.active { background: #e4f2ed; border-color: #acd4c8; color: var(--teal); }
 .swimmer-name { display: flex; align-items: center; gap: 12px; }
-.swimmer-name > span { width: 48px; height: 48px; display: grid; place-items: center; background: #e3f2ee; border-radius: 50%; font-size: 28px; }
+.swimmer-name > span:not(.swimmer-speed) { width: 48px; height: 48px; display: grid; place-items: center; background: #e3f2ee; border-radius: 50%; font-size: 28px; }
 .swimmer-name > div { display: flex; flex-direction: column; }
 .swimmer-name small { color: var(--muted); }
 .swimmer-status { margin: 14px 0 4px; padding: 9px 11px; border-radius: 10px; font-size: 12px; font-weight: 800; background: #eaf4f1; color: var(--teal); }

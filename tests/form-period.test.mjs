@@ -13,7 +13,8 @@ const full = () => ({ responses: Array.from({ length: 180 }, (_, i) => response(
 test('five periods have precise inclusive calendar boundaries and disjoint equal-length comparison windows', () => {
   const periods = buildFormPeriods(full(), asOf)
   assert.deepEqual(Object.keys(periods).map(Number), FORM_PERIODS)
-  for (const days of FORM_PERIODS) {
+  assert.equal(periods[2].mode, 'latest-answers')
+  for (const days of FORM_PERIODS.filter(days => days !== 2)) {
     const period = periods[days]
     assert.equal(period.start, add(asOf, 1 - days)); assert.equal(period.end, asOf)
     assert.equal(period.previousStart, add(asOf, 1 - 2 * days)); assert.equal(period.previousEnd, add(asOf, -days))
@@ -24,7 +25,7 @@ test('five periods have precise inclusive calendar boundaries and disjoint equal
   }
 })
 
-test('two-day averages weight calendar days 60/40 after daily means; identical weights apply to the previous period', () => {
+test('latest-answer mode uses 60/40 on the two latest reports; corrections of a check-in count once', () => {
   const data = { responses: [response(0, { body: 5 }), ...Array.from({ length: 10 }, (_, i) => response(-1, { id: `many-${i}`, body: 1 })), response(-2, { body: 3 }), response(-3, { body: 2 })] }
   const period = buildFormPeriods(data, asOf)[2]
   assert.equal(period.metrics.body.value, 3.4)
@@ -34,13 +35,14 @@ test('two-day averages weight calendar days 60/40 after daily means; identical w
   assert.equal(period.load.value, 600, 'load uses deduplicated sums, not weighted averages or duplicate submissions')
 })
 
-test('missing latest day is never shifted, imputed, zeroed or treated as a trend; sparse long windows stay provisional', () => {
+test('latest-answer mode keeps real dates when today is missing; sparse comparisons stay unavailable', () => {
   const data = { responses: [response(-1, { body: 5 }), response(-2, { body: 1 }), response(-3, { body: 1 })] }
   const periods = buildFormPeriods(data, asOf)
-  assert.equal(periods[2].metrics.body.value, 5)
-  assert.equal(periods[2].metrics.body.days, 1)
-  assert.equal(periods[2].metrics.body.latestDayMissing, true)
-  assert.equal(periods[2].metrics.body.weighted, false)
+  assert.equal(periods[2].metrics.body.value, 3.4)
+  assert.equal(periods[2].metrics.body.days, 2)
+  assert.equal(periods[2].metrics.body.lastDay, add(asOf, -1))
+  assert.equal(periods[2].metrics.body.answers, 2)
+  assert.equal(periods[2].metrics.body.weighted, true)
   assert.equal(periods[2].directions.body.state, 'unknown')
   assert.equal(periods[2].load.ratio, null)
   const latest = buildFormKollen(data, asOf)
@@ -124,7 +126,7 @@ test('loader reads exactly 180 scoped days once for all five periods, never raw 
 test('calendar windows remain exact over daylight-saving, leap-day and year boundaries', () => {
   for (const end of ['2026-03-30', '2026-10-26', '2028-03-01', '2027-01-01']) {
     const periods = buildFormPeriods({}, end)
-    for (const days of FORM_PERIODS) {
+    for (const days of FORM_PERIODS.filter(days => days !== 2)) {
       const period = periods[days]
       const elapsed = (Date.parse(`${period.end}T12:00:00Z`) - Date.parse(`${period.previousStart}T12:00:00Z`)) / 86400000
       assert.equal(elapsed, 2 * days - 1)

@@ -30,5 +30,5 @@ export async function loadFormKollen(profile, asOf, read = supabaseRequest, { in
     rows(`training_plans?activity_type=eq.swim&${dates('plan_date')}&select=id,plan_date,activity_type,distance_meters,duration_minutes,time_of_day,target_groups,source_workout_id,calendar_link&order=plan_date.asc,id.asc`),
   ]) : [[], []]
   const enriched = withLinkedTrainingAmounts(normalized, { workouts, plans, trainingGroup: profile.training_group, asOf })
-  return { profileId: profile.id, ...buildFormKollen({ responses: enriched, sleep, illness: illness || [], illnessAvailable: illness !== null, context: coachContext?.current }, asOf), ...(includeCoachContext ? { coachContext } : {}) }
+  return { profileId: profile.id, ...buildFormKollen({ responses: enriched, sleep, illness: illness || [], illnessAvailable: illness !== null, context: coachContext?.current }, asOf, { now: new Date().toISOString() }), ...(includeCoachContext ? { coachContext } : {}) }
 }

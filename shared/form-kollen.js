@@ -22,7 +22,7 @@ function metric(rows, key, start, end) {
 }
 const change = (current, previous, minimum) => current.days >= minimum && previous.days >= minimum ? round(current.value - previous.value) : null
 
-export function buildFormKollen(data = {}, asOf) {
+export function buildFormKollen(data = {}, asOf, options = {}) {
   // Reuse the existing validated date, report grouping, load estimation and warning rules.
   const heart = buildTrainingHeart(data, asOf), start = add(asOf, 1 - FORM_HISTORY_DAYS)
   const responses = (data.responses || []).filter(row => row.date >= start && row.date <= asOf)
@@ -52,7 +52,7 @@ export function buildFormKollen(data = {}, asOf) {
   return evaluateFormSignals({ asOf, current, week, previous, trends, sleep, illness, illnessAvailable: data.illnessAvailable !== false,
     load: { ...heart.load, baseline, baselineWeeks: baselineWeeks.length, normalLoad, ratio: loadRatio },
     context: currentFormContext(data.context, asOf),
-    flags: [...heart.warnings, ...(heart.heavy.persistent ? ['Ihållande tung kropp- eller dagskänsla – ta en dialog.'] : [])], history, periods: buildFormPeriods(data, asOf) })
+    flags: [...heart.warnings, ...(heart.heavy.persistent ? ['Ihållande tung kropp- eller dagskänsla – ta en dialog.'] : [])], history, periods: buildFormPeriods(data, asOf, options) })
 }
 
 export function formMetricDirection(trend, current) {

@@ -5,8 +5,9 @@ import { buildSwimmerTraffic, validTrafficDay } from '../shared/swimmer-traffic.
 import { trainingHeartAfterReports } from '../shared/training-heart.js'
 import { canEstimateTrainingTime, withLinkedTrainingAmounts } from '../shared/linked-training-amounts.js'
 import { missingIllnessTable } from './daily-illness.js'
+import { swimmerSpeedSignal } from '../shared/form-live.js'
 
-export async function loadSwimmerTraffic(asOf, read = supabaseRequest) {
+export async function loadSwimmerTraffic(asOf, read = supabaseRequest, { now = new Date().toISOString() } = {}) {
   if (!validTrafficDay(asOf)) throw new Error('Ogiltigt datum för trafikljus.')
   const start = coachWeekAddDays(asOf, -13)
   const dated = (field, from = start) => `${field}=gte.${from}&${field}=lte.${asOf}`
@@ -43,11 +44,12 @@ export async function loadSwimmerTraffic(asOf, read = supabaseRequest) {
   ]) : [[], []]
   const linkedPlans = trainingPlans.map(row => ({ ...row, calendar_link: row.calendar_link || { mode: row.calendar_mode, detachedWorkoutId: row.detached_workout_id } }))
   const enriched = profiles.flatMap(profile => withLinkedTrainingAmounts(own.get(profile.id) || [], { workouts, plans: linkedPlans, trainingGroup: profile.training_group, asOf }))
-  return buildSwimmerTraffic(profiles.map(row => ({ id: row.id, createdAt: row.created_at, active: row.active, approvalStatus: row.approval_status, isTestProfile: row.is_test_profile })), {
+  const report = buildSwimmerTraffic(profiles.map(row => ({ id: row.id, createdAt: row.created_at, active: row.active, approvalStatus: row.approval_status, isTestProfile: row.is_test_profile })), {
     responses: enriched,
     sleep,
     illness: illness.records, illnessAvailable: illness.available,
     sessions: sessions.map(row => ({ profileId: row.profile_id, date: row.session_date, slot: row.session_slot })),
     plans: plans.map(row => ({ profileId: row.profile_id, date: row.planned_date, slot: row.session_slot })),
   }, asOf)
+  return { ...report, fetchedAt: now, profiles: report.profiles.map(profile => ({ ...profile, speed: swimmerSpeedSignal(own.get(profile.profileId) || [], now) })) }
 }

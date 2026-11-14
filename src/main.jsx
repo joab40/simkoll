@@ -25,6 +25,9 @@ import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_ME
 import { TRAFFIC_LABELS } from '../shared/swimmer-traffic.js'
 import SwimmerTrafficOverview from './swimmer-traffic-overview.jsx'
 import FormKollenCard from './form-kollen.jsx'
+import SwimmerSpeed from './swimmer-speed.jsx'
+import SwimmerSetupIndicator from './swimmer-setup.jsx'
+import { activeProfileGoals, swimmerProfileSetup } from '../shared/swimmer-profile-setup.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import { programKind } from '../shared/program-kind.js'
 import DrylandProgramPage, { DrylandProgramRunner, DrylandHistory } from './dryland-program.jsx'
@@ -5092,6 +5095,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   const [artifactStatus, setArtifactStatus] = useState({})
   const [artifactError, setArtifactError] = useState('')
   const [training, setTraining] = useState(null)
+  const [trainingLoadStatus, setTrainingLoadStatus] = useState('loading')
   const [trafficData, setTrafficData] = useState(null), [trafficRefresh, setTrafficRefresh] = useState(0)
   const trafficDate = todayKey(), trafficKey = `${code}:${trafficDate}:${trafficRefresh}`
   const [trainingGoalDrafts, setTrainingGoalDrafts] = useState({})
@@ -5103,7 +5107,13 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   useEffect(() => { if (!initialProfileId) return; const profile = profiles.find((item) => item.id === initialProfileId); if (profile) { setSearch(profile.displayName); setTrafficFilter('all'); setExpandedProfile(profile.id) } }, [initialProfileId])
   useEffect(() => { apiRequest('/api/points?artifacts=true', code).then((data) => { setArtifactCatalog(data.catalog || []); setArtifactAssignments(data.assignments || []); setArtifactError('') }).catch((error) => setArtifactError(error.message || 'Kunde inte hämta artefakterna.')) }, [code])
   useEffect(() => { apiRequest('/api/points', code).then((data) => setProfilePoints(Object.fromEntries((data.profiles || []).map((item) => [item.profileId, item])))).catch(() => {}) }, [code])
-  const loadTraining = () => apiRequest('/api/training', code).then(setTraining)
+  const loadTraining = () => {
+    setTrainingLoadStatus('loading')
+    return apiRequest('/api/training', code).then(data => {
+      if (!Array.isArray(data.seasonGoals) || !Array.isArray(data.crossGoals)) throw new Error('Träningsmålen kunde inte hämtas fullständigt.')
+      setTraining(data); setTrainingLoadStatus('ready')
+    }).catch(error => { setTrainingLoadStatus('error'); throw error })
+  }
   useEffect(() => { loadTraining().catch(() => {}) }, [code])
   useEffect(() => {
     let active = true
@@ -5226,7 +5236,6 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const items = responses.filter((item) => item.profileId === profile.id)
         const todayItem = latestCheckinForDay(items, todayKey())
         const after = items.filter((item) => item.type === 'after')
-        const level = profilePoints[profile.id]?.level || { emoji: '🥉', name: 'Brons' }
         const profileStars = currentStarState(training, profile.id)
         const starCount = [profileStars.weeklyPlan, profileStars.crossGoals, profileStars.swimGoal, profileStars.monthlySwim].filter(Boolean).length
         const earnedArtifacts = artifactAssignments.filter((item) => item.profile_id === profile.id).map((item) => artifactCatalog.find((artifact) => artifact.id === item.artifact_id)).filter(Boolean)
@@ -5237,8 +5246,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const raceAfter = todayItem?.type === 'after' && todayItem.competition === true
         const status = hasSwimToday && !todayItem ? ['after', '✓ Har tränat idag'] : todayItem && ({ sick: ['sick', '🤒 Sjuk idag'], rest: ['rest', '⏸️ Tränar inte idag'], before: [raceBefore ? 'race' : 'before', raceBefore ? '🏁 Ska tävla idag' : '→ Ska träna idag'], after: [raceAfter ? 'race' : 'after', raceAfter ? '🏅 Har tävlat idag' : `✓ ${checkinStatus(todayItem)} idag`] }[todayItem.type])
         const attention = hasSwimToday && !todayItem ? '🏊 Tränat idag' : raceBefore ? '🏁 Ska tävla idag' : raceAfter ? '🏅 Har tävlat idag' : todayItem?.type === 'after' ? `✓ ${checkinStatus(todayItem)} idag` : todayItem?.type === 'sick' ? '🤒 Sjuk idag' : todayItem?.type === 'rest' ? '⏸️ Tränar inte idag' : todayItem?.body <= 2 ? `⚠️ Kroppen ${todayItem.body}/5` : todayItem?.feeling <= 2 ? `⚠️ Känsla ${todayItem.feeling}/5` : todayItem ? '✓ Aktiv idag' : 'Ingen aktivitet idag'
-        const swimGoal = training?.seasonGoals?.find((goal) => goal.profileId === profile.id && goal.active && goal.startDate <= todayKey() && goal.endDate >= todayKey())
-        const crossGoal = training?.crossGoals?.find((goal) => goal.profileId === profile.id && goal.startDate <= todayKey() && (!goal.endDate || goal.endDate >= todayKey()))
+        const { swimGoal, crossGoal } = activeProfileGoals(training, profile.id, todayKey())
         const trendSummary = swimmerTrendSummaries[profile.id]?.trend
         const trendStates = { up: { arrow: '↗', title: 'Högre rapporterad kropp- och dagskänsla', tone: 'up' }, down: { arrow: '↘', title: 'Lägre rapporterad kropp- och dagskänsla', tone: 'down' }, steady: { arrow: '→', title: 'Liknande rapporterad kropp- och dagskänsla', tone: 'neutral' }, mixed: { arrow: '↕', title: 'Blandad utveckling', tone: 'mixed' }, insufficient: { arrow: '—', title: 'För lite underlag', tone: 'neutral' } }
         const trendState = trendStates[trendSummary?.state] || trendStates.insufficient
@@ -5248,28 +5256,18 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const trendLastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return trendDate(dateKey(day)) }
         const traffic = trafficFor(profile), signalReasons = traffic.reasons
         const trainingGoals = [{ icon: '🏊', label: 'Simning', completed: profileSessions.filter((item) => item.type === 'swim').length, target: swimGoal?.target }, { icon: '🤸', label: 'Landträning', completed: profileSessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget ?? 3 }, { icon: '🏋️', label: 'Styrka', completed: profileSessions.filter((item) => item.type === 'strength').length, target: crossGoal?.strengthTarget ?? 3 }].filter((item) => item.target > 0)
-        const setupChecks = [
-          { key: 'tempus', label: 'Tempus-ID', complete: Boolean(profile.tempusId) },
-          { key: 'stroke', label: 'specialinriktning', complete: Boolean(profile.primaryStroke || profile.secondaryStroke) },
-          { key: 'goals', label: 'överenskomna mål för simning, landträning och styrka', complete: Boolean(swimGoal?.target != null && crossGoal?.drylandTarget != null && crossGoal?.strengthTarget != null) },
-          { key: 'group', label: 'träningsgrupp', complete: Boolean(profile.trainingGroup) },
-        ]
-        const setupCompleteCount = setupChecks.filter((item) => item.complete).length
-        const setupIndicatorColor = setupCompleteCount === 3 ? 'gray' : setupCompleteCount === 2 ? 'green' : setupCompleteCount === 1 ? 'yellow' : 'red'
-        const setupMissing = setupChecks.filter((item) => !item.complete).map((item) => item.label)
-        const setupIndicatorTitle = setupCompleteCount === 4
-          ? 'Profilinställningar kompletta'
-          : `${setupCompleteCount} av 4 profilinställningar klara. Saknas: ${setupMissing.join(', ')}.`
+        const setup = swimmerProfileSetup(profile, training, todayKey(), trainingLoadStatus)
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
           <div className="swimmer-card-header">
           <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
-            <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><b className="swimmer-level">{level.emoji} {level.name}</b></div>
-            <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>{!isExpanded && aiEnabled && profile.assistantEnabled !== false && <span className="swimmer-feature-icon" title="Simkoll-assistenten är aktiverad" aria-label="Simkoll-assistenten är aktiverad">🦉</span>}{!isExpanded && aiEnabled && profile.aiAnalysisStatus === 'approved' && <span className="swimmer-feature-icon" title="Personlig AI-analys är aktiverad" aria-label="Personlig AI-analys är aktiverad">🔍</span>}{!isExpanded && setupCompleteCount < 4 && <span className={`swimmer-setup-indicator ${setupIndicatorColor}`} title={setupIndicatorTitle} aria-label={setupIndicatorTitle} role="button" tabIndex="0" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id) } }}>?</span>}<span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
+            <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} /></div>
+            <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>{!isExpanded && aiEnabled && profile.assistantEnabled !== false && <span className="swimmer-feature-icon" title="Simkoll-assistenten är aktiverad" aria-label="Simkoll-assistenten är aktiverad">🦉</span>}{!isExpanded && aiEnabled && profile.aiAnalysisStatus === 'approved' && <span className="swimmer-feature-icon" title="Personlig AI-analys är aktiverad" aria-label="Personlig AI-analys är aktiverad">🔍</span>}<span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
           </button>
+          {!isExpanded && <SwimmerSetupIndicator setup={setup} open={setupHelpProfile === profile.id} onToggle={() => setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id)} controls={`profile-setup-${profile.id}`} />}
           </div>
           {traffic.illness?.current && <p className="swimmer-illness-badge">🤧 {illnessLabel(traffic.illness.current.status)} · {traffic.illness.current.activity_date}</p>}
-          {!isExpanded && setupCompleteCount < 4 && setupHelpProfile === profile.id && <div className={`swimmer-setup-help ${setupIndicatorColor}`} role="status"><div><strong>{setupCompleteCount}/4 inställningar klara</strong><button type="button" onClick={() => setSetupHelpProfile(null)} aria-label="Stäng informationen">×</button></div><p>Saknas: {setupMissing.join(', ')}.</p></div>}
+          {!isExpanded && setup.show && setupHelpProfile === profile.id && <div id={`profile-setup-${profile.id}`} className={`swimmer-setup-help ${setup.color}`} role="status"><div><strong>{setup.unknown ? 'Profilinställningar kontrolleras' : `${setup.completeCount}/4 inställningar klara`}</strong><button type="button" onClick={() => setSetupHelpProfile(null)} aria-label="Stäng informationen">×</button></div>{setup.missing.length > 0 && <p>Saknas: {setup.missing.join(', ')}.</p>}{setup.unknown && <p>{setup.title}</p>}{trainingLoadStatus === 'error' && <button type="button" onClick={() => loadTraining().catch(() => {})}>Försök hämta målen igen</button>}</div>}
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
             {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} {traffic.color === 'red' ? 'Ta en dialog' : 'Bevaka utvecklingen'}</strong><span>{signalReasons.join(' · ')}</span></div>}
