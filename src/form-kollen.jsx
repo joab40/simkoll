@@ -31,7 +31,11 @@ function ObservationChart({ history, field, label, load = false }) {
   const y = value => 86 - (load ? value / max : (value - 1) / 4) * 68
   return <section className="form-chart"><header><strong>{label}</strong><small>{load ? `0–${n(max)} RPE × min` : '1–5 · 5 är bäst'}</small></header>{values.length < 2 ? <p className="form-chart-empty">Minst två svarsdagar behövs för en utvecklingsgraf.</p> : <svg viewBox="0 0 300 110" role="img" aria-label={`${label}, ${values.length} svarsdagar. Exakta värden finns i tabellen nedan.`}>
     {[18, 52, 86].map(value => <line key={value} x1="18" x2="282" y1={value} y2={value} className="form-chart-grid" />)}
-    {segments.map(segment => <line key={`${segment.from.date}-${segment.to.date}`} x1={x(segment.from.index)} y1={y(segment.from.value)} x2={x(segment.to.index)} y2={y(segment.to.value)} className={`form-chart-line${segment.gap ? ' form-chart-gap' : ''}`}><title>{segment.gap ? `${segment.missingDays} dag(ar) utan svar mellan observationerna. Inga mellanvärden finns.` : 'Sammanhängande svarsdagar'}</title></line>)}
+    {segments.map(segment => <g key={`${segment.from.date}-${segment.to.date}`}>
+      <title>{segment.gap ? `${segment.missingDays} dag(ar) utan svar mellan observationerna. Linjen förbinder bara rapporterade punkter; inga mellanvärden finns.` : 'Sammanhängande svarsdagar'}</title>
+      {segment.gap && <line x1={x(segment.from.index)} y1={y(segment.from.value)} x2={x(segment.to.index)} y2={y(segment.to.value)} className="form-chart-gap-guide" aria-hidden="true" />}
+      <line x1={x(segment.from.index)} y1={y(segment.from.value)} x2={x(segment.to.index)} y2={y(segment.to.value)} className={`form-chart-line${segment.gap ? ' form-chart-gap' : ''}`} />
+    </g>)}
     {points.map(point => <circle key={point.date} cx={x(point.index)} cy={y(point.value)} r="3.5" className="form-chart-dot"><title>{date(point.date)}: {n(point.value)}{history[point.index].estimated && load ? ' · innehåller planerad tid' : ''}</title></circle>)}
     <text x="18" y="105">{date(history[0]?.date)}</text><text x="282" y="105" textAnchor="end">{date(history.at(-1)?.date)}</text>
   </svg>}</section>

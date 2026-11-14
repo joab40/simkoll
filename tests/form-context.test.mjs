@@ -43,6 +43,22 @@ test('chart bridges only actual observations with dashed gap segments and leaves
   assert.equal(formChartSegments([{ date: asOf, load: 0 }], 'load').points[0].value, 0)
 })
 
+test('every observed point is joined across both short and long gaps, without extending into missing edge days', () => {
+  const history = Array.from({ length: 28 }, (_, index) => ({ date: `day-${index}`, speed: null, load: null }))
+  for (const index of [1, 3, 22, 25]) Object.assign(history[index], { speed: 5, load: index === 3 ? 0 : 300 })
+  for (const field of ['speed', 'load']) {
+    const { points, segments } = formChartSegments(history, field)
+    assert.equal(segments.length, points.length - 1)
+    assert.deepEqual(segments.map(({ from, to, missingDays }) => [from.index, to.index, missingDays]), [[1, 3, 1], [3, 22, 18], [22, 25, 2]])
+    assert.ok(segments.every(segment => segment.gap))
+  }
+  const view = readFileSync(new URL('../src/form-kollen.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/form-kollen.css', import.meta.url), 'utf8')
+  assert.match(view, /segment\.gap && <line[^>]+className="form-chart-gap-guide"/)
+  assert.match(css, /\.form-chart-gap-guide\s*\{\s*opacity: \.22;/)
+  assert.match(css, /\.form-chart-gap\s*\{\s*stroke-dasharray: 3 3;/)
+})
+
 test('context writes are append-only snapshots tied to server-selected coach and profile; missing table degrades safely', async () => {
   const calls = []
   const write = async (path, options) => { calls.push({ path, options }); const body = JSON.parse(options.body); return { ok: true, json: async () => [{ ...body, id: 'snapshot', created_at: '2026-11-14T12:00:00Z' }] } }

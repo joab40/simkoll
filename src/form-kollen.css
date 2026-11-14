@@ -47,8 +47,9 @@
 .form-chart svg { width: 100%; display: block; margin-top: 8px; overflow: visible; }
 .form-chart text { font: 9px sans-serif; fill: #5b767e; }
 .form-chart-grid { stroke: #e0eae8; stroke-dasharray: 3 4; }
-.form-chart-line { stroke: #198f89; stroke-width: 2; }
-.form-chart-gap { stroke-dasharray: 4 4; opacity: .65; }
+.form-chart-line, .form-chart-gap-guide { stroke: #198f89; stroke-width: 2; stroke-linecap: round; }
+.form-chart-gap-guide { opacity: .22; }
+.form-chart-gap { stroke-dasharray: 3 3; opacity: .85; }
 .form-metric-directions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .form-metric-directions .form-direction { display: flex; gap: 5px; flex-wrap: wrap; padding: 7px 9px; border: 1px solid #dbe6e3; border-radius: 10px; background: #fff9; }
 .form-metric-directions .form-direction b { color: #4b7578; font-size: 18px; }
