@@ -26,7 +26,7 @@ import { TRAFFIC_LABELS } from '../shared/swimmer-traffic.js'
 import SwimmerTrafficOverview from './swimmer-traffic-overview.jsx'
 import FormKollenCard from './form-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
-import SwimmerSetupIndicator from './swimmer-setup.jsx'
+import SwimmerCardHeader from './swimmer-card-header.jsx'
 import { activeProfileGoals, swimmerProfileSetup, profileTrainingGoals, goalDateLabel, trainingGoalValues } from '../shared/swimmer-profile-setup.js'
 import SwimmerTrainingGoals from './swimmer-training-goals.jsx'
 import SwimmerCardFocus, { SwimmerTodayComment } from './swimmer-card-focus.jsx'
@@ -45,6 +45,7 @@ import { WORKOUT_FOCUSES } from '../shared/workout-focuses.js'
 import { SWIM_WORKBOOK_TYPES } from '../shared/swim-workbook.js'
 import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-exercise-images.jsx'
 import CoachMetricDetails from './coach-metric-details.jsx'
+import CoachCheckinTrend from './coach-checkin-trend.jsx'
 import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import CoachHeader from './coach-header.jsx'
 import DriveSettings from './drive-settings.jsx'
@@ -2742,7 +2743,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
         ) : view === 'control-panel' ? (
-          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
         ) : view === 'rewards' ? (
@@ -5270,13 +5271,12 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const setup = swimmerProfileSetup(profile, training, todayKey(), trainingLoadStatus)
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
-          <div className="swimmer-card-header">
-          <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
-            <div className="swimmer-card-top"><div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div></div><SwimmerCardFocus illness={currentIllness} comment={todayComment} /><SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} /></div>
-            <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>{!isExpanded && aiEnabled && profile.assistantEnabled !== false && <span className="swimmer-feature-icon" title="Simkoll-assistenten är aktiverad" aria-label="Simkoll-assistenten är aktiverad">🦉</span>}{!isExpanded && aiEnabled && profile.aiAnalysisStatus === 'approved' && <span className="swimmer-feature-icon" title="Personlig AI-analys är aktiverad" aria-label="Personlig AI-analys är aktiverad">🔍</span>}<span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
-          </button>
-          {!isExpanded && <SwimmerSetupIndicator setup={setup} open={setupHelpProfile === profile.id} onToggle={() => setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id)} controls={`profile-setup-${profile.id}`} />}
-          </div>
+          <SwimmerCardHeader profile={profile} expanded={isExpanded} onToggle={() => setExpandedProfile(isExpanded ? null : profile.id)} setup={setup} setupOpen={setupHelpProfile === profile.id} onSetupToggle={() => setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id)} setupControls={`profile-setup-${profile.id}`} focus={<SwimmerCardFocus illness={currentIllness} comment={todayComment} />} speed={<SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} />}>
+            <span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span>
+            <span className="swimmer-card-health"><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span></span>
+            <span title={attention} className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>
+            <span className="swimmer-card-actions">{!isExpanded && aiEnabled && profile.assistantEnabled !== false && <span className="swimmer-feature-icon" title="Simkoll-assistenten är aktiverad" aria-label="Simkoll-assistenten är aktiverad">🦉</span>}{!isExpanded && aiEnabled && profile.aiAnalysisStatus === 'approved' && <span className="swimmer-feature-icon" title="Personlig AI-analys är aktiverad" aria-label="Personlig AI-analys är aktiverad">🔍</span>}<span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></span>
+          </SwimmerCardHeader>
           {!isExpanded && setup.show && setupHelpProfile === profile.id && <div id={`profile-setup-${profile.id}`} className={`swimmer-setup-help ${setup.color}`} role="status"><div><strong>{setup.heading}</strong><button type="button" onClick={() => setSetupHelpProfile(null)} aria-label="Stäng informationen">×</button></div>{setup.informational && <p>Ingen komplettering behövs.</p>}{setup.missing.length > 0 && <p>Saknas: {setup.missing.join(', ')}.</p>}{setup.scheduled.length > 0 && <div>{setup.scheduled.map(note => <p key={note}>Planerat: {note}.</p>)}</div>}{setup.unknown && <p>{setup.title}</p>}{trainingLoadStatus === 'error' && <button type="button" onClick={() => loadTraining().catch(() => {})}>Försök hämta målen igen</button>}</div>}
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
@@ -5322,7 +5322,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false, overviewExtra, feelingComparison, hideActivityComments = false }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false, overviewExtra, feelingComparison, checkinComparison, hideActivityComments = false }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
   const [selectedMetric, setSelectedMetric] = useState(null)
   useEffect(() => { setSelectedMetric(null); setSelectedFeeling(null) }, [periodLabel])
@@ -5356,10 +5356,10 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
     <>
       <div className="period-heading"><div><p className="eyebrow">{periodLabel}</p><h2>{title}</h2></div><div className="big-count"><strong>{anonymousCount}</strong><span>anonyma svar</span></div></div>
       <section className="stats-grid">
-        <Stat title="Gruppens känsla" helpTerm="Känsla" value={`${metricSummaries.feeling.average} / 5`} note={`${metricSummaries.feeling.entries.length} svar · alla incheckningar`} onOpen={() => setSelectedMetric('feeling')} />
-        <Stat title="Upplevd ansträngning" helpTerm="RPE" value={`${metricSummaries.rpe.average} / 10`} note={`${metricSummaries.rpe.entries.length} svar efter träning`} onOpen={() => setSelectedMetric('rpe')} />
-        <Stat title="Passet" value={`${metricSummaries.pass.average} / 5`} note={`${metricSummaries.pass.entries.length} svar · simmarnas betyg`} onOpen={() => setSelectedMetric('pass')} />
-        <Stat title="Upplägget" value={`${metricSummaries.setup.average} / 5`} note={`${metricSummaries.setup.entries.length} svar · hur det fungerade`} onOpen={() => setSelectedMetric('setup')} />
+        <Stat title="Gruppens känsla" helpTerm="Känsla" value={`${metricSummaries.feeling.average} / 5`} note={`${metricSummaries.feeling.entries.length} svar · alla incheckningar`} trend={<CoachCheckinTrend comparison={checkinComparison} metric="feeling" />} onOpen={() => setSelectedMetric('feeling')} />
+        <Stat title="Upplevd ansträngning" helpTerm="RPE" value={`${metricSummaries.rpe.average} / 10`} note={`${metricSummaries.rpe.entries.length} svar efter träning`} trend={<CoachCheckinTrend comparison={checkinComparison} metric="rpe" />} onOpen={() => setSelectedMetric('rpe')} />
+        <Stat title="Passet" value={`${metricSummaries.pass.average} / 5`} note={`${metricSummaries.pass.entries.length} svar · simmarnas betyg`} trend={<CoachCheckinTrend comparison={checkinComparison} metric="pass" />} onOpen={() => setSelectedMetric('pass')} />
+        <Stat title="Upplägget" value={`${metricSummaries.setup.average} / 5`} note={`${metricSummaries.setup.entries.length} svar · hur det fungerade`} trend={<CoachCheckinTrend comparison={checkinComparison} metric="setup" />} onOpen={() => setSelectedMetric('setup')} />
       </section>
       {selectedMetric && <CoachMetricDetails key={selectedMetric} metricKey={selectedMetric} responses={responses} profiles={profiles} periodLabel={periodLabel} onClose={() => setSelectedMetric(null)} />}
 
@@ -5459,8 +5459,8 @@ function EmptyPeriod({ title, periodLabel }) {
   return <section className="empty-period"><span>≈</span><p className="eyebrow">{periodLabel}</p><h2>{title}</h2><p>När simmarna har svarat visas sammanställningen här.</p></section>
 }
 
-function Stat({ title, value, note, helpTerm, onOpen }) {
-  return <article className={`stat${onOpen ? ' stat-drilldown' : ''}`}>{onOpen && <button type="button" className="stat-drilldown-trigger" onClick={onOpen} aria-label={`Se alla svar för ${title}`} aria-haspopup="dialog" />}<span className="stat-title">{title} <HelpTip term={helpTerm || title} /></span><strong>{value}</strong><small>{note}</small>{onOpen && <span className="stat-drilldown-hint" aria-hidden="true">Visa svar →</span>}</article>
+function Stat({ title, value, note, helpTerm, onOpen, trend }) {
+  return <article className={`stat${onOpen ? ' stat-drilldown' : ''}`}>{onOpen && <button type="button" className="stat-drilldown-trigger" onClick={onOpen} aria-label={`Se alla svar för ${title}`} aria-haspopup="dialog" />}<span className="stat-title">{title} <HelpTip term={helpTerm || title} /></span><strong>{value}</strong><small>{note}</small>{trend}{onOpen && <span className="stat-drilldown-hint" aria-hidden="true">Visa svar →</span>}</article>
 }
 
 createRoot(document.getElementById('root')).render(<App />)

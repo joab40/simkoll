@@ -8,7 +8,7 @@ export default function SwimmerCardFocus({ illness, comment }) {
   return <span className="swimmer-card-focus">
     {currentIllness && <span className={`swimmer-card-focus-illness ${currentIllness.status}`}>
       <strong>{currentIllness.status === 'sick' ? '🤒' : '🤧'} {illnessLabel(currentIllness.status)}</strong>
-      <small>{currentIllness.activity_date}</small>
+      <small>· <time dateTime={currentIllness.activity_date} title={currentIllness.activity_date}>{new Date(`${currentIllness.activity_date}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'UTC', day: 'numeric', month: 'short' })}</time></small>
     </span>}
     {comment && <span className="swimmer-card-focus-comment"><small>Dagens kommentar</small><span>“{comment.replace(/\s+/g, ' ')}”</span></span>}
   </span>

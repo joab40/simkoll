@@ -4,6 +4,8 @@
 
 Aktuell sjukdom eller känningar visas daterat högt i kortets mitt, före eventuell kommentar och aktivitetsstatus. Samma aktuella sjukdomssignal används som tidigare; dagens senaste incheckning som Sjuk visas också här. Nej ger ingen sjukdomsmarkering. Befintliga trafikljus- och uppföljningsregler ändras inte.
 
+Kortets huvud har en gemensam proportion för avatar, namn och fartblixt. Sjukdomsmarkeringen är en kompakt rad med kort datum, till exempel `Lite känningar · 14 nov.`; fullständigt datum finns på datumelementet. En diskret skiljelinje avgränsar den samlade statusraden: träningsstjärnor, uppföljningsstatus och dagskänsla, aktivitet samt Visa mer. På smala kort används två ordnade statusrader i stället för godtycklig radbrytning. Frågetecknet är neutralt och visuellt 20 px, intill användarnamnet, med 44 px tryckyta. Samma huvud används i den lokala förhandsvisningen och i tränarvyn.
+
 Senaste icke-tomma kommentaren för dagens aktivitetsdatum visas på högst en rad med ellips i kortets huvud. När kortet öppnas visas hela kommentaren efter uppföljningssignalerna. Inga tomma platshållare eller gårdagens kommentarer visas här, inte heller en efterregistrering för gårdagen som skickats idag. Svarens befintliga aktivitetsdatum och Stockholms tidszon används. Text renderas som text, inte HTML. Inga extra API-anrop görs.
 
 Efter aktuella signaler kommer **Simning, landträning och styrka → Veckan i korthet → Simmarens riktning → Formkollen → Periodisering → Vår överenskommelse → Utvecklingsmål**. Därefter följer program, träningstider, historik, anteckningar och inställningar. Formkollen är fortsatt minimerad från början och hämtas först när den öppnas. På smala kort placeras sjukdom och kommentar direkt under namn-/blixtraden, före övrig status.

@@ -1,5 +1,11 @@
 # Tränarens kontrollpanel
 
+## Trendpilar på Veckans incheckningar
+
+Gruppens känsla, Upplevd ansträngning, Passet och Upplägget jämför sina medelvärden med samma veckodagar föregående vecka. På onsdagen jämförs måndag–onsdag, inte hela förra veckan. En avslutad vecka jämförs med en hel tidigare vecka. Samma valda grupper och anonymitetsfilter används i båda perioderna. Varje giltigt svar i respektive kort räknas, även upprepade svar från en simmare; de här korten använder inte rapportgruppernas deduplicerade RPE från översta delen av kontrollpanelen. RPE, passbetyg och uppläggsbetyg använder bara efterrapporter, som kortets snitt och svarsvy.
+
+Minst tre giltiga svar krävs per mått i vardera perioden; annars visas streck och en förklaring. Saknat värde räknas inte som noll. Skillnader anges i poäng med en decimal, aldrig procent. Klick på pilens jämförelse öppnar perioder, snitt och antal svar, utan att öppna kortets separata svarsdialog. Högre RPE betyder högre rapporterad ansträngning, inte automatiskt bättre eller sämre form. Samma redan hämtade veckounderlag återanvänds, inga extra nätverksanrop eller SQL behövs.
+
 Kontrollpanelen nås i tränarvyn och följer det valda gruppfiltret. Den
 sammanfattar den valda kalenderveckans identifierade incheckningar och visar
 rapporterade genomförda aktiviteter, RPE, skriftlig/passrelaterad

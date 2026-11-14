@@ -1,12 +1,13 @@
-.swimmer-speed { --speed-color: #819494; --speed-scale: .64; --speed-duration: 4s; display: inline-grid; justify-items: center; align-content: center; width: 62px; min-height: 60px; flex: 0 0 62px; color: var(--speed-color); margin-left: auto; }
-.swimmer-speed svg { width: 39px; height: 44px; transform: scale(var(--speed-scale)); transform-origin: center; }
-.swimmer-speed small { font-size: 9px; line-height: 1.3; color: inherit; white-space: nowrap; }
-.swimmer-speed.speed-max { --speed-color: #cf9d0d; --speed-scale: 1; --speed-duration: 1.8s; }
-.swimmer-speed.speed-high { --speed-color: #3888b6; --speed-scale: .84; --speed-duration: 3s; }
-.swimmer-speed.speed-medium { --speed-color: #388b83; --speed-scale: .73; --speed-duration: 4s; }
-.swimmer-speed.speed-low { --speed-color: #718e90; --speed-scale: .65; }
-.swimmer-speed.speed-quiet, .swimmer-speed.speed-unknown { --speed-color: #889896; --speed-scale: .58; }
-.swimmer-speed.speed-moving:is(.speed-max, .speed-high, .speed-medium) svg { animation: swimmer-speed-breathe var(--speed-duration) ease-in-out infinite; }
-.swimmer-speed.speed-max svg { filter: drop-shadow(0 0 7px #d4a91d45); }
-@keyframes swimmer-speed-breathe { 0%, 100% { transform: scale(var(--speed-scale)); opacity: .85; } 50% { transform: scale(calc(var(--speed-scale) * 1.09)); opacity: 1; } }
+.swimmer-speed { --speed-color: #899a97; --speed-caption: #536b66; --speed-duration: 2.8s; display: inline-grid; justify-items: center; align-content: center; width: 62px; min-height: 60px; flex: 0 0 62px; color: var(--speed-color); margin-left: auto; }
+.swimmer-speed svg { width: 28px; height: 32px; }
+.swimmer-speed small { margin-top: 4px; font-size: 9px; line-height: 1.3; color: var(--speed-caption); white-space: nowrap; }
+.swimmer-speed.speed-max { --speed-color: #cf9d0d; --speed-caption: #826100; --speed-duration: 1.4s; }
+.swimmer-speed.speed-high { --speed-color: #287ead; --speed-caption: #246b93; }
+.swimmer-speed.speed-medium { --speed-color: #277f78; --speed-caption: #276e68; }
+.swimmer-speed.speed-low { --speed-color: #857399; --speed-caption: #736184; }
+.swimmer-speed.speed-quiet { --speed-color: #596c7d; --speed-caption: #4e6170; }
+.swimmer-speed.speed-unknown { --speed-color: #899a97; }
+.swimmer-speed.speed-moving:is(.speed-max, .speed-high) svg { animation: swimmer-speed-breathe var(--speed-duration) ease-in-out infinite; }
+.swimmer-speed.speed-max svg { filter: drop-shadow(0 0 5px #d4a91d35); }
+@keyframes swimmer-speed-breathe { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .swimmer-speed svg { animation: none !important; } }

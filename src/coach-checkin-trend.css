@@ -1,0 +1,5 @@
+.stat > .coach-checkin-trend { position: relative; z-index: 2; margin-top: 14px; min-width: 0; font-size: 12px; color: var(--teal); }
+.coach-checkin-trend summary { cursor: pointer; font-weight: 700; }
+.coach-checkin-trend .coach-metric-trend-arrow { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #e8f1ee; color: #476f6b; font-size: 21px; }
+.coach-checkin-trend .coach-metric-comparison-period { display: block; margin-top: 4px; font-size: 10px; color: var(--muted); }
+.coach-checkin-trend details p { font-size: 11px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }

@@ -83,11 +83,14 @@ test('loading/failure is unknown, not missing goals; genuine missing fields and 
 
 test('question mark is a native sibling button; minimized Formkollen does not mount the network loader until opened', () => {
   const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
+  const header = readFileSync(new URL('../src/swimmer-card-header.jsx', import.meta.url), 'utf8')
   const control = readFileSync(new URL('../src/swimmer-setup.jsx', import.meta.url), 'utf8')
   const form = readFileSync(new URL('../src/form-kollen.jsx', import.meta.url), 'utf8')
   const speed = readFileSync(new URL('../src/swimmer-speed.jsx', import.meta.url), 'utf8')
   const css = readFileSync(new URL('../src/swimmer-speed.css', import.meta.url), 'utf8')
-  assert.match(main, /<\/button>\s*\{!isExpanded && <SwimmerSetupIndicator/)
+  assert.match(main, /<SwimmerCardHeader profile=\{profile\}/)
+  assert.match(header, /onClick=\{onToggle\} \/>/)
+  assert.match(header, /<span className="swimmer-username-line"><small>@\{profile\.username\}<\/small>\{!expanded && <SwimmerSetupIndicator/)
   assert.match(control, /<button type="button"/); assert.match(control, /aria-expanded/)
   assert.match(form, /\[expanded, setExpanded\] = useState\(false\)/)
   assert.match(form, /expanded && <FormKollenContent/)

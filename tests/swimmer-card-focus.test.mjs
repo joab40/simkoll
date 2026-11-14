@@ -39,8 +39,8 @@ test('illness precedes the single-line comment in the upper header; full comment
   assert.match(main, /<SwimmerCardFocus illness=\{currentIllness\} comment=\{todayComment\}/)
   assert.match(main, /todayItem\?\.type === 'sick' \? \{ status: 'sick'/)
   assert.doesNotMatch(main, /<p className="swimmer-illness-badge">/)
-  const header = main.slice(main.indexOf('<div className="swimmer-card-top">'))
-  assert.ok(header.indexOf('<SwimmerCardFocus') < header.indexOf('className="swimmer-card-meta"'))
+  const header = readFileSync(new URL('../src/swimmer-card-header.jsx', import.meta.url), 'utf8')
+  assert.ok(header.indexOf('{focus}{speed}') < header.indexOf('className="swimmer-card-meta"'))
   assert.match(main, /<SwimmerTodayComment comment=\{todayComment\}/)
 })
 
