@@ -1,0 +1,67 @@
+.bottle-page { --bottle-ink: #194d54; --bottle-teal: #176e75; --bottle-gold: #e6b363; color: var(--bottle-ink); }
+.bottle-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.bottle-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 10px 0 24px; }
+.bottle-heading h1 { font-size: clamp(32px, 4vw, 48px); letter-spacing: -.05em; margin: 6px 0; }
+.bottle-heading h1 span { color: #8b724a; font-size: .53em; font-weight: 600; letter-spacing: -.025em; }
+.bottle-heading p:not(.eyebrow) { margin: 0; color: #698083; }
+.bottle-mode { padding: 9px 14px; border: 1px solid #c8dcda; border-radius: 30px; font-size: 11px; white-space: nowrap; background: #f7faf6; }
+.bottle-layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; align-items: start; }
+.bottle-shell { overflow: hidden; min-width: 0; border: 1px solid #bad6d2; border-radius: 23px; background: #fbf8ee; box-shadow: 0 14px 45px #1b605713; }
+.bottle-shell:focus-visible { outline: 3px solid #41b5ac; outline-offset: 4px; }
+.bottle-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 18px; background: #185a60; color: #fff8e9; gap: 8px; }
+.bottle-toolbar > strong { letter-spacing: .15em; font-size: 11px; }
+.bottle-toolbar > strong > span { display: block; font-weight: 400; font-size: 8px; letter-spacing: .3em; margin-top: 4px; color: #bedbd5; }
+.bottle-toolbar > div { display: flex; gap: 5px; }
+.bottle-toolbar button { border: 1px solid #ffffff40; border-radius: 9px; padding: 9px 10px; background: #ffffff0d; color: inherit; font-size: 11px; min-height: 36px; }
+.bottle-page button:disabled { opacity: .45; cursor: not-allowed; }
+.bottle-page button:focus-visible { outline: 3px solid #dca64e; outline-offset: 3px; }
+.bottle-hud { display: grid; grid-template-columns: repeat(3, 1fr); padding: 13px 10px; text-align: center; background: #fffdf3; border-bottom: 1px solid #e7e5d6; }
+.bottle-hud > div + div { border-left: 1px solid #e7e5d6; }
+.bottle-hud span { display: block; color: #708686; font-size: 9px; letter-spacing: .15em; font-weight: 700; }
+.bottle-hud strong { display: block; font-size: 25px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.bottle-hud i { display: inline-block; color: #319994; transform: rotate(-90deg); font-style: normal; font-size: 22px; }
+.bottle-hud i.empty { color: #d4ddcf; }
+.bottle-stage { position: relative; aspect-ratio: 16 / 9; min-height: 255px; }
+.bottle-stage canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.bottle-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: #1b555833; backdrop-filter: blur(3px); text-align: center; }
+.bottle-overlay > div { width: min(365px, 100%); border: 1px solid #e8dabb; border-radius: 20px; padding: 23px; background: #fffcf1f5; box-shadow: 0 9px 24px #233d3626; }
+.bottle-kicker { font-size: 9px; letter-spacing: .2em; color: #8e7652; font-weight: 800; margin: 0 0 10px; }
+.bottle-overlay h2 { font-size: clamp(21px, 2.5vw, 31px); margin: 0 0 9px; line-height: 1.1; letter-spacing: -.035em; }
+.bottle-overlay p:not(.bottle-kicker) { font-size: 12px; line-height: 1.6; color: #586f70; margin: 9px 0 15px; }
+.bottle-primary { border: 0; border-radius: 12px; background: #176e75; color: #fffdf3; padding: 13px 22px; min-height: 44px; font-weight: 800; box-shadow: 0 4px 0 #12494f; }
+.bottle-overlay small { display: block; font-size: 10px; margin-top: 13px; color: #64797a; }
+.bottle-result { display: block; font-size: 44px; color: #ad7b29; }
+.bottle-result > small { display: inline; color: #8d7754; font-size: 10px; }
+.bottle-feedback { position: absolute; top: 12%; left: 10%; right: 10%; text-align: center; font-weight: 800; color: #155a58; font-size: 15px; text-shadow: 0 1px 7px #fff; pointer-events: none; }
+.bottle-charge { padding: 12px 18px; background: #fffdf4; }
+.bottle-charge > div:first-child { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 7px; font-size: 9px; color: #718585; }
+.bottle-charge > div:first-child > span { letter-spacing: .12em; font-weight: 800; }
+.bottle-charge strong { font-size: 10px; color: #4e6e6d; font-weight: 600; }
+.bottle-power { height: 10px; border-radius: 20px; background: #e2e8db; overflow: hidden; }
+.bottle-power > span { display: block; height: 100%; background: linear-gradient(90deg, #4aa5a0, #d9b260); border-radius: inherit; }
+.bottle-hold { display: flex; width: calc(100% - 36px); margin: 0 18px 18px; min-height: 65px; border: 1px solid #d0a45d; border-radius: 14px; background: #f0cf8f; box-shadow: 0 4px 0 #c9a260; color: #4d4c36; flex-direction: column; justify-content: center; align-items: center; gap: 3px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.bottle-hold > span { font-size: 13px; letter-spacing: .05em; font-weight: 800; }
+.bottle-hold small { font-size: 10px; }
+.bottle-hold.held { transform: translateY(3px); box-shadow: 0 1px 0 #c9a260; background: #dfbb76; }
+.bottle-records { padding: 23px; border: 1px solid #d7e3dd; border-radius: 20px; background: #fffdf6; }
+.bottle-records .eyebrow { font-size: 9px; }
+.bottle-records h2 { font-size: 21px; letter-spacing: -.035em; margin: 7px 0 19px; }
+.bottle-own { background: #eaf3ed; border-radius: 13px; padding: 17px; margin-bottom: 16px; }
+.bottle-own > span { display: block; font-size: 8px; letter-spacing: .12em; font-weight: 700; color: #6b827c; }
+.bottle-own > strong { display: block; margin-top: 4px; font-size: 33px; }
+.bottle-own small { font-size: 11px; font-weight: 500; }
+.bottle-records p { color: #6c807a; font-size: 12px; line-height: 1.7; }
+.bottle-records ol { padding: 0; margin: 0; list-style: none; }
+.bottle-records li { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 10px 0; border-bottom: 1px solid #e1ebe1; }
+.bottle-records li strong { flex: 1; }
+.bottle-rules { border-top: 1px solid #dbe5d7; margin-top: 18px; padding-top: 10px; }
+.bottle-rules h3 { font-size: 13px; margin-bottom: 8px; }
+.bottle-save-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+.bottle-save-actions button { border: 1px solid #c5d6ce; background: #fffaf0; padding: 8px; color: #245956; border-radius: 8px; font-size: 11px; }
+.bottle-fullscreen { width: 100%; height: 100%; display: flex; flex-direction: column; border: 0; border-radius: 0; max-width: none; }
+.bottle-fullscreen.immersive { position: fixed; inset: 0; height: 100dvh; z-index: 2000; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.bottle-fullscreen .bottle-stage { flex: 1; min-height: 0; aspect-ratio: auto; }
+.bottle-fullscreen .bottle-toolbar, .bottle-fullscreen .bottle-hud, .bottle-fullscreen .bottle-charge, .bottle-fullscreen .bottle-hold { flex-shrink: 0; }
+@media (max-width: 1000px) { .bottle-layout { grid-template-columns: minmax(0, 1fr); } .bottle-records { width: 100%; } }
+@media (max-width: 520px) { .bottle-heading { align-items: flex-start; flex-direction: column; gap: 10px; } .bottle-heading h1 span { display: inline; } .bottle-stage { aspect-ratio: 1.1; } .bottle-toolbar { padding: 12px; } .bottle-overlay > div { padding: 20px 14px; } .bottle-hud { padding: 10px; } }
+@media (prefers-reduced-motion: reduce) { .bottle-hold.held { transform: none; } }

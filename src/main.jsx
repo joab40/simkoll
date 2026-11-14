@@ -92,6 +92,7 @@ const HurdlesGame = deferredPanel(() => import('./hurdles-game.jsx'), 'Öppnar s
 const DinoRunner = deferredPanel(() => import('./dino-runner.jsx'), 'Öppnar spelet…')
 const RallyGame = deferredPanel(() => import('./rally-game.jsx'), 'Öppnar Kustrally…')
 const BalanceGame = deferredPanel(() => import('./balance-game.jsx'), 'Öppnar spelet…')
+const BottleFlipGame = deferredPanel(() => import('./bottle-flip-game.jsx'), 'Öppnar Bottle Flip…')
 
 const APP_VERSION = __APP_VERSION__
 const BUILD_TIME = __BUILD_TIME__
@@ -120,6 +121,7 @@ const GAME_CATALOG = [
   { key: 'rally', title: 'Simkoll Kustrally', emoji: '🏎️', description: 'Mjuka kurvor, boost och ghostbilar — slå din egen eller veckans snabbaste tid.', route: 'rally' },
   { key: 'dino', title: 'Huggorm Runner', emoji: '🐍', description: 'Hjälp huggormen hoppa över hindren och se hur långt du klarar dig.', route: 'dino' },
   { key: 'balance', title: 'Preppes balansjakt', emoji: '🚲', description: 'Håll framhjulet i luften, hitta balansen och samla bonus längs vattnet.', route: 'balance' },
+  { key: 'bottleflip', title: 'Bottle Flip · Poolside', emoji: '🧴', description: 'Håll för kraft, släpp för att kasta. Landa på mitten och bygg din perfekta svit.', route: 'bottleflip' },
 ]
 
 const dateKey = (date) => {
@@ -373,6 +375,7 @@ function App() {
       {screen === 'dino' && <DinoRunner code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'rally' && <RallyGame key={profile?.id || 'guest'} profileId={profile?.id} code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'balance' && <BalanceGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
+      {screen === 'bottleflip' && <BottleFlipGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'bikerun' && <BikeRun code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'twenty48' && <Twenty48 code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'beta-game' && profile && <BetaGamePanel key={`${profile.id}:${betaGameKey}`} game={betaGames.find(game => game.key === betaGameKey)} code={auth.code} onBack={() => setScreen('home')} />}
@@ -1276,7 +1279,7 @@ function StartCard({ profile, onStart, onStartYesterday, yesterdayLabel, followU
 }
 
 function GameCard({ games = GAME_CATALOG, previousGames = [], onOpen, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino }) {
-  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: () => onOpen(), aljakten: onAljakten, breakout: onBreakout, sprint100: onSprint, longjump: onLongJump, hurdles100: () => onOpen('hurdles100'), bikerun: onBikeRun, twenty48: onTwenty48, dino: onDino, balance: () => onOpen('balance'), rally: () => onOpen('rally') }
+  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: () => onOpen(), aljakten: onAljakten, breakout: onBreakout, sprint100: onSprint, longjump: onLongJump, hurdles100: () => onOpen('hurdles100'), bikerun: onBikeRun, twenty48: onTwenty48, dino: onDino, balance: () => onOpen('balance'), rally: () => onOpen('rally'), bottleflip: () => onOpen('bottleflip') }
   return <SwimmerHeroCarousel enabled autoHeight labels={['Veckans spel', 'Tidigare veckors spel', 'All time-topplista']} regionLabel="Spel och topplistor" className="games-carousel">
     <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button type="button" key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}</div></div></section>
     <section className="game-card game-archive"><div><p className="eyebrow">Spelhistorik</p><h2>Tidigare veckors spel 📚</h2><p>{previousGames.length ? `${previousGames.length} tidigare spel att välja mellan.` : 'Här samlas spelen när en ny spelvecka börjar.'}</p><div className="previous-games-list">{previousGames.map((game) => <button type="button" className="secondary-button" key={game.key} onClick={() => actions[game.key]?.()}>{game.title} {game.emoji} →</button>)}</div></div></section>
@@ -1292,7 +1295,7 @@ function BetaGamePanel({ game, code, onBack }) {
     return () => { active = false }
   },[code,game?.key])
   if(access !== 'allowed') return <section className="settings-card"><button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button><p role="status">{access === 'loading' ? 'Kontrollerar ditt betatest…' : access === 'error' ? 'Betatestet kunde inte öppnas. Gå tillbaka och försök igen.' : 'Du har inte längre betatillgång till det här spelet.'}</p></section>
-  const games = { swimgames: Swimgames, vanda: Vandningsmastaren, simpaus: Simpaus, aljakten: Aljakten, breakout: PreppeBreakout, sprint100: SprintGame, longjump: LongJumpGame, hurdles100: HurdlesGame, bikerun: BikeRun, twenty48: Twenty48, rally: RallyGame, balance: BalanceGame, dino: DinoRunner }
+  const games = { swimgames: Swimgames, vanda: Vandningsmastaren, simpaus: Simpaus, aljakten: Aljakten, breakout: PreppeBreakout, sprint100: SprintGame, longjump: LongJumpGame, hurdles100: HurdlesGame, bikerun: BikeRun, twenty48: Twenty48, rally: RallyGame, balance: BalanceGame, dino: DinoRunner, bottleflip: BottleFlipGame }
   const Game = games[game?.key]
   if(!Game)return <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka till spelen</button>
   return <section><div className="game-test-banner"><strong>🧪 Betatest · {game.title}</strong><span>Du har fått förhandstillgång av tränaren. Resultat och poäng sparas inte.</span></div><Game code={code} onBack={onBack} preview request={apiRequest} /></section>
@@ -2514,6 +2517,7 @@ function CoachGameLibrary({ code }) {
   const save = async () => { setSaving(true); setMessage(''); try { const data = await apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-game-schedule', schedule }) }); setSchedule(data.schedule || []); setMessage('Spelplaneringen är sparad.') } catch (error) { setMessage(error.message) } finally { setSaving(false) } }
   if (testing) {
     const game = catalog.find((item) => item.key === testing)
+    if (testing === 'bottleflip') return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div><BottleFlipGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
     if (testing === 'hurdles100') return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div><HurdlesGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
     return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div>{testing === 'swimgames' && <Swimgames code={code} onBack={() => setTesting('')} preview />}{testing === 'vanda' && <Vandningsmastaren code={code} onBack={() => setTesting('')} preview />}{testing === 'simpaus' && <Simpaus code={code} onBack={() => setTesting('')} preview />}{testing === 'aljakten' && <Aljakten code={code} onBack={() => setTesting('')} preview />}{testing === 'longjump' && <LongJumpGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'sprint100' && <SprintGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'breakout' && <PreppeBreakout code={code} onBack={() => setTesting('')} preview />}{testing === 'bikerun' && <BikeRun code={code} onBack={() => setTesting('')} preview />}{testing === 'twenty48' && <Twenty48 code={code} onBack={() => setTesting('')} preview />}{testing === 'rally' && <RallyGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'balance' && <BalanceGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'dino' && <DinoRunner code={code} onBack={() => setTesting('')} preview request={apiRequest} />}</section>
   }
