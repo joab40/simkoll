@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import CoachPasswordReset, { coachResetRoute } from './coach-password-reset.jsx'
 import CoachTestEmail from './coach-test-email.jsx'
 import FeatureFaq from './feature-faq.jsx'
@@ -464,6 +465,7 @@ function App() {
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
       {screen === 'legal' && <><LegalPurpose /><LegalPage onBack={() => setScreen('home')} /></>}
       {screen !== 'coach-info' && <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>}
+      <SpeedInsights />
     </Shell>
   )
 }
