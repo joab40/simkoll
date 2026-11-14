@@ -1,0 +1,23 @@
+.swimmer-card { container-type: inline-size; }
+.swimmer-card-top { display: grid; grid-template-columns: minmax(0, 1fr) 62px; align-items: center; gap: 12px; }
+.swimmer-card-top:has(.swimmer-card-focus) { grid-template-columns: minmax(125px, .9fr) minmax(0, 1.3fr) 62px; }
+.swimmer-card-top > .swimmer-name { min-width: 0; }
+.swimmer-card-top > .swimmer-name > span { flex-shrink: 0; }
+.swimmer-card-top > .swimmer-name > div { min-width: 0; overflow-wrap: anywhere; }
+.swimmer-card-focus { display: grid; gap: 7px; min-width: 0; text-align: left; }
+.swimmer-card-focus-illness { display: grid; gap: 2px; padding: 7px 10px; border-radius: 10px; background: #fff0e8; color: #8b4432; }
+.swimmer-card-focus-illness.sick { color: #a44848; background: #fff0ed; }
+.swimmer-card-focus-illness strong { font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.swimmer-card-focus-illness small { font-size: 10px; font-weight: 500; }
+.swimmer-card-focus-comment { display: grid; gap: 2px; min-width: 0; color: var(--muted); }
+.swimmer-card-focus-comment small { font-size: 9px; font-weight: 700; }
+.swimmer-card-focus-comment > span { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; font-weight: 500; }
+.swimmer-today-comment { margin: 12px 0; padding: 11px 13px; border-radius: 12px; background: #edf5f2; font-size: 12px; }
+.swimmer-today-comment strong { color: var(--teal); font-size: 11px; }
+.swimmer-today-comment p { margin: 6px 0 0; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+@container (max-width: 430px) {
+  .swimmer-card-header .swimmer-card-meta { padding-left: 0; }
+  .swimmer-card-top:has(.swimmer-card-focus) { grid-template-columns: minmax(0, 1fr) 62px; gap: 10px; }
+  .swimmer-card-top > .swimmer-speed { grid-column: 2; grid-row: 1; }
+  .swimmer-card-top > .swimmer-card-focus { grid-column: 1 / -1; grid-row: 2; }
+}

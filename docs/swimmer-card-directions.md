@@ -1,5 +1,13 @@
 # Riktningspilar i simmarkortet
 
+## Tränarens läsordning i simmarkortet
+
+Aktuell sjukdom eller känningar visas daterat högt i kortets mitt, före eventuell kommentar och aktivitetsstatus. Samma aktuella sjukdomssignal används som tidigare; dagens senaste incheckning som Sjuk visas också här. Nej ger ingen sjukdomsmarkering. Befintliga trafikljus- och uppföljningsregler ändras inte.
+
+Senaste icke-tomma kommentaren för dagens aktivitetsdatum visas på högst en rad med ellips i kortets huvud. När kortet öppnas visas hela kommentaren efter uppföljningssignalerna. Inga tomma platshållare eller gårdagens kommentarer visas här, inte heller en efterregistrering för gårdagen som skickats idag. Svarens befintliga aktivitetsdatum och Stockholms tidszon används. Text renderas som text, inte HTML. Inga extra API-anrop görs.
+
+Efter aktuella signaler kommer **Simning, landträning och styrka → Veckan i korthet → Simmarens riktning → Formkollen → Periodisering → Vår överenskommelse → Utvecklingsmål**. Därefter följer program, träningstider, historik, anteckningar och inställningar. Formkollen är fortsatt minimerad från början och hämtas först när den öppnas. På smala kort placeras sjukdom och kommentar direkt under namn-/blixtraden, före övrig status.
+
 Styrkeprogram, landträningsprogram, träningstider/testlopp och sömn delar rubriklayout och expansionspil. Samma nedåtvinkel används på övriga utfällbara delar i simmarkortet och vänds uppåt när delen öppnas. Riktningspilen är en separat rund markering med en textförklaring; den är inte expansionsknappen.
 
 - **Styrka och landträning:** registrerade träningsdagar av respektive typ de senaste sju dagarna jämförs med föregående sju. En dag räknas en gång per typ. Det inkluderar träning utanför tilldelat program. Båda perioderna måste innehålla registreringar för att visa riktning. Fler pass är inte automatiskt bättre, och pilen visar inte styrkeökning.

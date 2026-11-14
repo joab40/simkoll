@@ -29,6 +29,8 @@ import SwimmerSpeed from './swimmer-speed.jsx'
 import SwimmerSetupIndicator from './swimmer-setup.jsx'
 import { activeProfileGoals, swimmerProfileSetup, profileTrainingGoals, goalDateLabel, trainingGoalValues } from '../shared/swimmer-profile-setup.js'
 import SwimmerTrainingGoals from './swimmer-training-goals.jsx'
+import SwimmerCardFocus, { SwimmerTodayComment } from './swimmer-card-focus.jsx'
+import { latestSwimmerComment } from './swimmer-card-focus.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import { programKind } from '../shared/program-kind.js'
 import DrylandProgramPage, { DrylandProgramRunner, DrylandHistory } from './dryland-program.jsx'
@@ -5242,6 +5244,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
       {visibleProfiles.length ? <div className="swimmer-grid">{visibleProfiles.map((profile) => {
         const items = responses.filter((item) => item.profileId === profile.id)
         const todayItem = latestCheckinForDay(items, todayKey())
+        const todayComment = latestSwimmerComment(items, trafficDate)
         const after = items.filter((item) => item.type === 'after')
         const profileStars = currentStarState(training, profile.id)
         const starCount = [profileStars.weeklyPlan, profileStars.crossGoals, profileStars.swimGoal, profileStars.monthlySwim].filter(Boolean).length
@@ -5262,40 +5265,41 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const trendDate = (value) => new Date(`${value}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
         const trendLastDay = (value) => { const day = new Date(`${value}T12:00:00`); day.setDate(day.getDate() - 1); return trendDate(dateKey(day)) }
         const traffic = trafficFor(profile), signalReasons = traffic.reasons
+        const currentIllness = todayItem?.type === 'sick' ? { status: 'sick', activity_date: trafficDate } : traffic.illness?.current
         const trainingGoals = profileTrainingGoals(training, profile.id, todayKey(), trainingLoadStatus)
         const setup = swimmerProfileSetup(profile, training, todayKey(), trainingLoadStatus)
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
           <div className="swimmer-card-header">
           <button type="button" className="swimmer-card-toggle" aria-expanded={isExpanded} onClick={() => setExpandedProfile(isExpanded ? null : profile.id)}>
-            <div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} /></div>
+            <div className="swimmer-card-top"><div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div></div><SwimmerCardFocus illness={currentIllness} comment={todayComment} /><SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} /></div>
             <div className="swimmer-card-meta"><span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span><span className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>{!isExpanded && aiEnabled && profile.assistantEnabled !== false && <span className="swimmer-feature-icon" title="Simkoll-assistenten är aktiverad" aria-label="Simkoll-assistenten är aktiverad">🦉</span>}{!isExpanded && aiEnabled && profile.aiAnalysisStatus === 'approved' && <span className="swimmer-feature-icon" title="Personlig AI-analys är aktiverad" aria-label="Personlig AI-analys är aktiverad">🔍</span>}<span className="swimmer-expand-hint">{isExpanded ? '▲ Dölj' : '▼ Visa mer'}</span></div>
           </button>
           {!isExpanded && <SwimmerSetupIndicator setup={setup} open={setupHelpProfile === profile.id} onToggle={() => setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id)} controls={`profile-setup-${profile.id}`} />}
           </div>
-          {traffic.illness?.current && <p className="swimmer-illness-badge">🤧 {illnessLabel(traffic.illness.current.status)} · {traffic.illness.current.activity_date}</p>}
           {!isExpanded && setup.show && setupHelpProfile === profile.id && <div id={`profile-setup-${profile.id}`} className={`swimmer-setup-help ${setup.color}`} role="status"><div><strong>{setup.heading}</strong><button type="button" onClick={() => setSetupHelpProfile(null)} aria-label="Stäng informationen">×</button></div>{setup.informational && <p>Ingen komplettering behövs.</p>}{setup.missing.length > 0 && <p>Saknas: {setup.missing.join(', ')}.</p>}{setup.scheduled.length > 0 && <div>{setup.scheduled.map(note => <p key={note}>Planerat: {note}.</p>)}</div>}{setup.unknown && <p>{setup.title}</p>}{trainingLoadStatus === 'error' && <button type="button" onClick={() => loadTraining().catch(() => {})}>Försök hämta målen igen</button>}</div>}
           {isExpanded && <div className="swimmer-card-details">
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
             {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} {traffic.color === 'red' ? 'Ta en dialog' : 'Bevaka utvecklingen'}</strong><span>{signalReasons.join(' · ')}</span></div>}
+            <SwimmerTodayComment comment={todayComment} />
             {traffic.planningNotes?.length > 0 && <p className="checkin-selection-note">Planering: {traffic.planningNotes.join(' · ')}. Påverkar inte hälsotrafikljuset.</p>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
+            <SwimmerTrainingGoals goals={trainingGoals} sessions={profileSessions} draft={trainingGoalDrafts[profile.id]} status={trainingGoalStatus[profile.id]} onChange={(key, value) => setTrainingGoalDrafts(current => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), [key]: value } }))} onSave={() => saveTrainingGoals(profile, swimGoal)} />
+            <SwimmerCompactWeek training={training} profileId={profile.id} />
             <button type="button" className="swimmer-trend-card" onClick={() => setSelectedProfile(profile)} aria-label={`Öppna statistik för ${profile.displayName}`}>
               <span className={`swimmer-trend-arrow ${trendState.tone}`} aria-hidden="true">{trendLoading && !trendSummary ? '…' : trendState.arrow}</span>
               <span className="swimmer-trend-copy"><small>Simmarens riktning</small><strong>{trendLoading && !trendSummary ? 'Hämtar riktning…' : trendError ? 'Riktningen kunde inte hämtas' : trendState.title}</strong><span>{trendSummary?.periods ? `${trendDate(trendSummary.periods.start)}–${trendLastDay(trendSummary.periods.end)} jämfört med ${trendDate(trendSummary.periods.previousStart)}–${trendLastDay(trendSummary.periods.previousEnd)}` : 'Senaste 7 dagarna jämfört med föregående 7 dagar'}</span></span>
               <b className="swimmer-trend-open">Öppna statistik →</b>
             </button>
             <FormKollenCard profile={profile} code={code} asOf={trafficDate} excluded={profile.isTestProfile || profile.active === false || Boolean(profile.approvalStatus && profile.approvalStatus !== 'approved')} />
-            <SwimmerAgreementCard profile={profile} code={code} request={apiRequest} onOpenTalk={onOpenTalk ? (talkId) => onOpenTalk(profile.id, talkId) : undefined} />
-            <SwimmerCompactWeek training={training} profileId={profile.id} />
             <SwimmerPeriodization key={`periodization-${profile.id}`} profile={profile} code={code} request={apiRequest} />
-            <SwimmerTrainingGoals goals={trainingGoals} sessions={profileSessions} draft={trainingGoalDrafts[profile.id]} status={trainingGoalStatus[profile.id]} onChange={(key, value) => setTrainingGoalDrafts(current => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), [key]: value } }))} onSave={() => saveTrainingGoals(profile, swimGoal)} />
+            <SwimmerAgreementCard profile={profile} code={code} request={apiRequest} onOpenTalk={onOpenTalk ? (talkId) => onOpenTalk(profile.id, talkId) : undefined} />
+            {goalsEnabled && <SwimmerDevelopmentGoalsCard code={code} profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
             <SwimmerStrengthProgramCard profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerStrengthProgramCard programType="dryland" profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
             <SleepHistory profileId={profile.id} code={code} request={apiRequest} responses={responses.filter((item) => item.profileId === profile.id)} />
             <IllnessHistory key={`illness-${profile.id}`} profileId={profile.id} code={code} request={apiRequest} />
-            {goalsEnabled && <SwimmerDevelopmentGoalsCard code={code} profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
             <SwimmerNotes profile={profile} code={code} />
             {items.length > 0 && <details className="swimmer-details"><summary>Visa senaste svar</summary>{items.slice(0, 5).map((item) => <div key={item.id}><span>{FEELINGS[item.feeling - 1]?.emoji}</span><p><strong>{new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</strong><small>{item.rpe ? `RPE ${item.rpe}` : DAY_TYPES.find((type) => type.value === item.type)?.title}{item.temperature ? ` · 🌡️ ${TEMPERATURE_LABELS[Number(item.temperature) - 1] || `${item.temperature}/5`}` : ''}{item.comment ? ` · “${item.comment}”` : ''}</small></p></div>)}</details>}

@@ -6,6 +6,8 @@ import SwimmerSpeed from './swimmer-speed.jsx'
 import SwimmerSetupIndicator from './swimmer-setup.jsx'
 import { swimmerProfileSetup, profileTrainingGoals } from '../shared/swimmer-profile-setup.js'
 import SwimmerTrainingGoals from './swimmer-training-goals.jsx'
+import SwimmerCardFocus, { SwimmerTodayComment } from './swimmer-card-focus.jsx'
+import { latestSwimmerComment } from './swimmer-card-focus.js'
 import { FORM_EXAMPLES } from '../shared/form-kollen-examples.js'
 import { buildFormKollen, evaluateFormSignals } from '../shared/form-kollen.js'
 import { coachWeekAddDays as add } from '../shared/coach-week.js'
@@ -28,19 +30,21 @@ function GoalDemo() {
 
 function HeaderDemo() {
   const [expanded, setExpanded] = useState(false), [help, setHelp] = useState(false), [complete, setComplete] = useState(false), [failed, setFailed] = useState(false), [value, setValue] = useState(5), [reads, setReads] = useState(0)
+  const [illness, setIllness] = useState('mild'), [showComment, setShowComment] = useState(true)
   const asOf = '2026-11-14', now = '2026-11-14T20:00:00Z'
   const profile = { id: 'demo-profile', emoji: '🏊', displayName: 'Demo · ingen verklig simmare', username: 'fiktivt', tempusId: '123', primaryStroke: complete ? 'free' : null, trainingGroup: 'junior' }
   const training = { seasonGoals: [{ profileId: profile.id, active: true, startDate: '2026-01-01', endDate: null, target: 4 }], crossGoals: [{ profileId: profile.id, startDate: '2026-01-01', endDate: null, strengthTarget: 0, drylandTarget: 0 }] }
   const setup = swimmerProfileSetup(profile, failed ? null : training, asOf, failed ? 'error' : 'ready')
   const responses = [19, 12, 10, 8].map((hour, index) => ({ id: `header-demo-${index}`, date: asOf, createdAt: `${asOf}T${String(hour).padStart(2, '0')}:00:00Z`, type: 'after', activityType: 'swim', trainingSlot: index % 2 ? 'morning_swim' : 'afternoon_swim', body: index === 0 ? 5 : 4, feeling: 4, speedFeeling: index === 0 ? value : 4, rpe: 5, activityMinutes: 60 }))
+  const todayComment = latestSwimmerComment([{ ...responses[0], comment: showComment ? 'Lite trött idag, men träningen kändes bra.\nJag vill prata om upplägget inför nästa vecka och hur vi gör med morgonträningen.' : '' }], asOf)
   const request = useCallback(async () => {
     setReads(count => count + 1)
     return { profileId: 'demo-profile', ...buildFormKollen({ responses }, asOf, { now }) }
   }, [value])
-  return <><p>Endast fiktivt demo. Inga riktiga API-anrop eller ändringar i databasen. Lokala underlagshämtningar: {reads}.</p><div className="form-periods">{[5, 4, 3, 2, 1].map(speed => <button type="button" key={speed} onClick={() => setValue(speed)}>Fart {speed}</button>)}<button type="button" onClick={() => setComplete(value => !value)}>{complete ? 'Visa saknad inriktning' : 'Fyll i saknad inriktning'}</button><button type="button" onClick={() => setFailed(value => !value)}>Växla hämtningsfel</button></div>
-    <article className={`swimmer-card ${expanded ? 'expanded' : 'compact'}`}><div className="swimmer-card-header"><button type="button" className="swimmer-card-toggle" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><SwimmerSpeed responses={responses} now={now} /></div><div className="swimmer-card-meta"><span>★ 3/4</span><span>Rapporterad fartkänsla</span><span>{expanded ? '▲ Dölj' : '▼ Visa mer'}</span></div></button>{!expanded && <SwimmerSetupIndicator setup={setup} open={help} controls="demo-setup" onToggle={() => setHelp(value => !value)} />}</div>
+  return <><p>Endast fiktivt demo. Inga riktiga API-anrop eller ändringar i databasen. Lokala underlagshämtningar: {reads}.</p><div className="form-periods">{[5, 4, 3, 2, 1].map(speed => <button type="button" key={speed} onClick={() => setValue(speed)}>Fart {speed}</button>)}<button type="button" onClick={() => setComplete(value => !value)}>{complete ? 'Visa saknad inriktning' : 'Fyll i saknad inriktning'}</button><button type="button" onClick={() => setFailed(value => !value)}>Växla hämtningsfel</button><button type="button" onClick={() => setIllness(current => current === 'mild' ? 'sick' : current === 'sick' ? 'none' : 'mild')}>Växla sjukdomssignal</button><button type="button" onClick={() => setShowComment(current => !current)}>Växla dagens kommentar</button></div>
+    <article className={`swimmer-card ${expanded ? 'expanded' : 'compact'}`}><div className="swimmer-card-header"><button type="button" className="swimmer-card-toggle" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><div className="swimmer-card-top"><div className="swimmer-name"><span>{profile.emoji}</span><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div></div><SwimmerCardFocus illness={{ status: illness, activity_date: asOf }} comment={todayComment} /><SwimmerSpeed responses={responses} now={now} /></div><div className="swimmer-card-meta"><span>★ 3/4</span><span>Rapporterad fartkänsla</span><span>{expanded ? '▲ Dölj' : '▼ Visa mer'}</span></div></button>{!expanded && <SwimmerSetupIndicator setup={setup} open={help} controls="demo-setup" onToggle={() => setHelp(value => !value)} />}</div>
       {!expanded && help && setup.show && <div id="demo-setup" className="swimmer-setup-help" role="status"><p>{setup.title}</p></div>}
-      {expanded && <div className="swimmer-card-details"><p>Simmarens riktning · fiktivt exempel</p><FormKollenCard profile={profile} code="demo" request={request} asOf={asOf} /></div>}
+      {expanded && <div className="swimmer-card-details"><SwimmerTodayComment comment={todayComment} /><SwimmerTrainingGoals goals={profileTrainingGoals(training, profile.id, asOf, 'ready')} sessions={[]} onChange={() => {}} onSave={() => {}} /><p>Simmarens riktning · fiktivt exempel</p><FormKollenCard profile={profile} code="demo" request={request} asOf={asOf} /></div>}
     </article>
   </>
 }
