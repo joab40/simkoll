@@ -26,6 +26,7 @@ import { loadHiddenCalendarActivities, visibleCalendarActivities, setCalendarVis
 import { driveApiKey, loadDriveConfig, listDriveFolder, verifyDriveFolder, saveDriveSettings } from '../server/drive-settings.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
 import { analyticsRows } from '../server/analytics-rows.js'
+import { competitionEntryRoster } from '../shared/competition-entry-status.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
 import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 
@@ -719,8 +720,10 @@ export default async function handler(request, response) {
         const eventsResult = await supabaseRequest(`competition_events?competition_id=eq.${encodeURIComponent(competitionId)}&select=*&order=event_order.asc`)
         if (!eventsResult.ok) throw new Error(`Competition events GET failed: ${eventsResult.status}`)
         const entryQuery = role === 'coach' ? `competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&select=*&order=created_at.asc` : profile ? `competition_entries?competition_id=eq.${encodeURIComponent(competitionId)}&profile_id=eq.${profile.id}&select=*&order=created_at.asc` : null
-        const entriesResult = entryQuery ? await supabaseRequest(entryQuery) : null
+        const withRoster = role === 'coach' && request.query.submissionRoster === 'true'
+        const entriesResult = entryQuery ? await (withRoster ? analyticsRows(entryQuery.replace('order=created_at.asc', 'order=created_at.asc,id.asc')) : supabaseRequest(entryQuery)) : null
         if (entriesResult && !entriesResult.ok) throw new Error(`Competition entries GET failed: ${entriesResult.status}`)
+        if (entriesResult?.truncated) return sendJson(response, 503, { error: 'Alla grenval kunde inte hämtas. Försök igen innan du följer upp saknade anmälningar.' })
         const entries = entriesResult ? await entriesResult.json() : []
         let publicEntries = entries
         if (role === 'coach' && entries.length) {
@@ -730,8 +733,17 @@ export default async function handler(request, response) {
           const profileMap = new Map(profiles.map((item) => [item.id, item]))
           publicEntries = entries.map((entry) => ({ ...entry, profileName: profileMap.get(entry.profile_id)?.display_name || 'Simmare', profileEmoji: profileMap.get(entry.profile_id)?.emoji || '🏊' }))
         }
+        let roster = null
+        if (withRoster) {
+          // Minimal coach-only directory, never sent to swimmers. A failed or
+          // incomplete read must not turn into a list of supposedly missing entries.
+          try {
+            const result = await analyticsRows('profiles?active=eq.true&approval_status=eq.approved&is_test_profile=eq.false&select=id,display_name,emoji,training_group,active,approval_status,is_test_profile&order=id.asc')
+            if (result.ok && !result.truncated) roster = competitionEntryRoster(await result.json(), calendar.target_groups || [])
+          } catch { /* Keep saved entries readable, but mark the roster unavailable. */ }
+        }
         const rawEvents = await eventsResult.json()
-        return sendJson(response, 200, { events: rawEvents.map(mapCompetitionEvent), entries: publicEntries, sessions: calendar?.program_metadata?.sessions || [], ...(role === 'coach' ? { programSnapshot: rawEvents } : {}) })
+        return sendJson(response, 200, { events: rawEvents.map(mapCompetitionEvent), entries: publicEntries, sessions: calendar?.program_metadata?.sessions || [], ...(role === 'coach' ? { programSnapshot: rawEvents } : {}), ...(withRoster ? { roster, rosterAvailable: roster !== null } : {}) })
       }
       if (role === 'coach' && request.query?.notes === 'true') {
         const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()

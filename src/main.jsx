@@ -76,6 +76,8 @@ import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './
 import './styles.css'
 import './planning-editor.css'
 import CompetitionPm from './competition-pm.jsx'
+import CompetitionEntryProgress from './competition-entry-progress.jsx'
+import { isSubmittedCompetitionEntry } from '../shared/competition-entry-status.js'
 import PeppChannelPanel from './pepp-channel.jsx'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
@@ -3833,17 +3835,31 @@ class CompetitionSubmissionBoundary extends React.Component {
 
 function CompetitionSubmissionManager({ code, initialCompetitionId = '' }) {
   const [competitions, setCompetitions] = useState([]), [selectedId, setSelectedId] = useState(initialCompetitionId), [data, setData] = useState({ events: [], entries: [] }), [selectedProfile, setSelectedProfile] = useState(''), [chosen, setChosen] = useState([]), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false)
+  const [calendarLoading, setCalendarLoading] = useState(true), [error, setError] = useState(''), [calendarError, setCalendarError] = useState(''), [loadedId, setLoadedId] = useState(''), [refresh, setRefresh] = useState(0)
   const savingRef = useRef(false)
-  const load = () => { setLoading(true); apiRequest('/api/workouts?calendar=true', code).then((result) => { const list = result.competitions || []; setCompetitions(list); if (!selectedId && list[0]) setSelectedId(list[0].id) }).catch(() => {}).finally(() => setLoading(false)) }
-  useEffect(load, [code])
-  useEffect(() => { if (!selectedId) return; setLoading(true); apiRequest(`/api/workouts?program=true&id=${selectedId}`, code).then((result) => { setData(result); setSelectedProfile(''); setChosen([]) }).catch(() => setData({ events: [], entries: [] })).finally(() => setLoading(false)) }, [code, selectedId])
+  useEffect(() => {
+    let current = true
+    setCalendarLoading(true); setCalendarError('')
+    apiRequest('/api/workouts?calendar=true', code).then(result => { if (!current) return; const list = result.competitions || []; setCompetitions(list); setSelectedId(id => list.some(item => item.id === id) ? id : list[0]?.id || '') }).catch(error => { if (current) setCalendarError(error.message || 'Tävlingskalendern kunde inte hämtas.') }).finally(() => { if (current) setCalendarLoading(false) })
+    return () => { current = false }
+  }, [code, refresh])
+  useEffect(() => {
+    let current = true
+    setSelectedProfile(''); setChosen([]); setError('')
+    if (!selectedId) { setLoading(false); return }
+    setLoading(true)
+    apiRequest(`/api/workouts?program=true&submissionRoster=true&id=${selectedId}`, code).then(result => { if (current) { setData(result); setLoadedId(selectedId) } }).catch(error => { if (current) setError(error.message || 'Anmälningarna kunde inte hämtas. Försök igen.') }).finally(() => { if (current) setLoading(false) })
+    return () => { current = false }
+  }, [code, selectedId, refresh])
+  const waiting = calendarLoading || loading || (selectedId && loadedId !== selectedId && !error)
+  const competition = competitions.find(item => item.id === selectedId)
   const safeEvents = Array.isArray(data.events) ? data.events : []
   const safeEntries = Array.isArray(data.entries) ? data.entries : []
-  const submitted = safeEntries.filter((entry) => entry.status === 'submitted')
+  const submitted = safeEntries.filter(isSubmittedCompetitionEntry)
   const profiles = [...new Map(submitted.map((entry) => [entry.profile_id, entry])).values()]
   const selectProfile = (profileId) => { setSelectedProfile(profileId); setChosen(submitted.filter((entry) => entry.profile_id === profileId).map((entry) => entry.event_id)) }
   useEffect(() => { document.querySelectorAll('.competition-edit-selection .competition-entry-list label').forEach((label, index) => { const event = safeEvents[index]; if (event?.selectable === false) { label.classList.add('competition-info-row'); const input = label.querySelector('input'); if (input) input.disabled = true } }) }, [safeEvents])
-  const save = async () => { if (savingRef.current || !selectedId || !selectedProfile) return; savingRef.current = true; setSaving(true); try { await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-update-competition-entry', competitionId: selectedId, profileId: selectedProfile, eventIds: chosen }) }); const result = await apiRequest(`/api/workouts?program=true&id=${selectedId}`, code); setData(result); window.alert('Grenval sparat.') } catch (error) { window.alert(error.message) } finally { savingRef.current = false; setSaving(false) } }
+  const save = async () => { if (savingRef.current || waiting || error || !selectedId || !selectedProfile) return; savingRef.current = true; setSaving(true); try { await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-update-competition-entry', competitionId: selectedId, profileId: selectedProfile, eventIds: chosen }) }); const result = await apiRequest(`/api/workouts?program=true&submissionRoster=true&id=${selectedId}`, code); setData(result); window.alert('Grenval sparat.') } catch (error) { window.alert(error.message); setRefresh(value => value + 1) } finally { savingRef.current = false; setSaving(false) } }
   const exportCsv = () => {
     const eventById = new Map(safeEvents.map((event, index) => [event.id, { ...event, order: Number.isFinite(Number(event.eventOrder)) ? Number(event.eventOrder) : index }]))
     const orderedEntries = [...submitted].sort((a, b) => {
@@ -3864,7 +3880,16 @@ function CompetitionSubmissionManager({ code, initialCompetitionId = '' }) {
     link.click()
     URL.revokeObjectURL(url)
   }
-  return <section className="competition-submissions"><div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Välj en simmare för att granska eller justera grenvalet.</small></div><button className="secondary-button" onClick={exportCsv} disabled={!submitted.length}>Exportera CSV</button></div>{competitions.length ? <label className="settings-field"><strong>Välj tävling</strong><select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label> : <p className="empty">Inga tävlingar är skapade ännu.</p>}{profiles.length ? <div className="competition-swimmer-picker">{profiles.map((profile) => <button type="button" className={selectedProfile === profile.profile_id ? 'active' : ''} key={profile.profile_id} onClick={() => selectProfile(profile.profile_id)}>{profile.profileEmoji || '🏊'} {profile.profileName || 'Simmare'}<small>{submitted.filter((entry) => entry.profile_id === profile.profile_id).length} grenar</small></button>)}</div> : !loading && <p className="empty">Ingen simmare har skickat in sitt grenval ännu.</p>}{selectedProfile && <section className="competition-edit-selection"><h2>Justera grenval</h2><div className="competition-entry-list">{safeEvents.map((event) => <label key={event.id}><input type="checkbox" disabled={event.selectable === false} checked={event.selectable !== false && chosen.includes(event.id)} onChange={() => event.selectable !== false && setChosen((current) => current.includes(event.id) ? current.filter((id) => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender} · {event.ageClass}</small></span></label>)}</div><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara ändrat grenval'}</button></section>}</section>
+  return <section className="competition-submissions">
+    <div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Se vilka som skickat in och vilka grenval som återstår.</small></div><div className="settings-actions"><button type="button" className="secondary-button competition-refresh" onClick={() => setRefresh(value => value + 1)} disabled={waiting || saving}>Uppdatera</button><button className="secondary-button" onClick={exportCsv} disabled={waiting || !!error || !!calendarError || !submitted.length}>Exportera CSV</button></div></div>
+    {competitions.length > 0 && <label className="settings-field"><strong>Välj tävling</strong><select disabled={saving} value={selectedId} onChange={event => setSelectedId(event.target.value)}>{competitions.map(item => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label>}
+    {(error || calendarError) ? <p className="form-error" role="alert">{calendarError || error}</p> : waiting ? <p className="empty" role="status">Hämtar anmälningar…</p> : !competition ? <p className="empty">Inga tävlingar är skapade ännu.</p> : <>
+      <CompetitionEntryProgress key={selectedId} roster={data.roster} entries={safeEntries} available={data.rosterAvailable} entriesOpen={competition.entriesOpen} />
+      <h2 className="competition-submitted-heading">Inskickade grenval</h2>
+      {profiles.length ? <div className="competition-swimmer-picker">{profiles.map(profile => <button type="button" disabled={saving} className={selectedProfile === profile.profile_id ? 'active' : ''} key={profile.profile_id} onClick={() => selectProfile(profile.profile_id)}><span className="competition-picker-name">{profile.profileEmoji || '🏊'} {profile.profileName || 'Simmare'}</span><small>{submitted.filter(entry => entry.profile_id === profile.profile_id).length} grenar</small></button>)}</div> : <p className="empty">Ingen simmare har skickat in sitt grenval ännu.</p>}
+      {selectedProfile && <section className="competition-edit-selection"><h2>Justera grenval</h2><div className="competition-entry-list">{safeEvents.map(event => <label key={event.id}><input type="checkbox" disabled={saving || event.selectable === false} checked={event.selectable !== false && chosen.includes(event.id)} onChange={() => event.selectable !== false && setChosen(current => current.includes(event.id) ? current.filter(id => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender} · {event.ageClass}</small></span></label>)}</div><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara ändrat grenval'}</button></section>}
+    </>}
+  </section>
 }
 
 /* unused program draft

@@ -19,6 +19,29 @@
    raderar däremot tävlingen och dess program, anmälningar och bilaga permanent
    efter en uttrycklig bekräftelse.
 
+## Översikt över ej inskickade grenval
+
+I Tävlingsanmälningar visas antal unika simmare som skickat in, antal med
+utkast och antal utan sparade grenval. Namnlistan för dem som inte skickat in
+kan fällas ut. Inskickade och godkända val räknas som inskickade; flera grenar
+räknar inte samma simmare flera gånger. Befintlig granskning och CSV finns kvar.
+
+Underlaget är dagens aktiva, godkända profiler i tävlingens berörda grupper.
+Testprofiler undantas. Om inga grupper är angivna ingår alla sådana profiler.
+Det är inte en lista över bekräftade deltagare eller en kontroll av åldersklass.
+Inga sparade grenar betyder inte att simmaren måste delta eller aldrig öppnat
+anmälan. Äldre tävlingar använder också dagens gruppmedlemskap, inte historiskt.
+
+Knappen Uppdatera hämtar aktuella uppgifter utan automatisk extra polling.
+Endast tränarens programanrop med `submissionRoster=true` hämtar den minimala
+namnlistan. Både grenval och namnlista sidindelas; ofullständiga eller misslyckade
+läsningar används inte för att påstå vilka som saknas. Snabba tävlingsbyten
+kan inte skriva över den nya vyn med ett äldre svar. Ingen ny SQL behövs.
+
+Lokal visuell QA: `/competition-entries-qa.html` (fiktiva uppgifter), även
+`?viewport=mobile`. Testlägen: blandad status, alla, inga, tom grupp, stängt,
+hämtningsfel.
+
 ## Databasuppdatering
 
 Kör `supabase/migrations/099_competition_pm_documents.sql` innan publicering.
