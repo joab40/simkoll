@@ -9,6 +9,7 @@ import { linkedWorkoutForPlan } from '../shared/planning-workout-link.js'
 import PlanningFoundation from './planning-foundation.jsx'
 import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { apiRequest } from './api-request.js'
 import { chatBackgroundUrl } from './chat-background.js'
 import { deferredPanel } from './deferred-panel.jsx'
@@ -464,6 +465,7 @@ function App() {
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
       {screen === 'legal' && <><LegalPurpose /><LegalPage onBack={() => setScreen('home')} /></>}
       {screen !== 'coach-info' && <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>}
+      <SpeedInsights />
     </Shell>
   )
 }
