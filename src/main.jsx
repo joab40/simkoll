@@ -51,6 +51,7 @@ import CoachHeader from './coach-header.jsx'
 import DriveSettings from './drive-settings.jsx'
 import { CalendarVisibilityButton, HiddenCalendarActivities } from './calendar-visibility.jsx'
 import SwimmerHeader from './swimmer-header.jsx'
+import WinterHeroDecor, { WinterTrainingBuddy } from './winter-theme.jsx'
 import { planningMonday } from '../shared/weekly-planning.js'
 import { isoWeek } from '../shared/planning-import.js'
 import SwimmerTrainingTimesCard from './swimmer-training-times-card.jsx'
@@ -1040,6 +1041,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
   const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
   const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && (Array.isArray(workout) ? workout[0] : workout)?.focus === 'fart' ? 'speed-focus' : ''
   const themeClass = swimmerThemesEnabled && swimmerTheme !== 'none' ? ` theme-${swimmerTheme}` : ''
+  const winterActive = swimmerThemesEnabled && swimmerTheme === 'snow'
   const raceDayActive = swimmerEffects && daysToCompetition === 0
   const stars = currentStarState(training)
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
@@ -1049,6 +1051,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
       {levelVisible && <RewardCard key="level" points={points} onCommunity={onCommunity} featured />}
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
+        {winterActive && <WinterHeroDecor animate={swimmerEffects} />}
         <p className="eyebrow light">Idag i gruppen</p>
         {profile && chatVisible && <CoachLetterBadge code={code} chat={communityPreview?.openChat} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
         <h1>Så här känns det</h1>
@@ -1083,7 +1086,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'dryland') && <StrengthProgramCard programType="dryland" training={training} onOpen={onDrylandProgram || onGoals} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <PushNotificationControl code={code} compact />}
-      {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
+      {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} winter={winterActive} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameBetaList games={betaGames} onPlay={onBetaGame} />}
       {profile && <GameCard games={availableGames} previousGames={previousGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBreakout={onBreakout} onSprint={onSprint} onLongJump={onLongJump} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} onDino={onDino} />}
       {profile && appFeedbackEnabled && <AppFeedbackCard code={code} />}
@@ -1704,7 +1707,7 @@ function SwimmerCompactWeek({ training, profileId }) {
   </section>
 }
 
-function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPlan }) {
+function WeeklySwimCard({ training, showStars, halloween, winter, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState(() => new Set())
   const savingRef = useRef(new Set())
   const planDesiredRef = useRef(new Map())
@@ -1801,6 +1804,7 @@ function WeeklySwimCard({ training, showStars, halloween, onOpen, onToggle, onPl
   const savingTraining = [...saving].some((key) => !key.startsWith('plan-'))
   const percentage = goal ? Math.round((completed / goal.target) * 100) : null
   return <section className="weekly-training-card">
+    {winter && <WinterTrainingBuddy />}
     <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button>{halloween && <span className="weekly-halloween-spider" aria-hidden="true">🕷️</span>}</div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför simmålet under de fyra senaste avslutade veckorna.</small></details>}

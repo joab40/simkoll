@@ -1,0 +1,43 @@
+.home.theme-snow { background: radial-gradient(ellipse at 0 6%, #e2f2fa 0, transparent 42%), #f4faff; }
+.home.theme-snow .mood-hero { padding-bottom: 116px; background: radial-gradient(ellipse at 78% 3%, #246478 0, transparent 55%), linear-gradient(125deg, #153a55, #1d526b 58%, #214e65); border: 1px solid #93bdce; box-shadow: 0 12px 30px #285b7520, inset 0 1px 0 #ffffff25; }
+.home.theme-snow .mood-hero::after, .home.theme-snow .mood-hero::before { content: none; }
+.home.theme-snow .mood-hero > :is(.eyebrow, h1, .emoji-cloud, .response-count, .mood-footer) { position: relative; z-index: 1; }
+.home.theme-snow .mood-hero .eyebrow.light, .home.theme-snow .mood-hero .response-count, .home.theme-snow .mood-hero .active-count { color: #deeff4; }
+.home.theme-snow .mood-hero .response-count { border-color: #bce6f130; }
+.home.theme-snow .mood-hero .response-count strong { color: #fff3c6; }
+.home.theme-snow .mood-hero .emoji-cloud p { color: #deeff4; }
+.winter-decor { position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: inherit; pointer-events: none; user-select: none; }
+.winter-snowfall { position: absolute; inset: 0; overflow: hidden; }
+.winter-snowfall > span { position: absolute; top: var(--snow-top); left: var(--snow-left); color: #e3f6ff; opacity: .38; font-size: var(--snow-size); line-height: 1; }
+.winter-moving .winter-snowfall > span { top: -25px; animation: winter-snowfall var(--snow-duration) var(--snow-delay) linear infinite; will-change: transform; }
+.winter-landscape { position: absolute; inset: auto 0 0; height: 95px; }
+.winter-snowbanks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.winter-pines { position: absolute; width: 140px; height: 90px; left: 24px; bottom: 7px; opacity: .95; }
+.winter-snowman { display: block; width: 86px; height: 104px; }
+.winter-landscape > .winter-snowman { position: absolute; right: 9%; bottom: 5px; filter: drop-shadow(0 2px 3px #32677c18); }
+.winter-wave-arm { transform-origin: 91px 81px; }
+.winter-moving .winter-wave-arm { animation: winter-snowman-wave 8s ease-in-out infinite; }
+.winter-landscape-flake { position: absolute; right: 6%; bottom: 61px; color: #f8e9b5; font-size: 21px; }
+.home.theme-snow :is(.start-card, .weekly-training-card, .workout-card) { border-color: #c6dfe9; background: linear-gradient(125deg, #fffefa, #f4fbff); box-shadow: 0 4px 18px #2b607608; }
+.home.theme-snow .start-card { position: relative; overflow: hidden; }
+.home.theme-snow .start-card::before { content: ''; position: absolute; top: -6px; left: 14px; right: 14px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 0 #d9edf4; pointer-events: none; }
+.home.theme-snow .start-card::after { content: ''; position: absolute; right: 14px; top: 7px; width: 22px; height: 22px; background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2396bdcc' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 4l3 3 3-3M9 20l3-3 3 3M4 10l4-1-1-4M17 19l-1-4 4-1M4 14l4 1-1 4M17 5l-1 4 4 1'/%3E%3C/svg%3E"); pointer-events: none; }
+.home.theme-snow .primary-button { background: #22637e; border-color: #22637e; color: #fff; }
+.home.theme-snow .primary-button:hover { background: #174e68; border-color: #174e68; }
+.winter-training-buddy { display: flex; align-items: center; justify-content: flex-end; gap: 7px; margin: -10px 0 8px; color: #436c7c; font-size: 10px; font-weight: 600; }
+.winter-training-buddy .winter-snowman { width: 32px; height: 39px; }
+.winter-training-buddy i { margin-left: 4px; color: #6493a5; font-style: normal; }
+@keyframes winter-snowfall { from { transform: translate3d(0, 0, 0) rotate(0deg); } to { transform: translate3d(var(--snow-drift), 640px, 0) rotate(110deg); } }
+@keyframes winter-snowman-wave { 0%, 72%, 100% { transform: rotate(0deg); } 78%, 90% { transform: rotate(-12deg); } 84%, 96% { transform: rotate(7deg); } }
+@media (max-width: 640px) {
+  .home.theme-snow .mood-hero { padding-bottom: 98px; }
+  .winter-landscape { height: 78px; }
+  .winter-landscape > .winter-snowman { width: 60px; height: 73px; right: 7%; }
+  .winter-pines { width: 103px; height: 66px; left: 12px; }
+  .winter-landscape-flake { bottom: 50px; font-size: 17px; }
+  .winter-snowfall > span:nth-child(n+11) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .winter-moving .winter-snowfall > span { animation: none; will-change: auto; top: var(--snow-top); }
+  .winter-moving .winter-wave-arm { animation: none; }
+}
