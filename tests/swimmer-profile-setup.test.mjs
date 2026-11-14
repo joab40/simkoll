@@ -14,6 +14,7 @@ test('missing cross goals never become automatic threes; setup names only the mi
   assert.deepEqual(goals.map(goal => [goal.key, goal.state, goal.target]), [['swim', 'active', 6], ['dryland', 'missing', null], ['strength', 'missing', null]])
   const setup = swimmerProfileSetup(profile, data, asOf)
   assert.equal(setup.completeCount, 3)
+  assert.equal(setup.symbol, '?'); assert.equal(setup.informational, false)
   assert.deepEqual(setup.missing, ['veckomål för landträning', 'veckomål för styrka'])
   assert.deepEqual(setup.scheduled, [])
 })
@@ -25,6 +26,9 @@ test('future goals are dated plans, never current goals or generic missing setti
   assert.equal(goals[1].pendingTarget, 3); assert.equal(goals[1].startsOn, '2026-11-16')
   const setup = swimmerProfileSetup(profile, data, asOf)
   assert.equal(setup.completeCount, 3); assert.equal(setup.show, true)
+  assert.equal(setup.symbol, 'i'); assert.equal(setup.informational, true); assert.equal(setup.color, 'gray')
+  assert.equal(setup.heading, 'Sparade mål – kommande startdatum')
+  assert.match(setup.title, /Ingen komplettering behövs/); assert.doesNotMatch(setup.title, /3 av 4/)
   assert.deepEqual(setup.missing, [])
   assert.equal(setup.scheduled.length, 2)
   assert.match(setup.title, /16 nov\. 2026/); assert.match(setup.title, /inget aktivt mål idag/)
@@ -45,6 +49,7 @@ test('active targets stay current until a scheduled change starts; earliest vali
   assert.equal(goals[2].pendingTarget, 0)
   const setup = swimmerProfileSetup(profile, data, asOf)
   assert.equal(setup.completeCount, 4); assert.equal(setup.show, true)
+  assert.equal(setup.symbol, 'i'); assert.equal(setup.informational, true)
   assert.match(setup.scheduled[0], /nu 2/)
   assert.equal(profileTrainingGoals(data, 'p', '2026-11-16')[1].target, 4)
 })
@@ -72,7 +77,14 @@ test('loading and failed refresh hide stale targets and pending values without c
     assert.ok(goals.every(goal => goal.state === 'unknown' && goal.target === null && goal.pendingTarget === null && goal.startsOn === null))
     const setup = swimmerProfileSetup(profile, data, asOf, status)
     assert.equal(setup.unknown, true); assert.deepEqual(setup.missing, []); assert.deepEqual(setup.scheduled, [])
+    assert.equal(setup.symbol, '…'); assert.equal(setup.informational, false)
   }
+})
+
+test('a real missing setting keeps the question mark even when future goals are already saved', () => {
+  const setup = swimmerProfileSetup({ ...profile, primaryStroke: '' }, { seasonGoals: [swim], crossGoals: [{ ...cross, startDate: '2026-11-16' }] }, asOf)
+  assert.equal(setup.symbol, '?'); assert.equal(setup.informational, false)
+  assert.deepEqual(setup.missing, ['specialinriktning']); assert.equal(setup.scheduled.length, 2)
 })
 
 test('edit form leaves missing targets blank, preserves explicit zero and edits next Monday rather than silently replacing a future change', () => {

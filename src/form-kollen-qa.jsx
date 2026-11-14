@@ -21,7 +21,7 @@ function GoalDemo() {
   const sessions = ['swim', 'dryland'].flatMap(type => Array.from({ length: 4 }, () => ({ type })))
   return <><p>Fiktivt måltest. Ingen databas läses eller ändras.</p><div className="form-periods">{[['missing', 'Saknas'], ['scheduled', 'Framtida'], ['change', 'Kommande ändring'], ['zero', 'Nollmål'], ['active', 'Aktiva'], ['error', 'Hämtningsfel']].map(([key, label]) => <button key={key} onClick={() => { setScenario(key); setDraft({}); setHelp(true) }}>{label}</button>)}</div>
     <article className="swimmer-card expanded"><div className="swimmer-card-header"><h2>Fiktiv simmare</h2><SwimmerSetupIndicator setup={setup} open={help} onToggle={() => setHelp(value => !value)} controls="goal-demo-setup" /></div>
-      {setup.show && help && <div id="goal-demo-setup" className="swimmer-setup-help"><strong>{setup.completeCount}/4 inställningsområden klara för idag</strong>{setup.missing.length > 0 && <p>Saknas: {setup.missing.join(', ')}.</p>}{setup.scheduled.map(note => <p key={note}>Planerat: {note}.</p>)}{setup.unknown && <p>{setup.title}</p>}</div>}
+      {setup.show && help && <div id="goal-demo-setup" className="swimmer-setup-help"><strong>{setup.heading}</strong>{setup.informational && <p>Ingen komplettering behövs.</p>}{setup.missing.length > 0 && <p>Saknas: {setup.missing.join(', ')}.</p>}{setup.scheduled.map(note => <p key={note}>Planerat: {note}.</p>)}{setup.unknown && <p>{setup.title}</p>}</div>}
       <SwimmerTrainingGoals goals={profileTrainingGoals(training, profile.id, asOf, state)} sessions={sessions} draft={draft} onChange={(key, value) => setDraft(current => ({ ...current, [key]: value }))} onSave={() => window.alert('Fiktivt demo – inga mål sparas.')} />
     </article></>
 }

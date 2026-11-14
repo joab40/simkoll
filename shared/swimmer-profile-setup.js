@@ -37,7 +37,10 @@ export function swimmerProfileSetup(profile, training, asOf, status = training ?
   missing.push(...goals.filter(goal => goal.state === 'missing').map(goal => `veckomål för ${goal.label.toLocaleLowerCase('sv-SE')}`))
   const scheduled = goals.filter(goal => goal.startsOn).map(goal => `${goal.label}: ${goal.pendingTarget} pass/vecka från ${goalDateLabel(goal.startsOn)}${goal.state === 'active' ? ` (nu ${goal.target})` : ' (inget aktivt mål idag)'}`)
   const unknown = checks.some(check => check.complete === null), completeCount = checks.filter(check => check.complete === true).length
+  const informational = !unknown && missing.length === 0 && scheduled.length > 0
+  const symbol = unknown ? '…' : informational ? 'i' : '?'
+  const heading = unknown ? 'Profilinställningar kontrolleras' : informational ? 'Sparade mål – kommande startdatum' : `${completeCount}/4 inställningsområden klara för idag`
   const color = unknown ? 'gray' : completeCount >= 3 ? 'gray' : completeCount === 2 ? 'green' : completeCount === 1 ? 'yellow' : 'red'
-  const title = unknown ? status === 'error' ? 'Träningsmålen kunde inte kontrolleras – inte samma sak som att de saknas.' : 'Kontrollerar profilinställningar och träningsmål…' : `${completeCount} av 4 inställningsområden klara för idag.${missing.length ? ` Saknas: ${missing.join(', ')}.` : ''}${scheduled.length ? ` Planerat: ${scheduled.join('; ')}.` : ''}`
-  return { checks, missing, scheduled, unknown, completeCount, color, title, show: unknown || missing.length > 0 || scheduled.length > 0 }
+  const title = unknown ? status === 'error' ? 'Träningsmålen kunde inte kontrolleras – inte samma sak som att de saknas.' : 'Kontrollerar profilinställningar och träningsmål…' : `${informational ? `${heading}. Ingen komplettering behövs.` : `${completeCount} av 4 inställningsområden klara för idag.`}${missing.length ? ` Saknas: ${missing.join(', ')}.` : ''}${scheduled.length ? ` Planerat: ${scheduled.join('; ')}.` : ''}`
+  return { checks, missing, scheduled, unknown, informational, symbol, heading, completeCount, color, title, show: unknown || missing.length > 0 || scheduled.length > 0 }
 }
