@@ -75,7 +75,9 @@ test('loading/failure is unknown, not missing goals; genuine missing fields and 
   assert.deepEqual(incomplete.missing, ['specialinriktning'])
   for (const patch of [{ active: false }, { endDate: '2026-11-01' }, { startDate: '2026-12-01' }]) {
     const data = { ...training, seasonGoals: [{ ...training.seasonGoals[0], ...patch }] }
-    assert.ok(swimmerProfileSetup(profile, data, '2026-11-14').missing.includes('aktuella mål för simning, landträning och styrka'))
+    const setup = swimmerProfileSetup(profile, data, '2026-11-14')
+    assert.equal(setup.completeCount, 3)
+    assert.ok(patch.startDate ? setup.scheduled.some(note => note.startsWith('Simning:')) : setup.missing.includes('veckomål för simning'))
   }
 })
 

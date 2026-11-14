@@ -4,12 +4,27 @@ import FormKollenExamples from './form-kollen-examples.jsx'
 import FormKollenCard, { FormKollenView } from './form-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
 import SwimmerSetupIndicator from './swimmer-setup.jsx'
-import { swimmerProfileSetup } from '../shared/swimmer-profile-setup.js'
+import { swimmerProfileSetup, profileTrainingGoals } from '../shared/swimmer-profile-setup.js'
+import SwimmerTrainingGoals from './swimmer-training-goals.jsx'
 import { FORM_EXAMPLES } from '../shared/form-kollen-examples.js'
 import { buildFormKollen, evaluateFormSignals } from '../shared/form-kollen.js'
 import { coachWeekAddDays as add } from '../shared/coach-week.js'
 import { currentFormContext, normalizeFormContext } from '../shared/form-context.js'
 import './styles.css'
+
+function GoalDemo() {
+  const [scenario, setScenario] = useState('scheduled'), [draft, setDraft] = useState({}), [help, setHelp] = useState(true)
+  const profile = { id: 'demo', tempusId: '123', primaryStroke: 'free', trainingGroup: 'junior' }, asOf = '2026-11-14'
+  const cross = { profileId: 'demo', startDate: '2026-01-01', drylandTarget: 3, strengthTarget: 3 }
+  const training = { seasonGoals: [{ profileId: 'demo', startDate: '2026-01-01', target: 6 }], crossGoals: scenario === 'missing' ? [] : scenario === 'scheduled' ? [{ ...cross, startDate: '2026-11-16' }] : scenario === 'change' ? [{ ...cross, endDate: '2026-11-15' }, { ...cross, startDate: '2026-11-16', drylandTarget: 2, strengthTarget: 0 }] : [{ ...cross, ...(scenario === 'zero' ? { drylandTarget: 0, strengthTarget: 0 } : {}) }] }
+  const state = scenario === 'error' ? 'error' : 'ready', setup = swimmerProfileSetup(profile, training, asOf, state)
+  const sessions = ['swim', 'dryland'].flatMap(type => Array.from({ length: 4 }, () => ({ type })))
+  return <><p>Fiktivt måltest. Ingen databas läses eller ändras.</p><div className="form-periods">{[['missing', 'Saknas'], ['scheduled', 'Framtida'], ['change', 'Kommande ändring'], ['zero', 'Nollmål'], ['active', 'Aktiva'], ['error', 'Hämtningsfel']].map(([key, label]) => <button key={key} onClick={() => { setScenario(key); setDraft({}); setHelp(true) }}>{label}</button>)}</div>
+    <article className="swimmer-card expanded"><div className="swimmer-card-header"><h2>Fiktiv simmare</h2><SwimmerSetupIndicator setup={setup} open={help} onToggle={() => setHelp(value => !value)} controls="goal-demo-setup" /></div>
+      {setup.show && help && <div id="goal-demo-setup" className="swimmer-setup-help"><strong>{setup.completeCount}/4 inställningsområden klara för idag</strong>{setup.missing.length > 0 && <p>Saknas: {setup.missing.join(', ')}.</p>}{setup.scheduled.map(note => <p key={note}>Planerat: {note}.</p>)}{setup.unknown && <p>{setup.title}</p>}</div>}
+      <SwimmerTrainingGoals goals={profileTrainingGoals(training, profile.id, asOf, state)} sessions={sessions} draft={draft} onChange={(key, value) => setDraft(current => ({ ...current, [key]: value }))} onSave={() => window.alert('Fiktivt demo – inga mål sparas.')} />
+    </article></>
+}
 
 function HeaderDemo() {
   const [expanded, setExpanded] = useState(false), [help, setHelp] = useState(false), [complete, setComplete] = useState(false), [failed, setFailed] = useState(false), [value, setValue] = useState(5), [reads, setReads] = useState(0)
@@ -52,4 +67,4 @@ function InteractiveDemo() {
 
 createRoot(document.getElementById('root')).render(new URLSearchParams(window.location.search).get('viewport') === 'mobile'
   ? <main style={{ padding: 16 }}><h1>Mobilförhandsvisning · 390 px</h1><iframe title="Formkollen i mobilbredd, fiktivt demo" src={`/form-kollen-qa.html?scenario=${encodeURIComponent(new URLSearchParams(window.location.search).get('scenario') || 'partial')}`} style={{ width: 390, height: 720, maxWidth: '100%', border: '1px solid #bed5d0', borderRadius: 20 }} /></main>
-  : <main style={{ maxWidth: 760, margin: '30px auto', padding: 16 }}><h1>Formkollen · utvecklingsdemo</h1>{new URLSearchParams(window.location.search).get('scenario') === 'header' ? <HeaderDemo /> : <InteractiveDemo />}</main>)
+  : <main style={{ maxWidth: 760, margin: '30px auto', padding: 16 }}><h1>Formkollen · utvecklingsdemo</h1>{new URLSearchParams(window.location.search).get('scenario') === 'goals' ? <GoalDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'header' ? <HeaderDemo /> : <InteractiveDemo />}</main>)

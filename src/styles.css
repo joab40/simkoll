@@ -1385,7 +1385,11 @@ button { cursor: pointer; }
 .swimmer-training-goals > div > div { display: grid; grid-template-columns: 23px 1fr; gap: 5px; align-items: center; }
 .swimmer-training-goals > div > div > span { font-size: 18px; }
 .swimmer-training-goals p { margin: 0; min-width: 0; }
-.swimmer-training-goals p strong { display: block; font-size: 10px; white-space: nowrap; }
+.swimmer-training-goals p strong { display: block; font-size: 10px; overflow-wrap: anywhere; }
+.swimmer-training-goals p small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.swimmer-training-goals .swimmer-goal-edit > small { display: block; margin-top: 8px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.swimmer-training-goals button:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 480px) { .swimmer-training-goals > div { grid-template-columns: 1fr; gap: 12px; } .swimmer-training-goals .swimmer-goal-edit form { grid-template-columns: 1fr; } }
 .swimmer-training-goals i { display: block; height: 5px; margin-top: 5px; border-radius: 4px; background: #d2e1dd; overflow: hidden; }
 .swimmer-training-goals i b { display: block; height: 100%; border-radius: inherit; background: var(--teal); }
 .swimmer-training-goals > small { color: var(--muted); font-size: 10px; }
