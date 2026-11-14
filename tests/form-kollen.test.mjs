@@ -9,7 +9,7 @@ const row = (offset, patch = {}) => ({ id: `r${offset}`, date: add(asOf, offset)
 const full = () => ({ responses: Array.from({ length: 42 }, (_, i) => row(i - 41)), sleep: [0, -1, -2].map(i => ({ activity_date: add(asOf, i), minutes: 510, quality: 5 })), illness: [{ activity_date: asOf, status: 'none' }] })
 
 test('synthetic phases use the same evaluation as real data and never claim verified top form', () => {
-  assert.deepEqual(FORM_EXAMPLES.map(item => item.data.phase), ['mixed', 'loaded', 'improving', 'positive', 'unknown', 'watch'])
+  assert.deepEqual(FORM_EXAMPLES.map(item => item.data.phase), ['mixed', 'mixed', 'loaded', 'improving', 'positive', 'unknown', 'watch'])
   for (const { data } of FORM_EXAMPLES) assert.doesNotMatch(data.label, /toppform|nedtränad/i)
   const positive = buildFormKollen(full(), asOf)
   assert.equal(positive.phase, 'positive'); assert.equal(positive.confidence, 'gott')
@@ -26,14 +26,57 @@ test('empty, single-day, stale, future and invalid observations never become pos
   assert.throws(() => buildFormKollen({}, '2026-02-30'), /Ogiltigt/)
 })
 
-test('requires four independent historical covered weeks; large amounts alone are not tiredness', () => {
+test('two or three covered weeks allow a marked preliminary comparison, not a four-week blockade', () => {
   const data = full()
   const sparse = buildFormKollen({ ...data, responses: data.responses.filter(row => row.date >= add(asOf, -27)) }, asOf)
-  assert.equal(sparse.load.baselineWeeks, 3); assert.equal(sparse.phase, 'unknown')
-  assert.equal(sparse.load.normalLoad, null)
+  assert.equal(sparse.load.baselineWeeks, 3); assert.equal(sparse.phase, 'positive')
+  assert.equal(sparse.load.normalLoad, 2100)
+  assert.equal(sparse.baselineKnown, false); assert.equal(sparse.provisional, true)
   const high = buildFormKollen({ ...data, responses: data.responses.map(row => ({ ...row, activityMinutes: row.date >= add(asOf, -6) ? 120 : 60 })) }, asOf)
   assert.equal(high.phase, 'positive'); assert.equal(high.load.ratio, 2)
   assert.equal(high.load.normalLoad, 2100, 'current week must not contaminate baseline')
+})
+
+test('one current speed observation remains an observation alongside low body and coach-reported PBs', () => {
+  const result = FORM_EXAMPLES.find(item => item.key === 'partial').data
+  assert.equal(result.current.speed.days, 1)
+  assert.equal(result.current.speed.value, 5)
+  assert.equal(result.current.body.value, 2.5)
+  assert.equal(result.provisional, true)
+  assert.equal(result.phase, 'mixed')
+  assert.match(result.label, /Positiva prestationsuppgifter.*kroppen känns tung/)
+  assert.equal(result.metricDirections.speed.state, 'unknown')
+  assert.match(result.metricDirections.speed.label, /Senast 5\/5.*1 svarsdag/)
+  assert.equal(result.context.verified, false)
+  assert.equal(result.context.source, 'coach')
+})
+
+test('without coach PB context the same low-body/high-speed case still gets a preliminary interpretation', () => {
+  const data = full()
+  data.responses = data.responses.filter(item => item.date >= add(asOf, -13)).map(item => ({ ...item, body: 2.5, speedFeeling: item.date === add(asOf, -1) ? 5 : null }))
+  const result = buildFormKollen(data, asOf)
+  assert.equal(result.phase, 'mixed'); assert.equal(result.provisional, true)
+  assert.match(result.label, /Hög fartkänsla.*kroppen känns tung/)
+  assert.match(result.reasons[0], /En svarsdag räcker inte/)
+  assert.ok(!result.context)
+})
+
+test('coach PBs never override symptoms, missing illness source, or low data coverage', () => {
+  const context = { observedOn: asOf, trainingPbDate: asOf }
+  const sick = buildFormKollen({ ...full(), context, illness: [{ activity_date: asOf, status: 'sick' }] }, asOf)
+  assert.equal(sick.phase, 'watch'); assert.ok(sick.flags.length)
+  assert.equal(buildFormKollen({ ...full(), context, illnessAvailable: false }, asOf).phase, 'unknown')
+  const alone = buildFormKollen({ responses: [row(0)], context }, asOf)
+  assert.equal(alone.phase, 'unknown'); assert.equal(alone.confidence, 'begränsat')
+})
+
+test('separate metric directions cannot label a sparse speed series as declining because body fell', () => {
+  const data = full()
+  data.responses = data.responses.map(item => ({ ...item, body: item.date >= add(asOf, -2) ? 2.5 : item.date >= add(asOf, -6) ? 3.5 : 4, feeling: 4, speedFeeling: item.date === asOf ? 5 : null }))
+  const result = buildFormKollen(data, asOf)
+  assert.equal(result.metricDirections.body.state, 'down')
+  assert.equal(result.metricDirections.feeling.state, 'steady')
+  assert.equal(result.metricDirections.speed.state, 'unknown')
 })
 
 test('warning, missing illness source and skipped/old illness cannot be hidden by perfect feelings', () => {

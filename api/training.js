@@ -12,6 +12,8 @@ import { loadCoachWeek } from '../server/coach-week.js'
 import { loadSwimmerTraffic } from '../server/swimmer-traffic.js'
 import { loadPeriodization } from '../server/periodization.js'
 import { loadFormKollen } from '../server/form-kollen.js'
+import { saveCoachFormContext } from '../server/form-context.js'
+import { normalizeFormContext } from '../shared/form-context.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
 import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 import { validProgramType } from '../shared/program-kind.js'
@@ -145,8 +147,10 @@ export default async function handler(request, response) {
   try {
     if (request.query?.formKollen === 'true') {
       response.setHeader?.('Cache-Control', 'private, no-store')
-      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Formkollen kan bara läsas.' })
+      const saving = request.method === 'POST' && request.body?.action === 'save-form-context'
+      if (request.method !== 'GET' && !saving) return sendJson(response, 405, { error: 'Åtgärden stöds inte för Formkollen.' })
       if (!['coach', 'swimmer'].includes(role)) return sendJson(response, 403, { error: 'Logga in för att se Formkollen.' })
+      if (saving && role !== 'coach') return sendJson(response, 403, { error: 'Endast en tränare kan spara tränaruppgifter.' })
       let profileId = String(request.query.profileId || '')
       if (role === 'coach') {
         const coach = coachFromRequest(request)
@@ -161,7 +165,16 @@ export default async function handler(request, response) {
       if (!found.ok) return sendJson(response, 502, { error: 'Simmaren kunde inte hämtas.' })
       const profile = (await found.json())[0]
       if (!profile) return sendJson(response, 404, { error: 'Simmarprofilen ingår inte i underlaget.' })
-      try { return sendJson(response, 200, await loadFormKollen(profile, stockholmDate())) } catch (error) { return sendJson(response, 502, { error: error.message }) }
+      if (saving) {
+        let context
+        try { context = normalizeFormContext(request.body.context, stockholmDate()) } catch (error) { return sendJson(response, 400, { error: error.message }) }
+        try {
+          const observation = await saveCoachFormContext(profileId, coachFromRequest(request).sub, context, stockholmDate())
+          await writeAuditLog(request, { eventType: 'coach_form_observation', role: 'coach', profileId, details: { observationId: observation.id, actorAccountId: coachFromRequest(request).sub } })
+          return sendJson(response, 201, { observation })
+        } catch (error) { return sendJson(response, 503, { error: error.message }) }
+      }
+      try { return sendJson(response, 200, await loadFormKollen(profile, stockholmDate(), supabaseRequest, { includeCoachContext: role === 'coach' })) } catch (error) { return sendJson(response, 502, { error: error.message }) }
     }
     if (request.query?.periodization === 'true') {
       response.setHeader?.('Cache-Control', 'private, no-store')

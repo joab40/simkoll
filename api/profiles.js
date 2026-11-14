@@ -99,7 +99,7 @@ ${String(content).slice(0, 3000)}`
     return { text: content, usedAi: false }
   }
 }
-const BACKUP_TABLES = ['profiles', 'responses', 'daily_workouts', 'training_plans', 'competition_calendar', 'competition_events', 'competition_entries', 'training_groups', 'profile_daily_activity', 'workout_unlocks', 'season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'training_programs', 'program_assignments', 'program_goals', 'development_goals', 'goal_updates', 'development_talks', 'group_pep', 'private_messages', 'community_posts', 'kudos', 'point_events', 'reward_levels', 'artifact_catalog', 'profile_artifacts', 'game_scores', 'competition_results', 'session_attendance', 'app_feedback', 'app_settings', 'ai_insights', 'coach_activity_notes', 'coach_swimmer_notes', 'training_swim_times']
+const BACKUP_TABLES = ['profiles', 'responses', 'daily_workouts', 'training_plans', 'competition_calendar', 'competition_events', 'competition_entries', 'training_groups', 'profile_daily_activity', 'workout_unlocks', 'season_swim_goals', 'cross_training_goals', 'personal_training_sessions', 'training_programs', 'program_assignments', 'program_goals', 'development_goals', 'goal_updates', 'development_talks', 'group_pep', 'private_messages', 'community_posts', 'kudos', 'point_events', 'reward_levels', 'artifact_catalog', 'profile_artifacts', 'game_scores', 'competition_results', 'session_attendance', 'app_feedback', 'app_settings', 'ai_insights', 'coach_activity_notes', 'coach_swimmer_notes', 'coach_form_observations', 'training_swim_times']
 
 async function findProfile(username) {
   const result = await supabaseRequest(`profiles?username=eq.${encodeURIComponent(username)}&select=*&limit=1`)

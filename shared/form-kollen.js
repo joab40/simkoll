@@ -1,6 +1,7 @@
 import { coachWeekAddDays as add } from './coach-week.js'
 import { buildTrainingHeart, trainingHeartAfterReports } from './training-heart.js'
 import { illnessDays } from './illness.js'
+import { currentFormContext } from './form-context.js'
 
 // These are adjustable product heuristics for dialogue, not physiological limits.
 export const FORM_RULES = { baselineWeeks: 4, reports: 3, reportDays: 2, coverage: .8, trend: .5 }
@@ -35,7 +36,7 @@ export function buildFormKollen(data = {}, asOf) {
     return { start: add(end, -6), end, ...load, comparable: enoughLoad(load) }
   })
   const baselineWeeks = baseline.filter(item => item.comparable)
-  const normalLoad = baselineWeeks.length >= FORM_RULES.baselineWeeks ? round(mean(baselineWeeks.map(item => item.value))) : null
+  const normalLoad = baselineWeeks.length >= 2 ? round(mean(baselineWeeks.map(item => item.value))) : null
   const loadRatio = normalLoad > 0 && enoughLoad(heart.load) ? heart.load.value / normalLoad : null
   const illness = illnessDays(data.illness || [], start, asOf).at(-1) || null
   const nights = [...new Map((data.sleep || []).filter(row => !row.skipped && row.activity_date >= add(asOf, -2) && row.activity_date <= asOf && Number.isFinite(row.minutes) && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)).map(row => [row.activity_date, row])).values()]
@@ -50,7 +51,18 @@ export function buildFormKollen(data = {}, asOf) {
   })
   return evaluateFormSignals({ asOf, current, week, previous, trends, sleep, illness, illnessAvailable: data.illnessAvailable !== false,
     load: { ...heart.load, baseline, baselineWeeks: baselineWeeks.length, normalLoad, ratio: loadRatio },
+    context: currentFormContext(data.context, asOf),
     flags: [...heart.warnings, ...(heart.heavy.persistent ? ['Ihållande tung kropp- eller dagskänsla – ta en dialog.'] : [])], history })
+}
+
+export function formMetricDirection(trend, current) {
+  const known = [trend.short, trend.week].filter(value => value != null)
+  if (!known.length) return { state: 'unknown', preliminary: true, label: current.days ? `${current.days === 1 ? 'Senast' : 'Aktuellt snitt'} ${current.value.toLocaleString('sv-SE')}/5 · ${current.days} svarsdag${current.days === 1 ? '' : 'ar'}` : 'Svar saknas', detail: 'För få svarsdagar för trend. Det aktuella värdet är en observation, inte en riktning.' }
+  const up = known.some(value => value >= .5), down = known.some(value => value <= -.5)
+  const state = up && down ? 'mixed' : up ? 'up' : down ? 'down' : 'steady'
+  const preliminary = known.length < 2
+  return { state, preliminary, label: `${({ up: 'Ökar', down: 'Minskar', mixed: 'Blandad', steady: 'Liknande' })[state]}${preliminary ? ' · preliminärt' : ''}`,
+    detail: `Kort jämförelse: ${trend.short == null ? 'för få dagar' : `${trend.short > 0 ? '+' : ''}${trend.short.toLocaleString('sv-SE')} /5`}. Veckojämförelse: ${trend.week == null ? 'för få dagar' : `${trend.week > 0 ? '+' : ''}${trend.week.toLocaleString('sv-SE')} /5`}. Riktningen gäller bara detta mått, inte tävlingsprestation.` }
 }
 
 export function evaluateFormSignals(observations) {
@@ -61,28 +73,38 @@ export function evaluateFormSignals(observations) {
   const illnessCurrent = illnessAvailable && illness && illness.activity_date >= add(asOf, -1)
   const illnessClear = illnessCurrent && illness.status === 'none'
   const currentKnown = ['body', 'feeling', 'speed'].every(key => current[key].days >= 2)
-  const baselineKnown = load.normalLoad != null
+  const baselineKnown = load.baselineWeeks >= FORM_RULES.baselineWeeks && load.normalLoad != null
   const good = currentKnown && sleep.nights >= 2 && illnessCurrent && load.ratio != null && baselineKnown
   const confidence = good ? 'gott' : current.body.days >= 2 && current.feeling.days >= 2 ? 'måttligt' : 'begränsat'
   const rising = ['body', 'feeling', 'speed'].filter(key => trends[key].short >= .5 && trends[key].week >= .5)
   const falling = ['body', 'feeling', 'speed'].filter(key => trends[key].short != null && trends[key].week != null && (trends[key].short <= -.5 || trends[key].week <= -.5))
   const direction = rising.length && falling.length ? 'mixed' : rising.length ? 'up' : decline.length ? 'down' : Object.values(trends).some(trend => trend.short != null && trend.week != null) ? 'steady' : 'unknown'
-  let phase = 'unknown', label = 'Otillräckligt underlag', reason = 'Fler aktuella svarsdagar och jämförbar egen historik behövs. De observationer som finns visas nedan.'
+  const metricDirections = Object.fromEntries(['body', 'feeling', 'speed'].map(key => [key, formMetricDirection(trends[key], current[key])]))
+  const provisional = !baselineKnown || !currentKnown || load.ratio == null
+  const enoughMood = current.body.days >= 2 && current.feeling.days >= 2
+  const fastObservation = current.speed.days >= 1 && current.speed.value >= 4
+  const heavy = current.body.days >= 2 && current.body.value <= 2.5 || current.feeling.days >= 2 && current.feeling.value <= 2.5
+  const performance = observations.context?.recentPerformance
+  let phase = 'unknown', label = 'Begränsat aktuellt underlag', reason = 'Fler aktuella svarsdagar behövs för en tolkning. Det som faktiskt rapporterats visas nedan.'
   if (flags.length) { phase = 'watch'; label = 'Behöver uppföljning'; reason = flags[0] }
   else if (!illnessAvailable) reason = 'Sjukdomskollen kunde inte hämtas. Ingen positiv formtolkning görs från ofullständiga källor.'
-  else if (!baselineKnown) reason = `${current.body.days >= 2 && current.body.value <= 2.5 && current.speed.days >= 2 && current.speed.value >= 4 ? 'Blandade observationer: positiv fartkänsla men kroppen känns tung. ' : ''}Egen baslinje saknas: minst fyra jämförbara historiska veckor behövs. Aktuella värden visas, men ingen formfas antas.`
-  else if (currentKnown) {
-    phase = 'steady'; label = 'Tränar på'; reason = 'Aktuella rapporter finns, men visar inte ett tydligt stigande eller tungt mönster. Det är inte ett besked om tävlingsform.'
-    if (current.body.value <= 2.5 || current.feeling.value <= 2.5) {
-      phase = 'loaded'; label = 'Kroppen eller dagskänslan känns tung'
-      reason = current.speed.value >= 4 ? 'Fartkänslan är positiv, men kroppen eller dagskänslan skattas lågt. Det bekräftar inte nedträning.' : 'Låga aktuella känsloskattningar återkommer på flera svarsdagar. Stäm av hur träningen känns.'
+  else if (enoughMood) {
+    if (heavy) {
+      phase = performance || fastObservation ? 'mixed' : 'loaded'
+      label = performance ? 'Positiva prestationsuppgifter – kroppen känns tung' : fastObservation ? 'Hög fartkänsla – kroppen känns tung' : 'Kroppen eller dagskänslan känns tung'
+      reason = performance ? 'Tränaren rapporterar personbästa den senaste veckan. Det är en tränaruppgift, inte en verifierad resultatjämförelse. Samtidigt skattas kroppen eller dagskänslan lågt.' : fastObservation ? `Senaste fartkänslan är hög, men kroppen eller dagskänslan skattas lågt. ${current.speed.days < 2 ? 'En svarsdag räcker inte för att fastställa en farttrend.' : 'Det är olika signaler, inte en gemensam nedgång i prestation.'}` : 'Låga aktuella känsloskattningar återkommer på flera svarsdagar. Det bekräftar inte nedträning.'
     } else if (illnessClear && sleep.positive && ['body', 'feeling', 'speed'].every(key => current[key].value >= 4.5)) {
-      phase = 'positive'; label = 'Starka positiva formsignaler'; reason = 'Hög kropp-, dags- och fartkänsla sammanfaller med positiva sömnsvar. Upplevda signaler – inte verifierad toppform.'
-    } else if (illnessClear && direction === 'up' && ['body', 'feeling', 'speed'].every(key => current[key].value >= 3)) {
+      if (currentKnown) { phase = 'positive'; label = 'Starka positiva formsignaler'; reason = 'Hög kropp-, dags- och fartkänsla sammanfaller med positiva sömnsvar. Upplevda signaler – inte verifierad toppform.' }
+      else { phase = 'mixed'; label = 'Positiva aktuella observationer'; reason = 'Känslorna skattas högt, men det finns för få svarsdagar för en stark positiv signal.' }
+    } else if (illnessClear && currentKnown && direction === 'up' && ['body', 'feeling', 'speed'].every(key => current[key].value >= 3)) {
       phase = 'improving'; label = 'Positiva signaler på väg upp'; reason = 'Minst en känsla har ökat både på kort sikt och mellan veckorna, utan en motsatt trend i de andra. Inte uppmätt fartförbättring.'
+    } else if (performance) {
+      phase = 'mixed'; label = 'Positiva prestationsuppgifter'; reason = 'Tränaren rapporterar personbästa den senaste veckan. Simmarens aktuella värden visas separat; uppgiften bekräftar inte toppform.'
+    } else if (fastObservation) {
+      phase = 'mixed'; label = 'Positiv fartobservation'; reason = 'Senaste fartkänslan är hög. Övriga signaler och antalet svarsdagar behöver läsas var för sig; en hög skattning är inte ett verifierat fartresultat.'
     } else { phase = 'mixed'; label = 'Blandade signaler'; reason = 'Kropp, dagskänsla, fart och sömn ger inget entydigt positivt mönster. Läs delvärdena tillsammans med simmaren.' }
   }
   if (!illnessClear && !flags.length) reason += ' Ett aktuellt giltigt Nej i sjukdomskollen saknas; saknat svar betyder inte frisk.'
-  return { ...observations, flags, phase, label, reasons: [reason], direction, confidence, baselineKnown,
-    limitations: ['Fartkänsla är subjektiv. Verifierade farttester och planerad toppning ingår inte i denna version.', 'Täckningen avser registrerade efterrapporter, inte bevis på att hela träningsveckan är rapporterad.'] }
+  return { ...observations, flags, phase, label, reasons: [reason], direction, metricDirections, confidence, baselineKnown, provisional,
+    limitations: ['Fartkänsla är subjektiv. Tränaruppgifter är inte verifierade farttester eller en prognos om formtopp.', 'Täckningen avser registrerade efterrapporter, inte bevis på att hela träningsveckan är rapporterad.'] }
 }
