@@ -3,7 +3,8 @@ const round = (ctx, x, y, w, h, r, fill) => { ctx.fillStyle = fill; ctx.beginPat
 function bottle(ctx, game) {
   ctx.save(); ctx.translate(game.x, game.y - 28); ctx.rotate(game.angle)
   const squash = game.phase === 'charging' ? 1 - game.charge * .12 : 1
-  ctx.scale(1 / Math.sqrt(squash), squash)
+  // Narrow the silhouette in bottle-local coordinates; height and physics stay unchanged.
+  ctx.scale(.84 / Math.sqrt(squash), squash)
   ctx.shadowColor = '#14484935'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 4
   ctx.fillStyle = '#efffff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2
   ctx.beginPath(); ctx.moveTo(-8, -27); ctx.lineTo(8, -27); ctx.lineTo(8, -20); ctx.quadraticCurveTo(17, -13, 17, -8); ctx.lineTo(17, 21); ctx.quadraticCurveTo(17, 28, 10, 28); ctx.lineTo(-10, 28); ctx.quadraticCurveTo(-17, 28, -17, 21); ctx.lineTo(-17, -8); ctx.quadraticCurveTo(-17, -13, -8, -20); ctx.closePath(); ctx.fill(); ctx.stroke()
@@ -92,7 +93,7 @@ export function drawBottle(canvas, game, reducedMotion = false) {
     ctx.beginPath(); ctx.moveTo(next.x + next.width / 2 - 4, next.y - 51); ctx.lineTo(next.x + next.width / 2 + 4, next.y - 51); ctx.lineTo(next.x + next.width / 2, next.y - 45); ctx.fill()
   }
   const shadow = game.platforms[game.current]
-  ctx.fillStyle = '#194b4a26'; ctx.beginPath(); ctx.ellipse(game.x, shadow.y + 8, 21, 5, 0, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#194b4a26'; ctx.beginPath(); ctx.ellipse(game.x, shadow.y + 8, 18, 5, 0, 0, Math.PI * 2); ctx.fill()
   bottle(ctx, game)
   if (game.feedbackFor > 0 && game.feedback.startsWith('Mitt') && !reducedMotion) {
     const age = 1.3 - game.feedbackFor

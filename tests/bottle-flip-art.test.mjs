@@ -34,6 +34,21 @@ test('reduced motion removes optional perfect particles without changing the gam
   } finally { globalThis.window = original }
 })
 
+test('bottle is visually 16 percent slimmer without changing height, charge deformation or game state', () => {
+  const original = globalThis.window; globalThis.window = { devicePixelRatio: 1 }
+  try {
+    for (const [phase, charge] of [['ready', 0], ['charging', .8], ['airborne', 0]]) {
+      const game = createBottleGame(); game.phase = phase; game.charge = charge
+      const before = structuredClone(game), { canvas, calls } = surface(960, 540)
+      drawBottle(canvas, game)
+      const squash = phase === 'charging' ? 1 - charge * .12 : 1
+      assert.deepEqual(calls.find(call => call[0] === 'scale'), ['scale', .84 / Math.sqrt(squash), squash])
+      assert.deepEqual(game, before)
+      assert.ok(calls.some(call => call[0] === 'ellipse' && call[1] === game.x && call[3] === 18 && call[4] === 5))
+    }
+  } finally { globalThis.window = original }
+})
+
 test('every old platform kind becomes the same rear-view starting block with its own continuing number', () => {
   const shapes = []
   for (let kind = 0; kind < 4; kind++) {
