@@ -125,10 +125,11 @@ test('existing traffic endpoint maps narrow load/speed fields to summaries witho
   assert.doesNotMatch(JSON.stringify(report), /created_at|activity_minutes|profile_id|session_slot|comment/)
 })
 
-test('heart is a sibling of the card toggle, with accessible portal, hover/click and reduced motion controls', () => {
+test('legacy heart retains accessible explanation; Formkollen now replaces it on the swimmer card', () => {
   const source = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
   const view = source('src/training-heart.jsx'), main = source('src/main.jsx'), css = source('src/training-heart.css')
-  assert.match(main, /<div className="swimmer-card-header">[\s\S]*?<\/button>\s*<TrainingHeart/)
+  assert.doesNotMatch(main, /<TrainingHeart/)
+  assert.match(main, /<FormKollenCard/)
   assert.match(view, /createPortal/)
   for (const text of ['onMouseEnter', 'onBlur', 'aria-expanded', 'aria-controls', 'role="dialog"', "event.key === 'Escape'", 'pointerdown', 'Stäng av animationer']) assert.ok(view.includes(text), text)
   assert.match(css, /prefers-reduced-motion: reduce/)

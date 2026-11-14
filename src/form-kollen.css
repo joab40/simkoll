@@ -1,0 +1,70 @@
+.form-kollen { --form-color: #3979ad; --form-pale: #edf5fa; padding: 22px; margin: 20px 0; border: 1px solid #cce1df; border-radius: 22px; background: linear-gradient(135deg, #f5fbfc, #fffef9); color: #193a43; overflow-wrap: anywhere; }
+.form-kollen.phase-unknown { --form-color: #7f959b; --form-pale: #edf2f3; }
+.form-kollen.phase-loaded, .form-kollen.phase-watch { --form-color: #ba7728; --form-pale: #fbf1df; }
+.form-kollen.phase-improving { --form-color: #109b92; --form-pale: #e0f5ef; }
+.form-kollen.phase-positive { --form-color: #bf940c; --form-pale: #fcf5da; }
+.form-kollen-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.form-kollen .eyebrow { margin: 0 0 5px; color: #147377; }
+.form-kollen-header small { color: #617c83; font-size: 11px; }
+.form-confidence { padding: 6px 9px; background: #e8f2ef; color: #41676a; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.form-kollen-hero { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 20px; align-items: center; margin: 20px 0; }
+.form-kollen-caption { text-transform: uppercase; letter-spacing: .1em; color: #69838a; font-size: 9px; font-weight: 800; }
+.form-kollen .form-kollen-hero h3 { font-size: clamp(18px, 2vw, 25px); line-height: 1.2; color: var(--form-color); margin: 7px 0 9px; }
+.form-kollen p { font-size: 13px; line-height: 1.65; }
+.form-direction { display: inline-flex; gap: 7px; align-items: center; font-size: 10px; color: #537078; }
+.form-direction b { font-size: 22px; line-height: 1; color: var(--form-color); }
+.form-orb { width: 124px; height: 124px; position: relative; display: grid; place-items: center; color: var(--form-color); }
+.form-orb-core { display: grid; align-content: center; justify-items: center; width: 72px; height: 72px; border-radius: 50%; color: white; background: var(--form-color); box-shadow: 0 8px 24px #153d4210; }
+.form-orb-core svg { width: 31px; height: 28px; }
+.form-orb-core small { font-size: 8px; font-weight: 800; letter-spacing: .2em; margin-top: 4px; }
+.form-orb-halo { position: absolute; inset: 13px; border: 2px solid currentColor; border-radius: 50%; opacity: .22; background: var(--form-pale); }
+.form-orb-core { position: relative; }
+.form-orb-orbit { position: absolute; inset: 0; border: 1px dashed currentColor; border-radius: 50%; opacity: .35; }
+.form-orb-spark { position: absolute; top: 12px; right: 10px; opacity: .7; font-size: 16px; }
+.form-orb.phase-unknown .form-orb-spark { display: none; }
+.form-orb.phase-positive .form-orb-core { box-shadow: 0 0 28px #d5af3433; }
+.form-signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 17px; border-top: 1px solid #ddeae7; }
+.form-signals > div { display: grid; align-content: start; gap: 6px; }
+.form-signals small { font-size: 9px; color: #607a80; }
+.form-signals strong { font-size: 12px; line-height: 1.4; }
+.form-signals span { font-size: 11px; }
+.form-kollen-actions { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; justify-content: space-between; }
+.form-kollen button { min-height: 44px; font: inherit; font-size: 11px; cursor: pointer; }
+.form-kollen button:focus-visible, .form-kollen summary:focus-visible { outline: 3px solid #43bfb3; outline-offset: 3px; }
+.form-flags { border-left: 3px solid #bb7c2c; border-radius: 5px; padding: 12px; background: #fff4e1; font-size: 12px; margin-bottom: 20px; }
+.form-flags ul { margin: 6px 0; padding-left: 18px; }
+.form-flags small { font-size: 10px; }
+.form-kollen-detail { border-top: 1px solid #d7e6e3; margin-top: 12px; padding-top: 18px; }
+.form-kollen h4 { margin: 0; font-size: 15px; }
+.form-periods { display: flex; gap: 8px; margin: 12px 0 18px; }
+.form-periods button { border: 1px solid #bcd7d2; border-radius: 12px; background: white; padding: 8px 14px; color: #18696b; }
+.form-periods button[aria-pressed=true] { background: #176f73; color: white; border-color: #176f73; }
+.form-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.form-chart { padding: 10px; background: white; border: 1px solid #e1ebe8; border-radius: 12px; min-width: 0; }
+.form-chart header { display: grid; gap: 5px; }
+.form-chart strong { font-size: 11px; }
+.form-chart small { color: #6c8388; font-size: 9px; }
+.form-chart svg { width: 100%; display: block; margin-top: 8px; overflow: visible; }
+.form-chart text { font: 9px sans-serif; fill: #5b767e; }
+.form-chart-grid { stroke: #e0eae8; stroke-dasharray: 3 4; }
+.form-chart-line { stroke: #198f89; stroke-width: 2; }
+.form-chart-dot { fill: #198f89; stroke: white; stroke-width: 1; }
+.form-chart-empty { color: #698187; min-height: 75px; display: grid; place-items: center; }
+.form-kollen details { padding: 13px 0; border-bottom: 1px solid #dce9e5; font-size: 12px; }
+.form-kollen summary { cursor: pointer; font-weight: 700; color: #176f73; min-height: 30px; }
+.form-values > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; margin: 12px 0; }
+.form-values dt { font-weight: 700; }
+.form-values dd { margin: 0; }
+.form-values small { display: block; color: #6a7e81; margin-top: 3px; }
+.form-table-scroll { overflow-x: auto; }
+.form-kollen table { border-collapse: collapse; width: 100%; font-size: 10px; }
+.form-kollen th, .form-kollen td { text-align: left; padding: 8px 5px; border-bottom: 1px solid #e2ebe8; white-space: nowrap; }
+.form-kollen caption { text-align: left; padding: 12px 0; color: #617980; }
+/* Animate only a requested, visible card. No rotation or flashing. */
+.form-kollen .orb-moving .form-orb-core { animation: form-breathe 4s ease-in-out infinite; }
+.form-kollen .orb-moving.phase-positive .form-orb-halo { animation: form-halo 4s ease-in-out infinite; }
+.form-kollen .orb-moving.phase-unknown .form-orb-core { animation: none; }
+@keyframes form-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+@keyframes form-halo { 0%, 100% { transform: scale(1); opacity: .2; } 50% { transform: scale(1.05); opacity: .4; } }
+@media (max-width: 520px) { .form-kollen { padding: 17px; border-radius: 18px; } .form-kollen-hero { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; } .form-orb { width: 88px; height: 88px; } .form-orb-core { width: 56px; height: 56px; } .form-orb-core svg { width: 26px; height: 23px; } .form-orb-halo { inset: 8px; } .form-orb-spark { top: 1px; right: 3px; } .form-kollen-hero h3 { font-size: 18px; } .form-confidence { font-size: 9px; white-space: normal; text-align: center; } .form-signals { grid-template-columns: 1fr; gap: 12px; } .form-signals > div { border-bottom: 1px solid #e0e9e5; padding-bottom: 10px; } .form-charts { grid-template-columns: 1fr; } .form-values > div { grid-template-columns: 85px minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .form-kollen .form-orb-core, .form-kollen .form-orb-halo { animation: none !important; } }

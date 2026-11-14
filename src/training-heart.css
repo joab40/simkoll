@@ -1,5 +1,5 @@
 .swimmer-card-header { position: relative; }
-.swimmer-card-header > .swimmer-card-toggle { padding-right: 128px; min-height: 132px; }
+.swimmer-card-header:has(.training-heart-control) > .swimmer-card-toggle { padding-right: 128px; min-height: 132px; }
 .swimmer-card-header .swimmer-name > span { flex-shrink: 0; }
 .swimmer-card-header .swimmer-name > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .swimmer-card-header .swimmer-name > div small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -78,7 +78,7 @@
 .training-heart-panel footer button { min-height: 40px; border: 1px solid #b9d5cb; border-radius: 9px; background: #e8f4ed; color: #24665f; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .training-heart-panel button:focus-visible { outline: 2px solid #157773; outline-offset: 2px; }
 @media (max-width: 500px) {
-  .swimmer-card-header > .swimmer-card-toggle { padding-right: 118px; min-height: 148px; }
+  .swimmer-card-header:has(.training-heart-control) > .swimmer-card-toggle { padding-right: 118px; min-height: 148px; }
   .training-heart-control { right: 6px; }
   .training-heart-trigger.training-heart-with-load { width: 100px; }
   .swimmer-card-header .swimmer-card-meta { padding-left: 0; }

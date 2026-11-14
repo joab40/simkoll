@@ -2,6 +2,7 @@ import React, { useId, useState } from 'react'
 import { TRAINING_HEART_EXAMPLES, TRAINING_HEART_EXAMPLE_INTRO, TRAINING_HEART_EXAMPLE_NOTICE, trainingHeartExampleFacts } from '../shared/training-heart-examples.js'
 import TrainingHeartGlyph from './training-heart-glyph.jsx'
 import { trainingHeartLoadSummary } from '../shared/training-heart-load.js'
+import './training-heart.css'
 
 export default function TrainingHeartExamples() {
   const [animate, setAnimate] = useState(false)
@@ -23,6 +24,6 @@ export default function TrainingHeartExamples() {
       </article>
     })}</div>
     <details className="training-heart-example-reading"><summary>Så tolkar vi exemplen och deras begränsningar<span aria-hidden="true">+</span></summary>{TRAINING_HEART_EXAMPLE_INTRO.slice(1).map(text => <p key={text}>{text}</p>)}</details>
-    <p>På simmarkortet: klicka eller hovra på hjärtat för simmarens verkliga värden, datum och svarstäckning. Öppna ”Perioder, täckning och hur värdena används” för exakta regler. Exemplen här påverkar inga registreringar.</p>
+    <p>På simmarkortet finns nu Formkollen under Simmarens riktning. Exemplen ovan är arkiverade illustrationer av det tidigare hjärtat och påverkar inga registreringar.</p>
   </div>
 }

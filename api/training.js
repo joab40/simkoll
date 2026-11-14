@@ -11,6 +11,7 @@ import { writeAuditLog } from '../server/audit.js'
 import { loadCoachWeek } from '../server/coach-week.js'
 import { loadSwimmerTraffic } from '../server/swimmer-traffic.js'
 import { loadPeriodization } from '../server/periodization.js'
+import { loadFormKollen } from '../server/form-kollen.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
 import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 import { validProgramType } from '../shared/program-kind.js'
@@ -142,6 +143,26 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if (request.query?.formKollen === 'true') {
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Formkollen kan bara läsas.' })
+      if (!['coach', 'swimmer'].includes(role)) return sendJson(response, 403, { error: 'Logga in för att se Formkollen.' })
+      let profileId = String(request.query.profileId || '')
+      if (role === 'coach') {
+        const coach = coachFromRequest(request)
+        if (!coach || !isTimeId(coach.sub)) return sendJson(response, 403, { error: 'Logga in med ditt personliga tränarkonto.' })
+      } else {
+        const own = await getSessionProfile(request)
+        if (!own || (profileId && profileId !== own.id)) return sendJson(response, 403, { error: 'Du kan bara se din egen Formkoll.' })
+        profileId = own.id
+      }
+      if (!isTimeId(profileId)) return sendJson(response, 400, { error: 'Välj en simmare.' })
+      const found = await supabaseRequest(`profiles?id=eq.${profileId}&active=eq.true&approval_status=eq.approved&is_test_profile=eq.false&select=id,training_group&limit=1`)
+      if (!found.ok) return sendJson(response, 502, { error: 'Simmaren kunde inte hämtas.' })
+      const profile = (await found.json())[0]
+      if (!profile) return sendJson(response, 404, { error: 'Simmarprofilen ingår inte i underlaget.' })
+      try { return sendJson(response, 200, await loadFormKollen(profile, stockholmDate())) } catch (error) { return sendJson(response, 502, { error: error.message }) }
+    }
     if (request.query?.periodization === 'true') {
       response.setHeader?.('Cache-Control', 'private, no-store')
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Periodisering kan bara läsas.' })
