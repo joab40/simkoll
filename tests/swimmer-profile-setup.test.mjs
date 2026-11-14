@@ -19,13 +19,13 @@ test('missing cross goals never become automatic threes; setup names only the mi
   assert.deepEqual(setup.scheduled, [])
 })
 
-test('future goals are dated plans, never current goals or generic missing settings', () => {
+test('saved future goals do not display any setup symbol, while the goal card retains their dates', () => {
   const data = { seasonGoals: [swim], crossGoals: [{ ...cross, startDate: '2026-11-16' }] }
   const goals = profileTrainingGoals(data, 'p', asOf)
   assert.equal(goals[1].state, 'scheduled'); assert.equal(goals[1].target, null)
   assert.equal(goals[1].pendingTarget, 3); assert.equal(goals[1].startsOn, '2026-11-16')
   const setup = swimmerProfileSetup(profile, data, asOf)
-  assert.equal(setup.completeCount, 3); assert.equal(setup.show, true)
+  assert.equal(setup.completeCount, 3); assert.equal(setup.show, false)
   assert.equal(setup.symbol, 'i'); assert.equal(setup.informational, true); assert.equal(setup.color, 'gray')
   assert.equal(setup.heading, 'Sparade mål – kommande startdatum')
   assert.match(setup.title, /Ingen komplettering behövs/); assert.doesNotMatch(setup.title, /3 av 4/)
@@ -48,7 +48,7 @@ test('active targets stay current until a scheduled change starts; earliest vali
   assert.equal(goals[1].pendingTarget, 4); assert.equal(goals[1].startsOn, '2026-11-16')
   assert.equal(goals[2].pendingTarget, 0)
   const setup = swimmerProfileSetup(profile, data, asOf)
-  assert.equal(setup.completeCount, 4); assert.equal(setup.show, true)
+  assert.equal(setup.completeCount, 4); assert.equal(setup.show, false)
   assert.equal(setup.symbol, 'i'); assert.equal(setup.informational, true)
   assert.match(setup.scheduled[0], /nu 2/)
   assert.equal(profileTrainingGoals(data, 'p', '2026-11-16')[1].target, 4)
@@ -84,6 +84,7 @@ test('loading and failed refresh hide stale targets and pending values without c
 test('a real missing setting keeps the question mark even when future goals are already saved', () => {
   const setup = swimmerProfileSetup({ ...profile, primaryStroke: '' }, { seasonGoals: [swim], crossGoals: [{ ...cross, startDate: '2026-11-16' }] }, asOf)
   assert.equal(setup.symbol, '?'); assert.equal(setup.informational, false)
+  assert.equal(setup.show, true)
   assert.deepEqual(setup.missing, ['specialinriktning']); assert.equal(setup.scheduled.length, 2)
 })
 

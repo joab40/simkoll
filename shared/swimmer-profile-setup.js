@@ -42,5 +42,5 @@ export function swimmerProfileSetup(profile, training, asOf, status = training ?
   const heading = unknown ? 'Profilinställningar kontrolleras' : informational ? 'Sparade mål – kommande startdatum' : `${completeCount}/4 inställningsområden klara för idag`
   const color = unknown ? 'gray' : completeCount >= 3 ? 'gray' : completeCount === 2 ? 'green' : completeCount === 1 ? 'yellow' : 'red'
   const title = unknown ? status === 'error' ? 'Träningsmålen kunde inte kontrolleras – inte samma sak som att de saknas.' : 'Kontrollerar profilinställningar och träningsmål…' : `${informational ? `${heading}. Ingen komplettering behövs.` : `${completeCount} av 4 inställningsområden klara för idag.`}${missing.length ? ` Saknas: ${missing.join(', ')}.` : ''}${scheduled.length ? ` Planerat: ${scheduled.join('; ')}.` : ''}`
-  return { checks, missing, scheduled, unknown, informational, symbol, heading, completeCount, color, title, show: unknown || missing.length > 0 || scheduled.length > 0 }
+  return { checks, missing, scheduled, unknown, informational, symbol, heading, completeCount, color, title, show: unknown || missing.length > 0 }
 }
