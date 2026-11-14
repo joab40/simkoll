@@ -6,9 +6,10 @@ import { trainingHeartAfterReports } from '../shared/training-heart.js'
 import { canEstimateTrainingTime, withLinkedTrainingAmounts } from '../shared/linked-training-amounts.js'
 import { missingIllnessTable } from './daily-illness.js'
 import { loadCoachFormContext } from './form-context.js'
+import { FORM_HISTORY_DAYS } from '../shared/form-period.js'
 
 export async function loadFormKollen(profile, asOf, read = supabaseRequest, { includeCoachContext = false } = {}) {
-  const start = coachWeekAddDays(asOf, -41), scope = `profile_id=eq.${encodeURIComponent(profile.id)}`
+  const start = coachWeekAddDays(asOf, 1 - FORM_HISTORY_DAYS), scope = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const dates = field => `${field}=gte.${start}&${field}=lte.${asOf}`
   const rows = async (query, optionalIllness = false) => {
     const result = await analyticsRows(query, read)

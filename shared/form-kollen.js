@@ -1,7 +1,8 @@
 import { coachWeekAddDays as add } from './coach-week.js'
-import { buildTrainingHeart, trainingHeartAfterReports } from './training-heart.js'
+import { buildTrainingHeart, trainingHeartAfterReports, trainingHeartLoad } from './training-heart.js'
 import { illnessDays } from './illness.js'
 import { currentFormContext } from './form-context.js'
+import { buildFormPeriods, FORM_HISTORY_DAYS } from './form-period.js'
 
 // These are adjustable product heuristics for dialogue, not physiological limits.
 export const FORM_RULES = { baselineWeeks: 4, reports: 3, reportDays: 2, coverage: .8, trend: .5 }
@@ -23,7 +24,7 @@ const change = (current, previous, minimum) => current.days >= minimum && previo
 
 export function buildFormKollen(data = {}, asOf) {
   // Reuse the existing validated date, report grouping, load estimation and warning rules.
-  const heart = buildTrainingHeart(data, asOf), start = add(asOf, -41)
+  const heart = buildTrainingHeart(data, asOf), start = add(asOf, 1 - FORM_HISTORY_DAYS)
   const responses = (data.responses || []).filter(row => row.date >= start && row.date <= asOf)
   const swims = trainingHeartAfterReports(responses).filter(row => row.activityType === 'swim')
   const measures = (from, to) => ({ body: metric(responses, 'body', from, to), feeling: metric(responses, 'feeling', from, to), speed: metric(swims, 'speedFeeling', from, to) })
@@ -42,17 +43,16 @@ export function buildFormKollen(data = {}, asOf) {
   const nights = [...new Map((data.sleep || []).filter(row => !row.skipped && row.activity_date >= add(asOf, -2) && row.activity_date <= asOf && Number.isFinite(row.minutes) && row.minutes >= 0 && row.minutes <= 840 && [1, 3, 5].includes(row.quality)).map(row => [row.activity_date, row])).values()]
   const sleep = { nights: nights.length, minutes: round(mean(nights.map(row => row.minutes))), quality: round(mean(nights.map(row => row.quality))), lastDay: nights.map(row => row.activity_date).sort().at(-1) || null,
     positive: nights.length >= 2 && nights.every(row => row.minutes >= 480 && row.quality >= 3) && mean(nights.map(row => row.quality)) >= 4 }
-  const history = Array.from({ length: 28 }, (_, i) => {
-    const date = add(asOf, i - 27), daily = measures(date, date)
-    const load = buildTrainingHeart(data, date).load
+  const history = Array.from({ length: 90 }, (_, i) => {
+    const date = add(asOf, i - 89), daily = measures(date, date)
     // Daily load is separate from the seven-day total. Missing remains null.
-    const dailyLoad = buildTrainingHeart({ ...data, responses: responses.filter(row => row.date === date) }, date).load
-    return { date, body: daily.body.value, feeling: daily.feeling.value, speed: daily.speed.value, load: dailyLoad.value, estimated: dailyLoad.estimated, complete: enoughLoad(load) }
+    const dailyLoad = trainingHeartLoad(responses.filter(row => row.date === date))
+    return { date, body: daily.body.value, feeling: daily.feeling.value, speed: daily.speed.value, load: dailyLoad.value, estimated: dailyLoad.estimated }
   })
   return evaluateFormSignals({ asOf, current, week, previous, trends, sleep, illness, illnessAvailable: data.illnessAvailable !== false,
     load: { ...heart.load, baseline, baselineWeeks: baselineWeeks.length, normalLoad, ratio: loadRatio },
     context: currentFormContext(data.context, asOf),
-    flags: [...heart.warnings, ...(heart.heavy.persistent ? ['Ihållande tung kropp- eller dagskänsla – ta en dialog.'] : [])], history })
+    flags: [...heart.warnings, ...(heart.heavy.persistent ? ['Ihållande tung kropp- eller dagskänsla – ta en dialog.'] : [])], history, periods: buildFormPeriods(data, asOf) })
 }
 
 export function formMetricDirection(trend, current) {

@@ -43,7 +43,7 @@ function load(rows) {
   return { value: total(known), reportedValue: total(reported), estimatedValue: total(estimated), reported: reported.length, estimated: estimated.length, known: known.length, total: reports.length, days: new Set(known.map(item => item.row.date)).size, rpeAnswers: reports.filter(item => item.amount.rpeKnown).length, missingRpe: reports.filter(item => !item.amount.rpeKnown).length, missingTime: reports.filter(item => item.amount.minutes == null).length, unknownActivity: reports.filter(item => !types.has(item.row.activityType)).length, gaps }
 }
 
-export { afterReports as trainingHeartAfterReports }
+export { afterReports as trainingHeartAfterReports, load as trainingHeartLoad }
 
 export function buildTrainingHeart({ responses = [], sleep = [], illness = [], illnessAvailable = true } = {}, asOf) {
   if (!day(asOf)) throw new Error('Ogiltigt datum för träningshjärtat.')
