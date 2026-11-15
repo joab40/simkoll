@@ -5334,7 +5334,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {profile.isTestProfile && <div className="test-profile-badge">🧪 Testprofil · räknas inte i gruppstatistik</div>}
             {signalReasons.length > 0 && <div className={`swimmer-traffic-reasons ${traffic.color}`}><strong>{traffic.icon} {traffic.color === 'red' ? 'Ta en dialog' : 'Bevaka utvecklingen'}</strong><span>{signalReasons.join(' · ')}</span></div>}
             <SwimmerTodayComment comment={todayComment} />
-            {traffic.planningNotes?.length > 0 && <p className="checkin-selection-note">Planering: {traffic.planningNotes.join(' · ')}. Påverkar inte hälsotrafikljuset.</p>}
+            {traffic.planningNotes?.length > 0 && <p className="swimmer-planning-note"><span><strong>Planering: </strong>{traffic.planningNotes.join(' · ')}.</span><small>Påverkar inte hälsotrafikljuset.</small></p>}
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             <SwimmerTrainingGoals goals={trainingGoals} sessions={profileSessions} draft={trainingGoalDrafts[profile.id]} status={trainingGoalStatus[profile.id]} onChange={(key, value) => setTrainingGoalDrafts(current => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), [key]: value } }))} onSave={() => saveTrainingGoals(profile, swimGoal)} />
             <SwimmerCompactWeek training={training} profileId={profile.id} />

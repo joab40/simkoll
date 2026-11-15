@@ -1,6 +1,7 @@
 import React from 'react'
 import SwimmerSetupIndicator from './swimmer-setup.jsx'
 import './swimmer-card-header.css'
+import './swimmer-card-copy.css'
 
 export default function SwimmerCardHeader({ profile, expanded, onToggle, setup, setupOpen, onSetupToggle, setupControls, focus, speed, onOpenAssistant, children }) {
   // The full-header hit area and setup control are siblings, never nested

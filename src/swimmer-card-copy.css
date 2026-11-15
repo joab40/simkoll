@@ -1,0 +1,27 @@
+/* Two shared text sizes keep the card quiet: body/status and secondary detail.
+   The swimmer name remains the identity heading; colours retain their meaning. */
+.swimmer-card { --swimmer-copy-size: 12px; --swimmer-meta-size: 11px; }
+.swimmer-card-header-inline .swimmer-card-meta { font-size: var(--swimmer-copy-size); line-height: 1.4; }
+.swimmer-card-header-inline :is(.swimmer-stars, .swimmer-attention, .swimmer-expand-hint),
+.swimmer-card-header-inline .swimmer-traffic small { font-size: var(--swimmer-copy-size); font-weight: 600; line-height: 1.4; }
+.swimmer-card .swimmer-speed > small { font-size: var(--swimmer-copy-size); line-height: 1.4; }
+.swimmer-card .swimmer-speed > .speed-age { font-size: var(--swimmer-meta-size); }
+.swimmer-card-details .swimmer-traffic-reasons { gap: 4px; margin: 0 0 12px; padding: 12px; line-height: 1.5; }
+.swimmer-card-details .swimmer-traffic-reasons :is(strong, span) { font-size: var(--swimmer-copy-size); }
+.swimmer-card-details .swimmer-traffic-reasons strong { font-weight: 700; }
+.swimmer-card-details .swimmer-planning-note { display: grid; gap: 3px; margin: 0 0 14px; padding: 0 2px; color: #5c7277; font-size: var(--swimmer-copy-size); line-height: 1.55; overflow-wrap: anywhere; }
+.swimmer-card-details .swimmer-planning-note strong { font-weight: 600; }
+.swimmer-card-details .swimmer-planning-note small { font-size: var(--swimmer-meta-size); line-height: 1.5; }
+.swimmer-card-details .swimmer-status { margin: 12px 0; padding: 10px 12px; font-size: var(--swimmer-copy-size); line-height: 1.5; font-weight: 600; }
+.swimmer-card .swimmer-training-goals > .eyebrow { margin: 0 0 12px; font-size: var(--swimmer-copy-size); line-height: 1.4; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.swimmer-card .swimmer-training-goals p strong { font-size: var(--swimmer-copy-size); line-height: 1.5; font-weight: 600; }
+.swimmer-card .swimmer-training-goals p small,
+.swimmer-card .swimmer-training-goals .swimmer-goal-edit :is(label, small) { font-size: var(--swimmer-meta-size); line-height: 1.5; }
+.swimmer-card .swimmer-training-goals .swimmer-goal-edit :is(summary, input, button) { font-size: var(--swimmer-copy-size); }
+.swimmer-card-details .swimmer-today-comment { font-size: var(--swimmer-copy-size); line-height: 1.5; }
+.swimmer-card-details .swimmer-today-comment strong { font-size: var(--swimmer-copy-size); font-weight: 600; }
+@container (max-width: 430px) {
+  .swimmer-card-details { padding: 0 16px 16px; }
+  .swimmer-card .swimmer-training-goals > div { grid-template-columns: 1fr; gap: 12px; }
+  .swimmer-card .swimmer-training-goals .swimmer-goal-edit form { grid-template-columns: 1fr; }
+}

@@ -41,6 +41,25 @@ function WeekNavigationDemo() {
   return <><p>Fiktiv veckonavigering utan API-anrop.</p><PlanningWeekLabel monday={monday} /><div className="planning-controls"><button className="secondary-button" onClick={() => setMonday(day => add(day, -7))}>← Föregående vecka</button><button className="secondary-button" onClick={() => setMonday('2026-11-09')}>Den här veckan</button><button className="secondary-button" onClick={() => setMonday(day => add(day, 7))}>Nästa vecka →</button><button className="secondary-button" onClick={() => setMonday('2026-12-28')}>Testa årsskifte</button></div></>
 }
 
+function CardCopyDemo() {
+  const [expanded, setExpanded] = useState(true), [red, setRed] = useState(false)
+  const profile = { id: 'copy-demo', emoji: '🐬', displayName: 'Demo', username: 'fiktiv-simmare', trainingGroup: 'junior' }
+  const training = { seasonGoals: [{ profileId: profile.id, active: true, startDate: '2026-01-01', target: 7 }], crossGoals: [{ profileId: profile.id, startDate: '2026-01-01', drylandTarget: 2, strengthTarget: 3 }] }
+  const sessions = [...Array.from({ length: 5 }, () => ({ type: 'swim' })), { type: 'dryland' }]
+  const responses = [{ date: '2026-11-15', createdAt: '2026-11-15T12:00:00Z', type: 'after', activityType: 'swim', speedFeeling: 3 }]
+  return <><p>Fiktivt typografitest. Inga riktiga personuppgifter eller API-anrop.</p><button type="button" className="secondary-button" style={{ marginBottom: 16 }} onClick={() => setRed(value => !value)}>Växla gul/röd uppföljning</button><article className={`swimmer-card ${expanded ? 'expanded' : 'compact'}`}>
+    <SwimmerCardHeader profile={profile} expanded={expanded} setup={{ show: false }} onToggle={() => setExpanded(value => !value)} speed={<SwimmerSpeed responses={responses} now="2026-11-15T20:00:00Z" />}>
+      <span className="swimmer-stars">★ 3/4</span><span className="swimmer-card-health"><span className={`swimmer-traffic ${red ? 'red' : 'yellow'}`}>{red ? '🔴' : '🟡'} <small>{red ? 'Följ upp' : 'Var uppmärksam'}</small></span><span className="swimmer-mood">🙂</span></span><span className="swimmer-attention">✓ har simmat idag</span><span className="swimmer-card-actions"><span className="swimmer-expand-hint">{expanded ? '▲ Dölj' : '▼ Visa mer'}</span></span>
+    </SwimmerCardHeader>
+    {expanded && <div className="swimmer-card-details">
+      <div className={`swimmer-traffic-reasons ${red ? 'red' : 'yellow'}`}><strong>{red ? '🔴 Ta en dialog' : '🟡 Bevaka utvecklingen'}</strong><span>{red ? 'Lite sjukdomskänningar flera dagar senaste veckan' : 'Hög ansträngning (RPE 8–10) 3 dagar senaste veckan'}</span></div>
+      <p className="swimmer-planning-note"><span><strong>Planering: </strong>2 planerade pass utan registrerat genomförande denna vecka.</span><small>Påverkar inte hälsotrafikljuset.</small></p>
+      <div className="swimmer-status after">✓ har simmat idag</div>
+      <SwimmerTrainingGoals goals={profileTrainingGoals(training, profile.id, '2026-11-15', 'ready')} sessions={sessions} onChange={() => {}} onSave={() => {}} />
+    </div>}
+  </article></>
+}
+
 function GoalDemo() {
   const [scenario, setScenario] = useState('scheduled'), [draft, setDraft] = useState({}), [help, setHelp] = useState(true)
   const profile = { id: 'demo', tempusId: '123', primaryStroke: 'free', trainingGroup: 'junior' }, asOf = '2026-11-14'
@@ -116,6 +135,6 @@ function InteractiveDemo() {
 }
 
 const scenario = new URLSearchParams(window.location.search).get('scenario')
-createRoot(document.getElementById('root')).render(['speed', 'week-nav'].includes(scenario) ? <main style={{ maxWidth: new URLSearchParams(window.location.search).get('viewport') === 'mobile' ? 390 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{scenario === 'speed' ? <SpeedDemo /> : <WeekNavigationDemo />}</main> : new URLSearchParams(window.location.search).get('viewport') === 'mobile'
+createRoot(document.getElementById('root')).render(['speed', 'week-nav', 'copy'].includes(scenario) ? <main style={{ maxWidth: new URLSearchParams(window.location.search).get('viewport') === 'mobile' ? 390 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{scenario === 'speed' ? <SpeedDemo /> : scenario === 'copy' ? <CardCopyDemo /> : <WeekNavigationDemo />}</main> : new URLSearchParams(window.location.search).get('viewport') === 'mobile'
   ? <main style={{ padding: 16 }}><h1>Mobilförhandsvisning · 390 px</h1><iframe title="Formkollen i mobilbredd, fiktivt demo" src={`/form-kollen-qa.html?scenario=${encodeURIComponent(new URLSearchParams(window.location.search).get('scenario') || 'partial')}`} style={{ width: 390, height: 720, maxWidth: '100%', border: '1px solid #bed5d0', borderRadius: 20 }} /></main>
   : <main style={{ maxWidth: ['checkins', 'traffic'].includes(new URLSearchParams(window.location.search).get('scenario')) ? 1200 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{new URLSearchParams(window.location.search).get('scenario') === 'traffic' ? <TrafficDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'checkins' ? <CheckinDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'goals' ? <GoalDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'header' ? <HeaderDemo /> : <InteractiveDemo />}</main>)
