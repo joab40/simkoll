@@ -27,6 +27,7 @@ import SwimmerTrafficOverview from './swimmer-traffic-overview.jsx'
 import FormKollenCard from './form-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
 import PlanningWeekLabel from './planning-week-label.jsx'
+import CompetitionEntryChoices from './competition-entry-choices.jsx'
 import SwimmerCardHeader from './swimmer-card-header.jsx'
 import { activeProfileGoals, swimmerProfileSetup, profileTrainingGoals, goalDateLabel, trainingGoalValues } from '../shared/swimmer-profile-setup.js'
 import SwimmerTrainingGoals from './swimmer-training-goals.jsx'
@@ -750,7 +751,23 @@ function SwimmerCompetitionEntries({ code, onBack }) {
   }, [code, selectedCompetition])
   const save = async (submit) => { if (savingRef.current || !selectedCompetition || loading || !competitions.find((item) => item.id === selectedCompetition)?.entriesOpen) return; savingRef.current = true; setSaving(true); setStatus(''); setError(''); try { await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: submit ? 'submit-competition-entries' : 'save-competition-entry', competitionId: selectedCompetition, eventIds: selected }) }); setStatus(submit ? '✓ Dina grenar är skickade till tränarna.' : '✓ Utkastet är sparat.') } catch (error) { setError(error.message) } finally { savingRef.current = false; setSaving(false) } }
   const competition = competitions.find((item) => item.id === selectedCompetition)
-  return <section className="competition-entries"><button className="back-button inline" disabled={saving} onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Tävlingskalender</p><h1>Mina grenar</h1><small>Välj vilka grenar du vill simma. Tränarna ser när du skickar in.</small></div></div>{loading && <p className="empty">Hämtar tävlingsprogram…</p>}{!loading && !error && !competitions.length && <p className="empty">Ingen kommande tävling är publicerad ännu.</p>}{error && <p role="alert" className="form-error">{error}</p>}{status && <p role="status" className="competition-feedback">{status}</p>}{competition && <><label className="settings-field"><strong>Tävling</strong><select disabled={saving} value={selectedCompetition} onChange={(event) => setSelectedCompetition(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label><CompetitionPm key={competition.id} competition={competition} code={code} request={apiRequest} />{!competition.entriesOpen && <p className="competition-feedback">Grenanmälan är inte öppen. Du kan läsa tävlings-PM under tiden.</p>}<fieldset className="competition-entry-fields" disabled={loading || saving || !competition.entriesOpen}>{events.length ? <div className="competition-entry-list">{events.map((event) => <label key={event.id} className={event.selectable === false ? 'competition-info-row' : ''}><input type="checkbox" disabled={event.selectable === false} checked={event.selectable !== false && selected.includes(event.id)} onChange={() => event.selectable !== false && setSelected((current) => current.includes(event.id) ? current.filter((id) => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender || 'Alla'} · {event.ageClass || 'Klass ej angiven – se PM'}</small></span></label>)}</div> : !loading && !error ? <p className="empty">Tränaren har inte läst in något grenprogram ännu.</p> : null}<div className="settings-actions"><button className="secondary-button" disabled={saving} onClick={() => save(false)}>{saving ? 'Sparar…' : 'Spara utkast'}</button><button className="primary-button" disabled={saving || !selected.length} onClick={() => save(true)}>{saving ? 'Sparar…' : 'Skicka till tränarna'}</button></div></fieldset></>}</section>
+  return <section className="competition-entries">
+    <button className="back-button inline" disabled={saving} onClick={onBack}>← Tillbaka</button>
+    <div className="period-heading"><div><p className="eyebrow">Tävlingskalender</p><h1>Mina grenar</h1><small>Välj vilka grenar du vill simma. Tränarna ser när du skickar in.</small></div></div>
+    {loading && <p className="empty">Hämtar tävlingsprogram…</p>}
+    {!loading && !error && !competitions.length && <p className="empty">Ingen kommande tävling är publicerad ännu.</p>}
+    {error && <p role="alert" className="form-error">{error}</p>}
+    {status && <p role="status" className="competition-feedback">{status}</p>}
+    {competition && <>
+      <label className="settings-field"><strong>Tävling</strong><select disabled={saving} value={selectedCompetition} onChange={(event) => setSelectedCompetition(event.target.value)}>{competitions.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label>
+      <CompetitionPm key={competition.id} competition={competition} code={code} request={apiRequest} />
+      {!competition.entriesOpen && <p className="competition-feedback">Grenanmälan är inte öppen. Du kan läsa tävlings-PM under tiden.</p>}
+      <fieldset className="competition-entry-fields" disabled={loading || saving || !competition.entriesOpen}>
+        {events.length ? <CompetitionEntryChoices key={competition.id} events={events} selected={selected} onChange={setSelected} /> : !loading && !error ? <p className="empty">Tränaren har inte läst in något grenprogram ännu.</p> : null}
+        <div className="settings-actions"><button className="secondary-button" disabled={saving} onClick={() => save(false)}>{saving ? 'Sparar…' : 'Spara utkast'}</button><button className="primary-button" disabled={saving || !selected.length} onClick={() => save(true)}>{saving ? 'Sparar…' : 'Skicka till tränarna'}</button></div>
+      </fieldset>
+    </>}
+  </section>
 }
 
 function Shell({ children, code, role, profile, coachMode = false, onSwitchToCoach, assistantEnabled = true, talksEnabled, planningEnabled, onPlanning, onDiary, onStrengthProgram, onDrylandProgram, onCompetitions, onCommunity, onGoals, onTalk, onHelp, onLegal, onProfile, onGame, onLogout }) {
