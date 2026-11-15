@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { apiRequest } from './api-request.js'
-import { PLANNING_GROUPS, planningGroupChoices, defaultPlanningCalendars, isoWeek, planningDriveId, planningImportMondays } from '../shared/planning-import.js'
+import { PLANNING_GROUPS, planningGroupChoices, defaultPlanningCalendars, unresolvedPlanningRows, isoWeek, planningDriveId, planningImportMondays } from '../shared/planning-import.js'
 import { planningAddDays, planningMonday } from '../shared/weekly-planning.js'
 import { SWIM_WORKBOOK_TYPES } from '../shared/swim-workbook.js'
 import './planning-import.css'
@@ -21,6 +21,11 @@ export default function PlanningImport({ code, selectedGroups = [], availableGro
   const [confirmReplace, setConfirmReplace] = useState(false), [reviewed, setReviewed] = useState(false)
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [success, setSuccess] = useState(null)
   const [importId] = useState(() => crypto.randomUUID())
+  const containerRef = useRef(null), previewRef = useRef(null)
+  const [calendarReviewAttempted, setCalendarReviewAttempted] = useState(false)
+  useEffect(() => {
+    if (preview) { previewRef.current?.focus({ preventScroll: true }); previewRef.current?.scrollIntoView({ block: 'start' }) }
+  }, [preview])
   let requestedMondays = [], selectionError = ''
   try { requestedMondays = planningImportMondays(Number(year), Number(weekNumber), Number(weekCount)) } catch (error) { selectionError = error.message }
   const selectWeek = (preset, monday) => {
@@ -64,16 +69,28 @@ export default function PlanningImport({ code, selectedGroups = [], availableGro
   }
   const chosen = weeks.filter(week => week.selected)
   const needsReplace = chosen.some(week => week.mode === 'replace')
-  const unresolved = chosen.reduce((sum, week) => sum + week.sessions.filter(row => unresolvedRow(row)).length, 0)
-  const inspectChanges = () => run('Kontrollerar kalender och befintlig planering…', async () => { setPreview(await post('planning-import-preview', { weeks: chosen, importId })); setReviewed(false); setConfirmReplace(false) })
+  const pendingRows = unresolvedPlanningRows(weeks)
+  const showCalendarChoice = ({ weekIndex, rowIndex }) => {
+    const row = containerRef.current?.querySelector(`[data-planning-row="${weekIndex}:${rowIndex}"]`)
+    if (!row) return
+    row.closest('.planning-import-week-content').open = true
+    row.open = true
+    row.querySelector('select[aria-invalid="true"]')?.focus({ preventScroll: true })
+    row.querySelector('.planning-import-calendar-groups')?.scrollIntoView({ block: 'center' })
+  }
+  const inspectChanges = () => {
+    if (pendingRows.length) { setCalendarReviewAttempted(true); showCalendarChoice(pendingRows[0]); return }
+    setCalendarReviewAttempted(false)
+    return run('Kontrollerar kalender och befintlig planering…', async () => { setPreview(await post('planning-import-preview', { weeks: chosen, importId })); setReviewed(false); setConfirmReplace(false) })
+  }
   const save = () => run('Sparar veckoplaneringen…', async () => {
     const result = await post('planning-import-apply', { weeks: chosen, importId, previewToken: preview.previewToken, confirmReplace })
     setSuccess(result.summary); onSaved?.(chosen.map(week => week.monday).sort()[0])
   })
-  return <section className="planning-import" aria-labelledby="planning-import-title" aria-busy={Boolean(busy)}>
+  return <section ref={containerRef} className="planning-import" aria-labelledby="planning-import-title" aria-busy={Boolean(busy)}>
     <header><div><p className="eyebrow">Excel → veckoplanering</p><h2 id="planning-import-title">Importera veckoplanering</h2><p>Välj fil, granska veckor och koppla till träningstider. Inget sparas innan du godkänner.</p></div><button type="button" className="text-button" onClick={onClose} disabled={Boolean(busy)}>Stäng</button></header>
     {busy && <p className="planning-import-status" role="status"><span className="planning-import-spinner" aria-hidden="true" />{busy}</p>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && !draft && <p className="form-error" role="alert">{error}</p>}
     {success ? <div className="planning-import-success" role="status"><h3>✓ Veckoplaneringen är sparad</h3><p>{success.weeks} veckoblock · {success.added} nya rader · {success.replaced} ersatta grundplansrader.</p><p>Publicerade pass och simmarnas registreringar har inte ändrats.</p><button className="primary-button" onClick={onClose}>Visa planeringen</button></div> : <fieldset disabled={Boolean(busy)} className="planning-import-body">
       {!draft && <><div className="planning-import-sources"><label className="secondary-button planning-import-file">📄 Välj Excel-fil<input type="file" accept=".xls,.xlsx" onChange={readLocal} /></label><button className="secondary-button" onClick={() => browse()}>📁 Välj från delad Drive-mapp</button></div>
         <form className="planning-import-link" onSubmit={event => { event.preventDefault(); try { inspect({ driveId: planningDriveId(link) }) } catch (error) { setError(error.message) } }}><label>Google Kalkylark- eller Drive-länk<input type="url" value={link} onChange={event => setLink(event.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" /></label><button className="secondary-button" disabled={!link}>Läs länk</button></form>
@@ -112,17 +129,27 @@ export default function PlanningImport({ code, selectedGroups = [], availableGro
               <details className="planning-import-source"><summary>Källa och anmärkningar</summary><p>{week.sourceSheet}!{week.sourceRange} · {week.sourceDateLabel}</p><ul>{week.warnings?.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>
               <div className="planning-import-rows">{week.sessions.map((row, ri) => {
                 const labels = draft.groupLabels || groupLabels
-                return <details className="planning-import-row" key={ri}><summary><span><strong>{label(row.date)} · {row.timeOfDay === 'morning' ? 'Morgon' : 'Eftermiddag'}</strong><span>{row.title}</span></span><small>{row.distanceMeters ? `${Number(row.distanceMeters).toLocaleString('sv-SE')} m · ` : ''}{unresolvedRow(row) ? '⚠ Välj träningstid' : linkedRow(row) ? '✓ Kalenderkopplad per grupp' : 'Utan kalender'}</small></summary><div className="planning-import-row-fields"><label>Datum<input type="date" min={week.monday} max={planningAddDays(week.monday, 6)} value={row.date} onChange={event => changeRow(wi, ri, { date: event.target.value })} /></label><label>Tid på dagen<select value={row.timeOfDay} onChange={event => changeRow(wi, ri, { timeOfDay: event.target.value })}><option value="morning">Morgon</option><option value="afternoon">Eftermiddag / kväll</option></select></label><label>Aktivitet<select value={row.activityType} onChange={event => changeRow(wi, ri, { activityType: event.target.value })}><option value="swim">Simning</option><option value="strength">Styrka</option><option value="dryland">Landträning</option><option value="competition">Tävling</option></select></label><label>Rubrik<input value={row.title} maxLength={100} onChange={event => changeRow(wi, ri, { title: event.target.value })} /></label><label>Huvudinriktning<input value={row.focus} maxLength={80} onChange={event => changeRow(wi, ri, { focus: event.target.value })} /></label><label>Distans (m)<input type="number" min="1" max="30000" value={row.distanceMeters ?? ''} onChange={event => changeRow(wi, ri, { distanceMeters: event.target.value })} /></label><label>Tidsåtgång (min)<input type="number" min="1" max="600" value={row.durationMinutes || ''} placeholder="Inte angiven" onChange={event => changeRow(wi, ri, { durationMinutes: event.target.value })} /></label><fieldset className="planning-import-wide planning-import-calendar-groups"><legend>SportAdmin-träning per grupp</legend><p>Samma upplägg kan kopplas till olika träningstider. Varje simmare får bara sin grupps pass. Kalenderns minuter används om tidsåtgång saknas ovan.</p>{week.groups.map(group => {
+                return <details className={`planning-import-row${unresolvedRow(row) ? ' needs-calendar' : ''}`} data-planning-row={`${wi}:${ri}`} key={ri}><summary><span><strong>{label(row.date)} · {row.timeOfDay === 'morning' ? 'Morgon' : 'Eftermiddag'}</strong><span>{row.title}</span></span><small>{row.distanceMeters ? `${Number(row.distanceMeters).toLocaleString('sv-SE')} m · ` : ''}{unresolvedRow(row) ? '⚠ Välj träningstid' : linkedRow(row) ? '✓ Kalenderkopplad per grupp' : 'Utan kalender'}</small></summary><div className="planning-import-row-fields"><label>Datum<input type="date" min={week.monday} max={planningAddDays(week.monday, 6)} value={row.date} onChange={event => changeRow(wi, ri, { date: event.target.value })} /></label><label>Tid på dagen<select value={row.timeOfDay} onChange={event => changeRow(wi, ri, { timeOfDay: event.target.value })}><option value="morning">Morgon</option><option value="afternoon">Eftermiddag / kväll</option></select></label><label>Aktivitet<select value={row.activityType} onChange={event => changeRow(wi, ri, { activityType: event.target.value })}><option value="swim">Simning</option><option value="strength">Styrka</option><option value="dryland">Landträning</option><option value="competition">Tävling</option></select></label><label>Rubrik<input value={row.title} maxLength={100} onChange={event => changeRow(wi, ri, { title: event.target.value })} /></label><label>Huvudinriktning<input value={row.focus} maxLength={80} onChange={event => changeRow(wi, ri, { focus: event.target.value })} /></label><label>Distans (m)<input type="number" min="1" max="30000" value={row.distanceMeters ?? ''} onChange={event => changeRow(wi, ri, { distanceMeters: event.target.value })} /></label><label>Tidsåtgång (min)<input type="number" min="1" max="600" value={row.durationMinutes || ''} placeholder="Inte angiven" onChange={event => changeRow(wi, ri, { durationMinutes: event.target.value })} /></label><fieldset className="planning-import-wide planning-import-calendar-groups"><legend>SportAdmin-träning per grupp</legend><p>Samma upplägg kan kopplas till olika träningstider. Varje simmare får bara sin grupps pass. Kalenderns minuter används om tidsåtgång saknas ovan.</p>{week.groups.map(group => {
                   const options = planningGroupChoices(row, group, draft.calendarChoices)
-                  return <label key={group}>{labels[group] || group}<select value={row.calendarByGroup[group]} onChange={event => changeRow(wi, ri, { calendarByGroup: { ...row.calendarByGroup, [group]: event.target.value } })}><option value="unresolved">Välj träningstid eller utan kalender…</option>{options.map(choice => <option key={choice.key} value={choice.key}>{choice.time} · {choice.title} · {choice.location}{choice.durationMinutes ? ' · ' + choice.durationMinutes + ' min' : ''}</option>)}<option value="none">Utan kalender — grundplanens halvdag</option></select>{!options.length && <small>Ingen matchande kalenderträning för denna grupp och halvdag. Kontrollera datum och tid på dagen.</small>}</label>
+                  const missing = !row.calendarByGroup?.[group] || row.calendarByGroup[group] === 'unresolved'
+                  return <label key={group}>{labels[group] || group}<select value={row.calendarByGroup?.[group] || 'unresolved'} aria-invalid={missing} aria-describedby={missing ? `${importId}-calendar-help` : undefined} onChange={event => changeRow(wi, ri, { calendarByGroup: { ...row.calendarByGroup, [group]: event.target.value } })}><option value="unresolved">Välj träningstid eller utan kalender…</option>{options.map(choice => <option key={choice.key} value={choice.key}>{choice.time} · {choice.title} · {choice.location}{choice.durationMinutes ? ' · ' + choice.durationMinutes + ' min' : ''}</option>)}<option value="none">Utan kalender — grundplanens halvdag</option></select>{!options.length && <small>Ingen matchande kalenderträning för denna grupp och halvdag. Kontrollera datum och tid på dagen.</small>}</label>
                 })}</fieldset><label className="planning-import-wide">Anteckningar<textarea rows={2} maxLength={500} value={row.notes} onChange={event => changeRow(wi, ri, { notes: event.target.value })} /></label>{!linkedRow(row) && row.activityType === 'swim' && <label className="planning-import-check planning-import-wide"><input type="checkbox" checked={row.separate} onChange={event => changeRow(wi, ri, { separate: event.target.checked })} />Eget träningstillfälle — inte ett passalternativ</label>}<small>Källa: {week.sourceSheet}!{row.sourceCells}</small><button className="text-button" onClick={() => change(wi, { sessions: week.sessions.filter((_, index) => index !== ri) })}>Ta bort rad från importen</button></div></details>
               })}</div>
             </details>}
           </article>
         })}
-        {unresolved > 0 && <p className="planning-import-warnings">Välj kalenderträning eller ”Utan kalender” för {unresolved} rader innan du granskar ändringarna.</p>}
-        <button className="secondary-button" disabled={!chosen.length || unresolved > 0} onClick={inspectChanges}>Granska ändringarna ({chosen.length} veckoblock)</button>
-        {preview && <section className="planning-import-confirm"><h3>Det här kommer att ändras</h3><p><strong>{preview.summary.added}</strong> nya rader · <strong>{preview.summary.replaced}</strong> grundplansrader ersätts · {preview.summary.duplicates} identiska rader hoppas över · {preview.summary.protected} rader hoppas över vid publicerade pass.</p><p>Publicerade pass, kalenderhändelser och simmarnas registreringar ändras inte. Överskriven grundplan säkerhetskopieras i importloggen.</p><label className="planning-import-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} />Jag har granskat datum, grupper, innehåll och kalenderkopplingar.</label>{needsReplace && <label className="planning-import-check"><input type="checkbox" checked={confirmReplace} onChange={event => setConfirmReplace(event.target.checked)} />Jag godkänner att grundplanen ersätts för de valda veckorna och grupperna.</label>}<button className="primary-button" disabled={!reviewed || needsReplace && !confirmReplace} onClick={save}>Spara {chosen.length} veckoblock</button></section>}
+        {pendingRows.length > 0 && <div className="planning-import-calendar-warning" role={calendarReviewAttempted ? 'alert' : 'status'}>
+          <strong>{pendingRows.length === 1 ? 'En rad behöver ett kalenderval' : `${pendingRows.length} rader behöver ett kalenderval`}</strong>
+          <p id={`${importId}-calendar-help`}>Öppna raderna nedan och välj träningstid per grupp, eller ”Utan kalender” om passet inte ska kopplas. Inget har sparats.</p>
+          <ul>{pendingRows.map(pending => {
+            const week = weeks[pending.weekIndex], row = week.sessions[pending.rowIndex]
+            return <li key={`${pending.weekIndex}:${pending.rowIndex}`}><button type="button" className="text-button" onClick={() => showCalendarChoice(pending)}><span>v{isoWeek(week.monday).week} · {label(row.date)} · {row.timeOfDay === 'morning' ? 'Morgon' : 'Eftermiddag'} · {row.title}</span><small>{pending.groups.map(group => (draft.groupLabels || groupLabels)[group] || group).join(' / ')} · Välj kalenderval →</small></button></li>
+          })}</ul>
+        </div>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button type="button" className="secondary-button" disabled={!chosen.length} aria-describedby={pendingRows.length ? `${importId}-calendar-help` : undefined} onClick={inspectChanges}>Granska ändringarna ({chosen.length} veckoblock)</button>
+        {busy && <p className="planning-import-review-status" role="status">{busy}</p>}
+        {preview && <section ref={previewRef} tabIndex={-1} aria-label="Det här kommer att ändras" className="planning-import-confirm"><h3>Det här kommer att ändras</h3><p><strong>{preview.summary.added}</strong> nya rader · <strong>{preview.summary.replaced}</strong> grundplansrader ersätts · {preview.summary.duplicates} identiska rader hoppas över · {preview.summary.protected} rader hoppas över vid publicerade pass.</p><p>Publicerade pass, kalenderhändelser och simmarnas registreringar ändras inte. Överskriven grundplan säkerhetskopieras i importloggen.</p><label className="planning-import-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} />Jag har granskat datum, grupper, innehåll och kalenderkopplingar.</label>{needsReplace && <label className="planning-import-check"><input type="checkbox" checked={confirmReplace} onChange={event => setConfirmReplace(event.target.checked)} />Jag godkänner att grundplanen ersätts för de valda veckorna och grupperna.</label>}<button className="primary-button" disabled={!reviewed || needsReplace && !confirmReplace} onClick={save}>Spara {chosen.length} veckoblock</button></section>}
       </>}
     </fieldset>}
   </section>

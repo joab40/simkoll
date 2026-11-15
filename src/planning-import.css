@@ -64,6 +64,17 @@
 .planning-import-status { display: flex; align-items: center; gap: .8rem; padding: .9rem; background: #e0efec; border-radius: 12px; }
 .planning-import-spinner { width: 1.1rem; height: 1.1rem; flex-shrink: 0; border: 2px solid #a1ccc4; border-top-color: #137477; border-radius: 50%; animation: planning-import-spin 1s linear infinite; }
 .planning-import-warnings { color: #815a25; }
+.planning-import-calendar-warning { margin: 1rem 0; padding: 1rem; border: 1px solid #e4cb93; border-radius: 14px; background: #fff8e8; color: #78541d; }
+.planning-import-calendar-warning > strong { display: block; margin-bottom: .4rem; }
+.planning-import-calendar-warning ul { list-style: none; padding: 0; margin: .5rem 0 0; }
+.planning-import-calendar-warning li + li { border-top: 1px solid #ebdbb9; }
+.planning-import-calendar-warning button { display: block; width: 100%; padding: .7rem .2rem; text-align: left; white-space: normal; overflow-wrap: anywhere; font-size: .92rem; font-weight: 650; color: #126d71; }
+.planning-import-calendar-warning button span, .planning-import-calendar-warning button small { display: block; }
+.planning-import-calendar-warning button small { margin-top: .25rem; font-size: .82rem; font-weight: 450; }
+.planning-import-row.needs-calendar > summary { background: #fff8e8; border-radius: 8px; padding-left: .6rem; }
+.planning-import select[aria-invalid=true] { border-color: #a97629; background-color: #fffaf0; }
+.planning-import-review-status { margin-top: .75rem; color: #126d71; }
+.planning-import-confirm { scroll-margin-top: 1rem; }
 .planning-import-drive { margin: 1rem 0; max-height: 24rem; overflow: auto; }
 .planning-import-drive > div { display: flex; justify-content: space-between; align-items: center; }
 @keyframes planning-import-spin { to { transform: rotate(360deg); } }

@@ -23,6 +23,13 @@ export function defaultPlanningCalendars(row, groups, choices) {
     return [group, matches.length === 1 ? matches[0].key : matches.length || nearby ? 'unresolved' : 'none']
   }))
 }
+// Keep original indexes so the review action can reveal a row even in a closed week.
+export function unresolvedPlanningRows(weeks) {
+  return weeks.flatMap((week, weekIndex) => !week.selected ? [] : week.sessions.flatMap((row, rowIndex) => {
+    const groups = week.groups.filter(group => !row.calendarByGroup?.[group] || row.calendarByGroup[group] === 'unresolved')
+    return groups.length ? [{ weekIndex, rowIndex, groups }] : []
+  }))
+}
 export function planningImportMondays(year, week, count = 1) {
   if (!Number.isInteger(count) || count < 1 || count > MAX_PLANNING_IMPORT_WEEKS) throw new Error('Välj 1–4 veckor åt gången.')
   const first = isoWeekMonday(year, week)
