@@ -5,7 +5,8 @@ import { analyticsRows } from './analytics-rows.js'
 import { stockholmDate } from './profile-auth.js'
 import { writeAiUsage, writeAuditLog } from './audit.js'
 import { loadSwimmerAssistantContext } from './swimmer-assistant-context.js'
-import { canUseSwimmerAssistant, validateSwimmerAssistantSelection } from '../shared/swimmer-assistant.js'
+import { canUseSwimmerAssistant, validateSwimmerAssistantSelection, resolveSwimmerAssistantModel, jsonBytes } from '../shared/swimmer-assistant.js'
+import { measuredAssistantRead, assistantUsageTelemetry } from './swimmer-assistant-telemetry.js'
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -57,6 +58,8 @@ Skilj kropp/dagskänsla/fartkänsla från uppmätt prestation, rapporterad mäng
 Tävlingsresultat jämförs endast i samma gren och bassänglängd. Träningstider kräver också jämförbara start-/tidtagningssätt, utrustning och övning. result_time är hundradels sekunder, inte sekunder. Årtals-/odatumbestämda resultat får inget påhittat datum. Manuella resultat eller uppgivna PB är inte verifierad Tempus-historik. Kalla inte ett resultat livstids-PB utan fullständig jämförbar historik.
 Var konkret och kort. Ingen samlad hälsopoäng eller automatisk tränings-/tävlingsrekommendation. Föreslå vid behov en fråga tränaren kan ställa till simmaren. Återge inte ovidkommande personuppgifter. Ange begränsningar och vilka valda kategorier som inte kunde hämtas.`
 
+export const swimmerAssistantRequest = (model, content) => ({ model, store: false, service_tier: 'default', max_output_tokens: 4000, instructions: SWIMMER_ASSISTANT_INSTRUCTIONS, input: [{ role: 'user', content }], text: { format: { type: 'json_schema', name: 'swimmer_assistant_reply', strict: true, schema: swimmerAssistantSchema } } })
+
 export async function handleSwimmerAssistant(request, response, dependencies = {}) {
   const db = dependencies.read || supabaseRequest, availability = dependencies.availability || (() => swimmerAssistantAvailability(db))
   const log = dependencies.log || writeAiUsage, audit = dependencies.audit || writeAuditLog
@@ -64,8 +67,10 @@ export async function handleSwimmerAssistant(request, response, dependencies = {
   if (!canUseSwimmerAssistant(actor?.role) || !actor?.sub) return sendJson(response, 403, { error: 'Simmarassistenten är endast för huvudtränare och superadmin med ett personligt tränarkonto.' })
   const profileId = String(body.profileId || '')
   if (!uuid.test(profileId)) return sendJson(response, 400, { error: 'Välj en giltig simmare.' })
+  let attempted = false, logged = false, model, sizes
   try {
     const selection = validateSwimmerAssistantSelection(body, dependencies.today || stockholmDate())
+    model = resolveSwimmerAssistantModel(body.model, process.env.OPENAI_SWIMMER_ASSISTANT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini')
     const allowed = await availability()
     if (!allowed.allowed) return sendJson(response, 403, { error: allowed.reason === 'limit' ? 'Klubbens AI-budget är nådd. Inget skickades till språkmodellen.' : 'AI-stöd är avstängt. Inget skickades till språkmodellen.' })
     const result = await db(`profiles?id=eq.${encodeURIComponent(profileId)}&select=id,training_group,active,approval_status,ai_analysis_status&limit=1`)
@@ -73,10 +78,12 @@ export async function handleSwimmerAssistant(request, response, dependencies = {
     const profile = (await result.json())[0]
     if (!profile || !profile.active || profile.approval_status !== 'approved') return sendJson(response, 404, { error: 'Simmarprofilen är inte aktiv och godkänd.' })
     if (profile.ai_analysis_status !== 'approved') return sendJson(response, 403, { error: 'Registrerat godkännande för personlig AI-analys krävs. Det ersätter inte klubbens kontroll av att de valda uppgifterna får behandlas.' })
-    const scope = { actor: actor.sub, version: actor.ver || 0, profileId, selection }
-    const context = await loadSwimmerAssistantContext(profile, selection, db)
+    const scope = { actor: actor.sub, version: actor.ver || 0, profileId, selection, model }
+    const measured = measuredAssistantRead(db)
+    const context = await loadSwimmerAssistantContext(profile, selection, measured.read)
+    sizes = { ...measured.metrics, sourceRecords: context.sources.length, contextBytes: jsonBytes(context) }
     if (JSON.stringify(context).length > 180000) return sendJson(response, 400, { error: 'Det valda underlaget är för stort. Välj kortare period eller färre kategorier. Inga rader har klippts bort och inget har skickats till språkmodellen.' })
-    if (body.action === 'swimmer-assistant-preview') return sendJson(response, 200, { context, token: issue({ scope: digest(scope), context: digest(context), expires: Date.now() + 30 * 60 * 1000 }), expiresInMinutes: 30 })
+    if (body.action === 'swimmer-assistant-preview') return sendJson(response, 200, { context, model, sizes, requestEnvelopeBytes: jsonBytes(swimmerAssistantRequest(model, '')), token: issue({ scope: digest(scope), context: digest(context), expires: Date.now() + 30 * 60 * 1000 }), expiresInMinutes: 30 })
     const token = verify(body.token)
     if (!token || token.expires < Date.now() || token.scope !== digest(scope) || token.context !== digest(context)) return sendJson(response, 409, { error: 'Underlaget, behörigheten eller dina val har ändrats, eller granskningen har gått ut. Granska underlaget på nytt och starta en ny dialog.' })
     if (body.confirmed !== true) return sendJson(response, 400, { error: 'Granska och bekräfta de valda uppgifterna innan de skickas till OpenAI.' })
@@ -89,10 +96,13 @@ export async function handleSwimmerAssistant(request, response, dependencies = {
     if (history.length >= 12) return sendJson(response, 400, { error: 'Dialogen har nått sex frågor. Granska aktuellt underlag och starta en ny dialog för att fortsätta.' })
     const key = process.env.OPENAI_API_KEY
     if (!key) return sendJson(response, 503, { error: 'AI-tjänsten är inte konfigurerad. OPENAI_API_KEY behövs på servern.' })
-    const model = process.env.OPENAI_SWIMMER_ASSISTANT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini'
-    const answer = await (dependencies.fetch || fetch)('https://api.openai.com/v1/responses', { method: 'POST', signal: AbortSignal.timeout(90000), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, store: false, max_output_tokens: 4000, instructions: SWIMMER_ASSISTANT_INSTRUCTIONS, input: [{ role: 'user', content: JSON.stringify({ context, history, question }) }], text: { format: { type: 'json_schema', name: 'swimmer_assistant_reply', strict: true, schema: swimmerAssistantSchema } } }) })
+    const requestBody = JSON.stringify(swimmerAssistantRequest(model, JSON.stringify({ context, history, question })))
+    sizes = { ...sizes, requestBytes: Buffer.byteLength(requestBody, 'utf8'), historyMessages: history.length }
+    attempted = true
+    const answer = await (dependencies.fetch || fetch)('https://api.openai.com/v1/responses', { method: 'POST', signal: AbortSignal.timeout(90000), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: requestBody })
     if (!answer.ok) {
-      await log(request, { feature: 'swimmer_assistant', model, role: 'coach', profileId, status: 'failure', error: `HTTP ${answer.status}` })
+      logged = true
+      await log(request, { feature: 'swimmer_assistant', model, role: 'coach', profileId, usageDetails: assistantUsageTelemetry(model, null, sizes), status: 'failure', error: `HTTP ${answer.status}` })
       return sendJson(response, 502, { error: 'Simmarassistenten kunde inte svara. Kontrollera modellåtkomst och försök igen.' })
     }
     const payload = await answer.json()
@@ -102,12 +112,15 @@ export async function handleSwimmerAssistant(request, response, dependencies = {
       if (payload.status !== 'completed' || content.some(item => item.type === 'refusal')) throw new Error('Incomplete')
       reply = normalizeSwimmerAssistantReply(JSON.parse(payload.output_text || content.filter(item => item.type === 'output_text').map(item => item.text).join('')), context.sources)
     } catch { failure = 'AI-svaret kunde inte verifieras mot källförteckningen. Försök igen; inget svar har sparats.' }
-    await log(request, { feature: 'swimmer_assistant', model, role: 'coach', profileId, response: payload, status: failure ? 'failure' : 'success', error: failure })
-    if (failure) return sendJson(response, 502, { error: failure })
+    const telemetry = assistantUsageTelemetry(payload.model || model, payload, sizes)
+    logged = true
+    const logResult = await log(request, { feature: 'swimmer_assistant', model: payload.model || model, role: 'coach', profileId, response: payload, usageDetails: telemetry, status: failure ? 'failure' : 'success', error: failure })
+    if (failure) return sendJson(response, 502, { error: failure, telemetry })
     await audit(request, { eventType: 'swimmer_assistant', role: 'coach', profileId, details: { coachAccountId: actor.sub, categories: selection.categories, period: selection.period, records: context.sources.length, model } })
     const nextHistory = [...history, { role: 'user', content: question }, { role: 'assistant', content: JSON.stringify(reply) }]
-    return sendJson(response, 200, { reply, history: nextHistory, historySignature: sign(`${body.token}:${JSON.stringify(nextHistory)}`), model })
+    return sendJson(response, 200, { reply, history: nextHistory, historySignature: sign(`${body.token}:${JSON.stringify(nextHistory)}`), model: payload.model || model, telemetry, logWarning: logResult?.detailsSaved === false ? 'Detaljloggen kunde inte sparas. Kontrollera SQL-migrering 121 och serverloggen.' : null })
   } catch (error) {
+    if (attempted && !logged) await log(request, { feature: 'swimmer_assistant', model, role: 'coach', profileId, usageDetails: assistantUsageTelemetry(model, null, sizes), status: 'failure', error: 'Transport- eller svarsläsningsfel; tokenanvändning saknas.' })
     return sendJson(response, error.status || 503, { error: error.status ? error.message : 'Simmarassistenten kunde inte genomföra frågan. Inga ändringar har gjorts. Försök igen.' })
   }
 }

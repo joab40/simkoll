@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { SWIMMER_ASSISTANT_CATEGORIES, SWIMMER_ASSISTANT_DEFAULTS, canUseSwimmerAssistant, validateSwimmerAssistantSelection } from '../shared/swimmer-assistant.js'
 import { loadSwimmerAssistantContext } from '../server/swimmer-assistant-context.js'
+import { jsonBytes, swimmerAssistantRequestBytes } from '../shared/swimmer-assistant.js'
 process.env.COACH_SESSION_SECRET = 'swimmer-assistant-fixture-secret'
 process.env.OPENAI_API_KEY = 'fixture-only'
 const { createCoachToken } = await import('../server/coach-auth.js')
@@ -193,4 +194,55 @@ test('UI uses a native modal, no persistent chat storage, separate emoji button,
   assert.match(ui, /setHistory\(\[\]\)/); assert.match(ui, /bekräftar.*OpenAI:s API/s)
   assert.match(header, /aria-label=\{`Öppna simmarassistenten/)
   assert.match(header, /onOpenAssistant \? <button/)
+})
+
+test('model allowlist is enforced before reads and model choice is bound to the reviewed scope', async () => {
+  const invalid = await preview({ read: async () => { throw new Error('No read expected') } }, { model: 'arbitrary-expensive-model' })
+  assert.equal(invalid.code, 400)
+  const prepared = await preview({}, { model: 'gpt-4.1-mini' })
+  assert.equal(prepared.data.model, 'gpt-4.1-mini')
+  assert.equal((await chat(prepared, {}, { model: 'gpt-4.1' })).code, 409)
+  const sent = []
+  const result = await chat(prepared, { fetch: async (_, init) => { sent.push(JSON.parse(init.body)); return modelResponse(validAnswer) } }, { model: 'gpt-4.1-mini' })
+  assert.equal(result.code, 200); assert.equal(sent[0].model, 'gpt-4.1-mini')
+  assert.equal(sent[0].service_tier, 'default')
+})
+
+test('preview size matches the actual UTF-8 model body including escaped Unicode, history, schema and instructions', async () => {
+  const prepared = await preview(), sent = [], logs = []
+  assert(prepared.data.sizes.databaseRows > 0)
+  assert.equal(prepared.data.sizes.contextBytes, jsonBytes(prepared.data.context))
+  const options = { log: async (_, data) => logs.push(data), fetch: async (_, init) => { sent.push(init.body); return modelResponse(validAnswer) } }
+  const question = '  Återhämtning 🏊, "fart"\nny rad?  '
+  const first = await chat(prepared, options, { question })
+  assert.equal(first.code, 200)
+  assert.equal(swimmerAssistantRequestBytes(prepared.data.context, [], question, prepared.data.requestEnvelopeBytes), Buffer.byteLength(sent[0]))
+  assert.equal(first.data.telemetry.requestBytes, Buffer.byteLength(sent[0]))
+  assert.equal(first.data.telemetry.inputTokens, 40); assert.equal(first.data.telemetry.outputTokens, 20)
+  assert.equal(first.data.telemetry.totalTokens, 60)
+  assert(first.data.telemetry.estimatedCostUsd > 0)
+  assert.equal(logs[0].usageDetails.requestBytes, Buffer.byteLength(sent[0]))
+  const second = await chat(prepared, options, { question, history: first.data.history, historySignature: first.data.historySignature })
+  assert.equal(second.code, 200)
+  assert.equal(swimmerAssistantRequestBytes(prepared.data.context, first.data.history, question, prepared.data.requestEnvelopeBytes), Buffer.byteLength(sent[1]))
+  assert(second.data.telemetry.requestBytes > first.data.telemetry.requestBytes)
+  assert.equal(second.data.telemetry.historyMessages, 2)
+  assert(!JSON.stringify(logs.map(item => item.usageDetails)).includes('Återhämtning'))
+})
+
+test('transport errors and unusable model answers still log numeric telemetry; missing usage is unknown', async () => {
+  const prepared = await preview(), logs = []
+  const log = async (_, data) => logs.push(data)
+  assert.equal((await chat(prepared, { log, fetch: async () => { throw new Error('Transport private message') } })).code, 503)
+  assert.equal(logs.length, 1); assert.equal(logs[0].status, 'failure')
+  assert.equal(logs[0].usageDetails.usageKnown, false); assert.equal(logs[0].usageDetails.estimatedCostUsd, null)
+  assert(!logs[0].error.includes('private message'))
+  const missing = await chat(prepared, { log, fetch: async () => reply({ status: 'completed', output_text: JSON.stringify(validAnswer) }) })
+  assert.equal(missing.code, 200); assert.equal(missing.data.telemetry.inputTokens, null)
+  assert.equal(missing.data.telemetry.estimatedCostUsd, null)
+  const invalid = await chat(prepared, { log, fetch: async () => modelResponse({}) })
+  assert.equal(invalid.code, 502); assert.equal(logs.at(-1).usageDetails.usageKnown, true)
+  assert(logs.at(-1).usageDetails.estimatedCostUsd > 0)
+  const warning = await chat(prepared, { log: async () => ({ detailsSaved: false }), fetch: async () => modelResponse(validAnswer) })
+  assert.match(warning.data.logWarning, /121/)
 })

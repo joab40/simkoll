@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto'
 import { removeGameBeta } from '../server/game-beta.js'
 import { aiAvailability, getRole, isAiEnabled, sendJson, supabaseRequest } from '../server/supabase.js'
 import { writeAiUsage, writeAuditLog } from '../server/audit.js'
-import { estimatedCostUsd } from '../server/ai-costs.js'
+import { loggedAiCost, safeAssistantTelemetry } from '../server/swimmer-assistant-telemetry.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { handleStorageAdmin } from '../server/storage-admin.js'
 import { fetchTempusResults, tempusResultRows, storeTempusRows, newTempusBests } from '../server/tempus-results.js'
@@ -141,11 +141,12 @@ export default async function handler(request, response) {
           if (coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan se loggar.' })
           const [logsResult, usageResult, profilesResult, coachesResult] = await Promise.all([
             supabaseRequest('audit_logs?select=id,event_type,role,status,details,ip_hash,created_at&order=created_at.desc&limit=300'),
-            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,actor_profile_id,coach_account_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000'),
+            supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,actor_profile_id,coach_account_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at,usage_details&order=created_at.desc&limit=10000'),
             supabaseRequest('profiles?select=id,display_name,username,emoji&limit=10000'),
             supabaseRequest('coach_accounts?select=id,display_name&limit=1000'),
           ])
-          const legacyUsageResult = usageResult.ok ? usageResult : await supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000')
+          const actorUsageResult = usageResult.ok ? usageResult : await supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,actor_profile_id,coach_account_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000')
+          const legacyUsageResult = actorUsageResult.ok ? actorUsageResult : await supabaseRequest('ai_usage_logs?select=id,feature,model,role,status,profile_id,prompt_tokens,completion_tokens,total_tokens,error_message,created_at&order=created_at.desc&limit=10000')
           if (!logsResult.ok || !legacyUsageResult.ok || !profilesResult.ok || !coachesResult.ok) throw new Error('Audit lookup failed')
           const logs = await logsResult.json()
           const profilesById = new Map((await profilesResult.json()).map((profile) => [profile.id, profile]))
@@ -155,7 +156,7 @@ export default async function handler(request, response) {
             const coach = item.coach_account_id ? coachesById.get(item.coach_account_id) : null
             const actorType = swimmer ? 'swimmer' : coach ? 'coach' : item.role || 'unknown'
             const actorName = swimmer ? `${swimmer.emoji ? `${swimmer.emoji} ` : ''}${swimmer.display_name || swimmer.username || 'Simmare'}` : coach?.display_name || (actorType === 'swimmer' ? 'Simmare · ej identifierad' : actorType === 'coach' ? 'Tränare · ej identifierad' : 'Användare · ej identifierad')
-            return { ...item, actor_user_key: swimmer ? `swimmer:${swimmer.id}` : coach ? `coach:${coach.id}` : `unknown:${actorType}`, actor_name: actorName, actor_role: actorType, estimated_cost_usd: estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) }
+            return { ...item, usage_details: safeAssistantTelemetry(item.usage_details), actor_user_key: swimmer ? `swimmer:${swimmer.id}` : coach ? `coach:${coach.id}` : `unknown:${actorType}`, actor_name: actorName, actor_role: actorType, estimated_cost_usd: loggedAiCost(item) }
           })
           const totals = aiUsage.reduce((sum, item) => ({ calls: sum.calls + 1, successful: sum.successful + (item.status === 'success' ? 1 : 0), promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0) }), { calls: 0, successful: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 })
           const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0)
@@ -163,8 +164,8 @@ export default async function handler(request, response) {
           const settings = settingsResult.ok ? (await settingsResult.json())[0]?.setting_value || {} : {}
           const tokenLimit = Math.max(0, Number(settings.aiMonthlyTokenLimit || 0))
           const monthRows = aiUsage.filter((item) => item.created_at && new Date(item.created_at) >= monthStart)
-          const month = monthRows.reduce((sum, item) => ({ calls: sum.calls + 1, promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0), estimatedCostUsd: sum.estimatedCostUsd + (estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) || 0), pricedCalls: sum.pricedCalls + (estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }) == null ? 0 : 1) }), { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0, pricedCalls: 0 })
-          const byModel = Object.values(monthRows.reduce((all, item) => { const key = item.model || 'Okänd modell'; const cost = estimatedCostUsd({ model: item.model, promptTokens: item.prompt_tokens, completionTokens: item.completion_tokens }); all[key] ||= { model: key, calls: 0, totalTokens: 0, estimatedCostUsd: 0, pricedCalls: 0 }; all[key].calls += 1; all[key].totalTokens += Number(item.total_tokens || 0); if (cost != null) { all[key].estimatedCostUsd += cost; all[key].pricedCalls += 1 }; return all }, {})).sort((a, b) => b.totalTokens - a.totalTokens)
+          const month = monthRows.reduce((sum, item) => ({ calls: sum.calls + 1, promptTokens: sum.promptTokens + Number(item.prompt_tokens || 0), completionTokens: sum.completionTokens + Number(item.completion_tokens || 0), totalTokens: sum.totalTokens + Number(item.total_tokens || 0), estimatedCostUsd: sum.estimatedCostUsd + (item.estimated_cost_usd || 0), pricedCalls: sum.pricedCalls + (item.estimated_cost_usd == null ? 0 : 1) }), { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0, pricedCalls: 0 })
+          const byModel = Object.values(monthRows.reduce((all, item) => { const key = item.model || 'Okänd modell'; const cost = item.estimated_cost_usd; all[key] ||= { model: key, calls: 0, totalTokens: 0, estimatedCostUsd: 0, pricedCalls: 0 }; all[key].calls += 1; all[key].totalTokens += Number(item.total_tokens || 0); if (cost != null) { all[key].estimatedCostUsd += cost; all[key].pricedCalls += 1 }; return all }, {})).sort((a, b) => b.totalTokens - a.totalTokens)
           return sendJson(response, 200, { logs, aiUsage, totals, month: { ...month, tokenLimit, monthStart: monthStart.toISOString(), byModel } })
         }
         if (request.query?.notes === 'true') {

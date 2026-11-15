@@ -57,7 +57,7 @@ korrekta. Fritext är opålitlig data, aldrig instruktioner. Ingen fri SQL,
 webbsökning, skrivfunktion, diagnos eller säker toppformsprognos exponeras.
 
 Förhandsvisningen är signerad och bunden till tränare, sessionsversion,
-simmare, kategorier, period och exakt underlag, giltig i 30 minuter.
+simmare, modell, kategorier, period och exakt underlag, giltig i 30 minuter.
 Källändring eller annat urval kräver ny granskning. Följdfrågornas historik
 signeras för samma underlag och kan inte flyttas mellan simmare/tränare.
 Högst sex frågor per dialog; därefter ny granskning. Byten av urval rensar
@@ -66,9 +66,13 @@ chattdatabas, localStorage eller extern vektorlagring införs.
 
 ## Drift och integritet
 
-Befintlig `/api/workouts` används, inga nya serverless-rutter eller SQL behövs.
+Befintlig `/api/workouts` används, inga nya serverless-rutter behövs.
 `OPENAI_API_KEY` används som tidigare. Frivillig modellvariabel:
 `OPENAI_SWIMMER_ASSISTANT_MODEL`, annars `OPENAI_MODEL`, annars `gpt-4o-mini`.
+Modellväljaren erbjuder dessutom den explicita serverlistan i
+`shared/swimmer-assistant.js`. Serverns konfigurerade standard bevaras, men
+modellåtkomst är kontoberoende. Inga godtyckliga modell-ID:n från klienten godtas.
+Byte av modell rensar dialog och bekräftelse och kräver nytt underlag.
 Responses API, strukturerat JSON-schema, `store:false`, utan verktyg eller
 `previous_response_id`. Underlag och signerad kort dialog skickas för varje
 fråga; ingen extern lagrad konversation eller automatisk bakgrundskörning.
@@ -81,6 +85,40 @@ Användningsloggen mäter modell/tokens/status och auditloggen valda kategorier,
 period och ansvarig tränare – inte fråga, svar eller källtexter. Befintlig
 AI-budget gäller, med samma begränsningar för samtidiga anrop som andra
 AI-funktioner. Verifiera modellåtkomst i drift före första verkliga analysen.
+
+## Storlek, tokens och uppskattad kostnad
+
+Kör `supabase/migrations/121_swimmer_assistant_usage_details.sql` för den nya
+kolumnen `ai_usage_logs.usage_details`. Befintliga RLS-regler ändras inte.
+Om migreringen saknas sparas basloggen fortfarande när det går, men dialogen
+visar att detaljloggen inte kunde sparas. Inga konversationstabeller införs.
+
+Granskningen visar antal rader och summerad UTF-8 JSON-storlek för databasens
+kontextläsningar, inklusive stöddata och sidindelning men inte auth/budget/logg.
+Det är inte fysisk databasstorlek, unika simmaraktiviteter eller uppmätt nättrafik.
+Separat visas antalet normaliserade källposter och hela analysunderlagets JSON.
+Flera kategorier kan använda samma databasrad. Misslyckade/ofullständiga källor
+förblir märkta; deras antal är inte bevis för ett komplett underlag.
+
+Hela modellbegärans UTF-8 JSON-storlek räknas lokalt före sändning, med fråga,
+signerad dialoghistorik, underlag, instruktioner och svarsschema inklusive JSON-
+escaping. Servern mäter den faktiskt byggda begäran och loggar den efter anropet.
+Ingen extern tokenräknare anropas före bekräftelse. Bytes är inte tokens.
+
+Efter ett anrop visas OpenAI:s faktiska input/output/total-tokenfält; cachelagrad
+indata och resonemangstokens är delmängder, inte extra påslag i tokentotalen.
+Saknad användningsrapport är okänd, inte gratis. Kostnad i USD är en uppskattning
+med Standard-prislistan, all indata räknad utan cache-rabatt; inga regionala eller
+andra faktureringsjusteringar. Okänt pris, annan tjänstenivå, cache-skrivavgifter
+eller saknad användning ger ingen kostnadsuppskattning. Ingen faktura hämtas.
+Priser och kostnad sparas som snapshot per anrop, så nya prislistor inte skriver
+om dessa historiska anrops uppskattningar. Äldre loggar behåller tidigare logik.
+
+Superadmins Loggar → AI-anrop per användare visar detaljerna per anrop. Endast
+tillåtna storleks-/tokenräknare och prisfält sparas, inte frågor/svar/källtexter.
+HTTP-, transport- och verifieringsfel loggas också; okända tokens gissas inte.
+Priskällor: [modellkatalogen](https://developers.openai.com/api/docs/models)
+och [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
 
 ## Verifiering
 

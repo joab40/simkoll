@@ -1,0 +1,14 @@
+.assistant-data-size { padding: 16px; margin: 16px 0; border-radius: 12px; background: #edf5f2; color: #30565c; }
+.assistant-data-size h4 { margin: 0 0 12px; font-size: 13px; }
+.assistant-data-size dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; }
+.assistant-data-size dt, .assistant-data-size small { display: block; font-size: 11px; line-height: 1.5; }
+.assistant-data-size dd { margin: 5px 0; font-size: 13px; font-weight: 700; }
+.assistant-data-size p, .assistant-usage p { font-size: 11px; line-height: 1.6; margin: 10px 0 0; }
+.assistant-usage { margin-top: 16px; padding-top: 12px; border-top: 1px solid #dce8e3; font-size: 12px; color: #4a696f; overflow-wrap: anywhere; }
+.assistant-usage > strong { font-size: 12px; }
+.assistant-usage > small { display: block; margin-top: 5px; font-size: 11px; }
+.assistant-usage details { margin-top: 8px; }
+.assistant-usage summary { cursor: pointer; font-size: 11px; padding: 8px 0; }
+.audit-user-calls .assistant-usage { flex-basis: 100%; width: 100%; }
+.audit-user-calls article:has(.assistant-usage) { flex-wrap: wrap; }
+@media (max-width: 620px) { .assistant-data-size dl { grid-template-columns: 1fr; gap: 12px; } .assistant-data-size dl > div + div { border-top: 1px solid #d2e4dc; padding-top: 10px; } }

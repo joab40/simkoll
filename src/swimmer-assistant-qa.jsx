@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import SwimmerAssistant from './swimmer-assistant.jsx'
 import SwimmerCardHeader from './swimmer-card-header.jsx'
-import { SWIMMER_ASSISTANT_CATEGORIES, canUseSwimmerAssistant, validateSwimmerAssistantSelection } from '../shared/swimmer-assistant.js'
+import { SWIMMER_ASSISTANT_CATEGORIES, canUseSwimmerAssistant, validateSwimmerAssistantSelection, jsonBytes } from '../shared/swimmer-assistant.js'
 import './styles.css'
 
 const profile = { id: 'demo-only', displayName: 'Demo-simmare', username: 'demo', emoji: '🐬', aiAnalysisStatus: 'approved' }
@@ -12,9 +12,10 @@ async function demoRequest(_url, _code, options) {
   if (body.action === 'swimmer-assistant-preview') {
     const selection = validateSwimmerAssistantSelection(body, '2026-11-15')
     const sources = selection.categories.map((key, index) => ({ id: `S${index + 1}`, category: key, label: SWIMMER_ASSISTANT_CATEGORIES.find(item => item.key === key).label, date: '2026-11-14', data: samples[key] || { basis: 'Fiktivt exempel, inte verkliga data.' } }))
-    return { token: 'local-demo-only', expiresInMinutes: 30, context: { selection, sources, categories: selection.categories.map(key => ({ key, label: SWIMMER_ASSISTANT_CATEGORIES.find(item => item.key === key).label, records: 1 })), warnings: [], daily: [], limitations: ['Fiktiva uppgifter. Ingen nätverksbegäran eller språkmodell används i denna demo.'] } }
+    const context = { selection, sources, categories: selection.categories.map(key => ({ key, label: SWIMMER_ASSISTANT_CATEGORIES.find(item => item.key === key).label, records: 1 })), warnings: [], daily: [], limitations: ['Fiktiva uppgifter. Ingen nätverksbegäran eller språkmodell används i denna demo.'] }
+    return { token: 'local-demo-only', expiresInMinutes: 30, model: body.model === 'default' ? 'gpt-4.1-mini' : body.model, sizes: { databaseRows: 421, databaseRequests: 8, databaseFailedRequests: 0, databaseJsonBytes: 148320, sourceRecords: sources.length, contextBytes: jsonBytes(context) }, requestEnvelopeBytes: 4300, context }
   }
-  return { model: 'fiktivt demo', historySignature: 'demo', history: [...(body.history || []), { role: 'user', content: body.question }, { role: 'assistant', content: 'Fiktivt svar' }], reply: { answer: { text: 'Det här är ett fiktivt demosvar. Uppgifterna beskriver en positiv kroppskänsla den 14 november, men en svarsdag räcker inte för att bedöma form.', sourceIds: ['S1'] }, observations: [{ text: 'Kroppskänslan är rapporterad som 4/5. Det är en upplevelse, inte en uppmätt prestationsnivå.', sourceIds: ['S1'] }], interpretations: [], limitations: ['Inget verkligt AI-anrop har gjorts. Jämför alltid med fler svarsdagar och likvärdiga resultat.'] } }
+  return { model: 'gpt-4.1-mini · fiktiv mätning', telemetry: { usageKnown: true, inputTokens: 3900, outputTokens: 520, totalTokens: 4420, cachedInputTokens: 0, reasoningTokens: 0, estimatedCostUsd: 0.002392, requestBytes: 16340, historyMessages: body.history?.length || 0, databaseRows: 421, databaseJsonBytes: 148320, sourceRecords: 6, contextBytes: 9870, pricingDate: '2026-11-15', rates: { input: 0.4, output: 1.6 } }, historySignature: 'demo', history: [...(body.history || []), { role: 'user', content: body.question }, { role: 'assistant', content: 'Fiktivt svar' }], reply: { answer: { text: 'Det här är ett fiktivt demosvar. Uppgifterna beskriver en positiv kroppskänsla den 14 november, men en svarsdag räcker inte för att bedöma form.', sourceIds: ['S1'] }, observations: [{ text: 'Kroppskänslan är rapporterad som 4/5. Det är en upplevelse, inte en uppmätt prestationsnivå.', sourceIds: ['S1'] }], interpretations: [], limitations: ['Inget verkligt AI-anrop har gjorts. Jämför alltid med fler svarsdagar och likvärdiga resultat.'] } }
 }
 function Preview() {
   const [open, setOpen] = useState(false), [expanded, setExpanded] = useState(false), [role, setRole] = useState('head_coach'), [approved, setApproved] = useState(true)
