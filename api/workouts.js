@@ -27,6 +27,7 @@ import { driveApiKey, loadDriveConfig, listDriveFolder, verifyDriveFolder, saveD
 import { planningAddDays } from '../shared/weekly-planning.js'
 import { analyticsRows } from '../server/analytics-rows.js'
 import { competitionEntryRoster } from '../shared/competition-entry-status.js'
+import { handleSwimmerAssistant } from '../server/swimmer-assistant.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
 import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 
@@ -786,6 +787,7 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (['swimmer-assistant-preview', 'swimmer-assistant-chat'].includes(request.body?.action)) return handleSwimmerAssistant(request, response)
       if (request.body?.action === 'set-calendar-visibility') {
         if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan dölja kalenderaktiviteter.' })
         try {

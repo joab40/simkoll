@@ -1,0 +1,59 @@
+.swimmer-assistant-dialog { width: min(920px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); margin: auto; padding: 0; border: 1px solid #cbdeda; border-radius: 24px; color: #193b43; background: #f8fbf9; box-shadow: 0 24px 100px #082c3f40; }
+.swimmer-assistant-dialog::backdrop { background: #112c3b99; backdrop-filter: blur(3px); }
+.swimmer-assistant-dialog > header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 20px 24px; background: #f8fbf9f5; border-bottom: 1px solid #dbe8e3; }
+.swimmer-assistant-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.swimmer-assistant-identity > span { display: grid; place-items: center; flex: 0 0 46px; height: 46px; border-radius: 50%; font-size: 28px; background: #e1f0ec; }
+.swimmer-assistant-identity p { margin: 0 0 5px; font-size: 11px; color: #557477; }
+.swimmer-assistant-identity h2 { margin: 0; font-size: 22px; line-height: 1.3; overflow-wrap: anywhere; }
+.swimmer-assistant-close { flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid #d0e1db; border-radius: 50%; background: #fff; font-size: 25px; color: #285b61; cursor: pointer; }
+.swimmer-assistant-body { padding: 22px 24px; }
+.swimmer-assistant-intro, .swimmer-assistant-exclusions { color: #526c70; font-size: 13px; line-height: 1.65; }
+.swimmer-assistant-selection { padding: 8px 12px 16px; }
+.swimmer-assistant-selection-disclosure { margin-top: 18px !important; }
+.swimmer-assistant-selection-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 18px; }
+.swimmer-assistant-selection-heading > label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+.swimmer-assistant-selection-heading select { min-height: 44px; padding: 8px 12px; border: 1px solid #c8dcd5; border-radius: 10px; background: #fff; color: #23484f; font: inherit; }
+.swimmer-assistant-selection-heading > div, .swimmer-assistant-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+.swimmer-assistant-selection-heading button, .swimmer-assistant-suggestions button { min-height: 44px; border: 1px solid #cadfd7; border-radius: 10px; padding: 9px 12px; background: #fff; color: #19676b; font-family: inherit; font-size: 12px; font-weight: 650; line-height: 1.4; cursor: pointer; }
+.swimmer-assistant-selection fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.swimmer-assistant-selection legend { font-size: 14px; font-weight: 750; margin-bottom: 12px; }
+.swimmer-assistant-category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.swimmer-assistant-category-grid label { display: flex; align-items: start; gap: 10px; min-width: 0; padding: 12px; border: 1px solid #dce7e2; border-radius: 12px; background: #fff; cursor: pointer; }
+.swimmer-assistant-category-grid label.selected { border-color: #8bbdb1; background: #eaf5f0; }
+.swimmer-assistant-category-grid input, .swimmer-assistant-consent input { flex: 0 0 18px; width: 18px; height: 18px; margin: 2px 0 0; accent-color: #13797c; }
+.swimmer-assistant-category-grid strong { display: block; font-size: 13px; line-height: 1.5; }
+.swimmer-assistant-category-grid small { display: block; font-size: 11px; line-height: 1.55; color: #536d71; }
+.swimmer-assistant-category-grid .swimmer-assistant-sensitive { color: #82601d; font-size: 10px; font-weight: 600; }
+.swimmer-assistant-preview { margin-top: 24px; padding: 18px; border: 1px solid #cadfd7; border-radius: 16px; background: #fff; }
+.swimmer-assistant-preview h3 { margin: 0; font-size: 17px; scroll-margin-top: 110px; }
+.swimmer-assistant-preview-categories { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.swimmer-assistant-preview-categories > span { padding: 5px 8px; border-radius: 7px; background: #edf4f0; color: #48656b; font-size: 10px; }
+.swimmer-assistant-evidence-groups { padding: 0 10px 10px; }
+.swimmer-assistant-preview > p, .swimmer-assistant-preview > small { font-size: 12px; line-height: 1.6; color: #566e73; }
+.swimmer-assistant-dialog details { margin: 9px 0; border: 1px solid #dbe7e1; border-radius: 9px; overflow: hidden; }
+.swimmer-assistant-dialog summary { min-height: 44px; box-sizing: border-box; padding: 12px; font-size: 12px; color: #24686c; font-weight: 650; cursor: pointer; }
+.swimmer-assistant-dialog summary > span { font-weight: 400; color: #587074; margin-left: 8px; }
+.swimmer-assistant-dialog :is(button,input,select,textarea,summary):focus-visible { outline: 2px solid #0c7b80; outline-offset: 3px; }
+.swimmer-assistant-dialog pre { max-height: 360px; overflow: auto; padding: 12px; white-space: pre-wrap; font-size: 11px; }
+.swimmer-assistant-evidence { margin: 8px; padding: 12px; background: #f4f8f6; border-radius: 8px; font-size: 12px; }
+.swimmer-assistant-evidence > small { display: block; color: #557075; margin: 5px 0; }
+.swimmer-assistant-evidence dl { margin: 10px 0 0; }
+.swimmer-assistant-evidence dl > div { display: grid; grid-template-columns: minmax(95px, 1fr) minmax(0, 3fr); gap: 10px; margin-top: 6px; }
+.swimmer-assistant-evidence dt { color: #597074; overflow-wrap: anywhere; }
+.swimmer-assistant-evidence dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.swimmer-assistant-consent { display: flex; gap: 12px; align-items: start; margin: 18px 0 10px; padding: 14px; background: #f7f2e6; border-radius: 10px; font-size: 12px; line-height: 1.6; color: #65522e; cursor: pointer; }
+.swimmer-assistant-warning { padding: 14px; border: 1px solid #e6d7b8; border-radius: 10px; color: #785324; background: #fcf6e9; font-size: 13px; line-height: 1.6; }
+.swimmer-assistant-conversation { margin-top: 24px; }
+.swimmer-assistant-question { margin: 20px 0 12px 40px; padding: 14px 16px; background: #e1efea; border-radius: 14px 14px 0 14px; font-size: 14px; white-space: pre-wrap; }
+.swimmer-assistant-question strong { display: block; margin-bottom: 7px; color: #386b6b; font-size: 11px; }
+.swimmer-assistant-answer { padding: 18px; border: 1px solid #d6e4df; border-radius: 14px; background: #fff; }
+.swimmer-assistant-finding p { white-space: pre-wrap; font-size: 14px; line-height: 1.75; }
+.swimmer-assistant-answer h4 { font-size: 13px; margin: 22px 0 0; }
+.swimmer-assistant-answer li, .swimmer-assistant-preview li { font-size: 12px; line-height: 1.65; }
+.swimmer-assistant-compose { margin: 24px 0 8px; }
+.swimmer-assistant-compose > label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; margin-top: 14px; }
+.swimmer-assistant-compose textarea { box-sizing: border-box; width: 100%; min-height: 100px; padding: 13px; resize: vertical; border: 1px solid #bdd6cd; border-radius: 12px; font-family: inherit; font-size: 14px; line-height: 1.6; }
+.swimmer-assistant-compose > div:last-of-type { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 12px; }
+.swimmer-assistant-compose small { max-width: 45ch; font-size: 11px; color: #546d72; line-height: 1.6; }
+.swimmer-assistant-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 620px) { .swimmer-assistant-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 17px; } .swimmer-assistant-dialog > header { padding: 15px; } .swimmer-assistant-identity h2 { font-size: 18px; } .swimmer-assistant-body { padding: 16px; } .swimmer-assistant-category-grid { grid-template-columns: 1fr; } .swimmer-assistant-preview, .swimmer-assistant-answer { padding: 14px; } .swimmer-assistant-compose button[type=submit] { width: 100%; } }

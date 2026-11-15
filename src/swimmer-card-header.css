@@ -3,6 +3,9 @@
 .swimmer-card-header-content { position: relative; z-index: 1; pointer-events: none; padding: 18px 20px 14px; }
 .swimmer-card .swimmer-card-header-inline .swimmer-name > span:not(.swimmer-speed) { width: 44px; height: 44px; font-size: 25px; }
 .swimmer-card-header-inline .swimmer-name { gap: 10px; }
+.swimmer-card-header-inline .swimmer-name > .swimmer-assistant-avatar { display: grid; place-items: center; pointer-events: auto; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; margin: 0; border: 1px solid #c6dfd8; border-radius: 50%; background: #e6f2ee; font-size: 25px; cursor: pointer; }
+.swimmer-card-header-inline .swimmer-assistant-avatar:hover { background: #d6eae3; border-color: #78a99e; }
+.swimmer-card-header-inline .swimmer-assistant-avatar:focus-visible { outline: 2px solid #167b7d; outline-offset: 3px; }
 .swimmer-card-header-inline .swimmer-name strong { font-size: 16px; line-height: 1.3; font-weight: 800; }
 .swimmer-card-header-inline .swimmer-name small { font-size: 12px; line-height: 1.5; }
 .swimmer-card-header-inline .swimmer-card-meta { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 0 0; border-top: 1px solid #e4eeea; }

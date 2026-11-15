@@ -4,7 +4,7 @@ import { TRAINING_HEART_EXAMPLE_ANSWERS } from './training-heart-examples.js'
 import { TRAINING_STATE_RULES } from './training-heart-state.js'
 import { FOLLOWUP_RULES } from './followup-signals.js'
 import { HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
-export const FEATURE_FAQ_UPDATED = '2026-11-09'
+export const FEATURE_FAQ_UPDATED = '2026-11-15'
 export const FEATURE_FAQ_SECTIONS = [
   ['checkin', 'Incheckning och planering'],
   ['diary', 'Min träningsdagbok'],
@@ -14,6 +14,12 @@ export const FEATURE_FAQ_SECTIONS = [
 ]
 
 export const FEATURE_FAQ = [
+  { id: 'swimmer-assistant', section: 'coach', roles: ['coach'], question: 'Prata med assistenten om en viss simmare', answer: [
+    'Endast huvudtränare och superadmin med personligt tränarkonto kan öppna simmarassistenten genom att trycka på emojin i simmarkortet. Vanliga tränare och simmare saknar åtkomst. Global AI-inställning, AI-budget och registrerat godkännande för personlig AI-analys gäller även här.',
+    'Välj 28 dagar, 90 dagar, ett år eller all sparad historik och kryssa i datakategorier. Välj allt relevant aktiverar alla erbjudna kategorier, även känsliga tillval som kommentarer, tränaranteckningar, utvecklingssamtal, sömn och sjukdomskoll. Granska källposterna och bekräfta att just de valda uppgifterna får skickas till OpenAI innan du skickar frågan. Att öppna rutan eller hämta underlaget gör inget AI-anrop.',
+    'Detta är en separat skrivskyddad tränardialog, inte simmarens vanliga hjälpchatt eller en sparad personlig analys. Dialogen finns bara i den öppna rutan och rensas när den stängs eller datavalet ändras. Fråga, svar och källtexter sparas inte i Simkolls användningsloggar. OpenAI-anropet använder store:false, vilket inte innebär garanterad nollagring hos leverantören.',
+    'Svar skiljer observationer från möjliga tolkningar och har öppningsbara källhänvisningar. Saknade svar är inte noll; rapporterade meter/tider och planerad/uppskattad mängd hålls isär. Assistenten gör inga diagnoser, säkra orsaksbedömningar eller automatiska ändringar av träning. Privata meddelanden, anonyma svar, bilagor, spelhistorik och kontakt-/inloggningsfält ingår inte. Fritext kan ändå innehålla personuppgifter. För stora underlag kräver kortare period eller färre kategorier i stället för osynlig avklippning.',
+  ] },
   { id: 'home-refresh', section: 'messages', question: 'Hur snabbt uppdateras startsidans notiser och sammanfattningar?', answer: [
     'När appen är synlig kontrolleras simmarens notislista ungefär varje minut, nya utvecklingsmål var femte minut och utvecklingssamtal var tionde minut. Gruppflödets förhandsvisning på startsidan kontrolleras varannan minut. Information hämtas också när du återvänder till appen eller startsidan. Den öppna meddelandevyn och chatten har fortsatt tätare uppdateringar.',
     'Vid upprepade anslutnings- eller serverfel väntar appen successivt längre mellan kontrollerna, högst 30 minuter. Senast hämtad information kan därför vara äldre tills anslutningen fungerar igen. Automatiska kontroller pausas när appfliken är dold. Pushnotiser till enheten skickas separat och följer inte startsidans uppdateringsintervall.',

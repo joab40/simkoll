@@ -1,0 +1,23 @@
+import React, { useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import SwimmerAssistant from './swimmer-assistant.jsx'
+import SwimmerCardHeader from './swimmer-card-header.jsx'
+import { SWIMMER_ASSISTANT_CATEGORIES, canUseSwimmerAssistant, validateSwimmerAssistantSelection } from '../shared/swimmer-assistant.js'
+import './styles.css'
+
+const profile = { id: 'demo-only', displayName: 'Demo-simmare', username: 'demo', emoji: '🐬', aiAnalysisStatus: 'approved' }
+const samples = { checkins: { body: 4, feeling: 5 }, speed: { value: 5, scale: '1–5, subjektiv fartkänsla' }, load: { rpe: 6, reportedMinutes: 60, sRpe: 360, timeSource: 'reported' }, volume: { reportedMeters: 3000, estimatedMeters: null }, results: { event: '100 frisim', pool: '25 m', swim_time: '1:00.00', result_time: 6000, source: 'manual' }, comments: { text: 'Det kändes lätt att hålla farten idag. Fiktiv kommentar.' }, coachNotes: { text: 'Fiktiv tränarobservation: god känsla i vändningarna.' }, health: { minutes: 480, quality: 5 } }
+async function demoRequest(_url, _code, options) {
+  const body = JSON.parse(options.body)
+  if (body.action === 'swimmer-assistant-preview') {
+    const selection = validateSwimmerAssistantSelection(body, '2026-11-15')
+    const sources = selection.categories.map((key, index) => ({ id: `S${index + 1}`, category: key, label: SWIMMER_ASSISTANT_CATEGORIES.find(item => item.key === key).label, date: '2026-11-14', data: samples[key] || { basis: 'Fiktivt exempel, inte verkliga data.' } }))
+    return { token: 'local-demo-only', expiresInMinutes: 30, context: { selection, sources, categories: selection.categories.map(key => ({ key, label: SWIMMER_ASSISTANT_CATEGORIES.find(item => item.key === key).label, records: 1 })), warnings: [], daily: [], limitations: ['Fiktiva uppgifter. Ingen nätverksbegäran eller språkmodell används i denna demo.'] } }
+  }
+  return { model: 'fiktivt demo', historySignature: 'demo', history: [...(body.history || []), { role: 'user', content: body.question }, { role: 'assistant', content: 'Fiktivt svar' }], reply: { answer: { text: 'Det här är ett fiktivt demosvar. Uppgifterna beskriver en positiv kroppskänsla den 14 november, men en svarsdag räcker inte för att bedöma form.', sourceIds: ['S1'] }, observations: [{ text: 'Kroppskänslan är rapporterad som 4/5. Det är en upplevelse, inte en uppmätt prestationsnivå.', sourceIds: ['S1'] }], interpretations: [], limitations: ['Inget verkligt AI-anrop har gjorts. Jämför alltid med fler svarsdagar och likvärdiga resultat.'] } }
+}
+function Preview() {
+  const [open, setOpen] = useState(false), [expanded, setExpanded] = useState(false), [role, setRole] = useState('head_coach'), [approved, setApproved] = useState(true)
+  return <main style={{ maxWidth: 900, margin: '24px auto', padding: 20 }}><h1>Simmarassistent · fiktiv demo</h1><p>Inga riktiga uppgifter, API-anrop eller databasändringar.</p><label>Roll <select value={role} onChange={event => setRole(event.target.value)}><option value="head_coach">Huvudtränare</option><option value="superadmin">Superadmin</option><option value="coach">Tränare</option></select></label><label style={{ marginLeft: 16 }}><input type="checkbox" checked={approved} onChange={event => setApproved(event.target.checked)} /> Personlig AI-analys godkänd</label><article className="swimmer-card" style={{ marginTop: 24 }}><SwimmerCardHeader profile={profile} expanded={expanded} onToggle={() => setExpanded(value => !value)} onOpenAssistant={canUseSwimmerAssistant(role) ? () => setOpen(true) : undefined} setup={{ complete: true }}><span className="swimmer-stars">★ 4/4</span><span className="swimmer-card-health">Ser stabilt ut</span><span className="swimmer-attention">Har simmat idag</span><span className="swimmer-card-actions"><span className="swimmer-expand-hint">{expanded ? '▲ Dölj' : '▼ Visa mer'}</span></span></SwimmerCardHeader>{expanded && <p style={{ padding: 20 }}>Kortets vanliga öppning fungerar separat från emoji-knappen.</p>}</article>{open && <SwimmerAssistant profile={{ ...profile, aiAnalysisStatus: approved ? 'approved' : 'not_requested' }} code="demo-only" onClose={() => setOpen(false)} request={demoRequest} />}</main>
+}
+createRoot(document.getElementById('root')).render(new URLSearchParams(window.location.search).get('viewport') === 'mobile' ? <iframe title="Simmarassistent i mobilbredd, fiktivt demo" src="/swimmer-assistant-qa.html" style={{ width: 390, maxWidth: '100%', height: 1050, border: 0 }} /> : <Preview />)

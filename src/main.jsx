@@ -78,10 +78,12 @@ import './planning-editor.css'
 import CompetitionPm from './competition-pm.jsx'
 import CompetitionEntryProgress from './competition-entry-progress.jsx'
 import { isSubmittedCompetitionEntry } from '../shared/competition-entry-status.js'
+import { canUseSwimmerAssistant } from '../shared/swimmer-assistant.js'
 import PeppChannelPanel from './pepp-channel.jsx'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
 const TrainingDiary = React.lazy(() => import('./training-diary.jsx'))
+const SwimmerAssistant = deferredPanel(() => import('./swimmer-assistant.jsx'), 'Öppnar simmarassistenten…')
 const StrengthProgramImport = deferredPanel(() => import('./strength-program-import.jsx'))
 const PlanningImport = deferredPanel(() => import('./planning-import.jsx'), 'Öppnar planeringsimporten…')
 const StrengthProgramBuilder = deferredPanel(() => import('./strength-program-builder.jsx'))
@@ -2789,7 +2791,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'workout-library' ? (
           <WorkoutLibrary code={code} responses={responses} />
         ) : view === 'swimmers' ? (
-          <Swimmers profiles={groupFilteredProfiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={groupFilteredResponses} code={code} aiEnabled={aiEnabled} goalsEnabled={coachVisible('goals')} initialProfileId={focusedSwimmerId} onOpenGoal={(profileId, goalId) => openGoalsForProfile(profileId, goalId)} onCreateGoal={(profileId) => openGoalsForProfile(profileId, '', true)} onOpenTalk={coachVisible('talks') ? (profileId, talkId) => { setTalkNavigation({ profileId, talkId, key: Date.now() }); setView('talks') } : undefined} />
+          <Swimmers profiles={groupFilteredProfiles} pendingProfiles={pendingProfiles} onProfilesChange={onProfilesChange} responses={groupFilteredResponses} code={code} aiEnabled={aiEnabled} accountRole={accountRole} goalsEnabled={coachVisible('goals')} initialProfileId={focusedSwimmerId} onOpenGoal={(profileId, goalId) => openGoalsForProfile(profileId, goalId)} onCreateGoal={(profileId) => openGoalsForProfile(profileId, '', true)} onOpenTalk={coachVisible('talks') ? (profileId, talkId) => { setTalkNavigation({ profileId, talkId, key: Date.now() }); setView('talks') } : undefined} />
         ) : view === 'competition' ? (
           <CompetitionResults profiles={profiles} results={competitionResults} loading={competitionLoading} syncingProfileId={competitionSyncProfile} lastSyncedAt={tempusSyncedAt} accountRole={accountRole} code={code} onResultsChanged={loadCompetitionResults} onSync={() => { setCompetitionLoading(true); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results' }) }).then((data) => { if (data.syncedAt) setTempusSyncedAt(data.syncedAt); if (data.failures?.length) window.alert(`Tempus synk: ${data.synced} sparade, ${data.failures.length} misslyckades.`); return loadCompetitionResults() }).finally(() => setCompetitionLoading(false)) }} onSyncProfile={(profileId) => { setCompetitionSyncProfile(profileId); apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-tempus-results', profileId }) }).then((data) => { if (data.syncedAt) setTempusSyncedAt(data.syncedAt); if (data.failures?.length) window.alert(`Tempus synk misslyckades: ${data.failures[0]}`); return loadCompetitionResults() }).finally(() => setCompetitionSyncProfile(null)) }} />
         ) : view === 'history' ? (
@@ -3431,7 +3433,7 @@ function AuditLogs({ code }) {
   if (error) return <EmptyPeriod title={error} periodLabel="Loggar" />
   if (!data) return <section className="empty-period"><span>◷</span><h2>Hämtar loggar…</h2></section>
   const eventLabels = { group_login: 'Gruppkod verifierad · profilinloggning krävs', group_code_verified: 'Gruppkod verifierad · profilinloggning krävs', profile_login: 'Simmare loggade in', coach_login: 'Tränare loggade in', coach_account_bootstrap: 'Första superadmin skapad', profile_approval: 'Profil godkänd', profile_rejection: 'Profil nekad', profile_access_change: 'Profilåtkomst ändrad', 'ai:trend_analysis': 'AI trendanalys' }
-const aiFeatureLabels = { weekly_planning_import: 'Importera veckoplanering', dryland_program_import: 'Importera landträningsprogram', goal_text_polish: 'Förbättra utvecklingsmål', strength_exercise_image: 'Skapa övningsbild', strength_program_import: 'Importera styrkeprogram', assistant_chat: 'Simkoll-assistenten', trend_analysis: 'Trendanalys', swimmer_note: 'Förbättra tränaranteckning', coach_summary: 'Tränarsammanfattning', audio_transcription: 'Ljudtranskribering', workout_text_polish: 'Förbättra passtext', workout_image_import: 'Tolka passbild', workout_import: 'Importera pass', workout_generation: 'Skapa passförslag', community_post: 'Förbättra klubbmeddelande', pep_moderation: 'Kontroll av eget peppmeddelande' }
+const aiFeatureLabels = { swimmer_assistant: 'Simmarassistent · individuell dialog', weekly_planning_import: 'Importera veckoplanering', dryland_program_import: 'Importera landträningsprogram', goal_text_polish: 'Förbättra utvecklingsmål', strength_exercise_image: 'Skapa övningsbild', strength_program_import: 'Importera styrkeprogram', assistant_chat: 'Simkoll-assistenten', trend_analysis: 'Trendanalys', swimmer_note: 'Förbättra tränaranteckning', coach_summary: 'Tränarsammanfattning', audio_transcription: 'Ljudtranskribering', workout_text_polish: 'Förbättra passtext', workout_image_import: 'Tolka passbild', workout_import: 'Importera pass', workout_generation: 'Skapa passförslag', community_post: 'Förbättra klubbmeddelande', pep_moderation: 'Kontroll av eget peppmeddelande' }
   const swedishRegions = { AB: 'Stockholm', C: 'Uppsala', D: 'Södermanland', E: 'Östergötland', F: 'Jönköping', G: 'Kronoberg', H: 'Kalmar', I: 'Gotland', K: 'Blekinge', M: 'Skåne', N: 'Halland', O: 'Västra Götaland', S: 'Värmland', T: 'Örebro', U: 'Västmanland', W: 'Dalarna', X: 'Gävleborg', Y: 'Västernorrland', Z: 'Jämtland', AC: 'Västerbotten', BD: 'Norrbotten' }
   const countryNames = typeof Intl !== 'undefined' && Intl.DisplayNames ? new Intl.DisplayNames(['sv'], { type: 'region' }) : null
   const readableLocation = (location) => { if (!location) return ''; const country = location.country ? (countryNames?.of(location.country) || location.country) : ''; const region = location.country === 'SE' ? (swedishRegions[location.region] || location.region || '') : (location.region || ''); return [country, region].filter(Boolean).join(' · ') }
@@ -5118,7 +5120,8 @@ function SwimmerStrengthProgramCard({ profile, training, code, onChanged, progra
   </details>
 }
 
-function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code, aiEnabled = true, goalsEnabled = true, initialProfileId = '', onOpenGoal, onCreateGoal, onOpenTalk }) {
+function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code, aiEnabled = true, accountRole = 'coach', goalsEnabled = true, initialProfileId = '', onOpenGoal, onCreateGoal, onOpenTalk }) {
+  const [assistantProfile, setAssistantProfile] = useState(null)
   const [reset, setReset] = useState(null)
   const [search, setSearch] = useState('')
   const [trafficFilter, setTrafficFilter] = useState('all')
@@ -5265,6 +5268,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   if (selectedProfile) return <AnalysisDashboard code={code} profile={selectedProfile} pointInfo={profilePoints[selectedProfile.id]} onBack={() => setSelectedProfile(null)} />
   return (
     <section className="swimmers-section">
+      {assistantProfile && aiEnabled && canUseSwimmerAssistant(accountRole) && <SwimmerAssistant key={`${code}:${assistantProfile.id}`} profile={profiles.find(profile => profile.id === assistantProfile.id) || assistantProfile} code={code} onClose={() => setAssistantProfile(null)} />}
       <div className="period-heading"><div><p className="eyebrow">Frivilliga profiler</p><h2>Simmare</h2></div><div className="big-count"><strong>{profiles.length}</strong><span>profiler</span></div></div>
       <label className="swimmer-search"><span>🔎</span><input type="search" placeholder="Sök namn eller användarnamn…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       <SwimmerTrafficOverview profiles={searchedProfiles} report={trafficReport} loading={trafficLoading} error={trafficError} filter={trafficFilter} onFilter={setTrafficFilter} onRefresh={() => setTrafficRefresh(value => value + 1)} />
@@ -5300,7 +5304,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
         const setup = swimmerProfileSetup(profile, training, todayKey(), trainingLoadStatus)
         const isExpanded = expandedProfile === profile.id
         return <article key={profile.id} className={`swimmer-card ${isExpanded ? 'expanded' : 'compact'}`}>
-          <SwimmerCardHeader profile={profile} expanded={isExpanded} onToggle={() => setExpandedProfile(isExpanded ? null : profile.id)} setup={setup} setupOpen={setupHelpProfile === profile.id} onSetupToggle={() => setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id)} setupControls={`profile-setup-${profile.id}`} focus={<SwimmerCardFocus illness={currentIllness} comment={todayComment} />} speed={<SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} />}>
+          <SwimmerCardHeader profile={profile} expanded={isExpanded} onToggle={() => setExpandedProfile(isExpanded ? null : profile.id)} onOpenAssistant={aiEnabled && canUseSwimmerAssistant(accountRole) ? () => setAssistantProfile(profile) : undefined} setup={setup} setupOpen={setupHelpProfile === profile.id} onSetupToggle={() => setSetupHelpProfile(setupHelpProfile === profile.id ? null : profile.id)} setupControls={`profile-setup-${profile.id}`} focus={<SwimmerCardFocus illness={currentIllness} comment={todayComment} />} speed={<SwimmerSpeed signal={trafficReport?.profiles.find(row => row.profileId === profile.id)?.speed} />}>
             <span className="swimmer-stars" title={`${starCount} av 4 träningsstjärnor`}>★ {starCount}/4</span>
             <span className="swimmer-card-health"><span className={`swimmer-traffic ${traffic.color}`} title={signalReasons.length ? signalReasons.join(' · ') : traffic.label}>{traffic.icon} <small>{traffic.label}</small></span><span className="swimmer-mood" title={todayItem?.feeling ? 'Simmarens känsla idag' : undefined}>{todayItem?.feeling ? FEELINGS[Number(todayItem.feeling) - 1]?.emoji : ''}</span></span>
             <span title={attention} className={`swimmer-attention ${todayItem?.type === 'sick' || todayItem?.body <= 2 || todayItem?.feeling <= 2 ? 'needs-attention' : ''}`}>{attention}</span>
