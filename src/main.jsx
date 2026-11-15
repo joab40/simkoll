@@ -69,7 +69,9 @@ import { TodayMildIllness } from './coach-mild-illness.jsx'
 import CoachFeelingTrend from './coach-feeling-trend.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
-import PrivateChatReply from './private-chat-reply.jsx'
+import OpenChatPanel from './open-chat-panel.jsx'
+import CoachMessages from './coach-messages.jsx'
+import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import DevelopmentTalkRoster from './development-talk-roster.jsx'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
@@ -1245,13 +1247,6 @@ function CoachLetterBadge({ code, chat, profileId, onOpen }) {
     onOpen()
   }
   return <button type="button" className="coach-letter-badge" onClick={open} aria-label="Nytt meddelande från tränarna – öppna" title="Nytt meddelande från tränarna"><span className="coach-letter-envelope" aria-hidden="true"><svg viewBox="0 0 48 36" focusable="false"><rect x="2" y="2" width="44" height="32" rx="5" fill="#ffdc59" stroke="#b77916" strokeWidth="2" /><path d="M3 30 18 17M45 30 30 17" fill="none" stroke="#d79928" strokeWidth="2" /><path d="m3 5 18 15a5 5 0 0 0 6 0L45 5" fill="#ffe995" stroke="#b77916" strokeWidth="2" strokeLinejoin="round" /></svg></span></button>
-}
-
-const CHAT_EMOJIS = ['🏊', '💙', '💚', '💛', '❤️', '💪', '👏', '🙌', '😊', '🤩', '🔥', '🌊']
-
-function ChatEmojiPicker({ onPick }) {
-  const [open, setOpen] = useState(false)
-  return <div className="chat-emoji-picker"><button type="button" className="chat-emoji-trigger" aria-label="Välj emoji" onClick={() => setOpen((value) => !value)}>😊</button>{open && <div className="chat-emoji-menu">{CHAT_EMOJIS.map((emoji) => <button type="button" key={emoji} onClick={() => { onPick(emoji); setOpen(false) }}>{emoji}</button>)}</div>}</div>
 }
 
 function CompetitionSignupCard({ competitions = [], onOpen }) {
@@ -2791,7 +2786,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'talks' ? (
           <DevelopmentTalkCoach key={talkNavigation?.key || 'all-talks'} code={code} profiles={groupFilteredProfiles} initialTalkId={talkNavigation?.talkId || ''} initialProfileId={talkNavigation?.profileId || ''} onReturnToSwimmer={talkNavigation ? () => { setFocusedSwimmerId(talkNavigation.profileId); setTalkNavigation(null); setView('swimmers') } : undefined} />
         ) : view === 'community' ? (
-          <><OpenChatPanel code={code} coach /><CoachCommunity code={code} profiles={groupFilteredProfiles} initialRecipientId={focusedSwimmerId} /></>
+          <CoachMessages key={code} code={code} profiles={groupFilteredProfiles} initialRecipientId={focusedSwimmerId} />
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} selectedGroups={selectedGroups} availableGroups={availableGroups} />
         ) : view === 'planning' ? (
@@ -4617,167 +4612,7 @@ function CoachGoals({ code, profiles, aiEnabled = true, initialProfileId = '', i
     {goals.length ? <div className="coach-goal-list">{goals.map((goal) => <CoachGoalCard code={code} onMediaSaved={mediaSaved} initialAttachment={retryVideos[goal.id]} externalBusy={creating} key={goal.id} goal={goal} owner={profileFor(goal.profileId)} entry={feedback[goal.id] || { type: 'progress', content: '' }} setFeedback={setFeedback} updateGoal={updateGoal} updateStatus={updateStatus} sendFeedback={sendFeedback} remove={remove} onRead={markRepliesRead} initiallyExpanded={goal.id === initialGoalId || goal.id === focusedGoalId} />)}</div> : !showCreate && <EmptyPeriod title="Inga mål ännu" periodLabel="Utvecklingsmål" />}</section>
 }
 
-function OpenChatPanel({ code, coach = false, profileId = '', fitViewport = false }) {
-  const [privateReply, setPrivateReply] = useState(null)
-  const privateReplyTrigger = useRef(null)
-  const closePrivateReply = () => { setPrivateReply(null); privateReplyTrigger.current?.focus() }
-  const [chat, setChat] = useState({ enabled: false, backgroundImage: '', messages: [] }); const [content, setContent] = useState(''); const [status, setStatus] = useState('')
-  const deletingMessage = useRef(false)
-  const [deletingMessageId, setDeletingMessageId] = useState(null)
-  const panelActive = useRef(true)
-  const chatPanelRef = useRef(null)
-  const load = () => apiRequest(`/api/community?openChat=${Date.now()}`, code).then((data) => {
-    if (!panelActive.current) return
-    const next = data.openChat || { enabled: false, messages: [] }
-    setChat((current) => {
-      const visibleMessages = Array.isArray(next.messages) ? next.messages : []
-      const pending = (current.messages || []).filter((item) => item.pending && !visibleMessages.some((loaded) => loaded.id === item.id))
-      return { ...next, messages: [...visibleMessages, ...pending].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }
-    })
-    if (!coach && profileId && next.enabled) {
-      const latest = latestCoachMessageId(next.messages)
-      if (latest) markCoachMessageRead(window.localStorage, profileId, latest)
-    }
-  }).catch((error) => { if (panelActive.current) setStatus(error.message) })
-  useEffect(() => { panelActive.current = true; load(); const refresh = window.setInterval(() => { if (!document.hidden) load() }, 15000); return () => { panelActive.current = false; window.clearInterval(refresh) } }, [code, coach, profileId])
-  useLayoutEffect(() => {
-    if (!fitViewport || !chat.enabled || !chatPanelRef.current) return
-    const panel = chatPanelRef.current
-    const footer = document.querySelector('.swimmer-app-meta')
-    const viewport = window.visualViewport
-    const measure = () => {
-      const viewportHeight = viewport?.height || window.innerHeight
-      const viewportTop = viewport?.offsetTop || 0
-      const panelTop = panel.getBoundingClientRect().top - viewportTop
-      const footerHeight = footer?.getBoundingClientRect().height || 0
-      const footerGap = 12
-      const available = Math.min(768, viewportHeight - panelTop - footerHeight - footerGap)
-      panel.style.setProperty('--coach-info-chat-height', `${Math.max(180, available)}px`)
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    viewport?.addEventListener('resize', measure)
-    viewport?.addEventListener('scroll', measure)
-    return () => {
-      window.removeEventListener('resize', measure)
-      viewport?.removeEventListener('resize', measure)
-      viewport?.removeEventListener('scroll', measure)
-    }
-  }, [fitViewport, chat.enabled])
-  const send = async (event) => {
-    event.preventDefault()
-    const messageContent = content.trim()
-    if (!messageContent) return
-    const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const pendingMessage = { id: pendingId, content: messageContent, createdAt: new Date().toISOString(), senderRole: coach ? 'coach' : 'swimmer', senderProfileId: profileId || null, sender: coach ? { displayName: 'Tränare', emoji: '🧑‍🏫' } : { displayName: 'Du', emoji: '🏊' }, pending: true }
-    setChat((current) => ({ ...current, messages: [...(current.messages || []), pendingMessage] }))
-    setContent('')
-    setStatus('Skickar…')
-    try {
-      const result = await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content: messageContent }) })
-      const savedMessage = result.message || { ...pendingMessage, pending: false }
-      setChat((current) => ({ ...current, messages: [...(current.messages || []).filter((item) => item.id !== pendingId && item.id !== savedMessage.id), savedMessage].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }))
-      setStatus('')
-      // Uppdatera övriga meddelanden i bakgrunden; sändningen väntar inte på en full omladdning.
-      load()
-    } catch (error) {
-      setChat((current) => ({ ...current, messages: (current.messages || []).filter((item) => item.id !== pendingId) }))
-      setContent((current) => current || messageContent)
-      setStatus(error.message)
-    }
-  }
-  const remove = async (item) => {
-    if (deletingMessage.current) return
-    deletingMessage.current = true
-    const label = item.sender?.displayName || (item.senderRole === 'coach' ? 'Tränaren' : 'Simmaren')
-    const excerpt = item.content.length > 100 ? `${item.content.slice(0, 100)}…` : item.content
-    if (!window.confirm(`Ta bort just ${label}s inlägg?\n\n”${excerpt}”`)) { deletingMessage.current = false; return }
-    setDeletingMessageId(item.id)
-    try {
-      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id: item.id }) })
-      await load()
-    } catch (error) {
-      window.alert(error.message)
-    } finally {
-      deletingMessage.current = false
-      setDeletingMessageId(null)
-    }
-  }
-  const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() }
-  if (!chat.enabled) return null
-  const chatBackground = chatBackgroundUrl(chat.backgroundImage || '/assets/open-chat-bg-teal.png')
-  return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${fitViewport ? ' swimmer-info-chat' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
-    <div className="open-chat-heading">
-      {coach && <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div>}
-      <small>{coach ? 'Tränarinfo till gruppen · privata svar märks med 🔒' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor och privata svar syns bara för dig och tränarna' : 'Gruppchatt · svar märkta 🔒 är privata'}</small>
-      {coach && <button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button>}
-    </div>
-    <div className="open-chat-messages">{chat.messages?.length ? chat.messages.map((item) => {
-      const canReply = coach && item.senderRole === 'swimmer' && item.senderProfileId && !item.pending
-      const openReply = (event) => { privateReplyTrigger.current = event.currentTarget; setPrivateReply(item) }
-      const original = <><strong>{item.sender?.displayName || 'Simmare'}</strong><span className="private-question-content">{item.content}</span><small>{item.pending ? 'Skickar…' : formatFeedDate(item.createdAt)}</small>{canReply && <small className="private-reply-hint">↩ Svara privat till {item.sender?.displayName || 'simmaren'}</small>}</>
-      return <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id}>
-        <span>{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span>
-        <div>{canReply ? <button type="button" className="private-reply-message" onClick={openReply} aria-expanded={privateReply?.id === item.id}>{original}</button> : original}
-          {item.privateReplies?.map((reply) => <section className="private-thread-reply" key={reply.id}><strong>🔒 {coach ? `Privat svar till ${item.sender?.displayName || 'simmaren'}` : 'Tränarnas privata svar till dig'}</strong><p>{reply.content}</p><small>{formatFeedDate(reply.createdAt)}</small></section>)}
-          {privateReply?.id === item.id && <PrivateChatReply key={item.id} message={item} code={code} request={apiRequest} onClose={closePrivateReply} onSent={(reply) => {
-            if (reply) setChat((current) => ({...current,messages:current.messages.map((message) => message.id === item.id ? {...message,privateReplies:[...(message.privateReplies || []).filter((row) => row.id !== reply.id),reply]} : message)}))
-            window.dispatchEvent(new Event('simkoll-private-message-sent'))
-            load()
-          }} />}
-        </div>
-        {!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" disabled={deletingMessageId !== null} onClick={() => remove(item)}>{deletingMessageId === item.id ? 'Tar bort…' : 'Ta bort'}</button>}
-      </article>
-    }) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
-    {(!chat.coachOnly || coach) && !privateReply && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required maxLength={1000} value={content} placeholder={coach ? 'Skriv till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button">Skicka 💬</button>{status && <small>{status}</small>}</form>}
-    {chat.privateRepliesWarning && <p className="private-replies-warning" role="status">{chat.privateRepliesWarning}</p>}
-  </section>
-}
 
-function CoachCommunity({ code, profiles, initialRecipientId = '' }) {
-  const [content, setContent] = useState('')
-  const [polishing, setPolishing] = useState(false)
-  const [message, setMessage] = useState('')
-  const [recipientId, setRecipientId] = useState('')
-  const privateMessageRef = useRef(null)
-  useEffect(() => { if (initialRecipientId) setRecipientId(initialRecipientId) }, [initialRecipientId])
-  const [items, setItems] = useState([])
-  const [messages, setMessages] = useState([])
-  const [openChat, setOpenChat] = useState({ enabled: false, backgroundImage: '', messages: [] })
-  const [openChatContent, setOpenChatContent] = useState('')
-  const [loading, setLoading] = useState(true)
-  useEffect(() => { if (initialRecipientId && !loading) privateMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [initialRecipientId, loading])
-  const load = () => apiRequest(`/api/community?feed=${Date.now()}`, code).then((data) => { setItems(data.items); setMessages(data.messages || []); setOpenChat(data.openChat || { enabled: false, messages: [] }) }).finally(() => setLoading(false))
-  useEffect(() => {
-    const refreshPrivate = () => { load().catch(() => {}) }
-    window.addEventListener('simkoll-private-message-sent', refreshPrivate)
-    return () => window.removeEventListener('simkoll-private-message-sent', refreshPrivate)
-  }, [code])
-  useEffect(() => { load().catch((error) => window.alert(error.message)) }, [])
-  const publish = async (event) => {
-    event.preventDefault(); setLoading(true)
-    try {
-      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) })
-      setContent(''); await load()
-    } catch (error) { window.alert(error.message); setLoading(false) }
-  }
-  const improvePost = async () => {
-    if (!content.trim()) return
-    setPolishing(true)
-    try {
-      const result = await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'polish-community-post', content }) })
-      setContent(result.text || content)
-    } catch (error) { window.alert(error.message) } finally { setPolishing(false) }
-  }
-  const remove = async (id) => {
-    if (!confirmDestructive('Meddelandet tas bort från alla simmares flöde.')) return
-    try { await apiRequest(`/api/community?id=${id}`, code, { method: 'DELETE' }); await load() } catch (error) { window.alert(error.message) }
-  }
-  const sendMessage = async (event) => { event.preventDefault(); try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'message', recipientId, content: message }) }); setMessage(''); setRecipientId(''); await load() } catch (error) { window.alert(error.message) } }
-  const removePrivateMessage = async (id) => { if (!window.confirm('Ta bort det privata meddelandet?')) return; try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-private-message', id }) }); await load() } catch (error) { window.alert(error.message) } }
-  const sendOpenChat = async (event) => { event.preventDefault(); if (!openChatContent.trim()) return; try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content: openChatContent }) }); setOpenChatContent(''); await load() } catch (error) { window.alert(error.message) } }
-  return <section className="coach-community"><div className="period-heading"><div><p className="eyebrow">Syns för alla profiler</p><h2>Klubbflödet</h2></div></div><form onSubmit={publish}><textarea required maxLength="1000" placeholder="Skriv ett meddelande till gruppen…" value={content} onChange={(event) => setContent(event.target.value)} /><div className="community-post-actions"><button type="button" className={`text-button${polishing ? ' ai-working' : ''}`} disabled={polishing || !content.trim()} onClick={improvePost}>{polishing ? 'Förbättrar texten…' : '✨ Förbättra text med AI'}</button><small>{content.length}/1000</small><button className="primary-button" disabled={loading || polishing}>Publicera →</button></div></form><section className="coach-private-message" ref={privateMessageRef}><h3>Skicka privat till simmare</h3><form onSubmit={sendMessage}><select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.filter((profile) => !profile.isTestProfile).map((profile) => <option value={profile.id} key={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select><textarea required maxLength="1000" placeholder="Skriv ett privat meddelande…" value={message} onChange={(event) => setMessage(event.target.value)} /><button className="primary-button">Skicka privat →</button></form></section><section className="coach-messages"><h3>Privata meddelanden</h3>{messages.length ? messages.map((item) => <article key={item.id}><span>{item.fromCoach ? '📣' : (item.sender?.emoji || '👤')}</span><div><strong>{item.fromCoach ? `Tränare → ${item.recipient?.displayName || 'simmare'}` : `${item.sender?.displayName || 'Simmare'} → tränarna`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div><button type="button" className="text-button danger-text" onClick={() => removePrivateMessage(item.id)}>Ta bort</button></article>) : <p className="empty">Inga privata meddelanden ännu.</p>}</section><div className="coach-feed">{items.map((item) => <article key={`${item.type}-${item.id}`}><span>{item.type === 'coach' ? '📣' : item.sender?.emoji}</span><div><strong>{item.type === 'coach' ? 'Tränarna' : `${item.sender?.displayName} → hela gruppen`}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.type === 'coach' && <button onClick={() => remove(item.id)}>Ta bort</button>}</article>)}</div></section>
-}
 
 function localDateValue() {
   const now = new Date()

@@ -7,6 +7,7 @@ import { queueMessagePush } from '../server/web-push.js'
 import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/private-chat-replies.js'
 import { proposePrivateReply } from '../server/private-reply-ai.js'
 import { loadCommunityPreview, loadCoachMessageCount } from '../server/community-preview.js'
+import { loadInfoChannel, loadCoachInbox } from '../server/community-channels.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
@@ -227,6 +228,7 @@ export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
       if (request.query?.messageCount === 'true' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se meddelandeantalet.' })
+      if (request.query?.channel === 'private' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa tränarnas inkorg.' })
       if (role === 'coach' && request.query?.coachFeed === 'true') return sendJson(response, 200, { events: await getCoachFeed() })
       if (request.query?.pepStatus) {
         if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in som simmare för att se meddelandestatus.' })
@@ -241,12 +243,16 @@ export default async function handler(request, response) {
       }
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
+      if (request.query?.channel === 'private') {
+        return sendJson(response, 200, await loadCoachInbox())
+      }
       if (profile) await touchProfileActivity(profile.id)
       const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
       const webappSettings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
       const openChatEnabled = webappSettings.openChat?.enabled === true
       const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
       const openChatSwimmerPrivate = webappSettings.openChat?.swimmerPrivate !== false
+      if (request.query?.openChat) return sendJson(response, 200, await loadInfoChannel(webappSettings, role, profile?.id))
       if (request.query?.messageCount === 'true') {
         const since = Number(request.query.since || 0)
         if (!Number.isFinite(since) || since < 0 || Number.isNaN(new Date(since).getTime())) return sendJson(response, 400, { error: 'Ogiltig lästid.' })
@@ -275,14 +281,16 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: comments.slice(0, 100), ...(superadmin ? { feedback } : {}) })
       }
       const actorKey = role === 'coach' ? `coach:${coachFromRequest(request)?.sub || 'legacy'}` : `swimmer:${profile.id}`
+      const publicOnly = request.query?.channel === 'club'
+      const emptyResult = () => Promise.resolve({ ok: true, json: async () => [] })
       const [postsResult, groupResult, profiles, messagesResult, openChatResult, reactionsResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=*&order=created_at.desc&limit=100'),
         loadProfiles(),
-        role === 'coach'
+        publicOnly ? emptyResult() : role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
           : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
-        openChatEnabled ? supabaseRequest(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profile.id})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`) : Promise.resolve({ ok: true, json: async () => [] }),
+        openChatEnabled && !publicOnly ? supabaseRequest(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profile.id})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`) : emptyResult(),
         supabaseRequest('community_reactions?select=message_type,message_id,actor_key,emoji&limit=20000'),
       ])
       if (!postsResult.ok || !groupResult.ok || !messagesResult.ok || !openChatResult.ok || !reactionsResult.ok) throw new Error('Community feed failed')
@@ -334,7 +342,7 @@ export default async function handler(request, response) {
         }
       }
       let privateKudos = []
-      if (profile) {
+      if (profile && !publicOnly) {
         const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,content,created_at&order=created_at.desc&limit=100`)
         if (!privateResult.ok) throw new Error(`Private kudos failed: ${privateResult.status}`)
         privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: item.content || KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient && item.content)
@@ -507,7 +515,7 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       if (!result.ok) throw new Error(`Post insert failed: ${result.status} ${await result.text()}`)
       const [post] = await result.json()
       queueMessagePush({ kind: 'coach-post', id: post.id, senderCoachId: coachFromRequest(request)?.sub })
-      return sendJson(response, 201, { ok: true })
+      return sendJson(response, 201, { ok: true, message: { id: post.id, type: 'coach', content: post.content, createdAt: post.created_at, reactions: [] } })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action === 'reset-app-feedback') {
