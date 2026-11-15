@@ -7,6 +7,13 @@ import { buildCoachControlPanel } from '../shared/coach-control-panel.js'
 const profiles = [{ id: 'a', displayName: 'Anna' }, { id: 'b', displayName: 'Bo' }, { id: 'test', displayName: 'Test', isTestProfile: true }]
 const answer = (profile_id, activity_date, status = 'mild', extra = {}) => ({ profile_id, activity_date, status, ...extra })
 
+test('standalone mild illness card has the same 12px separation as the following overview cards', () => {
+  const css = readFileSync(new URL('../src/coach-mild-illness.css', import.meta.url), 'utf8')
+  const layout = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.match(css, /\.coach-mild-illness \{[^}]*margin-top: 12px/)
+  assert.match(layout, /\.coach-columns \{[^}]*margin-top: 12px/)
+})
+
 test('mild card counts unique swimmers/days in selected groups and dates, not number of checkins', () => {
   const report = buildMildIllnessSummary(profiles, [answer('a', '2026-11-03'), answer('a', '2026-11-03'), answer('a', '2026-11-04'), answer('b', '2026-11-04'), answer('outside', '2026-11-04'), answer('test', '2026-11-04'), answer('b', '2026-11-05'), answer('a', '2026-11-01')], '2026-11-02', '2026-11-04')
   assert.equal(report.count, 2); assert.equal(report.days, 3)

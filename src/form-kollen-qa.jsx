@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import FormKollenExamples from './form-kollen-examples.jsx'
 import FormKollenCard, { FormKollenView } from './form-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
+import PlanningWeekLabel from './planning-week-label.jsx'
 import SwimmerSetupIndicator from './swimmer-setup.jsx'
 import SwimmerCardHeader from './swimmer-card-header.jsx'
 import { swimmerProfileSetup, profileTrainingGoals } from '../shared/swimmer-profile-setup.js'
@@ -20,6 +21,25 @@ import { buildFormKollen, evaluateFormSignals } from '../shared/form-kollen.js'
 import { coachWeekAddDays as add } from '../shared/coach-week.js'
 import { currentFormContext, normalizeFormContext } from '../shared/form-context.js'
 import './styles.css'
+
+function SpeedDemo() {
+  const now = '2026-11-15T18:00:00Z'
+  const answer = (date, value) => ({ date, createdAt: `${date}T19:00:00Z`, type: 'after', activityType: 'swim', trainingSlot: 'afternoon_swim', speedFeeling: value })
+  const examples = [
+    ['Två femmor', [answer('2026-11-14', 5), answer('2026-11-13', 5)]],
+    ['Två fyror', [answer('2026-11-14', 4), answer('2026-11-13', 4)]],
+    ['En femma · stilla', [answer('2026-11-14', 5)]],
+    ['Nytt lägre svar', [answer('2026-11-14', 3), answer('2026-11-13', 5)]],
+    ['Två dygn · nedtonad', [answer('2026-11-13', 5)]],
+    ['Äldre · senaste värdet kvar', [answer('2026-11-11', 5)]],
+  ]
+  return <><p>Fiktiva blixttest. Inga API-anrop eller riktiga simmaruppgifter.</p><div style={{ display: 'grid', gap: 16 }}>{examples.map(([name, responses]) => <article key={name} className="swimmer-card compact"><SwimmerCardHeader profile={{ emoji: '🏊', displayName: name, username: 'fiktivt' }} setup={{ show: false }} onToggle={() => {}} speed={<SwimmerSpeed responses={responses} now={name.startsWith('Två dygn') ? '2026-11-15T20:00:00Z' : now} />}><span className="swimmer-stars">★ 3/4</span><span className="swimmer-card-health"><span className="swimmer-traffic green">🟢 <small>Ser stabilt ut</small></span></span><span className="swimmer-attention">Ingen aktivitet idag</span><span className="swimmer-card-actions"><span className="swimmer-expand-hint">▼ Visa mer</span></span></SwimmerCardHeader></article>)}</div></>
+}
+
+function WeekNavigationDemo() {
+  const [monday, setMonday] = useState('2026-11-09')
+  return <><p>Fiktiv veckonavigering utan API-anrop.</p><PlanningWeekLabel monday={monday} /><div className="planning-controls"><button className="secondary-button" onClick={() => setMonday(day => add(day, -7))}>← Föregående vecka</button><button className="secondary-button" onClick={() => setMonday('2026-11-09')}>Den här veckan</button><button className="secondary-button" onClick={() => setMonday(day => add(day, 7))}>Nästa vecka →</button><button className="secondary-button" onClick={() => setMonday('2026-12-28')}>Testa årsskifte</button></div></>
+}
 
 function GoalDemo() {
   const [scenario, setScenario] = useState('scheduled'), [draft, setDraft] = useState({}), [help, setHelp] = useState(true)
@@ -95,6 +115,7 @@ function InteractiveDemo() {
   return <><p>Endast fiktivt, lokalt demo. Formuläret nedan sparar i sidans minne, inte i Simkolls databas. Inga mejl, AI-anrop eller verkliga resultat skapas.</p><FormKollenView data={data} name="Demo · ingen verklig simmare" demo onSaveContext={save} /><details><summary>Övriga fiktiva exempel</summary><FormKollenExamples /></details></>
 }
 
-createRoot(document.getElementById('root')).render(new URLSearchParams(window.location.search).get('viewport') === 'mobile'
+const scenario = new URLSearchParams(window.location.search).get('scenario')
+createRoot(document.getElementById('root')).render(['speed', 'week-nav'].includes(scenario) ? <main style={{ maxWidth: new URLSearchParams(window.location.search).get('viewport') === 'mobile' ? 390 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{scenario === 'speed' ? <SpeedDemo /> : <WeekNavigationDemo />}</main> : new URLSearchParams(window.location.search).get('viewport') === 'mobile'
   ? <main style={{ padding: 16 }}><h1>Mobilförhandsvisning · 390 px</h1><iframe title="Formkollen i mobilbredd, fiktivt demo" src={`/form-kollen-qa.html?scenario=${encodeURIComponent(new URLSearchParams(window.location.search).get('scenario') || 'partial')}`} style={{ width: 390, height: 720, maxWidth: '100%', border: '1px solid #bed5d0', borderRadius: 20 }} /></main>
   : <main style={{ maxWidth: ['checkins', 'traffic'].includes(new URLSearchParams(window.location.search).get('scenario')) ? 1200 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{new URLSearchParams(window.location.search).get('scenario') === 'traffic' ? <TrafficDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'checkins' ? <CheckinDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'goals' ? <GoalDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'header' ? <HeaderDemo /> : <InteractiveDemo />}</main>)

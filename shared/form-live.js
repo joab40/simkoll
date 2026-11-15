@@ -59,9 +59,28 @@ export function buildLiveForm(data, now) {
 
 export function swimmerSpeedSignal(responses, now = new Date().toISOString()) {
   const rows = trainingHeartAfterReports(liveAnswerRows(responses, now)).filter(row => row.activityType === 'swim' && valid(row.speedFeeling)).sort(newest)
-  const row = rows[0]
-  const sample = row ? { date: row.date, submittedAt: new Date(stamp(row)).toISOString() } : null
-  const fresh = freshLiveAnswer(sample, now), value = row?.speedFeeling ?? null
+  // Keep only the latest swimming answer on each activity day. No IDs or free text
+  // are needed to refresh the bolt locally as its evidence ages.
+  const days = [...new Map(rows.slice().reverse().map(row => [row.date, row])).values()].sort(newest).slice(0, 2)
+  return refreshSwimmerSpeedSignal({ samples: days.map(row => ({ value: row.speedFeeling, date: row.date, submittedAt: new Date(stamp(row)).toISOString() })) }, now)
+}
+
+export function refreshSwimmerSpeedSignal(base, now = new Date().toISOString()) {
+  const time = Date.parse(now), hour = 3600000
+  // An after-registration cannot make an old activity fresh again. The activity
+  // day has no exact training timestamp, so cap freshness at its end in Stockholm.
+  const age = sample => Math.max(time - Date.parse(sample.submittedAt), time - Date.parse(formLiveEndOfDay(sample.date)))
+  const samples = (base.samples || (base.value != null && base.date ? [base] : [])).filter(sample => valid(sample.value) && validIllnessDay(sample.date) && sample.date <= currentDay(now) && Number.isFinite(Date.parse(sample.submittedAt)) && Date.parse(sample.submittedAt) <= time)
+  const sample = samples[0], value = sample?.value ?? null
+  const fresh = Boolean(sample && age(sample) < 72 * hour)
+  const recent = Boolean(fresh && age(sample) < 48 * hour)
   const level = !fresh ? 'unknown' : value >= 4.5 ? 'max' : value >= 3.5 ? 'high' : value >= 2.5 ? 'medium' : value >= 1.5 ? 'low' : 'quiet'
-  return { value, fresh, level, ...sample, label: value == null ? 'Fartkänsla: aktuellt simsvar saknas' : `Fartkänsla ${value.toLocaleString('sv-SE')}/5${fresh ? '' : ' · äldre svar'}. Självskattad, inte uppmätt fart.` }
+  const pair = samples.slice(0, 2)
+  const repeated = recent && pair.length === 2 && pair[0].date !== pair[1].date && pair.every(item => age(item) < 72 * hour && item.value >= 4)
+  const pulse = !repeated ? 'none' : pair.every(item => item.value === 5) ? 'max' : 'high'
+  const daysAgo = sample ? Math.round((Date.parse(`${currentDay(now)}T12:00:00Z`) - Date.parse(`${sample.date}T12:00:00Z`)) / (24 * hour)) : null
+  const ageLabel = !sample ? '' : daysAgo === 0 ? 'idag' : daysAgo === 1 ? 'igår' : daysAgo === 2 ? '2 dagar sedan' : new Date(`${sample.date}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' })
+  const refreshAt = Math.min(Date.parse(formLiveEndOfDay(currentDay(now))) + 1, ...samples.flatMap(item => [Date.parse(item.submittedAt), Date.parse(formLiveEndOfDay(item.date))].flatMap(at => [at + 48 * hour, at + 72 * hour])).filter(at => at > time))
+  const label = value == null ? 'Fartkänsla: aktuellt simsvar saknas' : `Senast rapporterad fartkänsla ${value.toLocaleString('sv-SE')}/5 · ${ageLabel}${fresh ? '' : ' · äldre svar'}. ${pulse === 'none' ? '' : `Återkommande hög fartkänsla på två olika simdagar; ${pulse === 'max' ? 'två femmor' : 'båda minst 4/5'}. `}Självskattad, inte uppmätt fart eller bekräftad toppform.`
+  return { value, fresh, recent, level, pulse, ageLabel, refreshAt, ...sample, samples, label }
 }
