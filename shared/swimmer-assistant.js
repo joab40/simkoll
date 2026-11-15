@@ -8,6 +8,7 @@ export const SWIMMER_ASSISTANT_CATEGORIES = Object.freeze([
   { key: 'results', label: 'Tävlingsresultat', description: 'Sparade resultat med gren, bassäng och datum.', default: true },
   { key: 'times', label: 'Tränings- & testtider', description: 'Tidtagning, utrustning, startsätt och förutsättningar.' },
   { key: 'programs', label: 'Styrka & landträning', description: 'Tilldelade program, viktloggar och resultat.' },
+  { key: 'taper', label: 'Toppningsmål & kommande planering', description: 'Individuella A/B/C-mål, tränarens målnoteringar och gruppens planering 28 dagar framåt. Inte bekräftat genomförande.', sensitive: true },
   { key: 'goals', label: 'Mål & utvecklingssamtal', description: 'Träningsmål, utvecklingsmål, simmarens svar och överenskommelser.', sensitive: true },
   { key: 'comments', label: 'Simmarens kommentarer', description: 'Fritext från incheckningar, dagbok och träningsloggar.', sensitive: true },
   { key: 'coachNotes', label: 'Tränarnas anteckningar', description: 'Individuella anteckningar, formobservationer och samtalsanteckningar.', sensitive: true },

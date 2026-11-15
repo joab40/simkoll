@@ -26,6 +26,7 @@ import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_ME
 import { TRAFFIC_LABELS } from '../shared/swimmer-traffic.js'
 import SwimmerTrafficOverview from './swimmer-traffic-overview.jsx'
 import FormKollenCard from './form-kollen.jsx'
+import TaperKollenCard from './taper-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
 import PlanningWeekLabel from './planning-week-label.jsx'
 import CompetitionEntryChoices from './competition-entry-choices.jsx'
@@ -5181,6 +5182,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
               <b className="swimmer-trend-open">Öppna statistik →</b>
             </button>
             <FormKollenCard profile={profile} code={code} asOf={trafficDate} excluded={profile.isTestProfile || profile.active === false || Boolean(profile.approvalStatus && profile.approvalStatus !== 'approved')} />
+            <TaperKollenCard key={`taper-${code}:${profile.id}:${trafficDate}`} profile={profile} code={code} accountRole={accountRole} aiEnabled={aiEnabled} excluded={profile.isTestProfile || profile.active === false || Boolean(profile.approvalStatus && profile.approvalStatus !== 'approved')} />
             <SwimmerPeriodization key={`periodization-${profile.id}`} profile={profile} code={code} request={apiRequest} />
             <SwimmerAgreementCard profile={profile} code={code} request={apiRequest} onOpenTalk={onOpenTalk ? (talkId) => onOpenTalk(profile.id, talkId) : undefined} />
             {goalsEnabled && <SwimmerDevelopmentGoalsCard code={code} profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}

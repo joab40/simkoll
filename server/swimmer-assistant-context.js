@@ -5,6 +5,8 @@ import { trainingHeartAfterReports } from '../shared/training-heart.js'
 import { withLinkedTrainingAmounts } from '../shared/linked-training-amounts.js'
 import { trainingLoad } from '../shared/training-load.js'
 import { SWIMMER_ASSISTANT_CATEGORIES } from '../shared/swimmer-assistant.js'
+import { loadTaperGoals } from './taper-kollen.js'
+import { coachWeekAddDays } from '../shared/coach-week.js'
 
 const pick = (row, fields) => Object.fromEntries(fields.split(',').filter(key => row[key] !== undefined).map(key => [key, row[key]]))
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -112,6 +114,22 @@ export async function loadSwimmerAssistantContext(profile, selection, read = sup
       for (const row of reports || []) add('health', label, row.activity_date, pick(row, fields))
     }
   }
+  if (wanted('taper')) {
+    try {
+      const goals = await loadTaperGoals(profile.id, read)
+      for (const goal of goals.filter(item => item.enabled && item.targetDate >= start)) add('taper', 'Tränarens individuella måltävling – sparad plan, inte bekräftad toppning', goal.targetDate, { ...pick(goal, 'title,priority,targetDate,taperStart,competitionStart,competitionEnd,events,note,createdAt'), basis: 'Senaste sparade målversion. Kalendern kan ha ändrats efter sparande. Prioritet gäller denna simmare, inte tävlingens officiella status.' })
+    } catch { warnings.push('Toppningsmålen kunde inte läsas. Kontrollera SQL 122. Saknade mål antas inte från tävlingars namn.') }
+    const futureEnd = coachWeekAddDays(end, 28)
+    for (const [table, field, fields, label] of [
+      ['training_plans', 'plan_date', 'activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups', 'Framtida grundplan'],
+      ['daily_workouts', 'workout_date', 'title,focus,distance_meters,duration_minutes,time_of_day,target_groups', 'Framtida publicerat pass'],
+    ]) {
+      const planned = await rows(`${table}?${field}=gt.${end}&${field}=lte.${futureEnd}&select=id,${field},${fields}&order=${field}.asc,id.asc`, label)
+      for (const row of (planned || []).filter(groupMatch)) add('taper', `${label} – inte registrerad träning`, row[field], { ...pick(row, fields), basis: 'Gruppens kommande planering. Alternativ och grundplan/publicerat pass kan avse samma tillfälle; summera inte råa rader. Dagens grupptillhörighet används.' })
+    }
+    add('taper', 'Forskningsbakgrund – generell, inte individuell ordination', null, { source: 'Bosquet et al. 2007, metaanalys', url: 'https://pubmed.ncbi.nlm.nih.gov/17762369/', finding: 'Samlat stöd för cirka två veckors toppning med minskad volym och bibehållen intensitet och frekvens. Ingen individuell garanti; använd inte en generell procentsats som automatiskt recept för en ungdom.' })
+    add('taper', 'Forskningsbakgrund – individuell respons', null, { source: 'Effect of the pre-taper level of fatigue on the taper-induced changes in performance in elite swimmers (2024)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10915210/', finding: 'Studie av 26 simmare: trötthetsläget före toppning var kopplat till olika prestationssvar. Validerar inte Simkolls produktregler eller en individuell prognos.' })
+  }
   if (wanted('coachNotes')) {
     const notes = await rows(`coach_swimmer_notes?${owner}&${dates('note_date')}&select=note_date,content,id&order=note_date.asc,id.asc`, 'Individuella tränaranteckningar')
     for (const row of notes || []) add('coachNotes', 'Tränarens anteckning – observation, inte verifierat resultat', row.note_date, { text: row.content })
@@ -157,7 +175,7 @@ export async function loadSwimmerAssistantContext(profile, selection, read = sup
   warnings.sort()
   const daily = []
   const byDay = new Map()
-  for (const source of sources) if (source.date) { if (!byDay.has(source.date)) byDay.set(source.date, []); byDay.get(source.date).push(source) }
+  for (const source of sources) if (source.date && source.date >= start && source.date <= end) { if (!byDay.has(source.date)) byDay.set(source.date, []); byDay.get(source.date).push(source) }
   for (const date of [...byDay.keys()].sort()) {
     const group = byDay.get(date), metric = (cat, key) => mean(group.filter(source => source.category === cat).map(source => source.data[key]))
     const loads = group.filter(source => source.category === 'load'), known = loads.filter(source => number(source.data.sRpe) !== null)

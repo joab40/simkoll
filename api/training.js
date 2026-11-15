@@ -12,6 +12,7 @@ import { loadCoachWeek } from '../server/coach-week.js'
 import { loadSwimmerTraffic } from '../server/swimmer-traffic.js'
 import { loadPeriodization } from '../server/periodization.js'
 import { loadFormKollen } from '../server/form-kollen.js'
+import { loadTaperKollen, saveTaperGoal } from '../server/taper-kollen.js'
 import { saveCoachFormContext } from '../server/form-context.js'
 import { normalizeFormContext } from '../shared/form-context.js'
 import { planningWeekStart } from '../shared/weekly-planning.js'
@@ -145,6 +146,25 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if (request.query?.taperKollen === 'true') {
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      const actor = coachFromRequest(request)
+      if (role !== 'coach' || !actor || !isTimeId(actor.sub)) return sendJson(response, 403, { error: 'Toppningskollen är endast för personliga tränarkonton.' })
+      const saving = request.method === 'POST' && request.body?.action === 'save-taper-goal'
+      if (request.method !== 'GET' && !saving) return sendJson(response, 405, { error: 'Åtgärden stöds inte för Toppningskollen.' })
+      const profileId = String(request.query.profileId || '')
+      if (!isTimeId(profileId)) return sendJson(response, 400, { error: 'Välj en giltig simmare.' })
+      const found = await supabaseRequest(`profiles?id=eq.${profileId}&active=eq.true&approval_status=eq.approved&is_test_profile=eq.false&select=id,training_group&limit=1`)
+      if (!found.ok) return sendJson(response, 503, { error: 'Simmaren kunde inte kontrolleras.' })
+      const profile = (await found.json())[0]
+      if (!profile) return sendJson(response, 404, { error: 'Simmarprofilen är inte aktiv och godkänd.' })
+      try {
+        if (!saving) return sendJson(response, 200, await loadTaperKollen(profile, stockholmDate()))
+        const goal = await saveTaperGoal(profileId, actor.sub, request.body.goal)
+        await writeAuditLog(request, { eventType: 'coach_taper_goal', role: 'coach', profileId, details: { goalRevisionId: goal.id, actorAccountId: actor.sub } })
+        return sendJson(response, 201, { goal })
+      } catch (error) { return sendJson(response, error.status || 503, { error: error.message }) }
+    }
     if (request.query?.formKollen === 'true') {
       response.setHeader?.('Cache-Control', 'private, no-store')
       const saving = request.method === 'POST' && request.body?.action === 'save-form-context'

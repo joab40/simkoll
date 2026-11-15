@@ -9,9 +9,9 @@ kryssrutan i dialogen är inte i sig ett juridiskt samtyckesflöde.
 
 ## Aktivt val, granskning och sändning
 
-13 kategorier kan väljas: incheckningar, simfartkänsla, RPE/sRPE, mängd,
+14 kategorier kan väljas: incheckningar, simfartkänsla, RPE/sRPE, mängd,
 aktiviteter, gruppass, tävlingsresultat, träningstider, program/loggar, mål/samtal,
-simmarkommentarer, tränaranteckningar samt sömn/sjukdom. Känsliga tillval är
+simmarkommentarer, tränaranteckningar, sömn/sjukdom samt toppningsmål/kommande planering. Känsliga tillval är
 avstängda i grundurvalet. ”Välj allt relevant” väljer alla erbjudna kategorier.
 28 dagar, 90 dagar, ett år eller all sparad historik till och med idag stöds.
 

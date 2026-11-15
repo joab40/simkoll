@@ -1,0 +1,42 @@
+.taper-kollen { margin: 1rem 0; border: 1px solid #c6ddda; border-radius: 20px; background: linear-gradient(140deg, #f6faf9, #fffdf4); color: #173943; overflow: hidden; }
+.taper-toggle { display: flex; width: 100%; align-items: center; gap: .85rem; padding: 1.15rem; border: 0; background: transparent; color: inherit; text-align: left; }
+.taper-toggle > span:nth-child(2) { flex: 1; }
+.taper-toggle strong { display: block; font-size: 1.1rem; }
+.taper-toggle strong small { display: inline-block; margin-left: .4rem; padding: .15rem .4rem; border-radius: 6px; background: #e8eee5; font-size: .68rem; vertical-align: middle; }
+.taper-toggle small { display: block; margin-top: .2rem; color: #5d767c; font-weight: 450; font-size: .85rem; }
+.taper-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #e0eeea; color: #157777; font-size: 1.6rem; flex-shrink: 0; }
+.taper-kollen-content { padding: 0 1.15rem 1.15rem; font-size: .9rem; line-height: 1.55; }
+.taper-kollen-content h4 { margin: .2rem 0 .5rem; font-size: 1rem; }
+.taper-kollen-content p { margin: .35rem 0 .75rem; font-size: inherit; }
+.taper-kollen-content small { font-size: .8rem; color: #627b80; }
+.taper-intro, .taper-load, .taper-health { color: #5d767c; }
+.taper-target, .taper-stage, .taper-observed, .taper-next, .taper-empty { margin: 1rem 0; padding: 1rem; border: 1px solid #d6e4df; background: #fff; border-radius: 13px; }
+.taper-target-meta { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .8rem; }
+.taper-priority { background: #e7f3ee; color: #176e6b; border-radius: 8px; padding: .2rem .6rem; font-weight: 650; }
+.taper-stage > small, .taper-observed > small { display: block; margin-bottom: .3rem; }
+.taper-stage > strong { display: block; }
+.taper-observed.tone-positive { border-left: 4px solid #218577; }
+.taper-observed.tone-mixed { border-left: 4px solid #b48c37; }
+.taper-observed.tone-watch { border-left: 4px solid #bc7542; }
+.taper-warning { padding: .9rem; margin: 1rem 0; border-radius: 12px; background: #fff4df; color: #78551b; }
+.taper-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.taper-metrics > div { background: #eaf3f0; padding: .75rem; border-radius: 12px; }
+.taper-metrics small, .taper-metrics strong, .taper-metrics span { display: block; }
+.taper-metrics strong { margin: .25rem 0; font-size: 1.2rem; }
+.taper-metrics span { font-size: .76rem; color: #61787b; }
+.taper-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: 1rem 0; }
+.taper-kollen-content button { font-size: .85rem; }
+.taper-goal-list, .taper-method { margin-top: 1.2rem; padding-top: .8rem; border-top: 1px solid #d7e5e1; }
+.taper-goal-list > summary, .taper-method > summary { color: #166e70; font-weight: 650; cursor: pointer; }
+.taper-goal-list article { display: flex; justify-content: space-between; gap: .75rem; padding: .8rem 0; border-bottom: 1px solid #e0e9e6; }
+.taper-goal-list article small { display: block; }
+.taper-goal-list article > div:last-child { display: flex; flex-wrap: wrap; align-content: start; }
+.taper-calendar-changed { color: #875e24; }
+.taper-editor { padding: 1rem; margin-top: 1rem; border: 1px solid #b9d6cf; border-radius: 13px; background: #fff; }
+.taper-editor fieldset { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; min-width: 0; }
+.taper-editor label, .taper-target > label { font-size: .85rem; font-weight: 650; }
+.taper-kollen select, .taper-kollen input, .taper-kollen textarea { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #b8d2ce; border-radius: 10px; padding: .7rem; margin-top: .3rem; background: #fff; color: #173943; font: inherit; }
+.taper-kollen :is(button, select, input, textarea):focus-visible { outline: 3px solid #6ebbb0; outline-offset: 3px; }
+.taper-wide { grid-column: 1 / -1; }
+.taper-message, .taper-loading { padding: .8rem 1rem; }
+@media (max-width: 600px) { .taper-metrics, .taper-editor fieldset { grid-template-columns: 1fr; } .taper-goal-list article { flex-direction: column; } .taper-toggle strong small { display: block; width: fit-content; margin-left: 0; } .taper-target-meta { flex-wrap: wrap; } }
