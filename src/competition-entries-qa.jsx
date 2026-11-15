@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import CompetitionEntryProgress from './competition-entry-progress.jsx'
 import CompetitionEntryChoices from './competition-entry-choices.jsx'
+import CompetitionPm from './competition-pm.jsx'
+import './competition-entries.css'
 import './styles.css'
 
 const roster = ['Anna', 'Bo', 'Clara', 'David', 'Elsa', 'Filip', 'Greta', 'Hugo'].map((name, index) => ({ id: `${index}`, name, emoji: ['🐬', '🐢', '🐙', '🦦'][index % 4] }))
@@ -14,7 +16,14 @@ function FilterPreview() {
     ['Herrar', '15–16', '100 m frisim'], ['Mix', 'Alla åldrar', '4 × 50 m frisim'],
     ['Alla', 'Ej angiven – se PM', '50 m fjärilsim'],
   ].map(([gender, ageClass, label], index) => ({ id: `race-${index + 1}`, eventNumber: `${index + 1}`, gender: `Kön: ${gender}`, ageClass: `Klass: ${ageClass}`, label, selectable: true, itemType: 'race' }))
-  return <main style={{ maxWidth: 850, margin: '24px auto', padding: '0 16px' }}><p>Fiktiv förhandsvisning · inga API-anrop eller databasändringar.</p><section className="competition-entries"><div className="period-heading"><div><p className="eyebrow">Tävlingskalender</p><h1>Mina grenar</h1><small>Välj vilka grenar du vill simma.</small></div></div><label className="settings-field"><strong>Tävling</strong><select value={competition} onChange={event => { setCompetition(event.target.value); setSelected([]) }}><option value="demo">Vinterpokalen · fiktivt</option><option value="other">Byt tävling · testa återställning</option></select></label><fieldset className="competition-entry-fields"><CompetitionEntryChoices key={competition} events={events} selected={selected} onChange={setSelected} /></fieldset><p role="status">Valda grenar: {selected.length ? selected.join(', ') : 'inga'}</p></section></main>
+  return <main><section className="competition-entries">
+    <p style={{ fontSize: 12, color: '#5c7277' }}>Fiktiv förhandsvisning · inga API-anrop eller databasändringar.</p>
+    <button type="button" className="back-button inline">← Tillbaka</button>
+    <div className="period-heading"><div><p className="eyebrow">Tävlingskalender</p><h1>Mina grenar</h1><small>Välj vilka grenar du vill simma. Tränarna ser när du skickar in.</small></div></div>
+    <label className="settings-field"><strong>Tävling</strong><select value={competition} onChange={event => { setCompetition(event.target.value); setSelected([]) }}><option value="demo">Vinterpokalen · 2026-12-05</option><option value="other">Vinterpokalen för juniorer och ungdomar – ett långt tävlingsnamn · 2026-12-12</option></select></label>
+    <CompetitionPm competition={{ id: competition, pmDocument: { name: 'vinterpokalen.pdf' } }} code="demo" request={async () => { throw new Error('Fiktiv förhandsvisning – inget PM hämtas.') }} />
+    <fieldset className="competition-entry-fields"><CompetitionEntryChoices key={competition} events={events} selected={selected} onChange={setSelected} /></fieldset><p role="status">Valda grenar: {selected.length ? selected.join(', ') : 'inga'}</p>
+  </section></main>
 }
 function Preview() {
   const [scenario, setScenario] = useState('mixed')
