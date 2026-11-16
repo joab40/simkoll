@@ -43,6 +43,18 @@ Solnedgång, Neonpuls, Mästarguld och Origami & papper. Beskrivning och färgpa
 visar stilens riktning utan AI-anrop, inte ett löfte om en exakt bild.
 De sex nya stilarna har separata kompositionsinstruktioner för en lugn bakgrund
 med läsbart centrum respektive ett igenkännbart, transparent emblem.
+För **Illustrerad emoji** är **Behåll emojins originalfärger** förvalt. Stilen
+styr då material, form och finish, inte färgpaletten. Konkurrerande stilfärger
+och färgade kompositionsinstruktioner utelämnas helt. En röd diamant får en
+uttrycklig anvisning om dominerande rubin-/karmosinröda ytor, inte bara röd kant.
+Kända nivåsymboler får kontrollerade färgledtrådar; övriga behåller sin igenkännbara
+emoji-palett utan att en färg gissas från nivånamnet. Ingen pixelreferens skickas.
+Avmarkera rutan om stilens vanliga färger önskas. Bakgrunder påverkas inte.
+Det är en prioriterad genereringsinstruktion, inte en pixelgaranti; granska bilden.
+Valet `preserveEmojiColours` är en validerad intern boolesk API-flagga, inte en
+ny OpenAI-parameter. Utelämnat värde betyder true för emblem. Ingen ny SQL behövs.
+Material och färgkrav hålls separata enligt
+[OpenAI:s bildpromptningsguide](https://developers.openai.com/api/docs/guides/image-prompting?model=gpt-image-2.5).
 En ny bild sparas automatiskt i biblioteket och väljs i förhandsgranskningen;
 det andra bildvalet behålls. Inget aktiveras automatiskt.
 Ingen bildgenerering startas av att visa, blanda eller spara ett kort.

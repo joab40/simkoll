@@ -32,7 +32,7 @@ test('six new styles produce distinct background/emblem composition prompts, ret
   const prompts=new Set(),image=Buffer.from('RIFF0000WEBPfixture').toString('base64')
   for(const style of newStyles)for(const kind of ['background','emblem']){
     const calls=[],logs=[]
-    await generateRewardArt({}, {emoji:'🔮',style,kind}, {fetch:async(url,options)=>{
+    await generateRewardArt({}, {emoji:'🔮',style,kind,preserveEmojiColours:false}, {fetch:async(url,options)=>{
       calls.push({url,body:JSON.parse(options.body)})
       return new Response(JSON.stringify({data:[{b64_json:image}],usage:{input_tokens:10,output_tokens:20}}),{status:200})
     },log:async(_request,entry)=>logs.push(entry)})

@@ -43,7 +43,7 @@ test('generation reserves quota before one AI call, stores draft and never auto-
   assert.equal(response.code,200); assert.equal(response.data.asset.id,assetId)
   assert(deps.calls.findIndex(row=>row.path==='rpc/reserve_reward_art')<deps.calls.findIndex(row=>row.generated))
   assert(!deps.calls.some(row=>row.path?.startsWith('reward_levels?') && row.options.method==='PATCH'))
-  assert.deepEqual(deps.calls.find(row=>row.generated).generated,{emoji:'🪨',kind:'emblem',style:'cosmic'})
+  assert.deepEqual(deps.calls.find(row=>row.generated).generated,{emoji:'🪨',kind:'emblem',style:'cosmic',preserveEmojiColours:true})
 })
 test('disabled AI, private/missing bucket and reservation conflict block billable generation',async()=>{
   for(const type of ['disabled','bucket','quota']){

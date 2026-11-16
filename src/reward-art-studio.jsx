@@ -4,6 +4,7 @@ import RewardLevelCard from './reward-level-card.jsx'
 import './reward-art-studio.css'
 import { emptyRewardSelection, sameRewardSelection, savedRewardCombination, usableRewardSelection, rewardSelectionArtwork } from '../shared/reward-card-library.js'
 import { REWARD_ART_STYLES } from '../shared/reward-art-styles.js'
+import { rewardEmojiColours } from '../shared/reward-emoji-colours.js'
 
 const styles = Object.fromEntries(Object.entries(REWARD_ART_STYLES).map(([id, value]) => [id, value.label]))
 const dateLabel = value => new Date(value).toLocaleDateString('sv-SE', { day:'numeric', month:'short', year:'numeric', timeZone:'Europe/Stockholm' })
@@ -11,6 +12,7 @@ const dateLabel = value => new Date(value).toLocaleDateString('sv-SE', { day:'nu
 function LevelWorkbench({ level, levels, code, request, onSaved, onBusy, canGenerate }) {
   const [library, setLibrary] = useState(null), [selection, setSelection] = useState(emptyRewardSelection)
   const [kind, setKind] = useState('background'), [style, setStyle] = useState('aurora'), [confirmed, setConfirmed] = useState(false)
+  const [preserveEmojiColours, setPreserveEmojiColours] = useState(true)
   const [name, setName] = useState(''), [busy, setBusy] = useState('loading'), [error, setError] = useState(''), [message, setMessage] = useState(''), [needsRefresh, setNeedsRefresh] = useState(false)
   const pending = useRef(false), alive = useRef(true), abort = useRef(null), saveRequest = useRef(null)
   const call = body => request('/api/points', code, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:abort.current?.signal })
@@ -38,7 +40,7 @@ function LevelWorkbench({ level, levels, code, request, onSaved, onBusy, canGene
   const generate = () => {
     if (!canGenerate || !confirmed || !library || needsRefresh) return
     void run('generating', async () => {
-      const result = await call({action:'generate-level-art', levelId:level.id, kind, style, confirmed:true})
+      const result = await call({action:'generate-level-art', levelId:level.id, kind, style, confirmed:true, ...(kind === 'emblem' ? {preserveEmojiColours} : {})})
       if (!alive.current) return
       const next = await fetchLibrary(true)
       if (!alive.current) return
@@ -72,6 +74,9 @@ function LevelWorkbench({ level, levels, code, request, onSaved, onBusy, canGene
   const locked = !!busy || needsRefresh, assets = library?.assets || [], dirty = library && !sameRewardSelection(selection, library.active)
   const alreadySaved = library && savedRewardCombination(library.cards, name, selection)
   const selectedArtwork = rewardSelectionArtwork(assets, selection)
+  const keepColours = kind === 'emblem' && preserveEmojiColours
+  const emojiColours = rewardEmojiColours(library?.level.emoji || level.emoji)
+  const palette = keepColours ? emojiColours.colours : REWARD_ART_STYLES[style].colours
   const preview = { total:level.minPoints, current:{...level, ...library?.level, artwork:selectedArtwork}, next:levels.find(row => row.minPoints > level.minPoints) || null }
   return <div className="reward-workbench">
     <div className="reward-library-toolbar"><p>Bakgrunder delas mellan alla nivåer. Emblem och sparade kort hör till vald nivå. Blanda utan nya AI-anrop.</p><button type="button" disabled={!!busy} onClick={refresh}>Hämta biblioteket igen</button></div>
@@ -92,7 +97,8 @@ function LevelWorkbench({ level, levels, code, request, onSaved, onBusy, canGene
         return <button type="button" className="reward-saved-card" key={card.id} disabled={locked || !card.compatible} aria-pressed={selected && card.compatible} onClick={() => { select({backgroundId:card.backgroundId,emblemId:card.emblemId}); setName(`${card.name}`) }} aria-label={`Förhandsgranska ${card.name}`}><span className="reward-card-mini" aria-hidden="true">{art.backgroundUrl && <img className="reward-card-mini-bg" src={art.backgroundUrl} alt="" loading="lazy" />}<span>{art.emblemUrl ? <img src={art.emblemUrl} alt="" loading="lazy" /> : card.emoji}</span></span><strong>{card.name}</strong><small>{!card.compatible ? 'Annan emoji / otillgänglig bild' : active ? 'Aktiv kombination' : 'Visa kombination'}</small></button>
       })}</div>}</section>
       {canGenerate ? <details className="reward-generate-panel"><summary>✨ Skapa fler bilder med AI · superadmin</summary><p>Du behöver inte generera om för att blanda bibliotekets bilder. Nya bildförslag sparas automatiskt, utan att den aktiva kombinationen ändras.</p><div className="reward-art-controls"><label>Skapa<select disabled={locked} value={kind} onChange={event => { setKind(event.target.value); setConfirmed(false) }}><option value="background">Bakgrund</option><option value="emblem">Illustrerad emoji</option></select></label><label>Bildstil<select disabled={locked} value={style} onChange={event => { setStyle(event.target.value); setConfirmed(false) }}>{Object.entries(styles).map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
-        <div className="reward-style-description" aria-live="polite"><span className="reward-style-palette" aria-hidden="true">{REWARD_ART_STYLES[style].colours.map(colour => <i key={colour} style={{backgroundColor:colour}} />)}</span><div><strong>{styles[style]}</strong><p>{REWARD_ART_STYLES[style].description}</p><small>Stilens färgpalett – inte en genererad bild. Anpassas till {kind === 'background' ? 'en lugn bakgrund med plats för kortets text' : 'ett fristående emblem med transparent bakgrund'}.</small></div></div>
+        {kind === 'emblem' && <label className="reward-colour-lock"><input type="checkbox" disabled={locked} checked={preserveEmojiColours} onChange={event => { setPreserveEmojiColours(event.target.checked); setConfirmed(false) }} /><span><strong>Behåll emojins originalfärger</strong><small>Stilen ändrar material och uttryck, inte grundfärgen. En röd diamant ska fortsatt vara röd. Avmarkera om du vill använda stilens färgpalett.</small></span></label>}
+        <div className="reward-style-description" aria-live="polite"><span className="reward-style-palette" aria-hidden="true">{palette.length ? palette.map(colour => <i key={colour} style={{backgroundColor:colour}} />) : <b>{library.level.emoji}</b>}</span><div><strong>{styles[style]}{keepColours ? ` · färglås: ${emojiColours.label}` : ''}</strong><p>{keepColours ? REWARD_ART_STYLES[style].emblemDescription : REWARD_ART_STYLES[style].description}</p><small>{keepColours ? 'Originalfärger prioriteras före stilens färgpalett. Färgprovet är vägledande, inte en genererad bild.' : 'Stilens färgpalett – inte en genererad bild.'} Anpassas till {kind === 'background' ? 'en lugn bakgrund med plats för kortets text' : 'ett fristående emblem med transparent bakgrund'}.</small></div></div>
         <label className="reward-art-consent"><input type="checkbox" disabled={locked} checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>Skicka nivåns emoji och vald stil till OpenAI för en ny bild. Det kostar enligt klubbens API-avtal och loggas. Inga simmaruppgifter eller kortnamn skickas. Befintliga bilder återanvänds utan nya AI-anrop.</span></label><div className="reward-art-actions"><button type="button" className="primary-button" disabled={locked || !confirmed} onClick={generate}>{busy === 'generating' ? 'Skapar bild… håll sidan öppen' : '✨ Skapa nytt bildförslag med AI'}</button></div><small>Max 50 bildförsök per superadmin under rullande 24 timmar, en bild i taget per nivå. Även misslyckade försök räknas. Klubbens AI-budget gäller fortfarande. Sparande och bildval använder inte kvoten.</small>
       </details> : <p className="reward-preview-help">Endast superadmin kan generera nya bilder med AI. Du kan fortfarande blanda, spara och aktivera befintliga bilder.</p>}
     </>}
