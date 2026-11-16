@@ -123,8 +123,15 @@ Simmarens kort har svävande emblem, nivåfärgade ljusvågor, partiklar och nä
 upplåsning. Pausa/starta effekter sparas lokalt på enheten. `prefers-reduced-motion`
 stoppar alltid rörelsen; dolda karusellkort och dold flik pausas också. Kompakta
 poängkort använder samma tema men utan den stora bakgrundsanimationen.
+**Nästa upplåsning** visar nästa nivås aktiverade emblem från samma redan hämtade
+nivådata, inte ett osparat bildförslag. Originalemojin visas om emblem saknas
+eller bildladdningen misslyckas. Bildfel där påverkar inte den nuvarande nivåns
+emblem, poäng eller framsteg. Högsta nivån har ingen ruta för nästa upplåsning.
+Ingen ny SQL eller AI-generering krävs.
 
 Verifiering: `tests/reward*.test.mjs`, SQL-test med `SIMKOLL_PGLITE_MODULE`,
 och `/reward-level-qa.html` (även `?viewport=mobile`). Demo använder ingen
 produktionsdata och inga betalda AI-anrop; förslagen är tydligt märkta SVG-fixturer.
+`?view=next-unlock` provar nästa emblem, saknad/trasig bild, ny aktiverad bild
+och högsta nivån med den riktiga kortkomponenten. Kombinera med `&viewport=mobile`.
 API-detaljer kontrollerade mot https://developers.openai.com/api/docs/guides/image-generation.

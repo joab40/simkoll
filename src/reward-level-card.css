@@ -31,7 +31,8 @@
 .reward-card.hero-level-card .reward-progress i { background:var(--level-accent); box-shadow:0 0 14px var(--level-accent); transition:width .7s ease; }
 .reward-card.hero-level-card small { color:#c0d6de; font-size:12px; }
 .reward-next-preview { display:flex; align-items:center; gap:12px; text-align:left; margin-top:22px; padding:14px 16px; background:#ffffff08; border:1px solid #ffffff24; border-radius:16px; }
-.reward-next-preview > span { font-size:30px; }
+.reward-next-preview > span { display:grid; place-items:center; width:38px; height:38px; flex:0 0 38px; font-size:30px; }
+.reward-next-preview > span > img { width:100%; height:100%; object-fit:contain; }
 .reward-next-preview > div { display:grid; gap:3px; flex:1; min-width:0; }
 .reward-next-preview strong { font-size:13px; line-height:1.4; }
 .reward-next-preview > b { font-size:13px; color:var(--level-accent); white-space:nowrap; }
