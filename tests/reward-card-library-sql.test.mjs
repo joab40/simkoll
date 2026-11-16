@@ -73,11 +73,35 @@ test('Postgres: saved combinations are persistent, idempotent and activation is 
       assert.equal((await db.query('select * from public.point_events')).rows.length,0)
       assert.equal((await db.query('select * from public.reward_level_art')).rows.length,3)
     })
-    await t.test('existing level deletion still cascades only its own images and saved combinations',async()=>{
+    await t.test('SQL 126 shares existing backgrounds across levels without moving files or relaxing emblem/auth checks',async()=>{
+      await db.exec(await readFile(new URL('../supabase/migrations/126_shared_reward_backgrounds.sql',import.meta.url),'utf8'))
+      const sharedCard='77777777-7777-4777-8777-777777777777'
+      await configure({level:9,emoji:'🔮',emblem:null,id:sharedCard,name:'Delad bakgrund'})
+      await configure({level:9,emoji:'🔮',emblem:null,action:'activate'})
+      await configure({bg:wrong,emblem:null,action:'activate'})
+      const levels=(await db.query('select id,background_art_id,emblem_art_id from public.reward_levels order by id')).rows
+      assert.equal(levels[0].background_art_id,wrong);assert.equal(levels[1].background_art_id,bg)
+      for(const options of [{level:9,emoji:'🔮'},{level:9,emoji:'🔮',bg:emblem,emblem:null},{version:1},{actor:ordinary,version:0}])await assert.rejects(configure(options))
+      await db.exec(`update public.reward_level_art set source_emoji='🥉' where id='${bg}'`)
+      await configure({level:9,emoji:'🔮',emblem:null,id:sharedCard,name:'Delad bakgrund'})
+      for(const update of ["status='pending'", "status='failed'", "storage_path='https://untrusted.invalid/x'", `storage_path='9/${bg}.webp'`]){
+        await db.exec(`update public.reward_level_art set ${update} where id='${bg}'`)
+        await assert.rejects(configure({level:9,emoji:'🔮',emblem:null,id:sharedCard,name:'Delad bakgrund'}),/not compatible/)
+        await db.exec(`update public.reward_level_art set status='ready',storage_path='8/${bg}.webp' where id='${bg}'`)
+      }
+      for(const role of ['anon','authenticated']){
+        await db.exec(`set role ${role}`);await assert.rejects(configure(),/permission denied/);await db.exec('reset role')
+      }
+    })
+    await t.test('deleting the origin level preserves shared artwork, active references and other levels saved cards',async()=>{
       await db.exec('delete from public.reward_levels where id=8')
-      assert.equal((await db.query('select * from public.reward_level_cards')).rows.length,0)
+      const cards=(await db.query('select * from public.reward_level_cards')).rows
+      assert.equal(cards.length,1);assert.equal(cards[0].level_id,9);assert.equal(cards[0].background_art_id,bg)
       const remaining=(await db.query('select * from public.reward_level_art')).rows
-      assert.equal(remaining.length,1);assert.equal(remaining[0].level_id,9)
+      assert.equal(remaining.length,3);assert.equal(remaining.find(row=>row.id===bg).level_id,null)
+      assert.equal((await db.query('select background_art_id from public.reward_levels where id=9')).rows[0].background_art_id,bg)
+      assert.equal((await configure({level:9,emoji:'🔮',emblem:null,action:'activate',expectedBg:bg})).rows[0].result.changed,false)
+      assert.equal((await db.query('select * from public.point_events')).rows.length,0)
     })
   }finally{await db.close()}
 })

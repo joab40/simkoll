@@ -13,6 +13,14 @@ export const ART_STYLES = {
 export function artworkUrl(path) {
   return pathPattern.test(path || '') ? supabaseStorageUrl(`/object/public/${bucket}/${path}`) : null
 }
+// Backgrounds are reusable club artwork. Emblems still belong to one emoji/level.
+// The original storage directory remains unchanged, including after its level is deleted.
+export function compatibleRewardArt(asset, level, kind = asset?.kind) {
+  return Boolean(asset && ['background', 'emblem'].includes(kind) && asset.kind === kind
+    && artworkUrl(asset.storage_path)
+    && (asset.level_id === null || asset.storage_path.startsWith(`${asset.level_id}/`))
+    && (kind === 'background' || (asset.level_id === level.id && asset.source_emoji === level.emoji)))
+}
 export async function levelArtwork(levels, read = supabaseRequest) {
   const ids = [...new Set(levels.flatMap(row => [row.background_art_id, row.emblem_art_id]).filter(id => uuid.test(id || '')))]
   const output = new Map()
@@ -25,7 +33,7 @@ export async function levelArtwork(levels, read = supabaseRequest) {
     const result = {}
     for (const kind of ['background', 'emblem']) {
       const asset = assets.get(level[`${kind}_art_id`])
-      if (asset?.level_id === level.id && asset.kind === kind && asset.source_emoji === level.emoji) result[`${kind}Url`] = artworkUrl(asset.storage_path)
+      if (compatibleRewardArt(asset, level, kind)) result[`${kind}Url`] = artworkUrl(asset.storage_path)
     }
     output.set(level.id, result)
   }
@@ -69,9 +77,9 @@ export async function handleRewardArt(request, response, deps = {}) {
   if (body.action === 'publish-level-art') {
     if (body.assetId !== null && !uuid.test(body.assetId || '')) return sendJson(response, 400, { error: 'Ogiltig bildreferens.' })
     if (body.assetId !== null) {
-      const result = await read(`reward_level_art?id=eq.${body.assetId}&level_id=eq.${levelId}&kind=eq.${kind}&status=eq.ready&select=source_emoji,storage_path&limit=1`)
+      const result = await read(`reward_level_art?id=eq.${body.assetId}&kind=eq.${kind}&status=eq.ready&select=level_id,kind,source_emoji,storage_path&limit=1`)
       const asset = result.ok ? (await result.json())[0] : null
-      if (!asset || asset.source_emoji !== level.emoji || !artworkUrl(asset.storage_path)) return sendJson(response, 409, { error: 'Bilden matchar inte nivåns nuvarande emoji. Skapa en ny bild.' })
+      if (!compatibleRewardArt(asset, { ...level, id: levelId }, kind)) return sendJson(response, 409, { error: 'Bilden är inte tillgänglig för nivån. Hämta biblioteket igen.' })
     }
     const saved = await read(`reward_levels?id=eq.${levelId}`, { method: 'PATCH', body: JSON.stringify({ [`${kind}_art_id`]: body.assetId }) })
     if (!saved.ok) return sendJson(response, 503, { error: 'Nivåbilden kunde inte aktiveras. Kontrollera SQL 124.' })

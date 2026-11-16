@@ -10,7 +10,7 @@ const initial=[['Brons','🥉',0],['Silver','🥈',50],['Guld','🥇',150],['Pla
 const picture=(kind,variant=0)=>'data:image/svg+xml,'+encodeURIComponent((kind==='background'?'<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024"><defs><radialGradient id="g"><stop stop-color="#8151cd"/><stop offset="1" stop-color="#051f32"/></radialGradient></defs><rect width="1536" height="1024" fill="url(#g)"/><path d="M-100 700Q500-200 1600 150M-50 850Q700 100 1650 450" fill="none" stroke="#47e3cb" stroke-width="30" opacity=".4"/><circle cx="300" cy="180" r="4" fill="white"/><circle cx="1200" cy="300" r="5" fill="white"/></svg>':'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#d0edff"/><stop offset=".4" stop-color="#365b85"/><stop offset="1" stop-color="#142b47"/></linearGradient></defs><path d="M256 50 420 170 370 380 140 400 70 210Z" fill="url(#g)" stroke="#88dcfa" stroke-width="4"/><path d="M256 50 230 230 420 170M230 230 370 380M230 230 140 400M70 210 230 230" fill="none" stroke="#9ecbe6" stroke-width="3"/></svg>').replaceAll('#8151cd',variant?'#1d7973':'#8151cd').replaceAll('#365b85',variant?'#ae7d37':'#365b85'))
 const fixtureId = number => '00000000-0000-4000-8000-'+number.toString(16).padStart(12,'0')
 function makeLibrary(level){
-  const assets=[0,1,2,3].map((slot)=>({id:fixtureId(level.id*10+slot),kind:slot<2?'background':'emblem',style:slot%2?'aurora':'cosmic',emoji:level.emoji,createdAt:'2026-11-'+(14+slot%2)+'T12:00:00Z',url:picture(slot<2?'background':'emblem',slot%2),compatible:true}))
+  const assets=[0,1,2,3].map((slot)=>({id:fixtureId((slot<2?1:level.id)*10+slot),kind:slot<2?'background':'emblem',style:slot%2?'aurora':'cosmic',emoji:slot<2?'🥉':level.emoji,createdAt:'2026-11-'+(14+slot%2)+'T12:00:00Z',url:picture(slot<2?'background':'emblem',slot%2),compatible:true}))
   return {level:{id:level.id,name:level.name,emoji:level.emoji},assets,cards:[{id:fixtureId(level.id*100),name:'Kosmisk favorit',emoji:level.emoji,createdAt:'2026-11-15T12:00:00Z',backgroundId:assets[0].id,emblemId:assets[3].id,compatible:true}],active:{backgroundId:assets[1].id,emblemId:assets[2].id}}
 }
 function Demo(){
@@ -24,7 +24,8 @@ function Demo(){
     const data=JSON.parse(options.body),library=store.current[data.levelId]
     if(data.action==='generate-level-art'){
       const asset={id:crypto.randomUUID(),kind:data.kind,style:data.style,url:picture(data.kind,1),emoji:library.level.emoji,createdAt:'2026-11-16T12:00:00Z',compatible:true}
-      library.assets.unshift(asset);setGenerations(current=>current+1);return{asset}
+      if(data.kind==='background')Object.values(store.current).forEach(row=>row.assets.unshift(asset));else library.assets.unshift(asset)
+      setGenerations(current=>current+1);return{asset}
     }
     if(data.action==='save-level-card'){
       if(!library.cards.some(card=>card.id===data.cardId))library.cards.unshift({id:data.cardId,name:data.name,backgroundId:data.backgroundId,emblemId:data.emblemId,emoji:library.level.emoji,createdAt:'2026-11-16T12:00:00Z',compatible:true})

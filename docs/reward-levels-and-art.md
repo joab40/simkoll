@@ -6,6 +6,10 @@ utkastmetadata, lagringsbucket och referenser till aktiverade bilder.
 För bildbibliotek och sparade kombinationer körs även
 `supabase/migrations/125_reward_card_library.sql` efter SQL 124. Befintliga
 färdiga bilder behöver inte genereras om och påverkas inte av migreringen.
+För gemensamma bakgrunder körs därefter
+`supabase/migrations/126_shared_reward_backgrounds.sql`. Den återanvänder även
+gamla bakgrunder på alla nivåer, utan filkopiering eller AI-anrop. Aktiva val,
+sparade kombinationer och poäng ändras inte när SQL:en körs.
 
 ## Rättningen
 
@@ -42,8 +46,14 @@ den nya kombinationen skrivs inte över från en gammal vy. Roll och session
 kontrolleras igen i SQL. Sparande och aktivering loggas i samma transaktion
 som ändringen; ett loggfel rullar tillbaka ändringen. Inga poäng påverkas.
 Kort med äldre emoji eller oförenliga bildreferenser behålls i biblioteket
-men markeras som otillgängliga. Biblioteket gäller den valda nivån, inte andra
-nivåers bilder. Ingen radera-/rensningsfunktion införs.
+men markeras som otillgängliga. **Gemensamma bakgrunder** visar alla färdiga
+bakgrunder i klubben, även om ursprungsnivåns emoji har ändrats. **Nivåns emblem**
+är fortsatt bundna till vald nivå och dess aktuella emoji. Sparade kort hör till
+sin nivå; en delad bakgrund kan ingå i olika kombinationer på flera nivåer.
+Att välja/aktivera en annan bakgrund på en nivå påverkar inte de övriga.
+Om ursprungsnivån raderas behålls bildmetadata och lagringsfil; nivåkopplingen
+sätts till null så delade bakgrunder och andra nivåers sparade kort fungerar.
+Övergivna emblem blir inte valbara på andra nivåer. Ingen rensningsfunktion införs.
 
 Bibliotekets GET och kombinationsåtgärder ligger på `/api/points` med
 `artLibrary=true&levelId=...`, `save-level-card` respektive `publish-level-card`.
@@ -56,8 +66,11 @@ OpenAI får endast nivåns sparade emoji och kontrollerade stilinstruktioner.
 Inga personuppgifter, simmarnamn, fritexter, hälsovärden eller poänghistorik hämtas
 för genereringen. Bilderna är generisk nivåkonst och sparas i en offentlig bucket.
 Utkastmetadata har RLS och är endast åtkomlig servervägen. Bara lagrade och redo
-bilder med rätt nivå, bildtyp och emoji kan aktiveras; klient-URL:er accepteras inte.
-Ändrad emoji döljer den gamla illustrationen tills en matchande bild aktiverats.
+bilder med rätt bildtyp kan aktiveras; emblem kräver dessutom rätt nivå och emoji.
+Lagringssökvägen valideras mot bildens ursprungsnivå, inte målnivån. För bilder
+vars ursprungsnivå tagits bort krävs fortfarande en giltig lagrad rastersökväg.
+Klient-URL:er accepteras inte. Ändrad emoji döljer det gamla emblemet men inte
+bakgrunden. Äldre sparade kort har fortfarande en egen emoji-version.
 
 API använder `OPENAI_API_KEY`. Modell: `OPENAI_REWARD_IMAGE_MODEL`, annars
 `OPENAI_STRENGTH_IMAGE_MODEL`, annars befintliga `gpt-image-2.5-flare`. Ingen

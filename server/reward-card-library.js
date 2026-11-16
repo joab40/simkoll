@@ -1,7 +1,7 @@
 import { supabaseRequest, sendJson } from './supabase.js'
 import { coachFromRequest } from './coach-auth.js'
 import { analyticsRows } from './analytics-rows.js'
-import { artworkUrl } from './reward-art.js'
+import { artworkUrl, compatibleRewardArt } from './reward-art.js'
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const validReference = value => value === null || (typeof value === 'string' && uuid.test(value))
@@ -20,11 +20,11 @@ export async function handleRewardCardLibrary(request, response, { read = supaba
     if (!level) return sendJson(response, 404, { error: 'Nivån finns inte längre.' })
     if (request.method === 'GET') {
       const [assetResult, cardResult] = await Promise.all([
-        analyticsRows(`reward_level_art?level_id=eq.${levelId}&status=eq.ready&select=id,level_id,kind,style,source_emoji,storage_path,created_at&order=created_at.desc,id.desc`, read),
+        analyticsRows(`reward_level_art?or=(kind.eq.background,level_id.eq.${levelId})&status=eq.ready&select=id,level_id,kind,style,source_emoji,storage_path,created_at&order=created_at.desc,id.desc`, read),
         analyticsRows(`reward_level_cards?level_id=eq.${levelId}&select=id,name,source_emoji,background_art_id,emblem_art_id,created_at&order=created_at.desc,id.desc`, read),
       ])
       if (!assetResult.ok || assetResult.truncated || !cardResult.ok || cardResult.truncated) throw new Error('Library incomplete')
-      const assets = (await assetResult.json()).map(row => ({ id: row.id, kind: row.kind, style: row.style, emoji: row.source_emoji, createdAt: row.created_at, url: artworkUrl(row.storage_path), compatible: Boolean(row.level_id === levelId && row.source_emoji === level.emoji && row.storage_path?.startsWith(`${levelId}/`) && artworkUrl(row.storage_path)) }))
+      const assets = (await assetResult.json()).map(row => ({ id: row.id, kind: row.kind, style: row.style, emoji: row.source_emoji, createdAt: row.created_at, url: artworkUrl(row.storage_path), compatible: compatibleRewardArt(row, level) }))
       const compatibleIds = new Map(assets.filter(asset => asset.compatible).map(asset => [asset.id, asset.kind]))
       const cards = (await cardResult.json()).map(row => ({ id: row.id, name: row.name, emoji: row.source_emoji, createdAt: row.created_at, ...selection(row), compatible: row.source_emoji === level.emoji && (!row.background_art_id || compatibleIds.get(row.background_art_id) === 'background') && (!row.emblem_art_id || compatibleIds.get(row.emblem_art_id) === 'emblem') }))
       return sendJson(response, 200, { level: { id: level.id, name: level.name, emoji: level.emoji }, assets, cards, active: selection(level) })
@@ -47,6 +47,6 @@ export async function handleRewardCardLibrary(request, response, { read = supaba
     }
     return sendJson(response, 200, { ...await configured.json(), message: saving ? 'Kortkombinationen är sparad. Simmarnas kort är oförändrade.' : 'Hela kortkombinationen är aktiverad för nivån. Inga poäng har ändrats.' })
   } catch {
-    return sendJson(response, 503, { error: 'Biblioteket eller ändringen kunde inte bekräftas. Hämta biblioteket igen. Kontrollera att SQL 125 är körd.' })
+    return sendJson(response, 503, { error: 'Biblioteket eller ändringen kunde inte bekräftas. Hämta biblioteket igen. Kontrollera att SQL 125 och 126 är körda.' })
   }
 }

@@ -16,7 +16,7 @@ const fixture = () => {
     calls.push({path,options})
     if(path.startsWith('reward_levels?') && !options.method) return json([{id:8,emoji:'🪨'}])
     if(path==='rpc/reserve_reward_art') return json({id:assetId,emoji:'🪨'})
-    if(path.startsWith('reward_level_art?') && !options.method) return json([{source_emoji:'🪨',storage_path:`8/${assetId}.webp`}])
+    if(path.startsWith('reward_level_art?') && !options.method) return json([{level_id:8,kind:'emblem',source_emoji:'🪨',storage_path:`8/${assetId}.webp`}])
     return json([])
   },storage:async(path,options)=>{calls.push({path,options});return json({public:true})},availability:async()=>({allowed:true}),audit:async()=>{},generate:async(_request,options)=>{calls.push({generated:options});return{bytes:Buffer.from('fixture'),mime:'image/webp',extension:'webp'}}}
 }
@@ -66,6 +66,22 @@ test('only stored, current emoji art paths resolve; never arbitrary URLs or stal
   }
   const ready=await levelArtwork([level],async()=>json([{id:assetId,level_id:8,kind:'emblem',source_emoji:'🪨',storage_path:`8/${assetId}.webp`}]))
   assert.match(ready.get(8).emblemUrl,/\/object\/public\/reward-level-art\/8\//)
+})
+test('public cards reuse backgrounds across levels and emoji changes, but never foreign emblems or wrong storage directories',async()=>{
+  const levels=[{id:8,emoji:'🪨',background_art_id:assetId},{id:9,emoji:'🔮',background_art_id:assetId,emblem_art_id:assetId}]
+  for(const level_id of [8,null]){
+    const result=await levelArtwork(levels,async()=>json([{id:assetId,level_id,kind:'background',source_emoji:'🥉',storage_path:`8/${assetId}.webp`}]))
+    assert.equal(result.get(8).backgroundUrl,result.get(9).backgroundUrl);assert(result.get(9).backgroundUrl);assert(!result.get(9).emblemUrl)
+  }
+  const bad=await levelArtwork(levels,async()=>json([{id:assetId,level_id:8,kind:'background',storage_path:`9/${assetId}.webp`}]))
+  assert.deepEqual(bad.get(9),{})
+})
+test('legacy single-slot publication supports a shared background without allowing a foreign emblem or invoking AI',async()=>{
+  for(const kind of ['background','emblem']){
+    const deps=fixture(),base=deps.read;deps.read=(path,options)=>path.startsWith('reward_level_art?')?json([{level_id:9,kind,source_emoji:'🔮',storage_path:`9/${assetId}.webp`}]):base(path,options)
+    const answer=res();await handleRewardArt(req('publish-level-art',{kind,assetId}),answer,deps)
+    assert.equal(answer.code,kind==='background'?200:409);assert(!deps.calls.some(row=>row.generated))
+  }
 })
 test('image provider receives only emoji and fixed style, transparent WebP for emblem; usage logged',async()=>{
   const calls=[],logs=[]

@@ -27,10 +27,21 @@ test('library recovers old ready images and both active slots, plus named cards,
   assert(deps.calls.every(row=>!row.options.method));assert(deps.calls.some(row=>row.path.includes('status=eq.ready')))
   assert(deps.calls.every(row=>!row.path.includes('reserve_reward_art')))
 })
-test('old-emoji and invalid-image-path cards remain visible but cannot be used',async()=>{
+test('backgrounds survive emoji changes while invalid paths still disable cards',async()=>{
   const deps=fixture();deps.assets[0].source_emoji='🥉';deps.assets[1].storage_path='https://invalid.example/x'
   const response=res();await handleRewardCardLibrary(request(),response,deps)
-  assert.equal(response.code,200);assert(response.data.assets.every(row=>!row.compatible));assert.equal(response.data.cards[0].compatible,false)
+  assert.equal(response.code,200);assert.equal(response.data.assets[0].compatible,true);assert.equal(response.data.assets[1].compatible,false);assert.equal(response.data.cards[0].compatible,false)
+})
+test('shared backgrounds from other levels and deleted levels are usable; foreign/stale emblems are not',async()=>{
+  const deps=fixture();deps.assets[0].level_id=9;deps.assets[0].source_emoji='🔮';deps.assets[0].storage_path=`9/${bg}.webp`
+  const answer=res();await handleRewardCardLibrary(request(),answer,deps)
+  assert.equal(answer.code,200);assert.equal(answer.data.assets[0].compatible,true);assert.equal(answer.data.cards[0].compatible,true)
+  assert(deps.calls.some(row=>row.path.includes('or=(kind.eq.background,level_id.eq.8)')))
+  deps.assets[0].level_id=null;deps.assets[1].level_id=9;deps.assets[1].storage_path=`9/${emblem}.webp`
+  const orphan=res();await handleRewardCardLibrary(request(),orphan,deps)
+  assert.equal(orphan.data.assets[0].compatible,true);assert.equal(orphan.data.assets[1].compatible,false)
+  deps.assets[0].level_id=9;deps.assets[0].storage_path=`8/${bg}.webp`
+  const mismatch=res();await handleRewardCardLibrary(request(),mismatch,deps);assert.equal(mismatch.data.assets[0].compatible,false)
 })
 test('save and activation use one validated SQL transaction; saving does not publish, activation has both IDs and a concurrency token',async()=>{
   for(const action of ['save-level-card','publish-level-card']){
