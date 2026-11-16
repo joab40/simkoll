@@ -16,6 +16,8 @@ import { deferredPanel } from './deferred-panel.jsx'
 import { createVisibleRefresh, startVisiblePolling } from './visible-refresh.js'
 import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
+import { personalActivityStreak, stockholmActivityDay } from '../shared/activity-streak.js'
+import ActivityCorrection from './activity-correction.jsx'
 import TrendLineChart from './trend-line-chart.jsx'
 import { CHECKIN_ACTIVITIES, activityLabel, BEFORE_TRAINING_CHOICES, selectBeforeTraining } from '../shared/checkin-activity.js'
 import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
@@ -174,7 +176,7 @@ function App() {
   const [workout, setWorkout] = useState(null)
   const [workoutLocked, setWorkoutLocked] = useState(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
-  const [activityDates, setActivityDates] = useState([])
+  const [activityDates, setActivityDates] = useState(null)
   const [points, setPoints] = useState(null)
   const [notifications, setNotifications] = useState([])
   const [newDevelopmentGoals, setNewDevelopmentGoals] = useState([])
@@ -245,7 +247,7 @@ function App() {
   useEffect(() => {
     if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
     let active = true
-    setTraining(null); setPoints(null); setWorkout(null); setActivityDates([])
+    setTraining(null); setPoints(null); setWorkout(null); setActivityDates(null)
     setCompetitionsLoaded(false)
     // Each card can render as soon as its own request completes.
     const load = (url, apply) => apiRequest(url, auth.code).then((data) => { if (active) apply(data) })
@@ -1059,9 +1061,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
   // already present in the UI so a just-submitted check-in is shown instantly.
-  const activeDates = new Set([...(activityDates || []), ...responses.map((item) => dateKey(responseDate(item)))])
-  let streak = 0; const streakCursor = new Date()
-  while (activeDates.has(dateKey(streakCursor))) { streak += 1; streakCursor.setDate(streakCursor.getDate() - 1) }
+  const streak = activityDates == null ? 0 : personalActivityStreak(activityDates, responses, profile?.id, stockholmActivityDay())
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
   const nextCompetition = (competitions || []).filter((item) => (item.endDate || item.startDate) >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
@@ -1094,7 +1094,7 @@ function Home({ code, responses, responsesLoaded = false, ownResponsesLoaded = f
         <div className="response-count"><span><strong>{todayResponses.length}</strong> svar idag</span>{profile && <span className="active-count"><strong>{activeProfilesToday}</strong> profiler inne idag</span>}</div>
         {profile && <div className="mood-footer">
           {starsEnabled && <StarProgress stars={stars} />}
-          {streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med en registrerad check-in"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
+          {streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med registrerad aktivitet på din egen simmarprofil"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         </div>}
       </section>
       {profile && chatVisible && <OpenChatCard key="coach-info" data={communityPreview} error={communityPreviewError} onOpen={onCommunityChat || onCommunity} />}
@@ -3448,7 +3448,7 @@ function AuditLogs({ code }) {
   useEffect(() => { apiRequest('/api/profiles?audit=true', code).then(setData).catch((nextError) => setError(nextError.message)) }, [code])
   if (error) return <EmptyPeriod title={error} periodLabel="Loggar" />
   if (!data) return <section className="empty-period"><span>◷</span><h2>Hämtar loggar…</h2></section>
-  const eventLabels = { group_login: 'Gruppkod verifierad · profilinloggning krävs', group_code_verified: 'Gruppkod verifierad · profilinloggning krävs', profile_login: 'Simmare loggade in', coach_login: 'Tränare loggade in', coach_account_bootstrap: 'Första superadmin skapad', profile_approval: 'Profil godkänd', profile_rejection: 'Profil nekad', profile_access_change: 'Profilåtkomst ändrad', 'ai:trend_analysis': 'AI trendanalys' }
+  const eventLabels = { group_login: 'Gruppkod verifierad · profilinloggning krävs', group_code_verified: 'Gruppkod verifierad · profilinloggning krävs', profile_login: 'Simmare loggade in', coach_login: 'Tränare loggade in', coach_account_bootstrap: 'Första superadmin skapad', profile_approval: 'Profil godkänd', profile_rejection: 'Profil nekad', profile_access_change: 'Profilåtkomst ändrad', activity_day_correction: 'Aktivitetsdag rättad', 'ai:trend_analysis': 'AI trendanalys' }
 const aiFeatureLabels = { swimmer_assistant: 'Simmarassistent · individuell dialog', weekly_planning_import: 'Importera veckoplanering', dryland_program_import: 'Importera landträningsprogram', goal_text_polish: 'Förbättra utvecklingsmål', strength_exercise_image: 'Skapa övningsbild', strength_program_import: 'Importera styrkeprogram', assistant_chat: 'Simkoll-assistenten', trend_analysis: 'Trendanalys', swimmer_note: 'Förbättra tränaranteckning', coach_summary: 'Tränarsammanfattning', audio_transcription: 'Ljudtranskribering', workout_text_polish: 'Förbättra passtext', workout_image_import: 'Tolka passbild', workout_import: 'Importera pass', workout_generation: 'Skapa passförslag', community_post: 'Förbättra klubbmeddelande', pep_moderation: 'Kontroll av eget peppmeddelande' }
   const swedishRegions = { AB: 'Stockholm', C: 'Uppsala', D: 'Södermanland', E: 'Östergötland', F: 'Jönköping', G: 'Kronoberg', H: 'Kalmar', I: 'Gotland', K: 'Blekinge', M: 'Skåne', N: 'Halland', O: 'Västra Götaland', S: 'Värmland', T: 'Örebro', U: 'Västmanland', W: 'Dalarna', X: 'Gävleborg', Y: 'Västernorrland', Z: 'Jämtland', AC: 'Västerbotten', BD: 'Norrbotten' }
   const countryNames = typeof Intl !== 'undefined' && Intl.DisplayNames ? new Intl.DisplayNames(['sv'], { type: 'region' }) : null
@@ -5204,6 +5204,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
               <small className="profile-settings-section-title divided">AI-stöd</small>
               <div className="ai-profile-setting"><section><strong>Simkoll-assistenten</strong><small>{aiEnabled ? (profile.assistantEnabled === false ? 'Avstängd för simmaren.' : 'Påslagen för simmaren.') : 'AI-stöd är avstängt globalt i inställningarna.'}</small><button type="button" disabled={!aiEnabled} onClick={async () => { try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-assistant-status', profileId: profile.id, enabled: profile.assistantEnabled === false }) }); await onProfilesChange() } catch (error) { window.alert(error.message) } }}>{profile.assistantEnabled === false ? 'Aktivera assistenten' : 'Stäng av assistenten'}</button></section><section><strong>Personlig AI-analys</strong><small>{profile.aiAnalysisStatus === 'approved' ? 'På för simmaren. Tränaren skapar eller uppdaterar analysen under Visa statistik; simmaren kan läsa den sparade analysen.' : profile.aiAnalysisStatus === 'pending' ? 'Godkännande inväntas. Ingen analys skapas eller visas för simmaren ännu.' : profile.aiAnalysisStatus === 'revoked' ? 'Avstängd. Simmaren kan inte se sin personliga analys.' : 'Avstängd. Inhämta först vårdnadshavarens godkännande enligt klubbens rutin.'}</small>{profile.aiAnalysisStatus === 'approved' ? <button type="button" onClick={async () => { try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-ai-analysis-status', profileId: profile.id, status: 'revoked' }) }); await onProfilesChange() } catch (error) { window.alert(error.message) } }}>Stäng av analysen för simmaren</button> : <button type="button" onClick={async () => { if (!window.confirm('Har vårdnadshavarens godkännande hämtats in enligt klubbens rutin? När du aktiverar detta kan simmaren läsa en analys som tränaren skapar. Aktiveringen i sig kör ingen AI-analys och kostar inget.')) return; try { await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-ai-analysis-status', profileId: profile.id, status: 'approved' }) }); await onProfilesChange() } catch (error) { window.alert(error.message) } }}>Aktivera analys för simmaren</button>}{profile.aiAnalysisStatus !== 'approved' && <small>Ingen förfrågan skickas automatiskt. Aktivera först när godkännandet är inhämtat.</small>}</section></div>
               <small className="profile-settings-section-title account">Konto och åtkomst</small>
+              {accountRole === 'superadmin' && <ActivityCorrection profile={profile} code={code} />}
               <small className="profile-created-date">Profil skapad <strong>{profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', year: 'numeric' }) : 'datum saknas'}</strong></small><button onClick={() => toggleProfileAccess(profile)}>{profile.approvalStatus === 'approved' ? 'Stäng av simmaråtkomst' : 'Aktivera simmaråtkomst'}</button><small className="profile-access-status">{profile.approvalStatus === 'approved' ? 'Åtkomst aktiv · medgivande registrerat' : 'Åtkomst avstängd · inväntar medgivande'}</small><button onClick={() => createReset(profile)}>Återställ PIN</button><button className="test-profile-toggle" onClick={() => toggleTestProfile(profile)}>{profile.isTestProfile ? 'Ta med i statistik igen' : 'Markera som testprofil'}</button><button className="delete-profile-button" onClick={() => removeProfile(profile)}>Radera profil</button>
             </div></details>
           </div>}

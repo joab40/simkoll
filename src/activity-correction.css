@@ -1,0 +1,35 @@
+.activity-correction-entry { display: grid; justify-items: start; gap: 6px; margin: 10px 0; }
+.activity-correction-entry > small { color: #567176; font-size: 12px; }
+.activity-correction-dialog { width: min(650px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 1px solid #cbdeda; border-radius: 20px; color: #193b43; background: #f8fbf9; box-shadow: 0 20px 80px #082c3f40; }
+.activity-correction-dialog::backdrop { background: #112c3b99; backdrop-filter: blur(3px); }
+.activity-correction-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; position: sticky; top: 0; z-index: 1; padding: 18px 22px; background: #f8fbf9; border-bottom: 1px solid #dce8e3; }
+.activity-correction-dialog h2 { margin: 0; font-size: 20px; line-height: 1.4; overflow-wrap: anywhere; }
+.activity-correction-dialog header p { margin: 0 0 4px; color: #587377; font-size: 12px; }
+.activity-correction-dialog header button { flex: 0 0 44px; height: 44px; border: 1px solid #cadfd7; border-radius: 50%; background: white; color: #285b61; font-size: 24px; cursor: pointer; }
+.activity-correction-body { padding: 20px 22px; font-size: 13px; line-height: 1.65; }
+.activity-correction-body > p:first-child { margin-top: 0; color: #526c70; }
+.activity-correction-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+.activity-correction-dialog button:not(.primary-button) { min-height: 44px; cursor: pointer; }
+.activity-correction-toolbar button { padding: 8px 12px; border: 1px solid #cadfd7; border-radius: 9px; background: white; color: #19676b; font: inherit; }
+.activity-correction-dialog label:not(.activity-correction-confirm) { display: grid; gap: 7px; font-weight: 650; }
+.activity-correction-dialog :is(input:not([type=checkbox]),textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #bdd6cd; border-radius: 10px; background: white; color: #193b43; font: inherit; min-height: 44px; }
+.activity-correction-month { max-width: 220px; margin: 0 0 12px; }
+.activity-correction-weekdays, .activity-correction-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; text-align: center; }
+.activity-correction-weekdays { color: #5c777a; margin-bottom: 6px; font-size: 11px; }
+.activity-correction-days button { padding: 6px 2px; display: grid; place-items: center; gap: 2px; border: 1px solid #d7e3df; border-radius: 9px; background: #fff; color: #42666b; font: inherit; }
+.activity-correction-days button.recorded { background: #e5f3ea; border-color: #bddbc8; color: #2e6548; }
+.activity-correction-days button.repaired { background: #e2f0f8; border-color: #b8d3e5; color: #285e7c; }
+.activity-correction-days button.selected { outline: 2px solid #10777b; outline-offset: 1px; }
+.activity-correction-days button > small { font-size: 10px; line-height: 1.4; }
+.activity-correction-legend { color: #587377; font-size: 11px; }
+.activity-correction-dialog form { display: grid; gap: 14px; padding-top: 16px; border-top: 1px solid #dce8e3; }
+.activity-correction-dialog form > p { margin: 0; }
+.activity-correction-dialog form > small { font-size: 11px; color: #587377; }
+.activity-correction-dialog textarea { resize: vertical; }
+.activity-correction-confirm { display: flex; gap: 10px; align-items: start; padding: 12px; background: #ecf4f1; border-radius: 10px; }
+.activity-correction-confirm input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; accent-color: #13797c; }
+.activity-correction-error, .activity-correction-existing { padding: 12px; border-radius: 10px; background: #fcf6e9; color: #785324; overflow-wrap: anywhere; }
+.activity-correction-success { padding: 12px; border-radius: 10px; background: #e5f3ea; color: #2e6548; }
+.activity-correction-dialog :is(button,input,textarea):focus-visible { outline: 2px solid #10777b; outline-offset: 3px; }
+.activity-correction-dialog button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 480px) { .activity-correction-dialog > header, .activity-correction-body { padding: 15px; } .activity-correction-dialog h2 { font-size: 18px; } .activity-correction-days button > small { font-size: 8px; } }

@@ -5,6 +5,7 @@ import { writeAiUsage, writeAuditLog } from '../server/audit.js'
 import { loggedAiCost, safeAssistantTelemetry } from '../server/swimmer-assistant-telemetry.js'
 import { coachFromRequest } from '../server/coach-auth.js'
 import { handleStorageAdmin } from '../server/storage-admin.js'
+import { handleActivityCorrections } from '../server/activity-corrections.js'
 import { fetchTempusResults, tempusResultRows, storeTempusRows, newTempusBests } from '../server/tempus-results.js'
 import { getSessionDays } from '../server/session-settings.js'
 import {
@@ -118,6 +119,7 @@ async function updateProfile(id, values) {
 export default async function handler(request, response) {
   if (!await guardCoachSession(request, response)) return
   try {
+    if (request.query?.activityAdmin === 'true' || request.body?.action === 'correct-activity-day') return handleActivityCorrections(request, response)
     if (request.query?.storage === 'true') return handleStorageAdmin(request, response)
     if (request.method === 'GET' && request.query?.cron === 'tempus') {
       const secret = process.env.CRON_SECRET

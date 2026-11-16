@@ -1,5 +1,7 @@
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
+import { loadActivityDates } from '../server/activity-history.js'
+import { activityStreak } from '../shared/activity-streak.js'
 import { loadGameBeta, saveGameBeta, requireBetaProfile } from '../server/game-beta.js'
 import { sharedRallyReplay, loadWeeklyRallyGhost, saveWeeklyRallyGhost } from '../server/rally-weekly.js'
 import { rallyWeekStart } from '../shared/rally-weekly.js'
@@ -236,8 +238,12 @@ export default async function handler(request, response) {
           ['monthly_swim_star', stars.monthlySwim, String(request.body.month || '')],
         ]
         for (const [eventType, earned, sourceKey] of awards) if (earned && sourceKey) await awardPoints(profile.id, eventType, 1, sourceKey)
-        const streak = Number(request.body?.streak)
-        if (Number.isInteger(streak) && streak > 0) for (let milestone = 10; milestone <= streak; milestone += 10) await awardPoints(profile.id, 'streak_milestone', 10, `streak:${milestone}`)
+        if (Number.isInteger(request.body?.streak) && request.body.streak > 0) {
+          // Never award a group-derived or caller-invented streak. Existing
+          // milestone keys are unique, so restoring a gap cannot duplicate them.
+          const streak = activityStreak(await loadActivityDates(profile.id), stockholmDate())
+          for (let milestone = 10; milestone <= streak; milestone += 10) await awardPoints(profile.id, 'streak_milestone', 10, `streak:${milestone}`)
+        }
         return sendJson(response, 200, { ok: true })
       }
       if (role === 'swimmer' && action === 'coach-info-opened') {
