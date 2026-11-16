@@ -54,4 +54,5 @@ test('real reward card uses theme in compact and hero variants and preserves pro
   assert.match(effects,/animation-play-state:paused/)
   assert.match(component,/onClick=\{motion.toggle\}/)
   assert.match(component,/document.addEventListener\('visibilitychange'/)
+  assert.match(component,/key=\{art.backgroundUrl\} className="reward-art-background"/)
 })

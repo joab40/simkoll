@@ -5,6 +5,7 @@ import { activityStreak } from '../shared/activity-streak.js'
 import { coachRewardOverview, rewardLevels, rewardTotals } from '../server/reward-points.js'
 import { rewardProgress } from '../shared/reward-levels.js'
 import { handleRewardArt } from '../server/reward-art.js'
+import { handleRewardCardLibrary } from '../server/reward-card-library.js'
 import { loadGameBeta, saveGameBeta, requireBetaProfile } from '../server/game-beta.js'
 import { sharedRallyReplay, loadWeeklyRallyGhost, saveWeeklyRallyGhost } from '../server/rally-weekly.js'
 import { rallyWeekStart } from '../shared/rally-weekly.js'
@@ -150,6 +151,7 @@ export default async function handler(request, response) {
   if (!await guardCoachSession(request, response)) return
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
+    if (request.query?.artLibrary === 'true' || ['save-level-card', 'publish-level-card'].includes(request.body?.action)) return await handleRewardCardLibrary(request, response)
     if (['generate-level-art', 'publish-level-art'].includes(request.body?.action)) {
       if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
       return await handleRewardArt(request, response)

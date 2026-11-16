@@ -3,6 +3,9 @@
 Kör `supabase/migrations/124_reward_totals_and_art.sql` i Supabase före driftsättning.
 SQL:en räknar aldrig om eller ändrar poänghändelser. Den inför SUM-funktionen,
 utkastmetadata, lagringsbucket och referenser till aktiverade bilder.
+För bildbibliotek och sparade kombinationer körs även
+`supabase/migrations/125_reward_card_library.sql` efter SQL 124. Befintliga
+färdiga bilder behöver inte genereras om och påverkas inte av migreringen.
 
 ## Rättningen
 
@@ -19,10 +22,35 @@ Senaste belöningar hämtas separat och bestämmer inte totalen.
 ## Nivåverkstaden
 
 Huvudtränare/superadmin: **Poäng & nivåer → Nivåverkstaden**. Spara först nivåns
-emoji. Välj nivå, bakgrund/illustrerad emoji och en av tre stilar. Kryssa i
-bekräftelsen, skapa ett förslag och granska före separat aktivering. Originalet
-kan återställas. Ingen bildgenerering startas automatiskt av att visa ett kort.
+emoji. Välj nivå, sedan bakgrund och emblem var för sig ur bibliotekets
+miniatyrer. Även tidigare färdiga förslag från SQL 124 visas. Originalbakgrund
+och originalemoji kan väljas utan AI. Valen ändrar endast förhandsgranskningen.
+Under **Skapa fler bilder med AI** finns de tre bildstilarna och bekräftelsen.
+En ny bild sparas automatiskt i biblioteket och väljs i förhandsgranskningen;
+det andra bildvalet behålls. Inget aktiveras automatiskt.
+Ingen bildgenerering startas av att visa, blanda eller spara ett kort.
 Vanliga tränare och simmare får inte generera eller aktivera bilder.
+
+Ge kombinationen ett namn (1–60 tecken) och välj **Spara kortkombination**.
+Det sparar bildreferenserna och emoji-versionen, inte en fryst poängsumma eller
+en ny rasterbild. Kortnamnet skickas inte till OpenAI. Sparade kort kan öppnas
+igen, kombineras om och sparas som nya varianter. Samma sparreferens vid ett
+upprepat anrop skapar inte en dubblett. Gamla varianter skrivs inte över.
+**Aktivera kombinationen för nivån** ändrar båda bildreferenserna atomärt.
+En samtidig ändring från en annan tränare ger konflikt och kräver omläsning;
+den nya kombinationen skrivs inte över från en gammal vy. Roll och session
+kontrolleras igen i SQL. Sparande och aktivering loggas i samma transaktion
+som ändringen; ett loggfel rullar tillbaka ändringen. Inga poäng påverkas.
+Kort med äldre emoji eller oförenliga bildreferenser behålls i biblioteket
+men markeras som otillgängliga. Biblioteket gäller den valda nivån, inte andra
+nivåers bilder. Ingen radera-/rensningsfunktion införs.
+
+Bibliotekets GET och kombinationsåtgärder ligger på `/api/points` med
+`artLibrary=true&levelId=...`, `save-level-card` respektive `publish-level-card`.
+Bilder och kort sidindelas stabilt. Läsfel, saknad SQL eller avkortad historik
+ger fel, inte ett tomt bibliotek. Efter en osäker skrivning spärrar gränssnittet
+nya skrivningar tills biblioteket har hämtats på nytt. Endast service_role
+får anropa konfigurationsfunktionen; klientroller saknar tabellåtkomst.
 
 OpenAI får endast nivåns sparade emoji och kontrollerade stilinstruktioner.
 Inga personuppgifter, simmarnamn, fritexter, hälsovärden eller poänghistorik hämtas
@@ -49,7 +77,8 @@ Ingen riktig generering eller publicering har gjorts i utvecklingstesterna.
 Aktivering ändrar endast bildreferensen, aldrig poäng eller nivågränser. Gamla
 utkast/filer behålls vid byte/återställning. Ingen automatisk rensning införs.
 Den gamla backupfunktionen omfattar inte dessa nya bildfiler/utkast; inkludera
-bucket och `reward_level_art` i klubbens ordinarie Supabase-backup.
+bucket, `reward_level_art` och `reward_level_cards` i klubbens ordinarie
+Supabase-backup.
 
 Simmarens kort har svävande emblem, nivåfärgade ljusvågor, partiklar och nästa
 upplåsning. Pausa/starta effekter sparas lokalt på enheten. `prefers-reduced-motion`

@@ -44,3 +44,13 @@ test('missing totals migration never falls back to a clipped or zero score; inva
   globalThis.fetch=async raw=>{assert(new URL(raw).pathname.endsWith('/coach_accounts'));return json([])}
   const expired=res();await handler({method:'GET',headers:{'x-simkoll-code':createCoachToken({id,role:'superadmin'})},query:{}},expired);assert.equal(expired.code,401)
 })
+test('library actions use the real session guard and ordinary coaches cannot read saved cards',async()=>{
+  for(const [role,revoked] of [['superadmin',true],['coach',false],['head_coach',false]]){
+    const calls=[]
+    globalThis.fetch=async raw=>{const table=new URL(raw).pathname.split('/').at(-1);calls.push(table);if(table==='coach_accounts')return json(revoked?[]:[{id}]);if(table==='reward_levels')return json([{id:8,name:'Svart diamant',emoji:'🪨',background_art_id:null,emblem_art_id:null}]);if(table==='reward_level_art'||table==='reward_level_cards')return json([]);assert.fail(table)}
+    const response=res();await handler({method:'GET',headers:{'x-simkoll-code':createCoachToken({id,role})},query:{artLibrary:'true',levelId:'8'}},response)
+    assert.equal(response.code,revoked?401:role==='coach'?403:200)
+    if(revoked||role==='coach')assert.deepEqual(calls,['coach_accounts'])
+    else {assert.deepEqual(response.data.cards,[]);assert(calls.includes('reward_level_cards'))}
+  }
+})
