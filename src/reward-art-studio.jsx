@@ -3,8 +3,9 @@ import { apiRequest } from './api-request.js'
 import RewardLevelCard from './reward-level-card.jsx'
 import './reward-art-studio.css'
 import { emptyRewardSelection, sameRewardSelection, savedRewardCombination, usableRewardSelection, rewardSelectionArtwork } from '../shared/reward-card-library.js'
+import { REWARD_ART_STYLES } from '../shared/reward-art-styles.js'
 
-const styles = { aurora: 'Norrsken', pool: 'Pool & ljusvågor', cosmic: 'Kosmisk energi' }
+const styles = Object.fromEntries(Object.entries(REWARD_ART_STYLES).map(([id, value]) => [id, value.label]))
 const dateLabel = value => new Date(value).toLocaleDateString('sv-SE', { day:'numeric', month:'short', year:'numeric', timeZone:'Europe/Stockholm' })
 
 function LevelWorkbench({ level, levels, code, request, onSaved, onBusy }) {
@@ -91,6 +92,7 @@ function LevelWorkbench({ level, levels, code, request, onSaved, onBusy }) {
         return <button type="button" className="reward-saved-card" key={card.id} disabled={locked || !card.compatible} aria-pressed={selected && card.compatible} onClick={() => { select({backgroundId:card.backgroundId,emblemId:card.emblemId}); setName(`${card.name}`) }} aria-label={`Förhandsgranska ${card.name}`}><span className="reward-card-mini" aria-hidden="true">{art.backgroundUrl && <img className="reward-card-mini-bg" src={art.backgroundUrl} alt="" loading="lazy" />}<span>{art.emblemUrl ? <img src={art.emblemUrl} alt="" loading="lazy" /> : card.emoji}</span></span><strong>{card.name}</strong><small>{!card.compatible ? 'Annan emoji / otillgänglig bild' : active ? 'Aktiv kombination' : 'Visa kombination'}</small></button>
       })}</div>}</section>
       <details className="reward-generate-panel"><summary>✨ Skapa fler bilder med AI</summary><p>Du behöver inte generera om för att blanda bibliotekets bilder. Nya bildförslag sparas automatiskt, utan att den aktiva kombinationen ändras.</p><div className="reward-art-controls"><label>Skapa<select disabled={locked} value={kind} onChange={event => { setKind(event.target.value); setConfirmed(false) }}><option value="background">Bakgrund</option><option value="emblem">Illustrerad emoji</option></select></label><label>Bildstil<select disabled={locked} value={style} onChange={event => { setStyle(event.target.value); setConfirmed(false) }}>{Object.entries(styles).map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
+        <div className="reward-style-description" aria-live="polite"><span className="reward-style-palette" aria-hidden="true">{REWARD_ART_STYLES[style].colours.map(colour => <i key={colour} style={{backgroundColor:colour}} />)}</span><div><strong>{styles[style]}</strong><p>{REWARD_ART_STYLES[style].description}</p><small>Stilens färgpalett – inte en genererad bild. Anpassas till {kind === 'background' ? 'en lugn bakgrund med plats för kortets text' : 'ett fristående emblem med transparent bakgrund'}.</small></div></div>
         <label className="reward-art-consent"><input type="checkbox" disabled={locked} checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>Skicka nivåns emoji och vald stil till OpenAI för en ny bild. Det kostar enligt klubbens API-avtal och loggas. Inga simmaruppgifter eller kortnamn skickas. Befintliga bilder återanvänds utan nya AI-anrop.</span></label><div className="reward-art-actions"><button type="button" className="primary-button" disabled={locked || !confirmed} onClick={generate}>{busy === 'generating' ? 'Skapar bild… håll sidan öppen' : '✨ Skapa nytt bildförslag med AI'}</button></div><small>Max 12 bildförsök per administratör och dygn, en bild i taget per nivå. Sparande och bildval använder inte den kvoten.</small>
       </details>
     </>}

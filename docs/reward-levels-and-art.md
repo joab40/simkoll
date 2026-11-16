@@ -10,6 +10,9 @@ För gemensamma bakgrunder körs därefter
 `supabase/migrations/126_shared_reward_backgrounds.sql`. Den återanvänder även
 gamla bakgrunder på alla nivåer, utan filkopiering eller AI-anrop. Aktiva val,
 sparade kombinationer och poäng ändras inte när SQL:en körs.
+Version **3.116.0** lägger till sex bildstilar. Kör därefter
+`supabase/migrations/127_reward_art_styles.sql` för att tillåta de nya stilarna.
+Den ändrar endast stilernas tillåtna värden; bilder, poäng och aktiva val behålls.
 
 ## Rättningen
 
@@ -29,7 +32,12 @@ Huvudtränare/superadmin: **Poäng & nivåer → Nivåverkstaden**. Spara först
 emoji. Välj nivå, sedan bakgrund och emblem var för sig ur bibliotekets
 miniatyrer. Även tidigare färdiga förslag från SQL 124 visas. Originalbakgrund
 och originalemoji kan väljas utan AI. Valen ändrar endast förhandsgranskningen.
-Under **Skapa fler bilder med AI** finns de tre bildstilarna och bekräftelsen.
+Under **Skapa fler bilder med AI** finns nio bildstilar och bekräftelsen:
+Norrsken, Pool & ljusvågor, Kosmisk energi, Djuphavsglöd, Iskristall,
+Solnedgång, Neonpuls, Mästarguld och Origami & papper. Beskrivning och färgpalett
+visar stilens riktning utan AI-anrop, inte ett löfte om en exakt bild.
+De sex nya stilarna har separata kompositionsinstruktioner för en lugn bakgrund
+med läsbart centrum respektive ett igenkännbart, transparent emblem.
 En ny bild sparas automatiskt i biblioteket och väljs i förhandsgranskningen;
 det andra bildvalet behålls. Inget aktiveras automatiskt.
 Ingen bildgenerering startas av att visa, blanda eller spara ett kort.
