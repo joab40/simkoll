@@ -10,6 +10,24 @@ const isWarmup = (value) => /^(insim|uppvärmning)\b/i.test(value)
 const isSection = (value) => /^(insim|uppvärmning|ben|ss|spec|huvudserie|arm|avsim|nedvarvning|serie|teknik)\b/i.test(value)
 const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 
+function contentRange(sheet, sheetName) {
+  const end = { r: -1, c: -1 }
+  // !ref includes blank, formatted cells left behind by Excel/Sheets. Inspect
+  // stored cells instead of iterating the potentially enormous declared grid.
+  // Formulas count even when their cached result is empty or unavailable.
+  for (const [address, cell] of Object.entries(sheet)) {
+    if (!/^[A-Z]+[1-9]\d*$/.test(address) || !cell || (!clean(cell.v) && cell.f == null && cell.F == null)) continue
+    const position = XLSX.utils.decode_cell(address)
+    const formulaEnd = cell.F ? XLSX.utils.decode_range(cell.F).e : position
+    end.r = Math.max(end.r, position.r, formulaEnd.r)
+    end.c = Math.max(end.c, position.c, formulaEnd.c)
+    if (end.r >= 300 || end.c >= 32) throw new Error(`Fliken ${sheetName} har innehåll utanför de första 300 raderna eller 32 kolumnerna (${address}${cell.F ? `, formelområde ${cell.F}` : ''}). Begränsa filen före importen så att inget innehåll tappas.`)
+  }
+  // Keep the A1 origin: trimming leading empty columns would move the template's
+  // section/repeat/set columns. Only empty outer rows/columns are disregarded.
+  return end.r < 0 ? null : { s: { r: 0, c: 0 }, e: end }
+}
+
 function readSheet(rows, sheetName, fileName, index) {
   const header = rows.find((row) => /^träningspass\b/i.test(row[0]))
   const total = rows.find((row) => /^summa\b/i.test(row[0]))
@@ -76,16 +94,17 @@ function readSheet(rows, sheetName, fileName, index) {
 export function parseSwimWorkbook(buffer, fileName = 'Träningspass.xlsx') {
   if (!buffer?.length || buffer.length > SWIM_WORKBOOK_MAX_BYTES) throw new Error('Välj ett kalkylblad under 3 MB.')
   let workbook
-  try { workbook = XLSX.read(buffer, { type: 'buffer', sheetRows: 301, cellHTML: false }) }
+  // No sheetRows cutoff: otherwise real values/formulas below row 301 could be
+  // mistaken for an empty formatted tail and silently missed by contentRange.
+  try { workbook = XLSX.read(buffer, { type: 'buffer', cellHTML: false }) }
   catch { throw new Error('Kalkylbladet kunde inte läsas. Kontrollera att filen är ett giltigt XLS- eller XLSX-dokument utan lösenord.') }
   if (workbook.SheetNames.length > SWIM_WORKBOOK_MAX_SHEETS) throw new Error('Filen har fler än 20 flikar. Dela dokumentet före importen.')
   const sheets = [], skippedSheets = []
   workbook.SheetNames.forEach((sheetName, index) => {
     const sheet = workbook.Sheets[sheetName]
-    if (!sheet?.['!ref']) { skippedSheets.push({ sheetName, reason: 'Tom flik' }); return }
-    const range = XLSX.utils.decode_range(sheet['!fullref'] || sheet['!ref'])
-    if (range.e.r >= 300 || range.e.c >= 32) throw new Error(`Fliken ${sheetName} är större än 300 rader eller 32 kolumner. Begränsa filen före importen så att inget innehåll tappas.`)
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }).map((row) => row.map(clean))
+    const range = sheet && contentRange(sheet, sheetName)
+    if (!range) { skippedSheets.push({ sheetName, reason: 'Tom flik' }); return }
+    const rows = XLSX.utils.sheet_to_json(sheet, { range, header: 1, defval: '', raw: false }).map((row) => row.map(clean))
     if (!rows.some((row) => row.some(Boolean))) { skippedSheets.push({ sheetName, reason: 'Tom flik' }); return }
     const entry = readSheet(rows, sheetName, fileName, index)
     if (workbook.Workbook?.Sheets?.[index]?.Hidden) { entry.selected = false; entry.warnings.push('Dold flik. Kontrollera innan du väljer den.') }

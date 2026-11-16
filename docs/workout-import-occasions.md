@@ -1,5 +1,17 @@
 # Förvalt träningstillfälle vid Drive-import
 
+## Tomma ytterområden i kalkylblad
+
+Passimporten bedömer gränsen 300 rader/32 kolumner utifrån lagrade värden
+och formler, inte kalkylbladets deklarerade arbetsområde. Tomma/formaterade
+ytterområden från Excel och Google Kalkylark ignoreras; originalfilen ändras
+inte. Noll, falskt, formelfel och formler med tomt eller saknat sparat resultat
+räknas som innehåll. Även matrisformlers områden kontrolleras. Verkligt innehåll
+utanför gränsen stoppar hela importen med cellreferens i felmeddelandet, utan
+tyst avklippning. Gränserna 3 MB och 20 flikar kvarstår.
+
+## Val av träningstillfälle
+
 Granskningen av flikar hämtar coachskyddade `occasionChoices` för granskningsdatumet
 med `includePlanning=true`. Publicerade pass, ej bortkopplade manuella simplaner och
 tydligt namngivna, tidsatta simträningar från aktiverade SportAdmin-kalendrar ingår.

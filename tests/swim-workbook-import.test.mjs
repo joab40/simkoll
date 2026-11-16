@@ -61,8 +61,57 @@ test('unknown layouts stay available for manual review and oversized files are n
   assert.equal(result.sheets[0].selected, false)
   assert.match(result.sheets[0].draft.content, /4x100 fr · st\. 1,30/)
   assert.throws(() => parseSwimWorkbook(Buffer.alloc(3 * 1024 * 1024 + 1), fileName), /under 3 MB/)
+  book.Sheets.Frisim.A301 = { t: 's', v: 'Verkligt innehåll som inte får tappas' }
   book.Sheets.Frisim['!ref'] = 'A1:A301'
   assert.throws(() => parseSwimWorkbook(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }), fileName), /300 rader/)
+})
+
+test('empty formatted tails and inflated dimensions do not block the workout or alter its imported content', () => {
+  for (const bookType of ['xlsx', 'biff8']) {
+    const original = fixture({ bookType }), book = XLSX.read(original, { type: 'buffer' })
+    const expected = parseSwimWorkbook(original, fileName)
+    const sheet = book.Sheets['Bröstsim']
+    sheet.AH609 = { t: 's', v: '', s: { fill: { fgColor: { rgb: 'FFFF00' } } } }
+    sheet.AA500 = { t: 's', v: '   ' }
+    sheet['!ref'] = 'A1:AH609'
+    // Merged empty areas do not represent additional workout data either.
+    sheet['!merges'] = [XLSX.utils.decode_range('A400:B609')]
+    book.Sheets.Tom.AH609 = { t: 's', v: '' }
+    book.Sheets.Tom['!ref'] = 'A1:AH609'
+    assert.deepEqual(parseSwimWorkbook(XLSX.write(book, { type: 'buffer', bookType }), fileName), expected)
+  }
+})
+
+test('real values and formulas outside the limits are detected even below the former 301-row read cutoff', () => {
+  const outside = [
+    ['A609', { t: 's', v: 'Tränaranteckning långt ned' }],
+    ['A609', { t: 'n', v: 0 }],
+    ['A609', { t: 'b', v: false }],
+    ['A609', { t: 'e', v: 7 }],
+    ['A609', { t: 's', v: '', f: 'IF(1,"","")' }],
+    ['A609', { t: 'n', f: '1+1' }],
+    ['AG1', { t: 's', v: 'Innehåll i kolumn 33' }],
+    ['AG1', { t: 's', v: '', f: 'IF(1,"","")' }],
+    ['A1', { t: 'n', v: 1, f: 'ROW(A1:A609)', F: 'A1:A609' }],
+  ]
+  for (const [address, cell] of outside) {
+    const book = XLSX.utils.book_new(), sheet = XLSX.utils.aoa_to_sheet([['Pass'], ['4x100 fr']])
+    sheet[address] = cell
+    sheet['!ref'] = 'A1:AG609'
+    XLSX.utils.book_append_sheet(book, sheet, 'Frisim')
+    assert.throws(() => parseSwimWorkbook(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }), fileName), /innehåll utanför.*300 raderna.*32 kolumnerna/, address)
+  }
+})
+
+test('the last allowed row/column remain visible and leading empty template columns are not shifted', () => {
+  const book = XLSX.utils.book_new(), sheet = XLSX.utils.aoa_to_sheet([['Pass att granska']])
+  sheet.AF300 = { t: 's', v: 'Sista tillåtna cellen' }
+  sheet['!ref'] = 'A1:AF300'
+  XLSX.utils.book_append_sheet(book, sheet, 'Gränsfall')
+  assert.match(parseSwimWorkbook(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }), fileName).sheets[0].draft.content, /Sista tillåtna cellen/)
+  const offsetBook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(offsetBook, XLSX.utils.aoa_to_sheet([[], [], ['', '', '4x100 fr']]), 'Förskjuten')
+  assert.match(parseSwimWorkbook(XLSX.write(offsetBook, { type: 'buffer', bookType: 'xlsx' }), fileName).sheets[0].draft.content, /4x100 fr/)
 })
 
 test('Drive uses verified metadata and downloads Excel or exports the complete Google workbook', async () => {
