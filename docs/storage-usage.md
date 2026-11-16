@@ -7,6 +7,8 @@ Kör `supabase/migrations/110_storage_usage.sql`. Superadmin får därefter **La
 - Databas: `pg_database_size(current_database())`, hela aktuell databas inklusive interna tabeller och index. Inte total provisionerad disk, WAL eller hela organisationens användning.
 - Tabeller/scheman: `pg_total_relation_size`, med index/TOAST, utan att räkna index/TOAST eller partitioneringsföräldrar dubbelt. Radantal är katalogens uppskattning. De största 30 apptabellerna visas utan radinnehåll.
 - Filer: summan av registrerade objektstorlekar från `storage.objects`, inklusive förhandsbilder, tillfälliga och eventuellt övergivna uppladdningar. Alla projektets buckets ingår. Det är inte nedladdningstrafik eller fakturans tidsvägda GB-timmar.
+- `reward-level-art` visas som **Nivåkort · bakgrunder och emblem**: även sparade, ej aktiverade bildförslag ingår. Delade bakgrunder räknas en gång per lagringsobjekt, inte en gång per nivå. Nivåkortens svävning, partiklar och ljusvågor körs med appkod i webbläsaren och är inga separata videofiler i Storage.
+- `strength-exercise-images` visas som **Styrka och landträning · övningsbilder**. Båda programtyperna använder samma bildbibliotek, så vyn hittar inte på separata filstorlekar per programtyp eller dubbelräknar återanvända bilder. Detta kräver ingen ny SQL.
 - Saknad/ogiltig filstorlek räknas separat. Då visas känd användning som lägstanivå och inget säkert kvarvarande filutrymme.
 - Budgetar anges av superadmin i decimala GB (1 GB = 1 000 000 000 byte). Tomt betyder okänd gräns, aldrig obegränsat. Kvarvarande avser **angiven budget**, inte ett automatiskt avläst abonnemang. Gul/röd varning vid 80/90 %. Ingen automatisk push eller blockering av uppladdningar.
 - Budgetändringar skyddas mot samtidig överskrivning med `expectedUpdatedAt`.
@@ -26,6 +28,9 @@ En lyckad serveruppladdning betyder att Storage tagit emot filen, inte att en se
 API-vägen är `/api/profiles?storage=true` (ingen extra Vercel-serverfunktion). Den kräver ett signerat superadmin-konto och kontrollerar aktuell roll/status i databasen på nytt. Vanlig tränare, huvudtränare, simmare, gruppkod och inaktiverat/nedgraderat konto nekas. Tabeller har RLS utan klientpolicyer; RPC-funktioner har stängd `search_path` och EXECUTE enbart för service_role. Nytt underlag skickas inte till AI.
 
 ## Kontroll
+
+Lokal visuell demo: `/storage-admin-qa.html` eller `?viewport=mobile` för 390 px.
+Alla siffror är fiktiva; demon gör inga API-anrop och tillåter inga skrivningar.
 
 Riktade enhets-/behörighetstester: `node --test tests/storage-usage.test.mjs`.
 Isolerat PostgreSQL-test (valfri PGlite-installation utanför projektet): sätt `SIMKOLL_TEST_PGLITE_MODULE` till dess `dist/index.js` och kör `node --test tests/storage-usage-sql.test.mjs`. Testet kör SQL mot lokala fixtures, provar RLS/EXECUTE, summering, samtidighetskontroll och idempotens. Endast pg_crons externa schemaläggare ersätts med en teststub; verklig daglig körning måste kontrolleras i Supabase efter installation.

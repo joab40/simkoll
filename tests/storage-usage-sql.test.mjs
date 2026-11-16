@@ -62,5 +62,18 @@ test('SQL 110 measures metadata, protects access, versions budgets and samples o
     await db.exec(`insert into public.storage_usage_events(action,bucket_id,success) values ('upload','test',false)`)
     await assert.rejects(db.query('delete from public.storage_usage_events'), /permission denied/)
     await db.exec('reset role')
+    // SQL 110 already measures every bucket: new display categories require no
+    // extra query or migration and never count a reused background per level.
+    await db.exec(`insert into storage.buckets values ('reward-level-art',true),('strength-exercise-images',false);
+      insert into storage.objects values
+      (5,'reward-level-art','8/background.webp','{"size":100,"mimetype":"image/webp"}'),
+      (6,'reward-level-art','8/emblem.webp','{"size":200,"mimetype":"image/webp"}'),
+      (7,'strength-exercise-images','owner/exercise.webp','{"size":300,"mimetype":"image/webp"}');`)
+    const updated=(await db.query('select public.storage_admin_overview(false) as value')).rows[0].value
+    assert.equal(updated.current.fileCount,7);assert.equal(updated.current.fileBytes,25101600)
+    assert.equal(updated.current.buckets.find(row=>row.id==='reward-level-art').object_count,2)
+    assert.equal(updated.current.buckets.find(row=>row.id==='reward-level-art').bytes,300)
+    assert.equal(updated.current.buckets.find(row=>row.id==='strength-exercise-images').bytes,300)
+    assert.doesNotMatch(JSON.stringify(updated),/background.webp|emblem.webp|exercise.webp|owner/)
   } finally { await db.close() }
 })

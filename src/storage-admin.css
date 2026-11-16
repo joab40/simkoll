@@ -22,6 +22,12 @@
 .storage-breakdown article, .storage-events article { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 13px 0; border-bottom: 1px solid #e1eae7; }
 .storage-breakdown article > div, .storage-events article > div { min-width: 0; overflow-wrap: anywhere; }
 .storage-breakdown article > b, .storage-events article > span { flex-shrink: 0; }
+.storage-breakdown .storage-bucket-note { max-width:760px; margin-top:6px; font-size:12px; line-height:1.6; }
+.storage-animation-note { margin-top:20px; border:1px solid #d5e6e2; border-radius:14px; padding:16px; background:#edf5f2; }
+.storage-animation-note > div { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; justify-content:space-between; }
+.storage-animation-note strong { font-size:14px; }
+.storage-animation-note span { color:#246547; background:#e2f2e8; border-radius:20px; padding:5px 10px; font-size:12px; }
+.storage-animation-note p { margin:10px 0 0; font-size:13px; }
 .storage-section-heading { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 10px; }
 .storage-section-heading label { display: flex; gap: 10px; align-items: center; font-size: 14px; }
 .storage-admin select, .storage-admin input { min-height: 44px; max-width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--ink); border: 1px solid #bed3ce; border-radius: 10px; background: white; }

@@ -25,7 +25,12 @@ export function storageBytes(value) {
 export const STORAGE_BUCKET_NAMES = {
   'goal-analysis-videos': 'Utvecklingsmål · video och förhandsbilder',
   'goal-analysis-images': 'Utvecklingsmål · bilder',
-  'strength-exercise-images': 'Styrkeövningar · bilder',
+  'strength-exercise-images': 'Styrka och landträning · övningsbilder',
+  'reward-level-art': 'Nivåkort · bakgrunder och emblem',
   'competition-pm': 'Tävlingsbilagor · PM',
+}
+export const STORAGE_BUCKET_NOTES = {
+  'strength-exercise-images': 'Gemensamt bildbibliotek för styrke- och landträningsprogram. Återanvända bilder lagras bara en gång; storleken kan inte delas upp säkert per programtyp.',
+  'reward-level-art': 'Bakgrunder och illustrerade emojis för nivåerna, inklusive sparade bildförslag som inte är aktiverade. En bakgrund som används på flera nivåer räknas bara en gång.',
 }
 export const STORAGE_KIND_NAMES = { video: 'Filmer', image: 'Bilder och förhandsbilder', document: 'Dokument', other: 'Övrigt / okänd filtyp' }

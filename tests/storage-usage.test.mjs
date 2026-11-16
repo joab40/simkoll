@@ -1,7 +1,8 @@
 import { coachSessionFixture } from './helpers/coach-session-fixture.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseStorageBudget, storageBudgetInput, storageBudgetState, storageBytes } from '../shared/storage-usage.js'
+import {readFile} from 'node:fs/promises'
+import { parseStorageBudget, storageBudgetInput, storageBudgetState, storageBytes, STORAGE_BUCKET_NAMES, STORAGE_BUCKET_NOTES } from '../shared/storage-usage.js'
 import { validStorageBudget, handleStorageAdmin } from '../server/storage-admin.js'
 import { storageMutationEvent, recordStorageEvent } from '../server/storage-events.js'
 import { createCoachToken } from '../server/coach-auth.js'
@@ -9,6 +10,22 @@ import { createCoachToken } from '../server/coach-auth.js'
 const adminId = '11111111-1111-4111-8111-111111111111'
 const token = (role = 'superadmin') => createCoachToken({ id: adminId, role })
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status })
+test('level art and shared dryland/strength images have accurate storage labels without invented per-program totals', () => {
+  assert.equal(STORAGE_BUCKET_NAMES['reward-level-art'],'Nivåkort · bakgrunder och emblem')
+  assert.match(STORAGE_BUCKET_NAMES['strength-exercise-images'],/Styrka och landträning/)
+  assert.match(STORAGE_BUCKET_NOTES['reward-level-art'],/inte är aktiverade/)
+  assert.match(STORAGE_BUCKET_NOTES['reward-level-art'],/räknas bara en gång/)
+  assert.match(STORAGE_BUCKET_NOTES['strength-exercise-images'],/kan inte delas upp säkert/)
+  assert.equal(STORAGE_BUCKET_NAMES['unrecognised-bucket'],undefined)
+})
+test('storage UI preserves measured bucket counts and bytes and explains code-rendered animations without inventing file sizes',async()=>{
+  const source=await readFile(new URL('../src/storage-admin.jsx',import.meta.url),'utf8')
+  assert.match(source,/current\.buckets\.map/);assert.match(source,/\{row\.object_count\} filer/);assert.match(source,/storageBytes\(row\.bytes\)/)
+  assert.match(source,/STORAGE_BUCKET_NOTES\[row\.id\]/)
+  assert.match(source,/Nivåkort · animationer och effekter/);assert.match(source,/Körs i appen/)
+  assert.match(source,/inte separata animations- eller videofiler i Storage/)
+  assert.doesNotMatch(source,/object\/sign|reward_level_art\?|generate-level-art/)
+})
 async function call({ method = 'GET', code = token(), body = {}, db = async () => json([{ role: 'superadmin', status: 'active' }]) } = {}) {
   const response = { headers: {}, setHeader(k, v) { this.headers[k] = v }, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
   await handleStorageAdmin({ method, headers: { 'x-simkoll-code': code }, body }, response, db)
