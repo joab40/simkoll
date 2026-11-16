@@ -81,7 +81,8 @@ export async function generateRewardArt(request, { emoji, kind, style }, deps = 
 export async function handleRewardArt(request, response, deps = {}) {
   const read = deps.read || supabaseRequest, storage = deps.storage || supabaseStorageRequest
   const actor = coachFromRequest(request), body = request.body || {}
-  if (!actor?.sub || !['head_coach', 'superadmin'].includes(actor.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan skapa och aktivera nivåbilder.' })
+  if (!actor?.sub || !['head_coach', 'superadmin'].includes(actor.role)) return sendJson(response, 403, { error: 'Endast huvudtränare och superadmin kan hantera nivåbilder. Nya bilder får bara genereras av superadmin.' })
+  if (body.action === 'generate-level-art' && actor.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan generera nya nivåbilder. Befintliga bilder kan fortfarande användas i biblioteket.' })
   const levelId = Number(body.levelId), kind = body.kind
   if (!Number.isSafeInteger(levelId) || levelId <= 0 || !['background', 'emblem'].includes(kind)) return sendJson(response, 400, { error: 'Välj en nivå och bildtyp.' })
   const lookup = await read(`reward_levels?id=eq.${levelId}&select=*&limit=1`)
@@ -106,7 +107,11 @@ export async function handleRewardArt(request, response, deps = {}) {
   const bucketResult = await storage(`bucket/${bucket}`)
   if (!bucketResult.ok || (await bucketResult.json()).public !== true) return sendJson(response, 503, { error: 'Nivåbildlagringen är inte klar. Kör SQL 124 innan bildgenerering.' })
   const reservation = await read('rpc/reserve_reward_art', { method: 'POST', body: JSON.stringify({ p_actor_id: actor.sub, p_session_version: actor.ver || 0, p_level_id: levelId, p_kind: kind, p_style: body.style }) })
-  if (!reservation.ok) return sendJson(response, reservation.status === 403 ? 403 : 409, { error: 'Bilden kunde inte reserveras. En generering kan pågå eller dygnstaket (12 per administratör) vara nått. Kontrollera även att SQL 124 och 127 (nya bildstilar) är körda.' })
+  if (!reservation.ok) {
+    const failure = await reservation.json().catch(() => ({}))
+    if (failure.code === '42501' || reservation.status === 403) return sendJson(response, 403, { error: 'Ett aktivt superadmin-konto krävs för bildgenerering. Logga in igen om behörigheten har ändrats.' })
+    return sendJson(response, 409, { error: 'Bilden kunde inte reserveras. En generering kan pågå eller gränsen på 50 bildförsök per superadmin under de senaste 24 timmarna vara nådd. Kontrollera att SQL 124, 127 och 128 är körda.' })
+  }
   const reserved = await reservation.json(), id = reserved?.id, sourceEmoji = reserved?.emoji
   if (!uuid.test(id || '') || typeof sourceEmoji !== 'string') return sendJson(response, 503, { error: 'Bildgenereringen kunde inte startas.' })
   try {

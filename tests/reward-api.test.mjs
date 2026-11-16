@@ -54,3 +54,9 @@ test('library actions use the real session guard and ordinary coaches cannot rea
     else {assert.deepEqual(response.data.cards,[]);assert(calls.includes('reward_level_cards'))}
   }
 })
+test('head coach cannot generate new level art through the real endpoint, even with a valid live session',async()=>{
+  const calls=[]
+  globalThis.fetch=async raw=>{const table=new URL(raw).pathname.split('/').at(-1);calls.push(table);assert.equal(table,'coach_accounts');return json([{id}])}
+  const response=res();await handler({method:'POST',headers:{'x-simkoll-code':createCoachToken({id,role:'head_coach'})},query:{},body:{action:'generate-level-art',levelId:8,kind:'emblem',style:'cosmic',confirmed:true}},response)
+  assert.equal(response.code,403);assert.deepEqual(calls,['coach_accounts'])
+})

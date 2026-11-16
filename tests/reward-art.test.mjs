@@ -20,11 +20,22 @@ const fixture = () => {
     return json([])
   },storage:async(path,options)=>{calls.push({path,options});return json({public:true})},availability:async()=>({allowed:true}),audit:async()=>{},generate:async(_request,options)=>{calls.push({generated:options});return{bytes:Buffer.from('fixture'),mime:'image/webp',extension:'webp'}}}
 }
-test('only signed head coach/superadmin may generate or publish; malformed selection and unconfirmed requests never call AI',async()=>{
+test('only superadmin may generate; head coach may still publish existing art; malformed and unconfirmed requests never call AI',async()=>{
   for(const role of ['coach','swimmer']){const response=res();await handleRewardArt(req(undefined,{},role),response,fixture());assert.equal(response.code,403)}
+  const head=fixture(),denied=res();await handleRewardArt(req('generate-level-art',{},'head_coach'),denied,head)
+  assert.equal(denied.code,403);assert.equal(head.calls.length,0)
+  const publishing=fixture(),published=res();await handleRewardArt(req('publish-level-art',{assetId},'head_coach'),published,publishing);assert.equal(published.code,200)
   for(const body of [{confirmed:false},{kind:'svg'},{style:'constructor'},{levelId:'8);delete'},{assetId:'https://untrusted.invalid'}]){
     const deps=fixture(), response=res();await handleRewardArt(req(body.assetId?'publish-level-art':undefined,body),response,deps)
     assert.equal(response.code,400); assert(!deps.calls.some(row=>row.generated))
+  }
+})
+test('reservation permission failures fail closed and quota messages describe 50 attempts without calling AI',async()=>{
+  for(const code of ['42501','P0001']){
+    const deps=fixture(),base=deps.read;deps.read=(path,options)=>path==='rpc/reserve_reward_art'?json({code},400):base(path,options)
+    const response=res();await handleRewardArt(req(),response,deps)
+    assert.equal(response.code,code==='42501'?403:409);assert(!deps.calls.some(row=>row.generated))
+    assert.match(response.data.error,code==='42501'?/superadmin/:/50 bildförsök/)
   }
 })
 test('generation reserves quota before one AI call, stores draft and never auto-publishes',async()=>{

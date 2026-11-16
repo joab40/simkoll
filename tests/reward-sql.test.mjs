@@ -61,5 +61,47 @@ test('Postgres reward totals ignore REST caps and art reservations enforce role,
       assert.equal((await db.query('select background_art_id,emblem_art_id from public.reward_levels where id=8')).rows[0].background_art_id,null)
       assert.equal(Number((await db.query('select count(*) as n from public.point_events')).rows[0].n),14000)
     })
+    await t.test('SQL 128 restricts generation to live superadmin, allows exactly 50 rolling attempts and retains concurrency/history',async()=>{
+      const sql=await readFile(new URL('../supabase/migrations/128_reward_art_superadmin_quota.sql',import.meta.url),'utf8')
+      const before=Number((await db.query('select count(*) as n from public.reward_level_art')).rows[0].n)
+      await db.exec(sql);await db.exec(sql)
+      assert.equal(Number((await db.query('select count(*) as n from public.reward_level_art')).rows[0].n),before)
+      await db.exec(`update public.coach_accounts set role='head_coach' where id='${coach}';
+        insert into public.coach_accounts values('${other}','superadmin','active',0);`)
+      for(const actor of [coach])await assert.rejects(db.query("select public.reserve_reward_art($1,0,8,'emblem','cosmic')",[actor]),/superadmin/)
+      await assert.rejects(db.query("select public.reserve_reward_art($1,1,8,'emblem','cosmic')",[admin]),/superadmin/)
+      await db.exec(`update public.coach_accounts set status='disabled' where id='${admin}'`)
+      await assert.rejects(db.query("select public.reserve_reward_art($1,2,8,'emblem','cosmic')",[admin]),/superadmin/)
+      await db.exec(`update public.coach_accounts set status='active' where id='${admin}';
+        insert into public.reward_level_art(level_id,coach_id,kind,style,source_emoji,status,created_at)
+        select 8,'${admin}'::uuid,'emblem','cosmic','🪨',case when n%2=0 then 'failed' else 'ready' end,now()-interval '1 hour' from generate_series(1,49) as n;
+        insert into public.reward_level_art(level_id,coach_id,kind,style,source_emoji,status)
+        values(9,'${other}','background','pool','🔮','failed');`)
+      await db.exec('set role service_role')
+      const fiftieth=(await db.query("select public.reserve_reward_art($1,2,8,'emblem','cosmic') as draft",[admin])).rows[0].draft
+      await db.exec('reset role')
+      assert(fiftieth.id)
+      const count=async actor=>Number((await db.query("select count(*) as n from public.reward_level_art where coach_id=$1 and created_at>now()-interval '24 hours'",[actor])).rows[0].n)
+      assert.equal(await count(admin),50)
+      await assert.rejects(db.query("select public.reserve_reward_art($1,2,9,'background','pool')",[admin]),/Daily image limit/)
+      assert.equal(await count(admin),50)
+      await assert.rejects(db.query("select public.reserve_reward_art($1,0,8,'background','pool')",[other]),/already running/)
+      await db.query("select public.reserve_reward_art($1,0,9,'background','pool')",[other])
+      assert.equal(await count(other),2)
+      // A failed provider/upload still consumes an attempt. Only aging beyond
+      // the rolling window frees a slot; no attempt records are removed.
+      await db.query("update public.reward_level_art set status='failed' where id=$1",[fiftieth.id])
+      await assert.rejects(db.query("select public.reserve_reward_art($1,2,8,'emblem','cosmic')",[admin]),/Daily image limit/)
+      await db.query("update public.reward_level_art set created_at=now()-interval '25 hours' where id=(select id from public.reward_level_art where coach_id=$1 and created_at>now()-interval '24 hours' and id<>$2 order by created_at,id limit 1)",[admin,fiftieth.id])
+      assert.equal(await count(admin),49)
+      await db.query("select public.reserve_reward_art($1,2,8,'emblem','cosmic')",[admin])
+      assert.equal(await count(admin),50)
+      for(const role of ['anon','authenticated']){
+        await db.exec(`set role ${role}`);await assert.rejects(db.query("select public.reserve_reward_art($1,2,8,'emblem','cosmic')",[admin]),/permission denied/);await db.exec('reset role')
+      }
+      const level=(await db.query('select background_art_id,emblem_art_id from public.reward_levels where id=8')).rows[0]
+      assert.deepEqual(level,{background_art_id:null,emblem_art_id:null})
+      assert.equal(Number((await db.query('select count(*) as n from public.point_events')).rows[0].n),14000)
+    })
   }finally{await db.close()}
 })

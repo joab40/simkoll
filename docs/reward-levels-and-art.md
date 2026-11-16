@@ -13,6 +13,11 @@ sparade kombinationer och poäng ändras inte när SQL:en körs.
 Version **3.116.0** lägger till sex bildstilar. Kör därefter
 `supabase/migrations/127_reward_art_styles.sql` för att tillåta de nya stilarna.
 Den ändrar endast stilernas tillåtna värden; bilder, poäng och aktiva val behålls.
+För 50 bildförsök per superadmin under rullande 24 timmar körs även
+`supabase/migrations/128_reward_art_superadmin_quota.sql`. Endast ett aktivt
+superadmin-konto med aktuell session får generera nya bilder. Tidigare försök,
+inklusive misslyckade, behålls och räknas med; kvoten nollställs inte av SQL:en.
+Huvudtränare kan fortsatt blanda, spara och aktivera befintliga bilder.
 
 ## Rättningen
 
@@ -41,7 +46,8 @@ med läsbart centrum respektive ett igenkännbart, transparent emblem.
 En ny bild sparas automatiskt i biblioteket och väljs i förhandsgranskningen;
 det andra bildvalet behålls. Inget aktiveras automatiskt.
 Ingen bildgenerering startas av att visa, blanda eller spara ett kort.
-Vanliga tränare och simmare får inte generera eller aktivera bilder.
+Endast superadmin ser genereringspanelen och får generera nya bilder.
+Vanliga tränare och simmare får inte använda nivåverkstaden.
 
 Ge kombinationen ett namn (1–60 tecken) och välj **Spara kortkombination**.
 Det sparar bildreferenserna och emoji-versionen, inte en fryst poängsumma eller
@@ -86,8 +92,8 @@ ny modell krävs om klubbens befintliga bildmodell har åtkomst. En bild per anr
 medium, WebP; bakgrund 1536×1024, transparent emblem 1024×1024. Ingen AI-video:
 stillbilden får rörelse i CSS. Anrop begränsas till 160 sekunder, API-funktionen
 till 300 sekunder i Vercel. Befintlig AI-avstängning/månadstak gäller. Databasen
-serialiserar reservationer: en pågående bild per nivå och högst 12 försök per
-administratör per rullande 24 timmar. Misslyckade försök räknas också. En
+serialiserar reservationer: en pågående bild per nivå och högst 50 försök per
+superadmin per rullande 24 timmar. Misslyckade försök räknas också. En
 avbruten klient kan inte avbryta en redan skickad bildgenerering; håll sidan öppen.
 
 Tokenanvändning/modell/status loggas under **Skapa nivåbild**, och befintlig
