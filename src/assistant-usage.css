@@ -4,6 +4,15 @@
 .assistant-data-size dt, .assistant-data-size small { display: block; font-size: 11px; line-height: 1.5; }
 .assistant-data-size dd { margin: 5px 0; font-size: 13px; font-weight: 700; }
 .assistant-data-size p, .assistant-usage p { font-size: 11px; line-height: 1.6; margin: 10px 0 0; }
+.assistant-data-size { overflow-wrap: anywhere; }
+.assistant-packing, .assistant-token-budget { margin-top: 16px; padding-top: 14px; border-top: 1px solid #d2e4dc; }
+.assistant-size-table { overflow-x: auto; margin-top: 12px; }
+.assistant-size-table table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }
+.assistant-size-table caption { text-align: left; color: #4a696f; padding-bottom: 8px; }
+.assistant-size-table th, .assistant-size-table td { padding: 8px; border-bottom: 1px solid #d2e4dc; vertical-align: top; }
+.assistant-size-table tbody th { font-weight: 500; }
+.assistant-size-table td { white-space: nowrap; text-align: right; }
+.assistant-size-table thead th:not(:first-child) { text-align: right; }
 .assistant-usage { margin-top: 16px; padding-top: 12px; border-top: 1px solid #dce8e3; font-size: 12px; color: #4a696f; overflow-wrap: anywhere; }
 .assistant-usage > strong { font-size: 12px; }
 .assistant-usage > small { display: block; margin-top: 5px; font-size: 11px; }

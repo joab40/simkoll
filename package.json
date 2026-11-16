@@ -11,6 +11,7 @@
   "dependencies": {
     "@vercel/functions": "^3.9.11",
     "@vitejs/plugin-react": "latest",
+    "js-tiktoken": "1.0.21",
     "react": "latest",
     "react-dom": "latest",
     "vite": "latest",

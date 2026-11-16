@@ -1,6 +1,6 @@
 .swimmer-assistant-dialog { width: min(920px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); margin: auto; padding: 0; border: 1px solid #cbdeda; border-radius: 24px; color: #193b43; background: #f8fbf9; box-shadow: 0 24px 100px #082c3f40; }
 .swimmer-assistant-dialog::backdrop { background: #112c3b99; backdrop-filter: blur(3px); }
-.swimmer-assistant-dialog > header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 20px 24px; background: #f8fbf9f5; border-bottom: 1px solid #dbe8e3; }
+.swimmer-assistant-dialog > header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 20px 24px; background: #f8fbf9; border-bottom: 1px solid #dbe8e3; }
 .swimmer-assistant-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .swimmer-assistant-identity > span { display: grid; place-items: center; flex: 0 0 46px; height: 46px; border-radius: 50%; font-size: 28px; background: #e1f0ec; }
 .swimmer-assistant-identity p { margin: 0 0 5px; font-size: 11px; color: #557477; }

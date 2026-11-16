@@ -27,8 +27,9 @@ den måste granskas. Anonyma svar kan inte knytas till simmaren och ingår inte.
 Privata meddelanden, gruppchatt, media/bilagor, spel/poäng och teknisk kontodata
 ingår inte. Det är alltså all *vald analysdata*, inte en rå kontobackup.
 
-För mycket underlag stoppas vid 180 000 JSON-tecken; välj kortare period eller
-färre kategorier. Högst 10 000 rader per källa sidindelas. En ofullständig eller
+Den tidigare gränsen på 180 000 JSON-tecken är borttagen. 90 dagar med många
+kategorier packas förlustfritt och kontrolleras mot vald modells säkerhetsbudget
+(se nedan). Högst 10 000 rader per källa sidindelas. En ofullständig eller
 misslyckad källa visas uttryckligen som otillgänglig, inte som tom/noll.
 Ingen osynlig promptavklippning används. Saknat pass-/planeringsunderlag ger
 ingen uppskattning av minuter/meter. En del kategoriöverlapp förekommer, men
@@ -104,6 +105,57 @@ Hela modellbegärans UTF-8 JSON-storlek räknas lokalt före sändning, med frå
 signerad dialoghistorik, underlag, instruktioner och svarsschema inklusive JSON-
 escaping. Servern mäter den faktiskt byggda begäran och loggar den efter anropet.
 Ingen extern tokenräknare anropas före bekräftelse. Bytes är inte tokens.
+
+### Förlustfri packning och modellbudget
+
+`shared/assistant-context-packing.js` gör om källposter och dagsvärden till
+tabeller (`simkoll-tables-v1`). Gemensamma fältnamn och konstanta värden lagras
+en gång; återkommande värden får kolumnspecifika ordlistor när det sparar plats.
+Alla JSON-värden, datum, fritexter, null/saknat, käll-ID:n och ursprunglig
+postordning kan återskapas exakt. Inga källposter slås ihop, klipps bort eller
+ersätts med modellgenererade sammanfattningar. Små underlag skickas i
+ursprungligt format om tabellformatet skulle bli större. Klienten återskapar
+fullständiga poster för granskning, medan modellen får det kompakta formatet
+med explicita avkodningsinstruktioner. Källhänvisningar använder samma S-ID:n.
+
+Granskningen visar storlek före/efter och per kategori. Kategoritabellen avser
+bara källposter; gemensamma dagsvärden/metadata tillkommer. ”Inga hämtade
+källposter borttagna” gäller packningen, inte bevis för att rapportering är
+komplett: datakällornas befintliga varningar och urvalsbegränsningar kvarstår.
+
+Tokenuppskattningen körs endast på servern med lokalt medföljande
+`js-tiktoken`/`o200k_base`, utan nätverksanrop eller lagrad källtext. Text delas
+i korta bitar för begränsad beräkningstid även vid långa obrutna strängar;
+uppskattningen är inte en exakt API- eller fakturaberäkning. Fråga, signerad
+dialog, instruktioner och svarsschema räknas om före varje verkligt anrop.
+Ingen modell får automatiskt trunkera underlaget (`truncation:disabled`).
+
+Kapacitetssnapshot 2026-11-16 i `shared/assistant-context-budget.js`:
+
+| Modell | Kontextfönster | Utdatareserv | Extra marginal på återstående indata |
+| --- | ---: | ---: | ---: |
+| GPT-4o mini | 128 000 | 16 384 | 15 % |
+| GPT-4.1 mini / GPT-4.1 | 1 047 576 | 32 768 | 15 % |
+| GPT-6.1 Sol | 1 050 000 | 128 000 | 30 % |
+
+Utdatareserven är modellens maximala utdatautrymme, även om själva begäran
+begränsar svaret till 4 000 tokens. Sol använder o200k som uttrycklig proxy,
+inte påstått verifierad modelltokenisering, och får därför större marginal.
+Okänd serverstandard byts aldrig automatiskt: välj en modell med känd
+kapacitetsprofil och granska på nytt. Kontots åtkomst och verkliga API-gränser
+måste fortfarande fungera; lokal kontroll är inte en garanti för modellåtkomst.
+Källor: [GPT-4o mini](https://developers.openai.com/api/docs/models/gpt-4o-mini),
+[GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini),
+[GPT-4.1](https://developers.openai.com/api/docs/models/gpt-4.1),
+[GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol).
+
+Om tokenbudgeten överskrids kan tränaren fortfarande granska källorna och
+välja större modell eller mindre urval. Ingen sändning eller tyst avklippning
+sker. Separat teknisk gräns är 3 000 000 UTF-8-byte **packat underlag** för
+förhandsvisningens transport; över den returneras bara storleksdiagnostik med
+kategoristorlekar, aldrig en halv förhandsvisning. Uppdelad analys för ännu
+större underlag är inte införd. Inga nya SQL-migreringar krävs för packningen;
+nya numeriska mätfält använder befintlig `usage_details` från migrering 121.
 
 Efter ett anrop visas OpenAI:s faktiska input/output/total-tokenfält; cachelagrad
 indata och resonemangstokens är delmängder, inte extra påslag i tokentotalen.

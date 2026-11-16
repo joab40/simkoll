@@ -39,7 +39,9 @@ test('missing, malformed, unknown-priced, cache-write and nonstandard-tier usage
 })
 
 test('persisted telemetry is allowlisted and cannot carry prompt text, query IDs or unexpected fields', () => {
-  const safe = safeAssistantTelemetry({ ...assistantUsageTelemetry('gpt-4.1-mini', null, { requestBytes: 500 }), prompt: 'PRIVATE', sources: ['PRIVATE'], rates: { input: 1, output: 2, private: 'PRIVATE' }, databaseRows: -1 })
+  const safe = safeAssistantTelemetry({ ...assistantUsageTelemetry('gpt-4.1-mini', null, { requestBytes: 500, packedContextBytes: 300, packingSavedBytes: 400, estimatedInputTokens: 100, inputTokenBudget: 862586 }), prompt: 'PRIVATE', sources: ['PRIVATE'], rates: { input: 1, output: 2, private: 'PRIVATE' }, databaseRows: -1 })
+  assert.equal(safe.packedContextBytes, 300); assert.equal(safe.packingSavedBytes, 400)
+  assert.equal(safe.estimatedInputTokens, 100); assert.equal(safe.inputTokenBudget, 862586)
   assert(!JSON.stringify(safe).includes('PRIVATE')); assert.equal(safe.databaseRows, null)
   assert.deepEqual(safe.rates, { input: 1, output: 2 })
   assert.equal(safeAssistantTelemetry({ prompt: 'secret' }), null)

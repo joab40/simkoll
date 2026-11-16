@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { apiRequest } from './api-request.js'
 import { SWIMMER_ASSISTANT_CATEGORIES as CATEGORIES, SWIMMER_ASSISTANT_DEFAULTS, SWIMMER_ASSISTANT_PERIODS, SWIMMER_ASSISTANT_MODELS, swimmerAssistantRequestBytes } from '../shared/swimmer-assistant.js'
 import { AssistantDataSize, AssistantUsage } from './assistant-usage.jsx'
+import { unpackAssistantContext } from '../shared/assistant-context-packing.js'
 import './swimmer-assistant.css'
 
 const labels = { feeling: 'Dagskänsla', body: 'Kroppskänsla', energy: 'Energi', rpe: 'RPE', sRpe: 'sRPE, belastningspoäng', activity: 'Aktivitet', slot: 'Passval', submittedAt: 'Inskickat', status: 'Status', value: 'Värde', scale: 'Skala', text: 'Text', reportedMinutes: 'Rapporterade minuter', estimatedMinutes: 'Uppskattade minuter', reportedMeters: 'Rapporterade meter', estimatedMeters: 'Uppskattade meter', basis: 'Underlag och begränsning', timeSource: 'Tidskälla', event: 'Gren', pool: 'Bassäng', swim_time: 'Tid', date_precision: 'Datumnoggrannhet', result_year: 'Årtal', result_time: 'Tid i hundradelar', source: 'Källa', competition_name: 'Tävling', note: 'Anteckning', notes: 'Anteckningar' }
@@ -23,6 +24,7 @@ export default function SwimmerAssistant({ profile, code, onClose, request = api
   const [categories, setCategories] = useState([...initialCategories]), [period, setPeriod] = useState('90')
   const [model, setModel] = useState('default')
   const [preview, setPreview] = useState(null), [confirmed, setConfirmed] = useState(false), [question, setQuestion] = useState(initialQuestion)
+  const [diagnostics, setDiagnostics] = useState(null)
   const [messages, setMessages] = useState([]), [history, setHistory] = useState([]), [historySignature, setHistorySignature] = useState('')
   const [busy, setBusy] = useState(''), [error, setError] = useState('')
   const [selectionOpen, setSelectionOpen] = useState(true)
@@ -35,7 +37,7 @@ export default function SwimmerAssistant({ profile, code, onClose, request = api
   }, [])
   useEffect(() => { if (messages.length) lastMessage.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' }) }, [messages.length])
   useEffect(() => { if (preview) previewHeading.current?.focus() }, [preview])
-  const reset = () => { setPreview(null); setConfirmed(false); setMessages([]); setHistory([]); setHistorySignature(''); setError('') }
+  const reset = () => { setPreview(null); setDiagnostics(null); setConfirmed(false); setMessages([]); setHistory([]); setHistorySignature(''); setError('') }
   const change = (nextCategories, nextPeriod = period) => { if (pending.current) return; reset(); setSelectionOpen(true); setCategories(nextCategories); setPeriod(nextPeriod) }
   const execute = async (action, more = {}) => {
     abort.current = new AbortController()
@@ -44,13 +46,19 @@ export default function SwimmerAssistant({ profile, code, onClose, request = api
   const prepare = async () => {
     if (pending.current || !categories.length) return
     pending.current = true; setBusy('preview'); reset()
-    try { const result = await execute('swimmer-assistant-preview'); if (alive.current) { setPreview(result); setSelectionOpen(false) } }
+    try {
+      const result = await execute('swimmer-assistant-preview')
+      if (alive.current) {
+        if (result.context) { setPreview({ ...result, wireContext: result.context, context: unpackAssistantContext(result.context) }); setSelectionOpen(false) }
+        else { setDiagnostics(result); setError(result.budgetMessage || 'Underlaget kunde inte förhandsvisas. Ändra urvalet och granska igen.') }
+      }
+    }
     catch (failure) { if (alive.current) setError(failure.message) }
     finally { pending.current = false; if (alive.current) setBusy('') }
   }
   const ask = async event => {
     event.preventDefault()
-    if (pending.current || !confirmed || !preview || !question.trim()) return
+    if (pending.current || !confirmed || !preview?.token || preview.blocked || !question.trim()) return
     const text = question.trim()
     pending.current = true; setBusy('chat'); setError('')
     try {
@@ -61,7 +69,7 @@ export default function SwimmerAssistant({ profile, code, onClose, request = api
       if (alive.current) { setError(failure.message); setConfirmed(false); if (/på nytt|hör inte|starta en ny/i.test(failure.message)) { setPreview(null); setMessages([]); setHistory([]); setHistorySignature('') } }
     } finally { pending.current = false; if (alive.current) setBusy('') }
   }
-  const requestBytes = preview && swimmerAssistantRequestBytes(preview.context, history, question, preview.requestEnvelopeBytes)
+  const requestBytes = preview && swimmerAssistantRequestBytes(preview.wireContext, history, question, preview.requestEnvelopeBytes)
   const suggestions = taperDialogue ? ['Hur balanserar vi måltävlingarna?', 'Vilka alternativ finns för nästa veckas fokus?', 'Vad behöver vi följa upp innan vi ändrar planen?'] : ['Vad har förändrats under perioden?', 'Hur såg träningen ut före senaste tävlingen?', 'Stämmer fartkänslan med resultaten?']
   return createPortal(<dialog className="swimmer-assistant-dialog" ref={dialog} aria-labelledby="swimmer-assistant-title" onCancel={event => { event.preventDefault(); onClose() }}>
     <header><div className="swimmer-assistant-identity"><span aria-hidden="true">{profile.emoji || '🏊'}</span><div><p>Huvudtränare & superadmin · skrivskyddat</p><h2 id="swimmer-assistant-title">{taperDialogue ? 'Toppningsdialog ·' : 'Prata om'} {profile.displayName}</h2></div></div><button type="button" className="swimmer-assistant-close" onClick={onClose} aria-label="Stäng simmarassistenten">×</button></header>
@@ -72,13 +80,14 @@ export default function SwimmerAssistant({ profile, code, onClose, request = api
         <p className="swimmer-assistant-exclusions">”Allt relevant” gäller kategorierna ovan. Anonyma svar, privata meddelanden, bilagor, spelhistorik samt kontakt- och inloggningsfält ingår inte. Fritext kan ändå innehålla personuppgifter. Ändrade val rensar dialogen.</p>
         <button type="button" className="primary-button" disabled={!!busy || !categories.length} onClick={prepare}>{busy === 'preview' ? 'Hämtar underlag…' : preview ? 'Granska på nytt / ny dialog' : 'Hämta & granska underlag'}</button>
       </section></details>
-      {preview && <section className="swimmer-assistant-preview" aria-label="Granska underlaget"><h3 ref={previewHeading} tabIndex={-1}>Det här underlaget kan skickas</h3><p>{preview.context.selection.start}–{preview.context.selection.end} · {preview.context.sources.length} källposter · giltigt i {preview.expiresInMinutes} minuter</p><div className="swimmer-assistant-preview-categories">{preview.context.categories.map(category => <span key={category.key}>{category.label} · {category.records}</span>)}</div>{preview.context.warnings.map(warning => <p className="swimmer-assistant-warning" key={warning}>{warning}</p>)}<details><summary>Granska källposter per kategori</summary><div className="swimmer-assistant-evidence-groups">{preview.context.categories.map(category => <EvidenceGroup key={`${preview.token}-${category.key}`} category={category} sources={preview.context.sources} />)}<details><summary>Beräknade dagsvärden & begränsningar</summary><ul>{preview.context.limitations.map(text => <li key={text}>{text}</li>)}</ul><pre>{JSON.stringify(preview.context.daily, null, 2)}</pre></details></div></details>
-        <p>Vald modell: <strong>{preview.model}</strong>. Tillgänglighet beror på klubbens OpenAI-konto. Modellbyte kräver ny granskning.</p><AssistantDataSize sizes={preview.sizes} requestBytes={requestBytes} /><label className="swimmer-assistant-consent"><input type="checkbox" checked={confirmed} disabled={!!busy} onChange={event => setConfirmed(event.target.checked)} /><span>Jag har granskat underlaget och bekräftar att valda uppgifter, frågan och denna dialog får skickas till OpenAI:s API för analys, även känslig fritext eller hälsodata om jag valt det. Klubbens godkännanden och rutiner ska vara uppfyllda.</span></label>
+      {diagnostics && <AssistantDataSize sizes={diagnostics.sizes} packing={diagnostics.packing} budget={diagnostics.budget} />}
+      {preview && <section className="swimmer-assistant-preview" aria-label="Granska underlaget"><h3 ref={previewHeading} tabIndex={-1}>{preview.blocked ? 'Granska underlaget · modellbyte behövs' : 'Det här underlaget kan skickas'}</h3><p>{preview.context.selection.start}–{preview.context.selection.end} · {preview.context.sources.length} källposter{!preview.blocked && ` · giltigt i ${preview.expiresInMinutes} minuter`}</p><div className="swimmer-assistant-preview-categories">{preview.context.categories.map(category => <span key={category.key}>{category.label} · {category.records}</span>)}</div>{preview.context.warnings.map(warning => <p className="swimmer-assistant-warning" key={warning}>{warning}</p>)}<details><summary>Granska källposter per kategori</summary><div className="swimmer-assistant-evidence-groups">{preview.context.categories.map(category => <EvidenceGroup key={`${preview.token}-${category.key}`} category={category} sources={preview.context.sources} />)}<details><summary>Beräknade dagsvärden & begränsningar</summary><ul>{preview.context.limitations.map(text => <li key={text}>{text}</li>)}</ul><pre>{JSON.stringify(preview.context.daily, null, 2)}</pre></details></div></details>
+        <p>Vald modell: <strong>{preview.model}</strong>. Tillgänglighet beror på klubbens OpenAI-konto. Modellbyte kräver ny granskning.</p><AssistantDataSize sizes={preview.sizes} requestBytes={requestBytes} packing={preview.packing} budget={preview.budget} />{preview.blocked && <p className="swimmer-assistant-warning" role="alert">{preview.budgetMessage}</p>}<label className="swimmer-assistant-consent"><input type="checkbox" checked={confirmed} disabled={!!busy || preview.blocked || !preview.token} onChange={event => setConfirmed(event.target.checked)} /><span>Jag har granskat underlaget och bekräftar att valda uppgifter, frågan och denna dialog får skickas till OpenAI:s API för analys, även känslig fritext eller hälsodata om jag valt det. Klubbens godkännanden och rutiner ska vara uppfyllda.</span></label>
         <small>Dialogen sparas inte av Simkoll och försvinner när du stänger rutan. OpenAI:s lagringsvillkor gäller fortfarande; ”spara inte modellsvar” innebär inte garanterad nollagring hos leverantören.</small>
       </section>}
       {messages.length > 0 && <section className="swimmer-assistant-conversation" aria-label="Dialog om simmaren">{messages.map((message, index) => <article key={index}><p className="swimmer-assistant-question"><strong>Din fråga</strong>{message.question}</p><div className="swimmer-assistant-answer"><span className="eyebrow">Analysstöd · kontrollera underlaget</span><Finding finding={message.reply.answer} sources={preview.context.sources} />{message.reply.observations.length > 0 && <h4>Observerat i uppgifterna</h4>}{message.reply.observations.map((finding, i) => <Finding key={i} finding={finding} sources={preview.context.sources} />)}{message.reply.interpretations.length > 0 && <h4>Möjliga tolkningar – inte säkra orsaker</h4>}{message.reply.interpretations.map((finding, i) => <Finding key={i} finding={finding} sources={preview.context.sources} />)}<ul>{message.reply.limitations.map((text, i) => <li key={i}>{text}</li>)}</ul><AssistantUsage telemetry={message.telemetry} model={message.model} /></div></article>)}<div ref={lastMessage} /></section>}
       {error && <p className="swimmer-assistant-warning" role="alert">{error}</p>}
-      {preview && <form className="swimmer-assistant-compose" onSubmit={ask}><div className="swimmer-assistant-suggestions">{suggestions.map(text => <button type="button" key={text} disabled={!!busy} onClick={() => setQuestion(text)}>{text}</button>)}</div><label>Fråga om {profile.displayName}<textarea maxLength={2000} rows={3} value={question} disabled={!!busy} onChange={event => setQuestion(event.target.value)} placeholder="Exempel: Vilka mönster ser du mellan träningen och resultaten?" /></label><div><small>Rådgivande underlag, inte diagnos eller säker formbedömning. Högst sex frågor per dialog.</small><button type="submit" className="primary-button" disabled={!!busy || !confirmed || !question.trim() || !preview.context.sources.length}>{busy === 'chat' ? 'Analyserar valt underlag…' : 'Skicka fråga till OpenAI'}</button></div>{busy === 'chat' && <p role="status">Assistenten arbetar med det granskade underlaget…</p>}</form>}
+      {preview && <form className="swimmer-assistant-compose" onSubmit={ask}><div className="swimmer-assistant-suggestions">{suggestions.map(text => <button type="button" key={text} disabled={!!busy} onClick={() => setQuestion(text)}>{text}</button>)}</div><label>Fråga om {profile.displayName}<textarea maxLength={2000} rows={3} value={question} disabled={!!busy} onChange={event => setQuestion(event.target.value)} placeholder="Exempel: Vilka mönster ser du mellan träningen och resultaten?" /></label><div><small>Rådgivande underlag, inte diagnos eller säker formbedömning. Högst sex frågor per dialog.</small><button type="submit" className="primary-button" disabled={!!busy || !confirmed || preview.blocked || !preview.token || !question.trim() || !preview.context.sources.length}>{busy === 'chat' ? 'Analyserar valt underlag…' : 'Skicka fråga till OpenAI'}</button></div>{busy === 'chat' && <p role="status">Assistenten arbetar med det granskade underlaget…</p>}</form>}
       </>}
     </div>
   </dialog>, document.body)

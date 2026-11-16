@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { SWIMMER_ASSISTANT_CATEGORIES, SWIMMER_ASSISTANT_DEFAULTS, canUseSwimmerAssistant, validateSwimmerAssistantSelection } from '../shared/swimmer-assistant.js'
 import { loadSwimmerAssistantContext } from '../server/swimmer-assistant-context.js'
 import { jsonBytes, swimmerAssistantRequestBytes } from '../shared/swimmer-assistant.js'
+import { unpackAssistantContext } from '../shared/assistant-context-packing.js'
 process.env.COACH_SESSION_SECRET = 'swimmer-assistant-fixture-secret'
 process.env.OPENAI_API_KEY = 'fixture-only'
 const { createCoachToken } = await import('../server/coach-auth.js')
@@ -38,6 +39,7 @@ async function call(body, options = {}) {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
   const headers = { 'x-simkoll-code': options.code ?? createCoachToken({ id: options.actor || 'head-coach', role: options.role || 'head_coach' }) }
   await handleSwimmerAssistant({ body, headers }, response, { read: options.read || database(), availability: async () => options.availability || { allowed: true }, today: '2026-11-15', log: options.log || (async () => {}), audit: options.audit || (async () => {}), fetch: options.fetch || (async () => { throw new Error('No model call expected') }) })
+  if (response.data?.context) { response.wireContext = response.data.context; response.data.context = unpackAssistantContext(response.data.context) }
   return response
 }
 const preview = (options = {}, overrides = {}) => call({ ...base, ...overrides, action: 'swimmer-assistant-preview' }, options)
@@ -150,6 +152,7 @@ test('model requests are read-only, non-stored, source-scoped and logged without
   const sent = JSON.parse(requests[0].init.body)
   assert.equal(requests[0].url, 'https://api.openai.com/v1/responses')
   assert.equal(sent.store, false)
+  assert.equal(sent.truncation, 'disabled')
   assert.equal(Object.hasOwn(sent, 'tools'), false)
   assert.equal(Object.hasOwn(sent, 'previous_response_id'), false)
   assert(!requests[0].init.body.includes('PRIVATE COACH NOTE'))
@@ -166,7 +169,7 @@ test('unknown citations, refusals, incomplete outputs and service failures are r
   for (const fetch of [async () => modelResponse({ ...validAnswer, answer: { text: 'Invented', sourceIds: ['S9999'] } }), async () => reply({ status: 'incomplete', output: [] }), async () => reply({ status: 'completed', output: [{ content: [{ type: 'refusal' }] }] }), async () => ({ ok: false, status: 429 })]) assert.equal((await chat(prepared, { fetch })).code, 502)
 })
 
-test('expired review, empty source selection and oversized contexts stop before the model', async () => {
+test('expired review and empty sources stop; 190k of selected text is no longer arbitrarily rejected', async () => {
   const now = Date.now
   let prepared
   try { Date.now = () => now() - 31 * 60 * 1000; prepared = await preview() } finally { Date.now = now }
@@ -174,8 +177,10 @@ test('expired review, empty source selection and oversized contexts stop before 
   const empty = await preview({ read: database({ data: {} }) })
   assert.equal((await chat(empty, { read: database({ data: {} }) })).code, 400)
   const huge = await preview({ read: database({ data: { responses: [{ ...tableRows.responses[0], comment: 'x'.repeat(190000) }] } }) }, { categories: ['comments'] })
-  assert.equal(huge.code, 400)
-  assert.match(huge.data.error, /för stort/)
+  assert.equal(huge.code, 200)
+  assert.equal(huge.data.blocked, false)
+  assert.equal(huge.data.context.sources[0].data.text, 'x'.repeat(190000))
+  assert(huge.data.sizes.contextBytes > 180000)
 })
 
 test('illness state is not disclosed through unselected health fields; dated goal comments follow Stockholm days', async () => {
@@ -222,12 +227,93 @@ test('preview size matches the actual UTF-8 model body including escaped Unicode
   assert.equal(first.data.telemetry.totalTokens, 60)
   assert(first.data.telemetry.estimatedCostUsd > 0)
   assert.equal(logs[0].usageDetails.requestBytes, Buffer.byteLength(sent[0]))
+  const wire = JSON.parse(JSON.parse(sent[0]).input[0].content).context
+  assert.deepEqual(unpackAssistantContext(wire), prepared.data.context)
+  assert.equal(first.data.telemetry.packedContextBytes, jsonBytes(wire))
+  assert(first.data.telemetry.estimatedInputTokens <= first.data.telemetry.inputTokenBudget)
   const second = await chat(prepared, options, { question, history: first.data.history, historySignature: first.data.historySignature })
   assert.equal(second.code, 200)
   assert.equal(swimmerAssistantRequestBytes(prepared.data.context, first.data.history, question, prepared.data.requestEnvelopeBytes), Buffer.byteLength(sent[1]))
   assert(second.data.telemetry.requestBytes > first.data.telemetry.requestBytes)
   assert.equal(second.data.telemetry.historyMessages, 2)
   assert(!JSON.stringify(logs.map(item => item.usageDetails)).includes('Återhämtning'))
+})
+
+test('large 90-day previews pack losslessly and report per-category sizes before any external call', async () => {
+  const responses = Array.from({ length: 90 }, (_, index) => {
+    const date = new Date(Date.parse('2026-11-15T12:00:00Z') - index * 86400000).toISOString().slice(0, 10)
+    return { ...tableRows.responses[0], id: `r${index}`, activity_date: date, created_at: `${date}T19:00:00Z`, comment: `Kommentar ${index}: Återhämtning 🏊\n${'Fullständig fiktiv kommentar. '.repeat(60)}` }
+  })
+  const data = { ...tableRows, responses }, categories = SWIMMER_ASSISTANT_CATEGORIES.map(item => item.key)
+  const result = await preview({ read: database({ data }) }, { period: '90', categories, model: 'gpt-4.1-mini' })
+  assert.equal(result.code, 200); assert.equal(result.data.blocked, false)
+  assert(result.data.sizes.contextBytes > 180000)
+  assert(result.data.packing.savedBytes > 0)
+  assert.equal(result.data.packing.categories.find(row => row.key === 'comments').records, 90)
+  const expected = await loadSwimmerAssistantContext(profile, validateSwimmerAssistantSelection({ period: '90', categories }, '2026-11-15'), database({ data }))
+  assert.deepEqual(result.data.context, expected)
+  assert.deepEqual(unpackAssistantContext(result.wireContext), expected)
+  assert(result.data.budget.estimatedInputTokens > 0)
+  const sent = []
+  const chatResult = await chat(result, { read: database({ data }), fetch: async (_, init) => { sent.push(init.body); return modelResponse(validAnswer) } }, { period: '90', categories, model: 'gpt-4.1-mini' })
+  assert.equal(chatResult.code, 200)
+  assert.equal(swimmerAssistantRequestBytes(expected, [], 'Vad visar uppgifterna?', result.data.requestEnvelopeBytes), Buffer.byteLength(sent[0]))
+  assert.deepEqual(unpackAssistantContext(JSON.parse(JSON.parse(sent[0]).input[0].content).context), expected)
+})
+
+test('token capacity blocks with inspectable evidence, while a larger model accepts the exact same facts', async () => {
+  const text = 'Fiktiv rad om träning och fartkänsla 1 2 3 4 5.\n'.repeat(13000)
+  const read = database({ data: { responses: [{ ...tableRows.responses[0], comment: text }] } })
+  const small = await preview({ read }, { categories: ['comments'], model: 'gpt-4o-mini' })
+  assert.equal(small.code, 200); assert.equal(small.data.blocked, true); assert.equal(small.data.token, null)
+  assert.equal(small.data.budget.reason, 'tokens')
+  assert.equal(small.data.context.sources[0].data.text, text)
+  assert.match(small.data.budgetMessage, /indatatokens/)
+  const large = await preview({ read }, { categories: ['comments'], model: 'gpt-4.1-mini' })
+  assert.equal(large.data.blocked, false)
+  assert.deepEqual(large.data.context, small.data.context)
+})
+
+test('transport overflow returns sizes and category diagnostics without shipping an oversized preview or clipping it', async () => {
+  const text = 'Fullständig fiktiv text '.repeat(150000)
+  const result = await preview({ read: database({ data: { responses: [{ ...tableRows.responses[0], comment: text }] } }) }, { categories: ['comments'], model: 'gpt-4.1-mini' })
+  assert.equal(result.code, 200); assert.equal(result.data.context, null); assert.equal(result.data.token, null)
+  assert.equal(result.data.budget.reason, 'transport'); assert.equal(result.data.budget.estimatedInputTokens, null)
+  assert(result.data.sizes.contextBytes > 3000000)
+  assert.equal(result.data.packing.categories[0].records, 1)
+  assert.match(result.data.budgetMessage, /Inga rader har tagits bort/)
+})
+
+test('an unknown server default has no invented budget or automatic model switch', async () => {
+  const before = process.env.OPENAI_SWIMMER_ASSISTANT_MODEL
+  try {
+    process.env.OPENAI_SWIMMER_ASSISTANT_MODEL = 'custom-unverified-model'
+    const result = await preview()
+    assert.equal(result.data.model, 'custom-unverified-model')
+    assert.equal(result.data.budget.reason, 'unknown-model'); assert.equal(result.data.token, null)
+    assert(result.data.context.sources.length)
+  } finally { if (before === undefined) delete process.env.OPENAI_SWIMMER_ASSISTANT_MODEL; else process.env.OPENAI_SWIMMER_ASSISTANT_MODEL = before }
+})
+
+test('the full signed follow-up is budgeted again and refused before sending when question/history exceed capacity', async () => {
+  let repeats = 45000, prepared, data
+  // Find a payload near the small model's budget using the real local estimator,
+  // rather than a mocked count; source text remains the same in preview/chat.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    data = { responses: [{ ...tableRows.responses[0], comment: '1 '.repeat(repeats) }] }
+    prepared = await preview({ read: database({ data }) }, { categories: ['comments'], model: 'gpt-4o-mini' })
+    const budget = prepared.data.budget, difference = budget.inputBudget - 1000 - budget.estimatedInputTokens
+    if (Math.abs(difference) < 100) break
+    repeats += Math.round(difference / 2)
+  }
+  assert.equal(prepared.data.blocked, false)
+  let calls = 0
+  const options = { read: database({ data }), fetch: async () => { calls++; return modelResponse(validAnswer) } }
+  const first = await chat(prepared, options, { categories: ['comments'], model: 'gpt-4o-mini' })
+  assert.equal(first.code, 200)
+  const next = await chat(prepared, options, { categories: ['comments'], model: 'gpt-4o-mini', history: first.data.history, historySignature: first.data.historySignature, question: '1 '.repeat(999) })
+  assert.equal(next.code, 413); assert.equal(calls, 1)
+  assert.match(next.data.error, /indatatokens/)
 })
 
 test('transport errors and unusable model answers still log numeric telemetry; missing usage is unknown', async () => {

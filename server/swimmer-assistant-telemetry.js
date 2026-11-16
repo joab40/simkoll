@@ -48,7 +48,7 @@ export function assistantUsageTelemetry(model, response, sizes) {
 export function safeAssistantTelemetry(value) {
   if (value?.version !== 1) return null
   const output = { version: 1, usageKnown: value.usageKnown === true, costBasis: 'standard-uncached-v1', pricingDate: /^\d{4}-\d{2}-\d{2}$/.test(value.pricingDate) ? value.pricingDate : null }
-  for (const key of ['databaseRows', 'databaseJsonBytes', 'databaseRequests', 'databaseFailedRequests', 'sourceRecords', 'contextBytes', 'requestBytes', 'historyMessages', 'inputTokens', 'outputTokens', 'totalTokens', 'cachedInputTokens', 'reasoningTokens']) output[key] = count(value[key])
+  for (const key of ['databaseRows', 'databaseJsonBytes', 'databaseRequests', 'databaseFailedRequests', 'sourceRecords', 'contextBytes', 'packedContextBytes', 'packingSavedBytes', 'estimatedInputTokens', 'inputTokenBudget', 'requestBytes', 'historyMessages', 'inputTokens', 'outputTokens', 'totalTokens', 'cachedInputTokens', 'reasoningTokens']) output[key] = count(value[key])
   output.estimatedCostUsd = typeof value.estimatedCostUsd === 'number' && Number.isFinite(value.estimatedCostUsd) && value.estimatedCostUsd >= 0 ? value.estimatedCostUsd : null
   output.rates = value.rates && ['input', 'output'].every(key => typeof value.rates[key] === 'number' && Number.isFinite(value.rates[key]) && value.rates[key] >= 0) ? { input: value.rates.input, output: value.rates.output } : null
   return output

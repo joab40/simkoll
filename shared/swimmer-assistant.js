@@ -1,3 +1,5 @@
+import { packAssistantContext } from './assistant-context-packing.js'
+
 export const SWIMMER_ASSISTANT_CATEGORIES = Object.freeze([
   { key: 'checkins', label: 'Incheckningar & känslor', description: 'Kropp, dagskänsla, energi och betyg.', default: true },
   { key: 'speed', label: 'Fartkänsla', description: 'Rapporterad simfartkänsla, inte uppmätt fart.', default: true },
@@ -34,7 +36,7 @@ export const jsonBytes = value => new TextEncoder().encode(JSON.stringify(value)
 // The server measures the fixed request envelope (empty input content). Include
 // JSON escaping of the nested content string, not just the raw context bytes.
 export function swimmerAssistantRequestBytes(context, history, question, envelopeBytes) {
-  return envelopeBytes + jsonBytes(JSON.stringify({ context, history, question: question.trim() })) - 2
+  return envelopeBytes + jsonBytes(JSON.stringify({ context: packAssistantContext(context), history, question: question.trim() })) - 2
 }
 export const formatAssistantBytes = bytes => Number.isFinite(bytes) ? bytes < 1000 ? `${bytes} B` : `${(bytes / 1000).toLocaleString('sv-SE', { maximumFractionDigits: 1 })} kB` : 'Saknas'
 
