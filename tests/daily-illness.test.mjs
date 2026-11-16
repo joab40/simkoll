@@ -14,6 +14,7 @@ const { buildCoachControlPanel } = await import('../shared/coach-control-panel.j
 const { loadSwimmerTraffic } = await import('../server/swimmer-traffic.js')
 const { buildTrainingHeart } = await import('../shared/training-heart.js')
 const { featureFaqGuide } = await import('../shared/feature-faq.js')
+const { ILLNESS_CHOICES, illnessLabel } = await import('../shared/illness.js')
 const today = stockholmDate(), before = n => coachWeekAddDays(today, -n)
 const owner = '11111111-1111-4111-8111-111111111111', other = '22222222-2222-4222-8222-222222222222'
 const json = (rows, status = 200) => new Response(JSON.stringify(rows), { status })
@@ -33,6 +34,18 @@ const fixture = read => async (url, options = {}) => {
 const illness = (status, n = 0, extra = {}) => ({ profile_id: owner, activity_date: before(n), status, ...extra })
 const answer = (n, extra = {}) => ({ profileId: owner, date: before(n), activityDate: before(n), type: 'after', body: 4, feeling: 4, ...extra })
 const signals = data => followupSignals({ asOf: today, ...data })
+
+test('illness choices put Nej last without changing saved values, labels, selection or responsive layout', () => {
+  assert.deepEqual(ILLNESS_CHOICES.map(choice => choice.value), ['sick', 'mild', 'none'])
+  assert.deepEqual(ILLNESS_CHOICES.map(choice => illnessLabel(choice.value)), ['Jag känner mig sjuk', 'Lite känningar', 'Nej'])
+  const question = readFileSync(new URL('../src/daily-illness.jsx', import.meta.url), 'utf8')
+  assert.match(question, /initial = null/)
+  assert.match(question, /ILLNESS_CHOICES.map\(choice =>/)
+  assert.match(question, /onClick=\{\(\) => choose\(choice.value\)\}/)
+  const css = readFileSync(new URL('../src/daily-illness.css', import.meta.url), 'utf8')
+  assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/)
+  assert.match(css, /\.illness-choices \{ grid-template-columns: 1fr;/)
+})
 
 test('daily illness uses session owner, never supplied IDs, and requires an authenticated profile', async () => {
   globalThis.fetch = fixture((url, options) => {

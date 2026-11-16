@@ -144,6 +144,11 @@ kontrollerar status och sparar bonus + poäng i samma transaktion. Kvoten gälle
 Klienten köar inte poäng vid snabbtryck. Ett pågående försök återanvänder samma
 UUID efter nätfel, även om poängen redan sparats. Poäng och nivå uppdateras först
 efter serversvar. Efter 5/5 fungerar klappreaktionen fortfarande, utan extra poäng.
+Kortet visar bara en diskret rad, till exempel `✨ +3 poäng idag`, efter intjänad
+bonus. Instruktioner ligger i knappens hjälptext och skärmläsarbeskrivning;
+sparfel visas fortsatt tydligt. Räknaren visar inte gårdagens bonus som dagens.
+Dekorativa bild-, glitter- och orbitlager tar inte emot pekhändelser, så ett
+tryck mitt på emblemet når samma knapp som ett tryck på rutans kant.
 Utan migrationen fungerar tidigare poäng och animationer, men ingen bonus delas ut.
 `/reward-level-qa.html?view=tap` provar kortet med fiktiv kvot och förlorade svar;
 `&viewport=mobile` provar mobilbredd. Inga betalda AI-anrop används.

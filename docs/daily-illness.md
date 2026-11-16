@@ -5,8 +5,10 @@ Ingen äldre tids-, RPE- eller sjukdomsdata skrivs om. Tabellen är privat med R
 endast appserverns service-roll har åtkomst. Profilägaren härleds ur sessionen.
 Profilradering tar med dagsvaren via FK. Inga nya AI-underlag läggs till.
 
-Frivillig fråga en gång per profil/aktivitetsdag: Nej, Lite känningar, Jag känner
-mig sjuk. Ett tryck på svaret sparar och går vidare utan extra Spara-knapp.
+Frivillig fråga en gång per profil/aktivitetsdag: Jag känner mig sjuk, Lite
+känningar, Nej. På bred skärm ligger Nej till höger; på mobil ligger det sist
+i den staplade listan. Inget svar är förvalt, och de sparade statusvärdena är
+oförändrade. Ett tryck på svaret sparar och går vidare utan extra Spara-knapp.
 Under sparandet är alternativen låsta. Sparfel lämnar frågan öppen med
 Försök igen och Fortsätt utan sjukdomskoll. Kan hoppas över. Vanlig sparning
 är idempotent (ignore-duplicates).
@@ -14,6 +16,8 @@ Explicit ändring i egen dagbok får ersätta svaret för idag/igår, inklusive
 ta bort (status null, skipped true). Där krävs fortfarande Spara ändring
 efter valt svar. Tränare får läsa men inte ändra.
 Sparandet är separat och sker direkt, även om resten av incheckningen avbryts.
+`/form-kollen-qa.html?scenario=illness` visar den riktiga frågekomponenten med
+fiktivt sparande; `&viewport=mobile` provar den staplade ordningen i mobilbredd.
 
 Samma regler används i simmarkort och kontrollpanel. Träningskänsla bedöms
 över 14 dagar, medan sjukdom, sömn och hög RPE fortsatt följer sju dagar:

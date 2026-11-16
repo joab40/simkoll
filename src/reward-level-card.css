@@ -10,14 +10,16 @@
 .reward-emblem b[hidden], .reward-emblem img[hidden] { display:none; }
 .reward-emblem img { width:100%; height:100%; object-fit:contain; }
 .reward-emblem > span { display:grid; place-items:center; width:100%; height:100%; }
-.reward-card .reward-emblem-touch { display:grid; place-items:center; width:100%; height:100%; padding:0; border:0; border-radius:inherit; background:transparent; color:inherit; font:inherit; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.reward-card .reward-emblem-touch { position:relative; z-index:1; display:grid; place-items:center; width:100%; height:100%; padding:0; border:0; border-radius:inherit; background:transparent; color:inherit; font:inherit; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .reward-emblem-touch:focus-visible { outline:3px solid var(--level-accent); outline-offset:7px; }
 .reward-emblem-touch > span { position:relative; display:grid; place-items:center; width:100%; height:100%; pointer-events:none; }
+.reward-emblem-touch > span *, .reward-emblem-orbit, .reward-emblem-orbit::after { pointer-events:none; }
 .reward-emblem-bounce { animation:reward-tap-bounce .65s ease-out; }
 .reward-tap-sparkles { position:absolute; inset:0; pointer-events:none; }
 .reward-tap-sparkles i { position:absolute; left:calc(50% - 6px); top:calc(50% - 6px); font-size:17px; font-style:normal; color:var(--level-accent); opacity:0; animation:reward-tap-spark .8s ease-out both; }
-.reward-card.hero-level-card > .reward-emblem-feedback { display:grid; gap:5px; min-height:40px; max-width:340px; margin-top:-10px; }
-.reward-emblem-feedback > span { color:var(--level-accent); font-size:12px; min-height:18px; }
+.reward-card.hero-level-card > .reward-emblem-feedback { display:grid; gap:5px; max-width:340px; margin-top:-12px; }
+.reward-card.hero-level-card .reward-emblem-feedback > small { color:#c0d6de; font-size:11px; line-height:1.5; }
+.reward-card.hero-level-card .reward-emblem-feedback > .reward-emblem-error { color:#ffe0bd; }
 @keyframes reward-tap-bounce { 25% { transform:scale(.88) rotate(-6deg); } 55% { transform:scale(1.15) rotate(5deg); } 80% { transform:scale(.98) rotate(-2deg); } }
 @keyframes reward-tap-spark { 10% { opacity:1; } 100% { opacity:0; transform:rotate(var(--spark-angle)) translateY(-105px) rotate(calc(-1 * var(--spark-angle))) scale(.3); } }
 .reward-card[data-motion=off] .reward-tap-sparkles, .swimmer-hero-slide[inert] .reward-tap-sparkles { display:none; }

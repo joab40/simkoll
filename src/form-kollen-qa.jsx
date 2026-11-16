@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import FormKollenExamples from './form-kollen-examples.jsx'
 import FormKollenCard, { FormKollenView } from './form-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
+import { IllnessQuestion } from './daily-illness.jsx'
 import PlanningWeekLabel from './planning-week-label.jsx'
 import SwimmerSetupIndicator from './swimmer-setup.jsx'
 import SwimmerCardHeader from './swimmer-card-header.jsx'
@@ -134,7 +135,12 @@ function InteractiveDemo() {
   return <><p>Endast fiktivt, lokalt demo. Formuläret nedan sparar i sidans minne, inte i Simkolls databas. Inga mejl, AI-anrop eller verkliga resultat skapas.</p><FormKollenView data={data} name="Demo · ingen verklig simmare" demo onSaveContext={save} /><details><summary>Övriga fiktiva exempel</summary><FormKollenExamples /></details></>
 }
 
+function IllnessChoiceDemo() {
+  const [saved, setSaved] = useState(''), [revision, setRevision] = useState(0)
+  const request = async (_url, _code, options) => { setSaved(JSON.parse(options.body).status); return { saved: true } }
+  return <><p>Fiktiv testvy. Inga API-anrop eller databasändringar.</p><h2>Känner du dig sjuk eller på väg att bli sjuk?</h2><IllnessQuestion key={revision} date="2026-11-17" code="fixture" request={request} onContinue={() => {}}/><p role="status">{saved ? `Sparat testvärde: ${saved}` : 'Inget svar valt'}</p><button type="button" onClick={() => { setSaved(''); setRevision(value => value + 1) }}>Nytt testsvar</button></>
+}
 const scenario = new URLSearchParams(window.location.search).get('scenario')
 createRoot(document.getElementById('root')).render(['speed', 'week-nav', 'copy'].includes(scenario) ? <main style={{ maxWidth: new URLSearchParams(window.location.search).get('viewport') === 'mobile' ? 390 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{scenario === 'speed' ? <SpeedDemo /> : scenario === 'copy' ? <CardCopyDemo /> : <WeekNavigationDemo />}</main> : new URLSearchParams(window.location.search).get('viewport') === 'mobile'
   ? <main style={{ padding: 16 }}><h1>Mobilförhandsvisning · 390 px</h1><iframe title="Formkollen i mobilbredd, fiktivt demo" src={`/form-kollen-qa.html?scenario=${encodeURIComponent(new URLSearchParams(window.location.search).get('scenario') || 'partial')}`} style={{ width: 390, height: 720, maxWidth: '100%', border: '1px solid #bed5d0', borderRadius: 20 }} /></main>
-  : <main style={{ maxWidth: ['checkins', 'traffic'].includes(new URLSearchParams(window.location.search).get('scenario')) ? 1200 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{new URLSearchParams(window.location.search).get('scenario') === 'traffic' ? <TrafficDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'checkins' ? <CheckinDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'goals' ? <GoalDemo /> : new URLSearchParams(window.location.search).get('scenario') === 'header' ? <HeaderDemo /> : <InteractiveDemo />}</main>)
+  : <main style={{ maxWidth: ['checkins', 'traffic'].includes(new URLSearchParams(window.location.search).get('scenario')) ? 1200 : 760, margin: '30px auto', padding: 16 }}><h1>Simkoll · fiktivt utvecklingsdemo</h1>{scenario === 'illness' ? <IllnessChoiceDemo /> : scenario === 'traffic' ? <TrafficDemo /> : scenario === 'checkins' ? <CheckinDemo /> : scenario === 'goals' ? <GoalDemo /> : scenario === 'header' ? <HeaderDemo /> : <InteractiveDemo />}</main>)

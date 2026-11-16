@@ -8,6 +8,7 @@ process.env.COACH_SESSION_SECRET = 'fixture-secret'
 const { default: handler } = await import('../api/points.js')
 const { createCoachToken } = await import('../server/coach-auth.js')
 const { validEmblemRequestId, rewardEmblemBonus } = await import('../server/reward-emblem-bonus.js')
+const { emblemBonusCount } = await import('../src/reward-emblem-tap.js')
 const id = '11111111-1111-4111-8111-111111111111', other = '22222222-2222-4222-8222-222222222222'
 const requestId = '33333333-3333-4333-8333-333333333333'
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status })
@@ -88,6 +89,18 @@ test('real card is keyboard accessible, bounded, reduced-motion aware and only t
   assert.match(hook, /busy.current/); assert.match(hook, /pendingId.current \|\|= crypto.randomUUID/)
   assert.match(hook, /clearTimeout\(timer.current\)/); assert.doesNotMatch(hook, /setInterval|localStorage|setPoints/)
   assert.match(css, /prefers-reduced-motion:reduce/); assert.match(css, /reward-emblem-touch:focus-visible/)
+  assert.match(css, /\.reward-emblem-touch > span \*, \.reward-emblem-orbit, \.reward-emblem-orbit::after \{ pointer-events:none;/)
+  assert.match(css, /\.reward-card \.reward-emblem-touch \{ position:relative; z-index:1;/)
+  assert.match(card, /<small>✨ \+\{bonusCount\} poäng idag<\/small>/)
+  assert.match(card, /bonusCount > 0 \|\| reaction.error/)
+  assert.match(card, /className="sr-only" role="status"/)
+  assert.doesNotMatch(card, /Dagens klappbonus:|Tryck på emblemet för en liten/)
   assert.match(main, /onEmblemTap=\{!profile.isTestProfile \? tapEmblem : undefined\}/)
   assert.match(main, /JSON.stringify\(\{ action: 'tap-emblem', requestId \}\)/)
+})
+
+test('subtle counter shows only confirmed points from this Swedish calendar day, never stale or unavailable data', () => {
+  const now = new Date('2026-11-16T23:30:00Z')
+  for (let used = 1; used <= 5; used++) assert.equal(emblemBonusCount({ available: true, date: '2026-11-17', used }, now), used)
+  for (const data of [null, { available: false, date: '2026-11-17', used: 3 }, { available: true, date: '2026-11-16', used: 5 }, { available: true, date: '2026-11-17', used: 6 }]) assert.equal(emblemBonusCount(data, now), 0)
 })
