@@ -49,5 +49,21 @@ function NextUnlockDemo(){
   const points=mode==='top'?{total:1000,current:next,next:null}:{total:879,current,next}
   return <main style={{maxWidth:700,margin:'24px auto',padding:20}}><h1>Nästa upplåsning · fiktiv demo</h1><p>SVG-testbilder. Inga AI-anrop, riktiga filer eller databasändringar.</p><div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:20}}>{[['active','Aktiverat emblem'],['missing','Ingen bild'],['broken','Trasig bild'],['updated','Nytt aktiverat emblem'],['top','Högsta nivån']].map(([id,label])=><button key={id} type="button" aria-pressed={mode===id} onClick={()=>setMode(id)}>{label}</button>)}</div><div className="swimmer-hero-slide"><RewardLevelCard points={points} featured onCommunity={()=>{}}/></div></main>
 }
-const qaParams=new URLSearchParams(location.search),nextUnlock=qaParams.get('view')==='next-unlock'
-if(qaParams.get('viewport')==='mobile')createRoot(document.getElementById('root')).render(<iframe title="Nivåbibliotek i mobilbredd" src={nextUnlock?'/reward-level-qa.html?view=next-unlock':'/reward-level-qa.html?view=studio'} style={{width:390,height:'100vh',border:0,display:'block'}}/>);else createRoot(document.getElementById('root')).render(nextUnlock?<NextUnlockDemo/>:<Demo/>)
+function TapDemo(){
+  const [used,setUsed]=useState(0),[total,setTotal]=useState(878),[fail,setFail]=useState(false),[calls,setCalls]=useState(0)
+  const attempts=useRef(new Set()),usedRef=useRef(0),totalRef=useRef(878)
+  const date=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm'}).format(new Date())
+  const levels=initial.map(level=>({...level,artwork:{emblemUrl:picture('emblem'),backgroundUrl:picture('background')}}))
+  const onTap=async requestId=>{
+    setCalls(value=>value+1)
+    await new Promise(resolve=>setTimeout(resolve,250))
+    const replayed=attempts.current.has(requestId),awarded=!replayed&&usedRef.current<5?1:0
+    if(awarded){attempts.current.add(requestId);usedRef.current++;totalRef.current++}
+    if(fail){setFail(false);throw Error('Simulerat tappat svar efter sparad poäng')}
+    setUsed(usedRef.current);setTotal(totalRef.current)
+    return {...rewardProgress(totalRef.current,levels),emblemBonus:{available:true,date,used:usedRef.current,limit:5,awarded,replayed}}
+  }
+  return <main style={{maxWidth:680,margin:'24px auto',padding:20}}><h1>Klappbonus · fiktiv demo</h1><p>Inga API-anrop eller riktiga poäng. Simulerade anrop: <b>{calls}</b>.</p><label><input type="checkbox" checked={fail} onChange={event=>setFail(event.target.checked)}/> Tappa nästa svar efter sparad poäng (testa säkert återförsök)</label><div className="swimmer-hero-slide" style={{marginTop:24}}><RewardLevelCard points={{...rewardProgress(total,levels),emblemBonus:{available:true,date,used,limit:5}}} featured onEmblemTap={onTap} onCommunity={()=>{}}/></div></main>
+}
+const qaParams=new URLSearchParams(location.search),nextUnlock=qaParams.get('view')==='next-unlock',tapDemo=qaParams.get('view')==='tap'
+if(qaParams.get('viewport')==='mobile')createRoot(document.getElementById('root')).render(<iframe title="Nivåbibliotek i mobilbredd" src={tapDemo?'/reward-level-qa.html?view=tap':nextUnlock?'/reward-level-qa.html?view=next-unlock':'/reward-level-qa.html?view=studio'} style={{width:390,height:'100vh',border:0,display:'block'}}/>);else createRoot(document.getElementById('root')).render(tapDemo?<TapDemo/>:nextUnlock?<NextUnlockDemo/>:<Demo/>)

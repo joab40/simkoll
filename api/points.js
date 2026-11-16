@@ -3,6 +3,7 @@ import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { loadActivityDates } from '../server/activity-history.js'
 import { activityStreak } from '../shared/activity-streak.js'
 import { coachRewardOverview, rewardLevels, rewardTotals } from '../server/reward-points.js'
+import { loadEmblemBonus, rewardEmblemBonus, validEmblemRequestId } from '../server/reward-emblem-bonus.js'
 import { rewardProgress } from '../shared/reward-levels.js'
 import { handleRewardArt } from '../server/reward-art.js'
 import { handleRewardCardLibrary } from '../server/reward-card-library.js'
@@ -145,12 +146,30 @@ const POINT_RULES = [
   { activity: 'Ny artefakt', points: 5, limit: 'En gång per unik artefakt' },
   { activity: 'Personbästa på tävling', points: 3, limit: 'En gång per simmare och tävling, oavsett antal nya personbästa' },
   { activity: 'Öppna tränarinfo', points: 1, limit: 'En gång per nytt tränarmeddelande' },
+  { activity: 'Klappa nivåemblemet', points: 1, limit: 'Max 5 poäng per simmare och svensk kalenderdag' },
 ]
 
 export default async function handler(request, response) {
   if (!await guardCoachSession(request, response)) return
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
+    if (request.body?.action === 'tap-emblem') {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
+      if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din egen simmarprofil för emblembonus.' })
+      const profile = await getSessionProfile(request)
+      if (!profile || profile.is_test_profile) return sendJson(response, 403, { error: 'En aktiv simmarprofil krävs. Testprofiler får ingen bonus.' })
+      if (!validEmblemRequestId(request.body.requestId)) return sendJson(response, 400, { error: 'Ett giltigt försöks-ID krävs.' })
+      try {
+        // Load levels before awarding, so a missing art/level migration cannot
+        // turn a committed point into an unusable response. Retries keep the ID.
+        const levels = await rewardLevels()
+        const { total, ...bonus } = await rewardEmblemBonus(profile.id, request.body.requestId)
+        return sendJson(response, 200, { ...rewardProgress(total, levels), emblemBonus: { ...bonus, available: true } })
+      } catch (error) {
+        console.error(error)
+        return sendJson(response, 503, { error: 'Bonusen kunde inte bekräftas. Tryck igen för att kontrollera samma försök. Kontrollera att SQL 129 är körd.' })
+      }
+    }
     if (request.query?.artLibrary === 'true' || ['save-level-card', 'publish-level-card'].includes(request.body?.action)) return await handleRewardCardLibrary(request, response)
     if (['generate-level-art', 'publish-level-art'].includes(request.body?.action)) {
       if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
@@ -405,9 +424,10 @@ export default async function handler(request, response) {
     }
     const profile = await getSessionProfile(request)
     if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Poäng visas bara på din egen profil.' })
-    const [totals, levels, pointsResult] = await Promise.all([
+    const [totals, levels, pointsResult, emblemBonus] = await Promise.all([
       rewardTotals([profile.id]), rewardLevels(),
       supabaseRequest(`point_events?profile_id=eq.${profile.id}&created_at=gte.${new Date(Date.now() - 7 * 86400000).toISOString()}&select=id,points,event_type,created_at&order=created_at.desc,id.desc&limit=100`),
+      loadEmblemBonus(profile),
     ])
     if (!pointsResult.ok) throw new Error('Recent rewards lookup failed')
     const events = await pointsResult.json()
@@ -416,6 +436,7 @@ export default async function handler(request, response) {
     const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ id: event.id, message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
       ...progress,
+      emblemBonus,
       recentRewards,
     })
   } catch (error) {

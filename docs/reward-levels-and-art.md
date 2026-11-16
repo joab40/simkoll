@@ -129,6 +129,25 @@ eller bildladdningen misslyckas. Bildfel där påverkar inte den nuvarande nivå
 emblem, poäng eller framsteg. Högsta nivån har ingen ruta för nästa upplåsning.
 Ingen ny SQL eller AI-generering krävs.
 
+### Klappreaktion och dagsbonus (SQL 129)
+
+På det stora nivåkortet är emblemet en tangentbordsvänlig knapp. Ett tryck ger
+en kort studs och åtta glittrande partiklar. Pausade effekter och minskad rörelse
+respekteras. Animationen fungerar även i verkstadens förhandsvisning, utan poäng.
+
+På den egna, aktiva simmarprofilen ger ett tryck 1 poäng, högst 5 per svensk
+kalenderdag. Testprofiler och tränarvyn kan inte få bonus. SQL 129 låser profilraden,
+kontrollerar status och sparar bonus + poäng i samma transaktion. Kvoten gäller
+över nivåbyten, omladdningar och enheter; den återställs vid midnatt i Stockholm
+(även sommartid). Bonusen är separat från incheckningar och aktivitetsdagar.
+
+Klienten köar inte poäng vid snabbtryck. Ett pågående försök återanvänder samma
+UUID efter nätfel, även om poängen redan sparats. Poäng och nivå uppdateras först
+efter serversvar. Efter 5/5 fungerar klappreaktionen fortfarande, utan extra poäng.
+Utan migrationen fungerar tidigare poäng och animationer, men ingen bonus delas ut.
+`/reward-level-qa.html?view=tap` provar kortet med fiktiv kvot och förlorade svar;
+`&viewport=mobile` provar mobilbredd. Inga betalda AI-anrop används.
+
 Verifiering: `tests/reward*.test.mjs`, SQL-test med `SIMKOLL_PGLITE_MODULE`,
 och `/reward-level-qa.html` (även `?viewport=mobile`). Demo använder ingen
 produktionsdata och inga betalda AI-anrop; förslagen är tydligt märkta SVG-fixturer.

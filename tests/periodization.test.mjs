@@ -97,7 +97,7 @@ test('integration replaces only the coach swimmer point card and loads history l
   const ui = readFileSync(new URL('../src/swimmer-periodization.jsx', import.meta.url), 'utf8')
   assert.match(main, /<SwimmerPeriodization key=\{`periodization-\$\{profile.id\}`\}/)
   assert.doesNotMatch(main, /<PointProgress info=\{profilePoints\[profile.id\]\} compact/)
-  assert.match(main, /<RewardCard key="level"/)
+  assert.match(main, /<RewardCard key=\{`level-\$\{profile.id\}`\}/)
   assert.match(ui, /if \(!open\) return/); assert.match(ui, /useState\('macro'\)/)
   assert.match(ui, /if \(active\) setResult/); assert.match(ui, /profileId !== profile.id/)
   assert.match(ui, /<PeriodizationChart key=\{mode\}/, 'switching from a selected late meso day must reset selection and scroll before macro renders')

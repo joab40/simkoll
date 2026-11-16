@@ -18,6 +18,7 @@ test('real endpoint uses the same complete total for coach and swimmer and never
     if(table==='profile_sessions')return json([{profile_id:id}])
     if(table==='profiles')return json([{id}])
     if(table==='reward_levels')return json(levels)
+    if(table==='reward_emblem_bonus')return json({date:'2026-11-17',used:0,limit:5,awarded:0,replayed:false,total:878})
     if(table==='reward_point_totals'){totalRequests.push(JSON.parse(options.body));return json({[id]:878})}
     assert.equal(table,'point_events');assert.equal(url.searchParams.get('profile_id'),`eq.${id}`)
     return json([{id:'event',points:3,event_type:'training_feedback',created_at:new Date().toISOString()}])
@@ -28,6 +29,7 @@ test('real endpoint uses the same complete total for coach and swimmer and never
   assert.equal(coach.data.profiles[0].total,878);assert.equal(swimmer.data.total,878)
   assert.equal(coach.data.profiles[0].level.id,swimmer.data.current.id)
   assert.equal(swimmer.data.next.remaining,122);assert.equal(swimmer.data.recentRewards[0].points,3)
+  assert.equal(swimmer.data.emblemBonus.available,true);assert.equal(swimmer.data.emblemBonus.used,0)
   assert.deepEqual(totalRequests,[{p_profile_ids:[id]},{p_profile_ids:[id]}])
 })
 test('missing totals migration never falls back to a clipped or zero score; invalid sessions never reach data',async()=>{

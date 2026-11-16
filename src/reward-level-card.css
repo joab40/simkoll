@@ -9,6 +9,18 @@
 .reward-emblem b { font:inherit; }
 .reward-emblem b[hidden], .reward-emblem img[hidden] { display:none; }
 .reward-emblem img { width:100%; height:100%; object-fit:contain; }
+.reward-emblem > span { display:grid; place-items:center; width:100%; height:100%; }
+.reward-card .reward-emblem-touch { display:grid; place-items:center; width:100%; height:100%; padding:0; border:0; border-radius:inherit; background:transparent; color:inherit; font:inherit; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.reward-emblem-touch:focus-visible { outline:3px solid var(--level-accent); outline-offset:7px; }
+.reward-emblem-touch > span { position:relative; display:grid; place-items:center; width:100%; height:100%; pointer-events:none; }
+.reward-emblem-bounce { animation:reward-tap-bounce .65s ease-out; }
+.reward-tap-sparkles { position:absolute; inset:0; pointer-events:none; }
+.reward-tap-sparkles i { position:absolute; left:calc(50% - 6px); top:calc(50% - 6px); font-size:17px; font-style:normal; color:var(--level-accent); opacity:0; animation:reward-tap-spark .8s ease-out both; }
+.reward-card.hero-level-card > .reward-emblem-feedback { display:grid; gap:5px; min-height:40px; max-width:340px; margin-top:-10px; }
+.reward-emblem-feedback > span { color:var(--level-accent); font-size:12px; min-height:18px; }
+@keyframes reward-tap-bounce { 25% { transform:scale(.88) rotate(-6deg); } 55% { transform:scale(1.15) rotate(5deg); } 80% { transform:scale(.98) rotate(-2deg); } }
+@keyframes reward-tap-spark { 10% { opacity:1; } 100% { opacity:0; transform:rotate(var(--spark-angle)) translateY(-105px) rotate(calc(-1 * var(--spark-angle))) scale(.3); } }
+.reward-card[data-motion=off] .reward-tap-sparkles, .swimmer-hero-slide[inert] .reward-tap-sparkles { display:none; }
 .reward-card .reward-total { margin:0 0 8px; font-size:12px; }
 .reward-card .reward-total strong { font-size:18px; }
 .swimmer-hero-slide .reward-card.hero-level-card { color:#fff; background:radial-gradient(ellipse at 50% 0%, #19425a, transparent 70%),#091f30; border-color:#284c5f; padding:78px 28px 36px; gap:26px; overflow:hidden; }
@@ -45,5 +57,5 @@
 @keyframes reward-water { to { transform:translateY(-18px) rotate(4deg); } }
 @keyframes reward-particle { to { transform:translate(10px,-28px); opacity:.18; } }
 @keyframes reward-scene-drift { to { transform:scale(1.05) translate(1%,1%); } }
-@media (prefers-reduced-motion:reduce) { .reward-card *, .reward-card *::after { animation:none !important; transition:none !important; } }
+@media (prefers-reduced-motion:reduce) { .reward-card *, .reward-card *::after { animation:none !important; transition:none !important; } .reward-tap-sparkles { display:none; } }
 @media (max-width:640px) { .swimmer-hero-slide .reward-card.hero-level-card { padding:78px 22px 30px; gap:22px; } .reward-card.hero-level-card > .reward-card-topline { inset:18px 16px auto; font-size:9px; letter-spacing:.06em; } .reward-card.hero-level-card > .reward-emblem { width:104px; height:104px; font-size:58px; } }
