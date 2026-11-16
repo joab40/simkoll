@@ -2,6 +2,9 @@ import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardPoints, getSessionProfile } from '../server/profile-auth.js'
 import { loadActivityDates } from '../server/activity-history.js'
 import { activityStreak } from '../shared/activity-streak.js'
+import { coachRewardOverview, rewardLevels, rewardTotals } from '../server/reward-points.js'
+import { rewardProgress } from '../shared/reward-levels.js'
+import { handleRewardArt } from '../server/reward-art.js'
 import { loadGameBeta, saveGameBeta, requireBetaProfile } from '../server/game-beta.js'
 import { sharedRallyReplay, loadWeeklyRallyGhost, saveWeeklyRallyGhost } from '../server/rally-weekly.js'
 import { rallyWeekStart } from '../shared/rally-weekly.js'
@@ -147,6 +150,10 @@ export default async function handler(request, response) {
   if (!await guardCoachSession(request, response)) return
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
   try {
+    if (['generate-level-art', 'publish-level-art'].includes(request.body?.action)) {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
+      return await handleRewardArt(request, response)
+    }
     if (request.body?.action === 'submit-rally-time' || request.body?.action === 'restore-rally-time') {
       if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metoden stöds inte.' })
       if (role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att spara rallytid.' })
@@ -392,43 +399,28 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { catalog: await catalogResult.json(), assignments: await assignmentsResult.json() })
     }
     if (role === 'coach') {
-      const [pointsResult, levelsResult, profilesResult] = await Promise.all([
-        supabaseRequest('point_events?select=profile_id,points&limit=10000'),
-        supabaseRequest('reward_levels?select=id,name,emoji,min_points,sort_order&order=min_points.asc'),
-        supabaseRequest('profiles?select=id&active=eq.true&approval_status=eq.approved&is_test_profile=eq.false'),
-      ])
-      if (!pointsResult.ok || !levelsResult.ok || !profilesResult.ok) throw new Error('Coach points lookup failed')
-      const totals = (await pointsResult.json()).reduce((result, event) => ({ ...result, [event.profile_id]: (result[event.profile_id] || 0) + event.points }), {})
-      const levels = await levelsResult.json()
-      return sendJson(response, 200, { rules: POINT_RULES, levels: levels.map((level) => ({ id: level.id, name: level.name, emoji: level.emoji, minPoints: level.min_points })), profiles: (await profilesResult.json()).map(({ id: profileId }) => {
-        const total = totals[profileId] || 0
-        const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
-        const next = levels.find((level) => level.min_points > total) || null
-        return { profileId, total, level: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null, next: next ? { name: next.name, emoji: next.emoji, minPoints: next.min_points, remaining: next.min_points - total } : null }
-      }) })
+      return sendJson(response, 200, { rules: POINT_RULES, ...await coachRewardOverview() })
     }
     const profile = await getSessionProfile(request)
     if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Poäng visas bara på din egen profil.' })
-    const [pointsResult, levelsResult] = await Promise.all([
-      supabaseRequest(`point_events?profile_id=eq.${profile.id}&select=id,points,event_type,created_at&order=created_at.desc&limit=1000`),
-      supabaseRequest('reward_levels?select=name,emoji,min_points,sort_order&order=min_points.asc'),
+    const [totals, levels, pointsResult] = await Promise.all([
+      rewardTotals([profile.id]), rewardLevels(),
+      supabaseRequest(`point_events?profile_id=eq.${profile.id}&created_at=gte.${new Date(Date.now() - 7 * 86400000).toISOString()}&select=id,points,event_type,created_at&order=created_at.desc,id.desc&limit=100`),
     ])
-    if (!pointsResult.ok || !levelsResult.ok) throw new Error('Points lookup failed')
+    if (!pointsResult.ok) throw new Error('Recent rewards lookup failed')
     const events = await pointsResult.json()
-    const levels = await levelsResult.json()
-    const total = events.reduce((sum, event) => sum + event.points, 0)
-    const current = [...levels].reverse().find((level) => total >= level.min_points) || levels[0]
-    const next = levels.find((level) => level.min_points > total) || null
+    const progress = rewardProgress(totals[profile.id], levels)
     const rewardLabels = { checkin_before: 'Du checkade in inför träningen! 🏊', training_feedback: 'Du återkopplade efter träningen! ✨', weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥', coach_info_opened: 'Du läste info från tränarna! ✉️' }
     const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ id: event.id, message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {
-      total, current: current ? { name: current.name, emoji: current.emoji, minPoints: current.min_points } : null,
-      next: next ? { name: next.name, emoji: next.emoji, minPoints: next.min_points } : null,
+      ...progress,
       recentRewards,
     })
   } catch (error) {
     console.error(error)
-    return sendJson(response, 500, { error: 'Kunde inte hämta poängen.' })
+    return request.method === 'GET' && !request.query?.game && !request.query?.games && !request.query?.artifacts && request.query?.gameBetaProfileId === undefined
+      ? sendJson(response, 503, { error: 'Kunde inte hämta kompletta poäng. Kontrollera att SQL 124 är körd och försök igen.' })
+      : sendJson(response, 500, { error: 'Kunde inte hämta poängen.' })
   }
 }
 import { guardCoachSession } from '../server/coach-session.js'

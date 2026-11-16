@@ -1,0 +1,62 @@
+# Fullständiga poäng och AI-nivåkonst
+
+Kör `supabase/migrations/124_reward_totals_and_art.sql` i Supabase före driftsättning.
+SQL:en räknar aldrig om eller ändrar poänghändelser. Den inför SUM-funktionen,
+utkastmetadata, lagringsbucket och referenser till aktiverade bilder.
+
+## Rättningen
+
+Tidigare läste tränarvyn en global lista med `limit=10000` utan sidindelning och
+simmarvyn högst 1000 egna händelser. Supabases lägre REST-radgräns kunde dessutom
+klippa den globala listan. Summorna och nivåfördelningen blev därmed ofullständiga.
+Nu summerar `reward_point_totals` samtliga poänghändelser i Postgres, innan REST:s
+radgräns. Endast service_role får anropa den. Tränarens godkända, aktiva,
+icke-testprofiler sidindelas och samma totalkälla och tröskeltolkning används
+överallt. Tränarens fördelning räknar nivå-ID, inte ändringsbara namn.
+Saknad SQL eller ofullständig hämtning ger fel, aldrig en lyckad nollsummering.
+Senaste belöningar hämtas separat och bestämmer inte totalen.
+
+## Nivåverkstaden
+
+Huvudtränare/superadmin: **Poäng & nivåer → Nivåverkstaden**. Spara först nivåns
+emoji. Välj nivå, bakgrund/illustrerad emoji och en av tre stilar. Kryssa i
+bekräftelsen, skapa ett förslag och granska före separat aktivering. Originalet
+kan återställas. Ingen bildgenerering startas automatiskt av att visa ett kort.
+Vanliga tränare och simmare får inte generera eller aktivera bilder.
+
+OpenAI får endast nivåns sparade emoji och kontrollerade stilinstruktioner.
+Inga personuppgifter, simmarnamn, fritexter, hälsovärden eller poänghistorik hämtas
+för genereringen. Bilderna är generisk nivåkonst och sparas i en offentlig bucket.
+Utkastmetadata har RLS och är endast åtkomlig servervägen. Bara lagrade och redo
+bilder med rätt nivå, bildtyp och emoji kan aktiveras; klient-URL:er accepteras inte.
+Ändrad emoji döljer den gamla illustrationen tills en matchande bild aktiverats.
+
+API använder `OPENAI_API_KEY`. Modell: `OPENAI_REWARD_IMAGE_MODEL`, annars
+`OPENAI_STRENGTH_IMAGE_MODEL`, annars befintliga `gpt-image-2.5-flare`. Ingen
+ny modell krävs om klubbens befintliga bildmodell har åtkomst. En bild per anrop,
+medium, WebP; bakgrund 1536×1024, transparent emblem 1024×1024. Ingen AI-video:
+stillbilden får rörelse i CSS. Anrop begränsas till 160 sekunder, API-funktionen
+till 300 sekunder i Vercel. Befintlig AI-avstängning/månadstak gäller. Databasen
+serialiserar reservationer: en pågående bild per nivå och högst 12 försök per
+administratör per rullande 24 timmar. Misslyckade försök räknas också. En
+avbruten klient kan inte avbryta en redan skickad bildgenerering; håll sidan öppen.
+
+Tokenanvändning/modell/status loggas under **Skapa nivåbild**, och befintlig
+kostnadsberäkning används. Alternativa modeller utan pris i prislistan visas som
+pris saknas, inte gratis. Ett fel efter OpenAI-anrop kan fortfarande kosta.
+Ingen riktig generering eller publicering har gjorts i utvecklingstesterna.
+
+Aktivering ändrar endast bildreferensen, aldrig poäng eller nivågränser. Gamla
+utkast/filer behålls vid byte/återställning. Ingen automatisk rensning införs.
+Den gamla backupfunktionen omfattar inte dessa nya bildfiler/utkast; inkludera
+bucket och `reward_level_art` i klubbens ordinarie Supabase-backup.
+
+Simmarens kort har svävande emblem, nivåfärgade ljusvågor, partiklar och nästa
+upplåsning. Pausa/starta effekter sparas lokalt på enheten. `prefers-reduced-motion`
+stoppar alltid rörelsen; dolda karusellkort och dold flik pausas också. Kompakta
+poängkort använder samma tema men utan den stora bakgrundsanimationen.
+
+Verifiering: `tests/reward*.test.mjs`, SQL-test med `SIMKOLL_PGLITE_MODULE`,
+och `/reward-level-qa.html` (även `?viewport=mobile`). Demo använder ingen
+produktionsdata och inga betalda AI-anrop; förslagen är tydligt märkta SVG-fixturer.
+API-detaljer kontrollerade mot https://developers.openai.com/api/docs/guides/image-generation.

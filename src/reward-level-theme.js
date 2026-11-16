@@ -8,6 +8,9 @@ export const REWARD_LEVEL_TONES = Object.freeze({
   green: { start:'#e1f2e6', end:'#f9fdf7', glow:'#c4e5c9', border:'#acd1b6', track:'#c3ddc9' },
   rose: { start:'#f9e5ed', end:'#fff9fb', glow:'#efcbdc', border:'#dfb8ca', track:'#ecc9d8' },
   purple: { start:'#ece6f8', end:'#fcfaff', glow:'#d9cef0', border:'#c7b9df', track:'#d8cdea' },
+  ruby: { start:'#f9e4e3', end:'#fff9f8', glow:'#f1c9c7', border:'#dfb9b7', track:'#ebcecc' },
+  ember: { start:'#fae8da', end:'#fffaf6', glow:'#f0d3bb', border:'#ddbea6', track:'#ead4c3' },
+  obsidian: { start:'#e3e8f0', end:'#fafbfe', glow:'#d0d9e6', border:'#b5c2d3', track:'#c7d2e0' },
   neutral: { start:'#e6f4ee', end:'#f8fbf3', glow:'#dceee4', border:'#c4dcd1', track:'#c8ddd7' },
 })
 const emojiTones = new Map([
@@ -18,6 +21,9 @@ const emojiTones = new Map([
   ...['💚','🟢','🍀','🐢'].map(emoji=>[emoji,'green']),
   ...['🩷','💕','🌸'].map(emoji=>[emoji,'rose']),
   ...['💜','🟣','🔮'].map(emoji=>[emoji,'purple']),
+  ...['♦','🔴','❤️','❤'].map(emoji=>[emoji,'ruby']),
+  ...['🔥','🐦‍🔥','🐦🔥'].map(emoji=>[emoji,'ember']),
+  ...['🪨','🖤'].map(emoji=>[emoji,'obsidian']),
 ])
 export function rewardLevelTheme(emoji) {
   const normalized = typeof emoji === 'string' ? emoji.trim().replace(/[\uFE0E\uFE0F]/g,'') : ''

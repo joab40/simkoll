@@ -1,0 +1,48 @@
+.reward-card { --level-accent:#57dacb; position:relative; isolation:isolate; }
+.reward-card[data-level-tone=bronze] { --level-accent:#ffc493; }
+.reward-card[data-level-tone=silver] { --level-accent:#c6e4ff; }
+.reward-card[data-level-tone=gold] { --level-accent:#ffdc76; }
+.reward-card[data-level-tone=diamond] { --level-accent:#74dcff; }
+.reward-card[data-level-tone=purple] { --level-accent:#c3a0ff; }
+.reward-card[data-level-tone=ruby], .reward-card[data-level-tone=ember] { --level-accent:#ff9f98; }
+.reward-card[data-level-tone=obsidian] { --level-accent:#a9caff; }
+.reward-emblem b { font:inherit; }
+.reward-emblem b[hidden], .reward-emblem img[hidden] { display:none; }
+.reward-emblem img { width:100%; height:100%; object-fit:contain; }
+.reward-card .reward-total { margin:0 0 8px; font-size:12px; }
+.reward-card .reward-total strong { font-size:18px; }
+.swimmer-hero-slide .reward-card.hero-level-card { color:#fff; background:radial-gradient(ellipse at 50% 0%, #19425a, transparent 70%),#091f30; border-color:#284c5f; padding:78px 28px 36px; gap:26px; overflow:hidden; }
+.reward-card.hero-level-card > .reward-scene { position:absolute; inset:0; z-index:-1; max-width:none; width:100%; pointer-events:none; overflow:hidden; }
+.reward-scene::after { content:''; position:absolute; inset:0; background:linear-gradient(180deg,#061a2830,#061a28c7 60%,#061a28ed); }
+.reward-art-background { position:absolute; inset:-5%; width:110%; height:110%; object-fit:cover; opacity:.72; animation:reward-scene-drift 24s ease-in-out infinite alternate; }
+.reward-aurora { position:absolute; width:125%; height:90%; top:-40%; left:-12%; border-radius:45%; background:radial-gradient(ellipse,var(--level-accent),transparent 66%); opacity:.28; filter:blur(32px); animation:reward-aurora 13s ease-in-out infinite alternate; }
+.reward-water { position:absolute; width:130%; height:75%; left:-15%; bottom:-45%; border:1px solid var(--level-accent); border-radius:50%; box-shadow:0 -25px 0 -24px var(--level-accent),0 -55px 0 -54px var(--level-accent),0 -90px 0 -89px var(--level-accent); opacity:.25; animation:reward-water 10s ease-in-out infinite alternate; }
+.reward-particle { position:absolute; width:3px; height:3px; border-radius:50%; left:var(--particle-x); top:var(--particle-y); background:var(--level-accent); box-shadow:0 0 12px 2px var(--level-accent); opacity:.6; animation:reward-particle 8s ease-in-out var(--particle-delay) infinite alternate; }
+.reward-card.hero-level-card > .reward-card-topline { position:absolute; inset:22px 24px auto; display:flex; align-items:center; justify-content:space-between; gap:10px; max-width:none; width:auto; font-size:10px; letter-spacing:.12em; color:#c0d6de; }
+.reward-card-topline button { border:1px solid #ffffff30; background:#061c2870; color:#d8e7ec; border-radius:999px; padding:8px 12px; min-height:40px; font:inherit; letter-spacing:0; cursor:pointer; }
+.reward-card.hero-level-card > .reward-emblem { position:relative; width:124px; height:124px; border-radius:35px; background:radial-gradient(circle,#ffffff17,#ffffff04); border-color:#ffffff30; font-size:67px; overflow:visible; box-shadow:0 0 65px -20px var(--level-accent),inset 0 1px 0 #ffffff30; animation:reward-emblem-float 5s ease-in-out infinite; }
+.reward-emblem-orbit { position:absolute; inset:-17px; border:1px solid var(--level-accent); border-radius:50%; opacity:.5; transform:rotateX(58deg) rotate(-25deg); }
+.reward-emblem-orbit::after { content:''; position:absolute; width:7px; height:7px; background:var(--level-accent); border-radius:50%; top:20%; right:8%; box-shadow:0 0 18px var(--level-accent); }
+.reward-card.hero-level-card .eyebrow { color:var(--level-accent); font-size:11px; letter-spacing:.15em; margin:0 0 9px; }
+.reward-card.hero-level-card h3 { color:white; font-size:clamp(23px,3vw,34px); line-height:1.25; margin:0 auto 14px; text-wrap:balance; }
+.reward-card.hero-level-card .reward-total { color:#c0d6de; display:grid; gap:2px; font-size:12px; margin:0 0 22px; }
+.reward-card.hero-level-card .reward-total strong { font-size:clamp(32px,5vw,48px); font-weight:800; color:white; letter-spacing:-.04em; }
+.reward-card.hero-level-card .reward-progress { height:8px; background:#ffffff24; margin-bottom:10px; }
+.reward-card.hero-level-card .reward-progress i { background:var(--level-accent); box-shadow:0 0 14px var(--level-accent); transition:width .7s ease; }
+.reward-card.hero-level-card small { color:#c0d6de; font-size:12px; }
+.reward-next-preview { display:flex; align-items:center; gap:12px; text-align:left; margin-top:22px; padding:14px 16px; background:#ffffff08; border:1px solid #ffffff24; border-radius:16px; }
+.reward-next-preview > span { font-size:30px; }
+.reward-next-preview > div { display:grid; gap:3px; flex:1; min-width:0; }
+.reward-next-preview strong { font-size:13px; line-height:1.4; }
+.reward-next-preview > b { font-size:13px; color:var(--level-accent); white-space:nowrap; }
+.reward-card.hero-level-card > .reward-pep { border:1px solid #ffffff40; background:#ffffff12; color:white; }
+.reward-card.hero-level-card > .reward-card-note { max-width:340px; font-size:10px; line-height:1.6; color:#a2bdc9; margin:0; }
+.reward-near-unlock.hero-level-card .reward-emblem { animation:reward-emblem-float 3s ease-in-out infinite; }
+.reward-card[data-motion=off] *, .swimmer-hero-slide[inert] .reward-card * { animation-play-state:paused !important; transition:none !important; }
+@keyframes reward-emblem-float { 50% { transform:translateY(-9px) rotate(2deg); } }
+@keyframes reward-aurora { to { transform:translate(9%,20%) rotate(20deg); opacity:.45; } }
+@keyframes reward-water { to { transform:translateY(-18px) rotate(4deg); } }
+@keyframes reward-particle { to { transform:translate(10px,-28px); opacity:.18; } }
+@keyframes reward-scene-drift { to { transform:scale(1.05) translate(1%,1%); } }
+@media (prefers-reduced-motion:reduce) { .reward-card *, .reward-card *::after { animation:none !important; transition:none !important; } }
+@media (max-width:640px) { .swimmer-hero-slide .reward-card.hero-level-card { padding:78px 22px 30px; gap:22px; } .reward-card.hero-level-card > .reward-card-topline { inset:18px 16px auto; font-size:9px; letter-spacing:.06em; } .reward-card.hero-level-card > .reward-emblem { width:104px; height:104px; font-size:58px; } }
