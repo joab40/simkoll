@@ -1,0 +1,35 @@
+.feedback-inbox { margin:18px 0; padding:22px; border:1px solid #c8ded9; border-radius:20px; background:#f8fcfa; }
+.feedback-inbox-heading { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+.feedback-inbox h2 { font-size:20px; margin:4px 0 12px; }
+.feedback-inbox ul,.feedback-messages { list-style:none; padding:0; margin:0; }
+.feedback-inbox > ul > li+li { margin-top:10px; }
+.feedback-inbox > ul > li>button { width:100%; padding:16px; text-align:left; border:1px solid #d5e4df; border-radius:14px; background:white; color:#15343e; cursor:pointer; }
+.feedback-inbox > ul > li>button>div { display:flex; gap:10px; justify-content:space-between; }
+.feedback-inbox > ul > li b { font-size:11px; border-radius:12px; background:#e0f1d2; padding:3px 8px; }
+.feedback-inbox > ul > li>button>p { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; margin:8px 0; overflow-wrap:anywhere; }
+.feedback-inbox > ul > li small { display:block; color:#5b7279; }
+.feedback-inbox > ul > li>button>span { display:block; color:#117477; font-weight:700; margin-top:10px; font-size:13px; }
+.feedback-dialog { width:min(680px,calc(100% - 28px)); max-height:90dvh; padding:0; border:1px solid #c5dbd5; border-radius:22px; color:#15343e; background:#f8fcfa; box-shadow:0 24px 80px #102f3750; }
+.feedback-dialog::backdrop { background:#0c2b3866; }
+.feedback-dialog[open] { display:flex; flex-direction:column; }
+.feedback-dialog>header,.feedback-composer { flex-shrink:0; }
+.feedback-inbox-quiet { margin:8px 0; text-align:right; }
+.feedback-dialog>header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px; border-bottom:1px solid #d5e4df; }
+.feedback-dialog h2 { font-size:23px; margin:5px 0; }
+.feedback-dialog header small { color:#5b7279; }
+.feedback-dialog header button { border:1px solid #c8ded9; background:white; width:40px; height:40px; border-radius:50%; font-size:24px; cursor:pointer; flex-shrink:0; }
+.feedback-dialog-body { min-height:0; max-height:48dvh; flex:1 1 auto; overflow:auto; padding:20px 22px; }
+.feedback-dialog .feedback-original { margin:0 0 18px; padding:14px; background:#eaf3f0; border-left:3px solid #67aaa4; border-radius:8px; }
+.feedback-original p,.feedback-messages p { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0 0; line-height:1.55; }
+.feedback-original small { color:#526e75; }
+.feedback-messages li { max-width:90%; background:white; border:1px solid #d6e4de; border-radius:15px 15px 15px 3px; padding:14px; margin:12px 0; }
+.feedback-messages li.own { margin-left:auto; background:#e4f2ee; border-radius:15px 15px 3px 15px; }
+.feedback-messages li>div { display:flex; flex-wrap:wrap; gap:6px 14px; justify-content:space-between; font-size:12px; }
+.feedback-messages time { color:#597078; }
+.feedback-composer { padding:18px 22px; border-top:1px solid #d5e4df; background:#f8fcfa; }
+.feedback-composer label { display:block; font-weight:700; margin-bottom:8px; }
+.feedback-composer textarea { width:100%; resize:vertical; min-height:80px; padding:12px; border:1px solid #bdd5cf; border-radius:12px; font:inherit; }
+.feedback-composer>div { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-top:10px; }
+.feedback-composer small { color:#5b7279; }
+.feedback-inbox button:focus-visible,.feedback-dialog button:focus-visible { outline:3px solid #158788; outline-offset:3px; }
+@media(max-width:640px){.feedback-inbox{padding:16px}.feedback-inbox-heading{align-items:flex-start;flex-direction:column;gap:0}.feedback-dialog>header,.feedback-dialog-body,.feedback-composer{padding:16px}.feedback-dialog h2{font-size:20px}.feedback-messages li{max-width:96%}.feedback-composer>div{align-items:stretch;flex-direction:column}}

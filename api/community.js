@@ -8,6 +8,7 @@ import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/privat
 import { proposePrivateReply } from '../server/private-reply-ai.js'
 import { loadCommunityPreview, loadCoachMessageCount } from '../server/community-preview.js'
 import { loadInfoChannel, loadCoachInbox } from '../server/community-channels.js'
+import { handleFeedbackDialog, isFeedbackDialogRequest } from '../server/app-feedback-dialog.js'
 
 const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
 const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
@@ -226,6 +227,8 @@ export default async function handler(request, response) {
   if (request.method === 'POST' && request.body?.action === 'propose-private-reply' && role !== 'coach') return sendJson(response,403,{error:'Endast tränaren kan skapa svarsförslag.'})
 
   try {
+    if (isFeedbackDialogRequest(request)) return await handleFeedbackDialog(request, response)
+    if (request.body?.action === 'reply-app-feedback') return sendJson(response,409,{error:'Öppna feedbackdialogen för att svara. Uppdatera sidan om du ser det gamla svarsfältet.'})
     if (request.method === 'GET') {
       if (request.query?.messageCount === 'true' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se meddelandeantalet.' })
       if (request.query?.channel === 'private' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa tränarnas inkorg.' })
@@ -376,7 +379,7 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
       return sendJson(response, 200, { reacted: true })
     }
 
-    if (request.method === 'POST' && role === 'coach' && ['update-app-feedback', 'close-app-feedback', 'archive-app-feedback', 'reply-app-feedback'].includes(request.body?.action)) {
+    if (request.method === 'POST' && role === 'coach' && ['update-app-feedback', 'close-app-feedback', 'archive-app-feedback'].includes(request.body?.action)) {
       if (!isSuperadminRequest(request)) return sendJson(response, 403, { error: 'Endast superadmin kan hantera appfeedback.' })
       const id = String(request.body?.id || '')
       if (!/^\d+$/.test(id)) return sendJson(response, 400, { error: 'Feedback saknar giltigt id.' })
@@ -408,24 +411,6 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         if (!(await result.json()).length) return sendJson(response, archived ? 409 : 404, { error: archived ? 'Feedbacken måste vara klarmarkerad eller markerad att den inte ska implementeras innan den arkiveras.' : 'Feedbacken kunde inte hittas.' })
         return sendJson(response, 200, { ok: true })
       }
-      const content = String(request.body?.content || '').trim()
-      if (!content || content.length > 1000) return sendJson(response, 400, { error: 'Skriv ett meddelande på 1–1000 tecken.' })
-      const feedbackResult = await supabaseRequest(`app_feedback?id=eq.${id}&select=id,profile_id,submitted_by_role,admin_reply,admin_reply_sent_at&limit=1`)
-      if (!feedbackResult.ok) throw new Error(`App feedback reply lookup failed: ${feedbackResult.status}`)
-      const feedback = (await feedbackResult.json())[0]
-      if (!feedback) return sendJson(response, 404, { error: 'Feedbacken kunde inte hittas.' })
-      if (!feedback.profile_id || feedback.submitted_by_role !== 'swimmer') return sendJson(response, 400, { error: 'Det går bara att svara direkt till feedback från en simmare.' })
-      if (feedback.admin_reply_sent_at) return sendJson(response, 409, { error: 'Ett svar har redan skickats för detta förslag.' })
-      const recipient = await supabaseRequest(`profiles?id=eq.${feedback.profile_id}&active=eq.true&approval_status=eq.approved&select=id&limit=1`)
-      if (!recipient.ok || !(await recipient.json()).length) return sendJson(response, 404, { error: 'Simmaren kunde inte hittas eller är inte aktiv.' })
-      const messageResult = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', recipient_profile_id: feedback.profile_id, recipient_role: 'swimmer', content: `Svar på ditt förslag: ${content}` }) })
-      if (!messageResult.ok) throw new Error(`App feedback reply message failed: ${messageResult.status}`)
-      const [message] = await messageResult.json()
-      queueMessagePush({ kind: 'private', id: message.id, profileId: feedback.profile_id })
-      const sentAt = new Date().toISOString()
-      const savedReply = await supabaseRequest(`app_feedback?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ admin_reply: content, admin_reply_sent_at: sentAt, updated_at: sentAt }) })
-      if (!savedReply.ok) throw new Error(`App feedback reply save failed: ${savedReply.status}`)
-      return sendJson(response, 200, { ok: true, sentAt })
     }
 
     if (request.method === 'POST' && role === 'coach' && request.body?.action !== 'app-feedback' && request.body?.action !== 'reset-app-feedback') {
