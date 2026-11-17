@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vercel/functions": "^3.9.11",
+    "@vercel/speed-insights": "2.1.0",
     "@vitejs/plugin-react": "latest",
     "js-tiktoken": "1.0.21",
     "react": "latest",

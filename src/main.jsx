@@ -13,6 +13,8 @@ import { linkedWorkoutForPlan } from '../shared/planning-workout-link.js'
 import PlanningFoundation from './planning-foundation.jsx'
 import GameBetaSettings, { GameBetaList } from './game-beta-settings.jsx'
 import { createRoot } from 'react-dom/client'
+import { SpeedInsights } from '@vercel/speed-insights/react'
+import { redactSpeedInsightsUrl } from '../shared/speed-insights.js'
 import { apiRequest } from './api-request.js'
 import { chatBackgroundUrl } from './chat-background.js'
 import { deferredPanel } from './deferred-panel.jsx'
@@ -5377,4 +5379,4 @@ function Stat({ title, value, note, helpTerm, onOpen, trend }) {
   return <article className={`stat${onOpen ? ' stat-drilldown' : ''}`}>{onOpen && <button type="button" className="stat-drilldown-trigger" onClick={onOpen} aria-label={`Se alla svar för ${title}`} aria-haspopup="dialog" />}<span className="stat-title">{title} <HelpTip term={helpTerm || title} /></span><strong>{value}</strong><small>{note}</small>{trend}{onOpen && <span className="stat-drilldown-hint" aria-hidden="true">Visa svar →</span>}</article>
 }
 
-createRoot(document.getElementById('root')).render(<App />)
+createRoot(document.getElementById('root')).render(<><App />{import.meta.env.PROD && <SpeedInsights beforeSend={redactSpeedInsightsUrl} />}</>)
