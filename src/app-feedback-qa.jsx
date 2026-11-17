@@ -1,11 +1,14 @@
 import React,{useCallback,useRef,useState} from 'react'
 import {createRoot} from 'react-dom/client'
-import FeedbackInbox,{FeedbackBadge,useFeedbackCount} from './app-feedback-dialog.jsx'
+import FeedbackInbox,{FeedbackBadge,FeedbackSection,useFeedbackCount} from './app-feedback-dialog.jsx'
+import SwimmerHeader from './swimmer-header.jsx'
 import './styles.css'
 
 function Badge({request}){const state=useFeedbackCount('admin',true,request);return <span>Meny · Appfeedback <FeedbackBadge state={state}/></span>}
+function DemoHeader({request,onFeedback}){const state=useFeedbackCount('swimmer',true,request);return <SwimmerHeader brand={<span>Simkoll · test</span>} profile={{id:'demo',displayName:'Testprofil',emoji:'🐬'}} feedbackNotice={<FeedbackBadge state={state}/>} actions={{feedback:onFeedback}}/>}
 function Demo(){
   const [role,setRole]=useState('swimmer'),[,render]=useState(0),[fail,setFail]=useState(false)
+  const [jumpRequest,setJumpRequest]=useState(0)
   const store=useRef({sequence:2,fail:false,reads:{},attempts:new Map(),rows:[
     {id:'101',profileName:'Tova',profileEmoji:'🐬',comment:'Jag vill kunna planera in plugg i kalendern.',status:'in_progress',archived:false,createdAt:'2026-11-15T12:55:09Z',messages:[{id:'1',role:'superadmin',content:'Bra idé! Menar du att markera tid för skolan, eller att meddela frånvaro från träning?',createdAt:'2026-11-16T20:00:00Z'}]},
     {id:'102',profileName:'En annan simmare',profileEmoji:'🏊',comment:'Kan vi få en tydligare veckovy?',status:'new',archived:false,createdAt:'2026-11-17T08:00:00Z',messages:[]},
@@ -28,6 +31,6 @@ function Demo(){
     const list=rows.filter(row=>query.get('unreadOnly')!=='true'||unread(row)).map(row=>({...row,unread:unread(row),lastMessage:row.messages.at(-1)||null}))
     return{items:list,unreadCount:rows.filter(unread).length,nextBefore:null}
   },[])
-  return <main style={{maxWidth:850,margin:'24px auto',padding:16}}><h1>Appfeedback · fiktiv demo</h1><p>Inga API-anrop, riktiga meddelanden, pushnotiser eller databasändringar.</p><div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button type="button" onClick={()=>setRole('swimmer')} aria-pressed={role==='swimmer'}>Simmarvy</button><button type="button" onClick={()=>setRole('superadmin')} aria-pressed={role==='superadmin'}>Superadminvy</button><Badge request={request}/></div><label style={{display:'block',marginTop:15}}><input type="checkbox" checked={fail} onChange={event=>{setFail(event.target.checked);store.current.fail=event.target.checked}}/> Tappa nästa svar efter sparat meddelande</label><FeedbackInbox key={role} code={role==='superadmin'?'admin':'swimmer'} role={role} request={request}/></main>
+  return <div className="app-shell">{role==='swimmer'&&<DemoHeader request={request} onFeedback={()=>setJumpRequest(value=>value+1)}/>}<main className="page-content"><h1>Appfeedback · fiktiv demo</h1><p>Inga API-anrop, riktiga meddelanden, pushnotiser eller databasändringar.</p><div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button type="button" onClick={()=>setRole('swimmer')} aria-pressed={role==='swimmer'}>Simmarvy</button><button type="button" onClick={()=>setRole('superadmin')} aria-pressed={role==='superadmin'}>Superadminvy</button><Badge request={request}/></div><label style={{display:'block',marginTop:15}}><input type="checkbox" checked={fail} onChange={event=>{setFail(event.target.checked);store.current.fail=event.target.checked}}/> Tappa nästa svar efter sparat meddelande</label>{role==='swimmer'&&<><section className="mood-hero"><p className="eyebrow light">Idag i gruppen</p><h1>Så här känns det</h1><p>🙂 😄 😌 🏊</p></section><section className="start-card" style={{minHeight:450}}><h2>Dagens kort</h2><p>Fiktivt utrymme för startsidans vanliga innehåll.</p></section></>}<FeedbackSection jumpRequest={jumpRequest}>{role==='swimmer'&&<section className="app-feedback-card"><button type="button" className="app-feedback-trigger"><span>💬</span><div><strong>Hur kan vi göra Simkoll bättre?</strong><small>En snabb fråga – tar mindre än en minut.</small></div><b>→</b></button></section>}<FeedbackInbox key={role} code={role==='superadmin'?'admin':'swimmer'} role={role} request={request}/></FeedbackSection></main></div>
 }
 if(new URLSearchParams(location.search).get('viewport')==='mobile')createRoot(document.getElementById('root')).render(<iframe title="Feedback i mobilbredd" src="/app-feedback-qa.html" style={{width:390,height:'100vh',border:0,display:'block'}}/>);else createRoot(document.getElementById('root')).render(<Demo/> )

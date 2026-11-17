@@ -7,22 +7,35 @@ const changed = () => window.dispatchEvent(new Event('simkoll-feedback-changed')
 const post = (request, code, body) => request('/api/community',code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
 const stamp = value => new Date(value).toLocaleString('sv-SE',{dateStyle:'medium',timeStyle:'short'})
 
-export function useFeedbackCount(code, enabled, request = apiRequest) {
-  const [state,setState] = useState({count:null,error:false})
+export function useFeedbackCount(code, enabled, request = apiRequest, scopeKey = code) {
+  const [state,setState] = useState({code,scopeKey,count:null,error:false})
   useEffect(()=>{
-    setState({count:null,error:false})
+    setState({code,scopeKey,count:null,error:false})
     if (!enabled) return
     let active=true
-    const load=()=>request('/api/community?feedbackDialog=true&count=true',code,{retry:false}).then(data=>{if(active)setState({count:data.unreadCount,error:false})}).catch(()=>{if(active)setState(current=>({...current,error:true}))})
+    const load=()=>request('/api/community?feedbackDialog=true&count=true',code,{retry:false}).then(data=>{if(active)setState({code,scopeKey,count:data.unreadCount,error:false})}).catch(()=>{if(active)setState(current=>({...current,error:true}))})
     const stop=startVisiblePolling(load,30000)
     const refresh=()=>{if(!document.hidden)void load()}
     window.addEventListener('simkoll-feedback-changed',refresh)
     return()=>{active=false;stop();window.removeEventListener('simkoll-feedback-changed',refresh)}
-  },[code,enabled,request])
-  return state
+  },[code,enabled,request,scopeKey])
+  return enabled && state.code===code && state.scopeKey===scopeKey ? state : {count:null,error:false}
 }
 export function FeedbackBadge({state}) {
-  return state.error ? <b className="tab-count" title="Feedbacknotiser kunde inte hämtas" aria-label="Feedbacknotiser kunde inte hämtas">!</b> : state.count>0 ? <b className="tab-count" aria-label={`${state.count} olästa feedbackdialoger`}>{state.count}</b> : null
+  return state.error ? <b className="tab-count" title="Feedbacknotiser kunde inte hämtas" aria-label="Feedbacknotiser kunde inte hämtas">!</b> : state.count>0 ? <b className="tab-count" aria-label={state.count===1?'1 oläst feedbackdialog':`${state.count} olästa feedbackdialoger`}>{state.count}</b> : null
+}
+
+export function FeedbackSection({jumpRequest=0,children}) {
+  const section=useRef(null)
+  useEffect(()=>{
+    if(!jumpRequest)return
+    const frame=window.requestAnimationFrame(()=>{
+      section.current?.focus({preventScroll:true})
+      section.current?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})
+    })
+    return()=>window.cancelAnimationFrame(frame)
+  },[jumpRequest])
+  return <section ref={section} className="feedback-home-section" tabIndex={-1} aria-label="Appförslag och svar">{children}</section>
 }
 
 export function FeedbackDialog({id,code,role='swimmer',onClose,request=apiRequest}) {

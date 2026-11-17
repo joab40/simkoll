@@ -11,10 +11,14 @@ Ingen produktions-SQL körs automatiskt av appändringen.
 - Nya följdsvar sparas i en egen dialog per förslag, inte i tränarnas gemensamma
   privata inkorg. Det finns ingen gräns på ett svar. Varje meddelande har högst
   1000 tecken; högst 10 nya meddelanden per avsändare och minut skyddar mot spam.
-- Simmaren får ett kort ovanför startsidans karusell när det finns olästa svar.
+- Simmaren får ett kort direkt under ”Hur kan vi göra Simkoll bättre?” när det finns olästa svar.
   Därifrån öppnas historik och svarsfält. Utan olästa svar visas bara en diskret
   länk till tidigare förslag. Dialogen finns kvar även om nya appfeedbackformuläret
   har dolts i klubbens inställningar.
+- Simmarmenyn visar antal olästa dialoger både på ”Meny” (mobil), ”Mer” (dator)
+  och länken ”Svar från utvecklaren”. Länken går till förslags- och svarskorten
+  även från andra sidor. Fokus följer med; minskad rörelse respekteras. Menyn
+  kvitterar inget. Märket försvinner först när själva dialogen har öppnats.
 - Superadmin ser olästmarkering i tränarmenyn och Appfeedback-fliken. Sidan visar
   olästa dialoger först; Alla dialoger inkluderar historik. Förslagskorten har
   även en direktknapp till sin dialog. Vanliga tränare och huvudtränare får inte

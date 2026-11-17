@@ -6,7 +6,7 @@ import { swimmerNavigation } from '../shared/swimmer-navigation.js'
 test('desktop has three primary links and retains every other existing destination in More', () => {
   const items = swimmerNavigation({ hasProfile: true })
   assert.deepEqual(items.filter(item => item.primary).map(item => item.key), ['planning', 'diary', 'goals'])
-  assert.deepEqual(items.filter(item => !item.primary).map(item => item.key), ['strength', 'dryland', 'competitions', 'community', 'help', 'legal'])
+  assert.deepEqual(items.filter(item => !item.primary).map(item => item.key), ['strength', 'dryland', 'competitions', 'community', 'feedback', 'help', 'legal'])
   assert.equal(new Set(items.map(item => item.key)).size, items.length)
 })
 

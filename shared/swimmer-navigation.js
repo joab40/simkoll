@@ -6,6 +6,7 @@ const items = [
   { key: 'competitions', label: 'Mina grenar', icon: 'calendar' },
   { key: 'community', label: 'Peppflödet', icon: 'heart' },
   { key: 'goals', label: 'Mina mål', icon: 'goal', primary: true },
+  { key: 'feedback', label: 'Svar från utvecklaren', icon: 'message' },
   { key: 'help', label: 'FAQ', icon: 'help', public: true },
   { key: 'legal', label: 'Info & villkor', icon: 'info', public: true },
 ]
