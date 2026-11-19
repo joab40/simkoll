@@ -23,6 +23,10 @@ function presetRange(preset, today) {
   return { start, end: today }
 }
 
+export function DiaryPeriod({ draft, onPreset, onDraft, onSubmit }) {
+  return <section className="diary-period"><div className="diary-presets">{[['week', 'Vecka'], ['month', 'Månad'], ['term', 'Termin']].map(([value, label]) => <button type="button" key={value} onClick={() => onPreset(value)}>{label}</button>)}</div><form onSubmit={(event) => { event.preventDefault(); onSubmit() }}><label>Från<input type="date" required value={draft.start} max={draft.end} onChange={(event) => onDraft({ ...draft, start: event.target.value })} /></label><label>Till<input type="date" required value={draft.end} min={draft.start} max={todayKey()} onChange={(event) => onDraft({ ...draft, end: event.target.value })} /></label><button className="secondary-button">Visa period</button></form></section>
+}
+
 export function DiaryChart({ days, metric, onDay, scrollRef, onScroll }) {
   days = days.map(day => ({ ...day, meterPlot: diaryPlotMeters(day) }))
   const volume = metric === 'volume', key = volume ? 'meterPlot' : metric, color = volume ? SWIM_METER_COLOR : '#147b7b', maximum = volume ? Math.max(10000, ...days.map(day => day.meterPlot || 0)) : metric === 'rpe' ? 10 : 5
@@ -141,7 +145,7 @@ export default function TrainingDiary({ code, request, onBack, onGoals }) {
   const current = data?.current, previous = data?.previous
   const compare = (key, unit = '') => previous?.[key] == null ? 'Tidigare period: uppgift saknas' : `Tidigare: ${fmt(previous[key], unit)}`
   return <div className="training-diary-page"><button type="button" className="back-button inline" onClick={() => { if (allowLeave()) onBack() }}>← Tillbaka</button><div className="diary-heading"><div><p className="eyebrow">Min träning · Min utveckling</p><h1>Min träningsdagbok</h1><p>Pass, upplevelser och det jag tar med mig vidare.</p></div><span aria-hidden="true">📖</span></div>
-    <section className="diary-period"><div className="diary-presets">{[['week', 'Vecka'], ['month', 'Månad'], ['term', 'Termin']].map(([value, label]) => <button type="button" key={value} onClick={() => changeRange(presetRange(value, today))}>{label}</button>)}</div><form onSubmit={(event) => { event.preventDefault(); changeRange(draft) }}><label>Från<input type="date" required value={draft.start} max={draft.end} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label><label>Till<input type="date" required value={draft.end} min={draft.start} max={today} onChange={(event) => setDraft({ ...draft, end: event.target.value })} /></label><button className="secondary-button">Visa period</button></form></section>
+    <DiaryPeriod draft={draft} onPreset={(value) => changeRange(presetRange(value, today))} onDraft={setDraft} onSubmit={() => changeRange(draft)} />
     <details className="diary-faq"><summary>Frågor om träningsdagboken</summary><FeatureFaq role="swimmer" section="diary" /></details>
     {loading && <p className="diary-loading" role="status">Hämtar din träningsdagbok…</p>}{error && <div className="diary-error" role="alert"><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>Försök igen</button></div>}
     {data && <><p className="diary-period-caption">{dateLabel(range.start)}–{dateLabel(range.end)} · jämfört med {dateLabel(data.range.previousStart)}–{dateLabel(data.range.previousEnd)}</p>{data.warnings.length > 0 && <p className="diary-source-note" role="status">Vissa uppgifter kunde inte hämtas: {data.warnings.join('; ')}. Sammanfattningen kan vara ofullständig.</p>}

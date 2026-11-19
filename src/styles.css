@@ -751,7 +751,13 @@ button { cursor: pointer; }
 .scale-5 { grid-template-columns: repeat(5, 1fr); }
 .scale-10 { grid-template-columns: repeat(10, 1fr); }
 .scale-grid button { aspect-ratio: 1; border: 1.5px solid #d6e2df; background: white; border-radius: 12px; font-weight: 700; font-size: 18px; }
-.scale-grid button:hover { background: var(--lime); border-color: #a6c63e; transform: translateY(-2px); }
+@media (hover: hover) and (pointer: fine) {
+  .scale-grid button:hover { background: var(--lime); border-color: #a6c63e; transform: translateY(-2px); }
+}
+.scale-grid button:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+.scale-grid button:active { background: var(--lime); border-color: #a6c63e; }
+.scale-endpoints { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-bottom: 12px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.scale-endpoints span { white-space: nowrap; }
 .scale-grid.checkin-scale-icons button { display: grid; align-content: center; justify-items: center; gap: 5px; min-width: 0; padding: 8px 2px; }
 .scale-grid.checkin-scale-icons button > span { font-size: 30px; line-height: 1.15; }
 .scale-grid.checkin-scale-icons button > small { font-size: 14px; font-weight: 700; }
@@ -1912,8 +1918,8 @@ button { cursor: pointer; }
 .checkin-planned-workout > span { font-size: 30px; }
 .checkin-planned-workout div { display: flex; flex-direction: column; gap: 3px; }
 .checkin-planned-workout small, .checkin-selection-note, .checkin-alternative-label { color: var(--muted); }
-.checkin-completion-choice { display: grid; grid-template-columns: 1.35fr 1fr .7fr; gap: 8px; margin-bottom: 20px; }
-.checkin-completion-choice button { min-height: 46px; padding: 8px; border: 1px solid #cdded9; border-radius: 12px; background: white; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.checkin-completion-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0 20px; }
+.checkin-completion-choice button { width: 100%; min-width: 0; min-height: 50px; padding: 10px; border: 1px solid #cdded9; border-radius: 12px; background: white; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
 .checkin-completion-choice button.active { border-color: var(--teal); background: #f0fad1; }
 .checkin-alternative-label { margin: 18px 0 0; font-size: 12px; font-weight: 700; }
 .checkin-activity-details { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
@@ -1925,7 +1931,7 @@ button { cursor: pointer; }
 .checkin-time-input { display: flex; align-items: center; gap: 8px; }
 .checkin-time-input input { max-width: 140px; }
 .checkin-time-input span { color: var(--muted); }
-@media (max-width: 520px) { .checkin-completion-choice { grid-template-columns: 1fr 1fr; } .checkin-completion-choice button:last-child { grid-column: 1 / -1; } }
+@media (max-width: 360px) { .checkin-completion-choice { grid-template-columns: minmax(0, 1fr); } }
 .training-amount-section { margin-top: 22px; }
 .training-amount-section > p { color: var(--muted); font-size: 12px; }
 .training-amount-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }

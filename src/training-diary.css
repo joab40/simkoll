@@ -11,6 +11,9 @@
 .training-diary-page input, .training-diary-page select, .training-diary-page textarea { border: 1px solid #cbddda; border-radius: 11px; padding: 11px; background: white; color: var(--ink); font: inherit; }
 .diary-period form label { min-width: 0; }
 .diary-period form input { box-sizing: border-box; width: 100%; min-width: 0; }
+.diary-period input[type="date"] { display: block; max-width: 100%; min-height: 46px; font-size: 16px; -webkit-appearance: none; appearance: none; }
+.diary-period input[type="date"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+.diary-period input[type="date"]::-webkit-datetime-edit { min-width: 0; padding: 0; }
 .diary-period form button { min-height: 46px; white-space: nowrap; }
 .training-diary-page button:focus-visible, .training-diary-page summary:focus-visible { outline: 3px solid #369e9a; outline-offset: 3px; }
 .diary-presets button, .diary-metric-tabs button, .diary-calendar .diary-section-heading button { min-height: 38px; padding: 8px 13px; border: 1px solid #cbded7; border-radius: 999px; background: white; color: var(--teal); font: inherit; font-weight: 700; }
@@ -131,3 +134,7 @@
 .diary-choice-confirm { display: flex; gap: 12px; align-items: center; padding: 10px 0 18px; }
 .diary-choice-confirm input { width: 22px; height: 22px; flex: 0 0 auto; accent-color: #147b7b; }
 .diary-workout-choice button:focus-visible { outline: 3px solid #147b7b; outline-offset: 3px; }
+.diary-period form > * { max-width: 100%; }
+@media (max-width: 540px) {
+  .training-diary-page .diary-period form { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
