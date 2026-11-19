@@ -1,0 +1,36 @@
+.personal-label { font-size:14px; font-weight:750; color:#416369; margin:20px 0 10px; }
+.personal-kind-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.personal-kind-grid > button { display:flex; align-items:center; gap:12px; min-height:66px; padding:15px 18px; text-align:left; border:1px solid #cbded9; border-radius:16px; background:#fff; color:#15343e; font-size:15px; font-weight:750; }
+.personal-kind-grid > button > span { font-size:25px; }
+.personal-pills { display:flex; flex-wrap:wrap; gap:8px; }
+.personal-pills button { min-height:43px; padding:10px 14px; border:1px solid #cadfd8; border-radius:12px; background:#fff; color:#244b51; font-size:14px; font-weight:650; }
+.personal-pass-picker [aria-pressed=true] { border-color:#117b7b; background:#e1f2ed; box-shadow:inset 0 0 0 1px #117b7b; }
+.personal-pass-picker button:focus-visible,.personal-training-planner button:focus-visible { outline:3px solid #168484; outline-offset:3px; }
+.personal-selected { margin-top:20px; padding:20px; border:1px solid #c4ddd5; border-radius:18px; background:#f0f7f3; }
+.personal-selected h3 { margin:0 0 6px; font-size:20px; }
+.personal-selected > p,.personal-training-planner > p { margin:0 0 18px; font-size:13px; line-height:1.6; color:#557078; }
+.personal-fields { display:grid; gap:18px; margin:20px 0; }
+.personal-fields fieldset,.personal-plan-editor > fieldset { border:0; padding:0; margin:0; min-width:0; }
+.personal-fields legend { font-size:14px; font-weight:750; margin-bottom:9px; color:#234951; }
+.personal-fields legend small { font-weight:500; font-size:11px; margin-left:6px; color:#6a8083; }
+.personal-fields label,.personal-plan-editor > label { display:grid; gap:7px; margin-top:12px; font-size:13px; color:#30565a; font-weight:650; }
+.personal-fields input,.personal-plan-editor input { box-sizing:border-box; max-width:100%; width:220px; min-height:44px; padding:10px 12px; border:1px solid #b9d2ca; border-radius:11px; background:white; color:#15343e; font:inherit; font-size:16px; }
+.personal-sports { margin-top:12px; }
+.personal-planned-choices { display:grid; gap:8px; }
+.personal-planned-choices > button { padding:14px; border:1px solid #bdd7cd; border-radius:14px; background:#fff; text-align:left; color:#15343e; }
+.personal-planned-choices > button span,.personal-planned-choices > button small { display:block; }
+.personal-planned-choices small { color:#5b747b; margin-top:5px; }
+.personal-planned-choices > button:disabled { opacity:.65; cursor:default; }
+.personal-training-planner { margin-top:24px; padding:22px; border:1px solid #cfdfd9; border-radius:20px; background:#f8fbf8; }
+.personal-training-planner > header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.personal-training-planner h3 { margin:4px 0; font-size:19px; }
+.personal-plan-list { margin:0; padding:0; list-style:none; }
+.personal-plan-list > li { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 0; border-top:1px solid #dbe7e1; }
+.personal-plan-list strong { font-size:14px; }
+.personal-plan-list small { display:block; margin-top:5px; font-size:12px; color:#5b747b; }
+.personal-plan-actions { display:flex; flex-wrap:wrap; gap:8px; flex:none; }
+.personal-plan-editor { padding:18px; margin-top:16px; background:white; border-radius:15px; border:1px solid #d2e3db; }
+.personal-editor-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.personal-editor-heading h4 { margin:0; }
+.personal-save-message { font-size:13px; color:#28694f; margin:14px 0 0; }
+@media(max-width:640px) { .personal-kind-grid{gap:8px}.personal-kind-grid>button{padding:12px;font-size:14px;gap:8px}.personal-selected,.personal-training-planner{padding:16px}.personal-training-planner>header{align-items:flex-start;flex-direction:column}.personal-plan-list>li{align-items:flex-start;flex-direction:column}.personal-plan-editor{padding:12px}.personal-pills button{padding:9px 11px}.personal-selected>.primary-button{width:100%} }

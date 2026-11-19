@@ -38,6 +38,7 @@ function fixture() {
     }
     if (path === 'point_events') {
       if (options.method === 'POST') { awards.add(JSON.parse(options.body).source_key); return json([]) }
+      if (!query.has('source_key')) return json([...awards].map(source_key => ({ source_key })))
       return json(awards.has(query.get('source_key')?.slice(3)) ? [{ id: 'awarded' }] : [])
     }
     if (path === 'artifact_catalog') return json([])
@@ -83,4 +84,16 @@ test('server rejects future completions and dates outside the planning window be
   for (const date of ['2026-10-20', '2026-11-02', '2026-02-30']) assert.equal((await call({ action: 'toggle-plan', date, slot: 'strength', planned: true })).code, 400)
   assert.equal((await call({ action: 'toggle-session', date: '2026-10-26', slot: 'morning_swim', completed: true })).code, 400)
   assert.equal(data.requests.some((item) => item.options.method === 'POST' || item.options.method === 'DELETE'), false)
+})
+
+test('personal planning earns the shared weekly award once, but after-only records do not count', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-21T10:00:00Z') })
+  const data = fixture()
+  for (const [index,date] of ['2026-10-21','2026-10-22','2026-10-23'].entries()) data.plans.push({profile_id:profileId,week_start:'2026-10-19',planned_date:date,session_slot:`extra_${index}`,personal_details:{activityType:'swim',origin:'niu',wasPlanned:index!==2}})
+  await call(null,'GET')
+  assert.equal(data.awards.size,0)
+  data.plans[2].personal_details.wasPlanned=true
+  await call(null,'GET');await call(null,'GET')
+  assert.deepEqual([...data.awards],[`planning:${profileId}:2026-10-19`])
+  assert.equal(data.requests.filter(item=>item.path==='point_events'&&item.options.method==='POST').length,1)
 })

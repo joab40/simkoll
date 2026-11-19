@@ -6,6 +6,8 @@ import { dailyIllness } from '../server/daily-illness.js'
 import { loadWorkoutChoices } from '../server/workout-choice.js'
 import { validWorkoutOption } from '../shared/swim-workout-options.js'
 import { checkinTraining, validCheckinActivity } from '../shared/checkin-activity.js'
+import { reportPersonalTraining } from '../server/personal-training.js'
+import { personalSlot } from '../shared/personal-training.js'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
@@ -54,6 +56,7 @@ export function toDatabase(response, profileId, activityDate, lateEntryKey = nul
     session_slot: response.competition !== true && ['before', 'after'].includes(response.type) && (!response.activityType || response.activityType === 'swim') ? response.trainingSlot || null : null,
     training_registered: response.registerTraining ?? null,
     ...(response.workoutReference ? { workout_reference: response.workoutReference } : {}),
+    ...(response.personalSessionId ? { personal_session_id: response.personalSessionId, session_slot: personalSlot(response.personalSessionId), training_origin: response.trainingOrigin, activity_focus: response.activityFocus || null, activity_sport: response.activitySport || null } : {}),
   }
 }
 
@@ -83,6 +86,7 @@ export function fromDatabase(response, includeDetails) {
     workoutReference: response.workout_reference || null,
     trainingSlot: response.session_slot || null,
     registerTraining: response.training_registered ?? null,
+    ...(response.personal_session_id ? { personalSessionId: response.personal_session_id, trainingOrigin: response.training_origin, activityFocus: response.activity_focus, activitySport: response.activity_sport } : {}),
   }
 }
 
@@ -95,7 +99,7 @@ function yesterdayDate(date = stockholmDate()) {
 export function checkinPointAwards(body, activityDate) {
   if (body.type === 'before') return [{ eventType: 'checkin_before', points: 1, sourceKey: activityDate }]
   if (body.type !== 'after') return []
-  const activityKey = body.competition === true
+  const activityKey = body.personalSessionId ? `personal:${body.activityType}` : body.competition === true
     ? 'competition'
     : (body.activityType || 'swim') === 'swim'
       ? body.trainingSlot
@@ -155,8 +159,9 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'POST') {
+      if (request.body?.personalSessionId && role !== 'swimmer') return sendJson(response, 403, { error: 'Egna pass rapporteras från din egen simmarvy.' })
       if (!validate(request.body || {})) return sendJson(response, 400, { error: 'Svaret innehåller ogiltiga värden.' })
-      if (request.body.competition !== true && ['before', 'after'].includes(request.body.type) && (!request.body.activityType || request.body.activityType === 'swim') && !['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot)) return sendJson(response, 400, { error: 'Välj morgonpass eller eftermiddag / kväll innan du skickar. Ladda om sidan om passvalet saknas.' })
+      if (!request.body.personalSessionId && request.body.competition !== true && ['before', 'after'].includes(request.body.type) && (!request.body.activityType || request.body.activityType === 'swim') && !['morning_swim', 'afternoon_swim'].includes(request.body.trainingSlot)) return sendJson(response, 400, { error: 'Välj morgonpass eller eftermiddag / kväll innan du skickar. Ladda om sidan om passvalet saknas.' })
       const sessionProfile = await getSessionProfile(request)
       const today = stockholmDate()
       const activityDate = String(request.body?.activityDate || today)
@@ -172,7 +177,12 @@ export default async function handler(request, response) {
       }
       const hmacSecret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
       const lateEntryKey = lateEntry ? createHmac('sha256', hmacSecret).update(`${sessionProfile.id}:${activityDate}`).digest('hex') : null
-      const result = await supabaseRequest('responses', {
+      let personalResult
+      if (request.body.personalSessionId) {
+        try { personalResult = await reportPersonalTraining(sessionProfile.id, request.body, { ...toDatabase(request.body, profile.id, activityDate, null), late_entry: lateEntry }) }
+        catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+      }
+      const result = personalResult ? { ok: true, status: 201, json: async () => [personalResult.response] } : await supabaseRequest('responses', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(toDatabase(request.body, profile?.id, activityDate, lateEntryKey)),
@@ -200,7 +210,7 @@ export default async function handler(request, response) {
         // Explicit activity choice drives the training log. An unchecked
         // registration toggle must not create a session. Legacy clients
         // without activity type retain their previous behavior.
-        const trainingActivity = checkinTraining(request.body)
+        const trainingActivity = request.body.personalSessionId ? null : checkinTraining(request.body)
         if (trainingActivity) {
           const trainingResult = await supabaseRequest('personal_training_sessions', {
             method: 'POST', body: JSON.stringify({ profile_id: sessionProfile.id, ...trainingActivity, session_date: activityDate, source: 'checkin' }),

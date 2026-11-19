@@ -24,7 +24,9 @@ import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, 
 import { personalActivityStreak, stockholmActivityDay } from '../shared/activity-streak.js'
 import ActivityCorrection from './activity-correction.jsx'
 import TrendLineChart from './trend-line-chart.jsx'
-import { CHECKIN_ACTIVITIES, activityLabel, BEFORE_TRAINING_CHOICES, selectBeforeTraining } from '../shared/checkin-activity.js'
+import { activityLabel } from '../shared/checkin-activity.js'
+import { personalCheckinDetails } from '../shared/personal-training.js'
+import PersonalTrainingPlanner, { PersonalPassPicker, usePersonalTraining } from './personal-training.jsx'
 import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
 import { calendarActivityKey, calendarFormValues, calendarLinkKeys, selectPlanningCalendarActivity, explicitCalendarMatches } from '../shared/planning-calendar.js'
 import './swim-workout-options.css'
@@ -209,6 +211,13 @@ function App() {
   const [availableGames, setAvailableGames] = useState([])
   const [previousGames, setPreviousGames] = useState([])
   const [betaGames, setBetaGames] = useState([]), [betaGameKey, setBetaGameKey] = useState('')
+  useEffect(() => {
+    if (auth?.role !== 'swimmer' || !profile) return
+    let active = true
+    const refresh = () => { void apiRequest('/api/training?summary=true', auth.code).then(data => { if (active) setTraining(data) }).catch(() => {}) }
+    window.addEventListener('simkoll-personal-training-changed', refresh)
+    return () => { active = false; window.removeEventListener('simkoll-personal-training-changed', refresh) }
+  }, [auth?.code, auth?.role, profile?.id])
   useEffect(() => { setBetaGames([]); setBetaGameKey('') }, [profile?.id, auth?.code])
   usePushSession(auth, profile, (target) => {
     if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
@@ -458,7 +467,7 @@ function App() {
             // Anonymous responses intentionally come back without details
             // from the API. Keep the selected type in this session so the
             // swimmer still gets useful confirmation in the status card.
-            setResponses((current) => [...current, { ...result.response, ...response, activityDate: checkinActivityDate, lateEntry: checkinActivityDate !== todayKey() }])
+            setResponses((current) => [...current.filter(item => item.id !== result.response.id), { ...response, ...result.response, activityDate: checkinActivityDate, lateEntry: checkinActivityDate !== todayKey() }])
             if (checkinActivityDate !== todayKey() && profile) {
               try { window.localStorage.setItem(`simkoll-late-checkin:${profile.id}:${checkinActivityDate}`, 'done') } catch { /* Storage is optional; server still enforces one entry. */ }
             }
@@ -739,7 +748,7 @@ function SwimmerPlanning({ code, onBack }) {
       summary.innerHTML = `<div><strong>${swimmerPlanningMeters ? swimmerPlanningMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>${swimmerPlanningMinutes || '–'}</strong><span>minuter</span></div><div><strong>${groupSwimOccasions(visiblePlans).length}</strong><span>träningstillfällen / aktiviteter</span></div>`
     }
   }, [visiblePlans.length, sportAdminActivities.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
-  return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>Vecka {isoWeek(startKey).week} · {weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{loading ? <div className="swimmer-planning-loading" role="status"><span aria-hidden="true">〰</span><strong>Hämtar din veckoplanering…</strong><small>Vi laddar pass, aktiviteter och kalenderhändelser.</small></div> : visiblePlans.length ? <div className="swimmer-planning-list">{groupSwimOccasions(visiblePlans).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => { const requiresCheckIn = plan.date === todayKey() && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && todayWorkoutAccess.locked; const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']; const competitionInfo = !requiresCheckIn && (plan.activityType === 'competition' || plan.source === 'SportAdmin' || plan.activityType === 'sportadmin') ? competitionInfoFor(plan) : ''; const metadata = <><div className="workout-library-stats">{plan.time && plan.time !== '00:00' && <span>⏰ {plan.time}</span>}{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map((group) => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}</>; return <article key={plan.id} className={`${plan.source === 'SportAdmin' ? 'calendar-planning-item ' : ''}${requiresCheckIn ? 'planning-locked-item' : ''}`}><p className="eyebrow">{plan.date}</p><div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{plan.focus}</span>}{metadata}{requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se passets upplägg</strong><small>Rubrik, fokus och träningsmängd är synliga. Serier och tränarens instruktioner låses upp efter dagens check-in.</small></div> : competitionInfo ? <details className="swimmer-planning-pm"><summary>{plan.activityType === 'competition' ? '📄 Tävlingsinformation' : '📅 Information från SportAdmin'} <span>Visa</span></summary><div>{competitionInfo.split('\n').map((line, index) => <React.Fragment key={`${plan.id}-info-${index}`}>{index ? <br /> : null}{line}</React.Fragment>)}</div></details> : plan.source !== 'SportAdmin' && <small>{plan.notes}</small>}</article> })}</SwimOccasion>)}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}</section>
+  return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>Vecka {isoWeek(startKey).week} · {weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{loading ? <div className="swimmer-planning-loading" role="status"><span aria-hidden="true">〰</span><strong>Hämtar din veckoplanering…</strong><small>Vi laddar pass, aktiviteter och kalenderhändelser.</small></div> : visiblePlans.length ? <div className="swimmer-planning-list">{groupSwimOccasions(visiblePlans).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => { const requiresCheckIn = plan.date === todayKey() && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && todayWorkoutAccess.locked; const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']; const competitionInfo = !requiresCheckIn && (plan.activityType === 'competition' || plan.source === 'SportAdmin' || plan.activityType === 'sportadmin') ? competitionInfoFor(plan) : ''; const metadata = <><div className="workout-library-stats">{plan.time && plan.time !== '00:00' && <span>⏰ {plan.time}</span>}{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map((group) => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}</>; return <article key={plan.id} className={`${plan.source === 'SportAdmin' ? 'calendar-planning-item ' : ''}${requiresCheckIn ? 'planning-locked-item' : ''}`}><p className="eyebrow">{plan.date}</p><div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{plan.focus}</span>}{metadata}{requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se passets upplägg</strong><small>Rubrik, fokus och träningsmängd är synliga. Serier och tränarens instruktioner låses upp efter dagens check-in.</small></div> : competitionInfo ? <details className="swimmer-planning-pm"><summary>{plan.activityType === 'competition' ? '📄 Tävlingsinformation' : '📅 Information från SportAdmin'} <span>Visa</span></summary><div>{competitionInfo.split('\n').map((line, index) => <React.Fragment key={`${plan.id}-info-${index}`}>{index ? <br /> : null}{line}</React.Fragment>)}</div></details> : plan.source !== 'SportAdmin' && <small>{plan.notes}</small>}</article> })}</SwimOccasion>)}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}<PersonalTrainingPlanner key={startKey} code={code} start={startKey} end={dateKey(new Date(selectedEnd.getTime() - 86400000))} /></section>
 }
 
 function SwimmerCompetitionEntries({ code, onBack }) {
@@ -1133,7 +1142,7 @@ function Home({ code, feedbackJumpRequest = 0, responses, responsesLoaded = fals
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'dryland') && <StrengthProgramCard programType="dryland" training={training} onOpen={onDrylandProgram || onGoals} />}
       {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <PushNotificationControl code={code} compact />}
-      {profile && <WeeklySwimCard training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} winter={winterActive} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
+      {profile && <WeeklySwimCard code={code} training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} winter={winterActive} onOpen={onGoals} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameBetaList games={betaGames} onPlay={onBetaGame} />}
       {profile && <GameCard games={availableGames} previousGames={previousGames} onOpen={onGame} onVanda={onVanda} onSwimgames={onSwimgames} onAljakten={onAljakten} onBreakout={onBreakout} onSprint={onSprint} onLongJump={onLongJump} onBikeRun={onBikeRun} onTwenty48={onTwenty48} onAllTime={onAllTime} onDino={onDino} />}
       {profile && <FeedbackSection jumpRequest={feedbackJumpRequest}>
@@ -1750,7 +1759,7 @@ function SwimmerCompactWeek({ training, profileId }) {
   </section>
 }
 
-function WeeklySwimCard({ training, showStars, halloween, winter, onOpen, onToggle, onPlan }) {
+function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, onToggle, onPlan }) {
   const [saving, setSaving] = useState(() => new Set())
   const savingRef = useRef(new Set())
   const planDesiredRef = useRef(new Map())
@@ -1852,6 +1861,7 @@ function WeeklySwimCard({ training, showStars, halloween, winter, onOpen, onTogg
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför simmålet under de fyra senaste avslutade veckorna.</small></details>}
     <SwimmerWeekPlanner today={today} sessions={localSessions || []} plans={localPlans || []} saving={saving} onToggle={toggle} onPlan={togglePlan} onWeekChange={() => setCheer('')} /><div className="week-status-slot"><div className="week-save-status" role="status" aria-live="polite">{savingPlan || savingTraining ? <><span aria-hidden="true">⏳</span>{savingPlan && savingTraining ? 'Sparar planering och genomförd träning…' : savingPlan ? 'Sparar din planering…' : 'Sparar genomförd träning…'}</> : cheer ? <><span aria-hidden="true">✨</span><strong>{cheer}</strong><button type="button" aria-label="Dölj bekräftelsen" onClick={() => setCheer('')}>×</button></> : null}</div></div>
+    <PersonalTrainingPlanner code={code} start={dateKey(start)} end={dateKey(new Date(start.getTime() + 6 * 86400000))} />
   </section>
 }
 
@@ -2205,7 +2215,7 @@ function MyProfile({ profile, points, code, onProfileChange, onBack, onDiary, on
   )
 }
 
-function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit }) {
+export function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit, request = apiRequest }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
@@ -2224,13 +2234,13 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     if (!identified || !hasProfile) { setIllnessStatus('done'); return }
     let active = true
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
-    apiRequest(`/api/responses?illness=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then(data => {
+    request(`/api/responses?illness=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then(data => {
       if (!active) return
       setIllnessStatus(data.available === false ? 'error' : data.records?.length ? 'done' : 'needed')
       setIllnessError(data.available === false ? data.warning : '')
     }).catch(error => { if (active) { setIllnessError(error.name === 'AbortError' ? 'Sjukdomskollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setIllnessStatus('error') } }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
-  }, [code, activityDate, identified, hasProfile])
+  }, [code, activityDate, identified, hasProfile, request])
   const [workoutOptions, setWorkoutOptions] = useState([])
   const [optionsStatus, setOptionsStatus] = useState('loading')
   const [optionsRetry, setOptionsRetry] = useState(0)
@@ -2238,30 +2248,29 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     if (!hasProfile) { setOptionsStatus('done'); return }
     let active = true
     setOptionsStatus('loading')
-    apiRequest(`/api/workouts?checkinChoices=true&date=${activityDate}`, code).then((data) => {
+    request(`/api/workouts?checkinChoices=true&date=${activityDate}`, code).then((data) => {
       if (active) { setWorkoutOptions(data.options || []); setOptionsStatus('done') }
     }).catch(() => { if (active) setOptionsStatus('error') })
     return () => { active = false }
-  }, [code, activityDate, hasProfile, optionsRetry])
+  }, [code, activityDate, hasProfile, optionsRetry, request])
   useEffect(() => {
     if (!identified || !hasProfile) { setSleepStatus('done'); return }
     let active = true
     setSleepStatus('loading'); setSleepError('')
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
-    apiRequest(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then((data) => { if (active) { const done = Boolean(data.records?.length); setSleepStatus(done ? 'done' : 'needed'); if (done) setSleepSaved(true) } }).catch((error) => { if (active) { setSleepError(error.name === 'AbortError' ? 'Sömnkollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setSleepStatus('error') } }).finally(() => clearTimeout(timer))
+    request(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then((data) => { if (active) { const done = Boolean(data.records?.length); setSleepStatus(done ? 'done' : 'needed'); if (done) setSleepSaved(true) } }).catch((error) => { if (active) { setSleepError(error.name === 'AbortError' ? 'Sömnkollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setSleepStatus('error') } }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
-  }, [code, activityDate, identified, hasProfile, sleepRetry])
+  }, [code, activityDate, identified, hasProfile, sleepRetry, request])
   const typeQuestions = form.type ? getQuestions(form.type, form.activityType).filter((question) => question.key !== 'sleep') : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
   const questions = [...(identified && hasProfile && (dailyPrompts?.illness ?? illnessStatus !== 'done') ? [{ key: 'dailyIllness', title: 'Känner du dig sjuk eller på väg att bli sjuk?', hint: 'Sjukdomskänsla är något annat än trötthet efter träningen.', kind: 'dailyIllness' }] : []), ...(identified && hasProfile && (dailyPrompts?.sleep ?? sleepStatus !== 'done') ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
   const swimPlans = hasProfile ? workoutOptions : (Array.isArray(plannedWorkouts) ? plannedWorkouts : [plannedWorkouts]).filter(Boolean)
-  const primarySwimPlan = swimPlans[0] || null
-  const hasPlannedSwim = Boolean(primarySwimPlan || plannedSwimSlots.length)
-  const needsPassChoice = form.competition !== true && (form.type === 'before' || (needsActivity && form.activityType === 'swim'))
-  const needsSwimSlot = needsPassChoice && form.activityType === 'swim'
+  const personalPlans = usePersonalTraining(code, activityDate, activityDate, hasProfile && identified, request)
+  const needsPassChoice = form.competition !== true && (form.type === 'before' || (needsActivity && form.activityType === 'swim' && !form.personalSessionId))
+  const needsSwimSlot = needsPassChoice && form.activityType === 'swim' && !form.personalSessionId
   const slotStep = needsActivity ? 2 : 1
-  const needsWorkoutChoice = needsActivity && form.activityType === 'swim'
+  const needsWorkoutChoice = needsActivity && form.activityType === 'swim' && !form.personalSessionId
   const workoutStep = slotStep + 1
   const slotTime = form.trainingSlot === 'morning_swim' ? 'morning' : 'afternoon'
   const slotOptions = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === slotTime).sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
@@ -2270,18 +2279,13 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   const total = questionOffset + questions.length
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
-  const chooseActivity = (activityType, plannedCompletion = null) => setForm((current) => ({
-    ...current,
-    activityType,
-    plannedCompletion: plannedCompletion || (activityType === 'swim' ? 'full' : current.plannedCompletion === 'no' ? 'no' : null),
-    // Planerad mängd ligger redan i planeringen och ska inte presenteras som
-    // självrapporterad mängd, särskilt inte när simmaren väljer "Delvis".
-    activityDistanceMeters: null,
-    activityMinutes: null,
-    trainingSlot: null,
-    workoutReference: null,
-  }))
   const next = () => setStep((current) => current + 1)
+  const chooseClub = option => {
+    const options = swimPlans.filter(plan => !plan.timeOfDay || plan.timeOfDay === option.time)
+    setForm(current => ({ ...current, activityType: 'swim', personalSessionId: null, trainingOrigin: null, activityFocus: null, activitySport: null, personalTimeOfDay: null, registeredActivity: null, trainingSlot: option.slot, workoutReference: current.type === 'after' && options.length === 1 ? workoutReference(options[0]) : null, activityDistanceMeters: null, activityMinutes: null, registerTraining: current.type === 'after', plannedCompletion: 'full' }))
+    setStep(form.type === 'after' ? 3 : 2)
+  }
+  const passPicker = <PersonalPassPicker form={form} clubs={[{ slot: 'morning_swim', time: 'morning', label: '🌅 Klubbens morgonpass' }, { slot: 'afternoon_swim', time: 'afternoon', label: '🌇 Klubbens eftermiddag / kväll' }].map(option => ({ ...option, description: swimPlans.filter(plan => !plan.timeOfDay || plan.timeOfDay === option.time).map(plan => plan.title).join(' · ') }))} onClub={chooseClub} onChange={patch => setForm(current => ({ ...current, ...patch }))} onContinue={next} personalPlans={personalPlans.sessions} registered={personalPlans.registered} plansLoading={personalPlans.loading} plansError={personalPlans.error} onReload={personalPlans.refresh} allowPersonal={hasProfile && identified}/>
   const submit = async () => {
     if (needsSwimSlot && !['morning_swim', 'afternoon_swim'].includes(form.trainingSlot)) { setSubmitError('Välj morgonpass eller eftermiddag / kväll innan du skickar.'); return }
     if (needsWorkoutChoice && (optionsStatus !== 'done' || (slotOptions.length && !selectedOption))) { setSubmitError('Gå tillbaka och välj vilket upplägg du tränade.'); return }
@@ -2306,8 +2310,8 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     content = (
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Vad gjorde du igår?' : showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={lateEntry ? 'Välj det som bäst beskriver gårdagen.' : showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
         <div className="choice-stack">
-          {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm((current) => ({ ...current, competition: true, workoutReference: null, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm((current) => ({ ...current, competition: true, workoutReference: null, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' })); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.filter((type) => !lateEntry || type.value !== 'before').map((type) => (
-              <button key={type.value} className={`choice-card${(followUp || lateEntry) && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && type.value === 'after'; setForm((current) => ({ ...current, type: type.value, competition: false, workoutReference: null, activityType: type.value === 'before' ? 'swim' : null, registerTraining: countsAsAttendance, trainingSlot: null })); next() }}>
+          {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm({ competition: true, workoutReference: null, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' }); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm({ competition: true, workoutReference: null, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' }); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.filter((type) => !lateEntry || type.value !== 'before').map((type) => (
+              <button key={type.value} className={`choice-card${(followUp || lateEntry) && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && type.value === 'after'; setForm({ type: type.value, competition: false, workoutReference: null, activityType: type.value === 'before' ? 'swim' : null, registerTraining: countsAsAttendance, trainingSlot: null }); next() }}>
               <span className="choice-icon">{type.icon}</span>{lateEntry ? ({ after: 'Jag tränade / tävlade', rest: 'Jag vilade', sick: 'Jag var sjuk' }[type.value]) : type.title}<span>›</span>
             </button>
           ))}
@@ -2316,20 +2320,9 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
     )
     }
   } else if (step === 1 && needsActivity) {
-    content = <Question eyebrow="Din träning" title={hasPlannedSwim ? 'Genomförde du simträningen?' : 'Vad tränade du?'} hint={hasPlannedSwim ? 'Du väljer morgon/eftermiddag och upplägg i nästa steg.' : 'Välj det som stämmer bäst.'}>
-      {hasPlannedSwim && <p className="checkin-selection-note">Dina passuppgifter finns i planeringen. Du väljer vilket upplägg du körde efter valet av morgon eller eftermiddag.</p>}
-      {hasPlannedSwim && <div className="checkin-completion-choice"><button type="button" className={form.activityType === 'swim' && form.plannedCompletion === 'full' ? 'active' : ''} onClick={() => { chooseActivity('swim', 'full'); next() }}>Ja, hela passet</button><button type="button" className={form.activityType === 'swim' && form.plannedCompletion === 'partial' ? 'active' : ''} onClick={() => { chooseActivity('swim', 'partial'); next() }}>Delvis</button><button type="button" className={form.plannedCompletion === 'no' ? 'active' : ''} onClick={() => setForm((current) => ({ ...current, activityType: null, plannedCompletion: 'no', activityDistanceMeters: null, activityMinutes: null }))}>Nej</button></div>}
-      {(!hasPlannedSwim || form.plannedCompletion === 'no') && <p className="checkin-alternative-label">{hasPlannedSwim ? 'Tränade du något annat?' : 'Välj aktivitet'}</p>}
-      {(!hasPlannedSwim || form.plannedCompletion === 'no') && <div className="choice-stack checkin-activity-choices">{[{ key: 'swim', label: 'Simning', detail: 'Simpass utan kopplad planering', emoji: '🏊' }, { key: 'strength', label: 'Styrka', detail: 'Styrketräning på gymmet', emoji: '🏋️' }, { key: 'other', label: 'Annat', detail: 'Till exempel löpning eller cykling', emoji: '👟' }].filter((activity) => !hasPlannedSwim || activity.key !== 'swim').map((activity) => <button type="button" className={`choice-card choice-card-with-description${form.activityType === activity.key ? ' selected' : ''}`} aria-pressed={form.activityType === activity.key} key={activity.key} onClick={() => chooseActivity(activity.key)}><span><span className="checkin-activity-choice-title">{activity.emoji} {activity.label}</span><small>{activity.detail}</small></span><span aria-hidden="true">›</span></button>)}</div>}
-      {form.activityType === 'other' && <div className="checkin-activity-details other"><label>Vad tränade du?<textarea maxLength="300" placeholder="Till exempel: Jag löptränade 5 km" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} /></label><label>Ungefär hur länge? <small>(frivilligt)</small><div className="checkin-time-input"><input type="number" min="1" max="1440" inputMode="numeric" value={form.activityMinutes ?? ''} onChange={(event) => update('activityMinutes', event.target.value ? Number(event.target.value) : null)} /><span>min</span></div></label></div>}
-      {form.activityType === 'strength' && <p className="checkin-selection-note">Styrkepasset registreras utan att du behöver ange tid.</p>}
-      {form.activityType === 'swim' && !hasPlannedSwim && <p className="checkin-selection-note">Simpasset registreras. Du behöver inte ange tid eller distans.</p>}
-      {(!hasPlannedSwim || form.plannedCompletion === 'no') && <button type="button" className="primary-button" disabled={!form.activityType || (form.activityMinutes != null && (form.activityMinutes <= 0 || form.activityMinutes > 1440))} onClick={next}>Fortsätt →</button>}
-    </Question>
+    content = <Question eyebrow="Din träning" title="Vad tränade du?" hint="Välj klubbens pass, NIU eller egen träning. Rapportera varje pass separat.">{passPicker}</Question>
   } else if (needsPassChoice && step === slotStep && form.type === 'before') {
-    content = <Question eyebrow="Din träning" title="Vilket pass ska du träna?" hint="Välj passet du planerar. Det räknas som genomfört först när du rapporterar efteråt.">
-      <div className="choice-stack">{BEFORE_TRAINING_CHOICES.map((option) => <button type="button" key={option.slot || option.activityType} className={`choice-card choice-card-with-description${form.activityType === option.activityType && form.trainingSlot === option.slot ? ' selected' : ''}`} onClick={() => { setForm((current) => selectBeforeTraining(current, option)); next() }}><span>{option.label}<small>{option.activityType === 'strength' ? 'Jag ska träna på gymmet' : swimPlans.filter((plan) => plan.timeOfDay === option.time).map((plan) => plan.title).join(' · ') || (plannedSwimSlots.includes(option.slot) ? 'Finns i din veckoplan' : 'Välj om detta är passet du menar')}</small></span><span>›</span></button>)}</div>
-    </Question>
+    content = <Question eyebrow="Din träning" title="Vilket pass ska du träna?" hint="Välj passet du planerar. Det räknas som genomfört först när du rapporterar efteråt.">{passPicker}</Question>
   } else if (needsSwimSlot && step === slotStep) {
     content = <Question eyebrow="Vilket simpass?" title={form.type === 'before' ? 'Vilket pass ska du träna?' : 'Vilket pass tränade du?'} hint="Svaret kopplas bara till det pass du väljer. Rapportera båda separat om du tränat två simpass.">
       <div className="choice-stack">{[{ slot: 'morning_swim', time: 'morning', label: '🌅 Morgonpass' }, { slot: 'afternoon_swim', time: 'afternoon', label: '🌇 Eftermiddag / kväll' }].map((option) => <button type="button" key={option.slot} className={`choice-card choice-card-with-description${form.trainingSlot === option.slot ? ' selected' : ''}`} onClick={() => { const options = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === option.time); setForm((current) => ({ ...current, trainingSlot: option.slot, workoutReference: current.type === 'after' && options.length === 1 ? workoutReference(options[0]) : null, activityDistanceMeters: null, activityMinutes: null })); next() }}><span>{option.label}<small>{swimPlans.filter((plan) => plan.timeOfDay === option.time).map((plan) => plan.title).join(' · ') || (plannedSwimSlots.includes(option.slot) ? 'Finns i din veckoplan' : 'Välj om detta är passet du menar')}</small></span><span>›</span></button>)}</div>
@@ -2339,6 +2332,7 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
       {optionsStatus === 'loading' ? <p role="status">Hämtar passalternativ…</p> : optionsStatus === 'error' ? <div><p className="form-error">Passalternativen kunde inte hämtas.</p><button type="button" className="secondary-button" onClick={() => setOptionsRetry((value) => value + 1)}>Försök igen</button></div> : <>
         <div className="choice-stack">{slotOptions.map((plan) => <button type="button" key={workoutReference(plan)} className={`choice-card choice-card-with-description${form.workoutReference === workoutReference(plan) ? ' selected' : ''}`} aria-pressed={form.workoutReference === workoutReference(plan)} onClick={() => setForm((current) => ({ ...current, workoutReference: workoutReference(plan), activityDistanceMeters: null, activityMinutes: null }))}><span>{plan.time ? `${plan.time} · ` : ''}{plan.title}<small>{[plan.location, plan.focus, plan.distanceMeters && `${Number(plan.distanceMeters).toLocaleString('sv-SE')} m`, plan.durationMinutes && `${plan.durationMinutes} min`].filter(Boolean).join(' · ')}</small></span><span>{form.workoutReference === workoutReference(plan) ? '✓' : '○'}</span></button>)}</div>
         {!slotOptions.length && <p>Inget upplagt pass hittades för den här träningen. Du kan ange mängden själv.</p>}
+        <div className="checkin-completion-choice"><button type="button" className={form.plannedCompletion === 'full' ? 'active' : ''} onClick={() => update('plannedCompletion','full')}>Hela upplägget</button><button type="button" className={form.plannedCompletion === 'partial' ? 'active' : ''} onClick={() => update('plannedCompletion','partial')}>Delvis / anpassat</button></div>
         {(selectedOption || !slotOptions.length) && <div className="workout-choice-amounts"><label>Simmade meter <small>{selectedOption?.distanceMeters ? `Planerat: ${selectedOption.distanceMeters.toLocaleString('sv-SE')} m` : 'Frivilligt'}</small><input type="number" min="1" max="1000000" inputMode="numeric" value={form.activityDistanceMeters ?? ''} placeholder={form.plannedCompletion === 'full' ? String(selectedOption?.distanceMeters || '') : 'Ange om du vet'} onChange={(event) => update('activityDistanceMeters', event.target.value ? Number(event.target.value) : null)} /></label><label>Träningstid i minuter <small>{selectedOption?.durationMinutes ? `Planerat: ${selectedOption.durationMinutes} min` : 'Frivilligt'}</small><input type="number" min="1" max="1440" inputMode="numeric" value={form.activityMinutes ?? ''} placeholder={String(selectedOption?.durationMinutes || 'Ange om du vet')} onChange={(event) => update('activityMinutes', event.target.value ? Number(event.target.value) : null)} /></label></div>}
         <p className="settings-help">{selectedOption?.durationMinutes > 0 && <><strong>{selectedOption.durationMinutes} minuter från tränarens planering räknas automatiskt.</strong> </>}Du behöver inte fylla i eller bekräfta planerad tid igen. Tiden märks som hämtad från planeringen, inte som egenrapporterad. {form.plannedCompletion === 'partial' ? 'Delvis gäller passets innehåll. Tränade du kortare eller längre tid? Ange då dina minuter. Simmade meter räknas bara om du anger dem.' : 'Ange egna minuter om tiden avviker. Planerade meter används om du lämnar distansen tom.'}</p>
         <button type="button" className="primary-button" disabled={Boolean(slotOptions.length && !selectedOption) || [form.activityDistanceMeters, form.activityMinutes].some((value) => value != null && (!Number.isInteger(value) || value <= 0)) || form.activityDistanceMeters > 1000000 || form.activityMinutes > 1440} onClick={next}>Fortsätt →</button>
@@ -2360,9 +2354,9 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
   } else {
     const question = questions[step - questionOffset]
     content = (
-      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.hint}>
-        {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={apiRequest} onBusyChange={setDailySaving} onContinue={() => { setIllnessSaved(true); next() }} />)}
-        {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={apiRequest} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
+      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.kind === 'comment' && identified ? 'Helt frivilligt. Sparas till ditt svar och är synligt för tränarna.' : question.hint}>
+        {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={request} onBusyChange={setDailySaving} onContinue={() => { setIllnessSaved(true); next() }} />)}
+        {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={request} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
         {question.kind === 'scale' && (
           <Scale
             count={question.count}
@@ -2386,7 +2380,8 @@ function CheckIn({ code, activityDate, identified, hasProfile, competitionToday,
         {question.kind === 'comment' && (
           <div className="comment-box">
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
-            {hasProfile && (form.type === 'after' || (competitionToday && ['before', 'after'].includes(form.type) && form.competition === true)) && <div className="training-register"><label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} disabled={competitionToday && form.competition === true} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>{competitionToday && form.competition === true ? 'Tävlingscheck-in räknas som närvaro' : `Registrera ${activityLabel(form.activityType).toLowerCase()} i träningsloggen`}</strong><small>{competitionToday && form.competition === true ? 'Ditt tävlingsdeltagande läggs i veckans simnärvaro.' : 'Läggs i din personliga träningslogg med vald aktivitet. Feedbacken kan fortfarande vara anonym.'}</small></span></label>{form.registerTraining && form.activityType === 'swim' && !(competitionToday && form.competition === true) && <p className="checkin-selection-note">Valt pass: {form.trainingSlot === 'morning_swim' ? '🌅 Morgon' : '🌇 Eftermiddag / kväll'}. Ändra via Tillbaka om det blev fel.</p>}</div>}
+            {!form.personalSessionId && hasProfile && (form.type === 'after' || (competitionToday && ['before', 'after'].includes(form.type) && form.competition === true)) && <div className="training-register"><label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} disabled={competitionToday && form.competition === true} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>{competitionToday && form.competition === true ? 'Tävlingscheck-in räknas som närvaro' : `Registrera ${activityLabel(form.activityType).toLowerCase()} i träningsloggen`}</strong><small>{competitionToday && form.competition === true ? 'Ditt tävlingsdeltagande läggs i veckans simnärvaro.' : 'Läggs i din personliga träningslogg med vald aktivitet. Feedbacken kan fortfarande vara anonym.'}</small></span></label>{form.registerTraining && form.activityType === 'swim' && !(competitionToday && form.competition === true) && <p className="checkin-selection-note">Valt pass: {form.trainingSlot === 'morning_swim' ? '🌅 Morgon' : '🌇 Eftermiddag / kväll'}. Ändra via Tillbaka om det blev fel.</p>}</div>}
+            {form.personalSessionId && <p className="checkin-selection-note">Valt eget pass: <strong>{personalCheckinDetails(form).title}</strong>{form.personalTimeOfDay ? ` · ${form.personalTimeOfDay === 'morning' ? 'Morgon' : 'Eftermiddag / kväll'}` : ''}{form.activityDistanceMeters ? ` · ${form.activityDistanceMeters.toLocaleString('sv-SE')} m` : ''}{form.activityMinutes ? ` · ${form.activityMinutes} min` : ''}. {form.type === 'after' ? 'Sparas i träningsloggen och dagboken, inte som närvaro på klubbens pass.' : 'Sparas som planering, inte genomförd träning.'}</p>}
             {submitError && <span className="error-text">{submitError}</span>}
             {submitted ? <div className="submit-confirmation" role="status"><span>✓</span><strong>Svaret sparas…</strong><small>Du kommer vidare strax.</small></div> : <div><button className="skip-button" disabled={submitting} onClick={submit}>Skicka utan kommentar</button><button className="primary-button small" disabled={submitting} onClick={submit}>Skicka svar →</button></div>}
           </div>
@@ -2417,7 +2412,7 @@ function getQuestions(type, activityType = null) {
       : { key: 'speedFeeling', title: 'Hur var fartkänslan?', hint: 'Din egen känsla av fart i passet.', kind: 'scale', count: 5, left: 'Trög', right: 'Riktigt bra fart' }
     return [
       { key: 'rpe', title: 'Hur jobbigt var passet?', hint: '1 är väldigt lätt. 10 är maxjobbigt.', kind: 'scale', count: 10, left: 'Väldigt lätt', right: 'Maxjobbigt' },
-      activityFeel,
+      ...(activityType === 'swim' || activityType === 'strength' ? [activityFeel] : []),
       { key: 'temperature', title: 'Hur kändes temperaturen?', hint: 'Tänk på helheten i träningsmiljön, inne eller ute.', kind: 'scale', count: 5, left: 'Väldigt kallt', right: 'För varmt' },
       { key: 'pass', title: 'Hur var passet?', hint: 'Din upplevelse – det finns inget rätt svar.', kind: 'rating' },
       { key: 'setup', title: 'Funkade upplägget för dig?', hint: 'Tänk på passet som helhet.', kind: 'rating' },
@@ -5379,4 +5374,4 @@ function Stat({ title, value, note, helpTerm, onOpen, trend }) {
   return <article className={`stat${onOpen ? ' stat-drilldown' : ''}`}>{onOpen && <button type="button" className="stat-drilldown-trigger" onClick={onOpen} aria-label={`Se alla svar för ${title}`} aria-haspopup="dialog" />}<span className="stat-title">{title} <HelpTip term={helpTerm || title} /></span><strong>{value}</strong><small>{note}</small>{trend}{onOpen && <span className="stat-drilldown-hint" aria-hidden="true">Visa svar →</span>}</article>
 }
 
-createRoot(document.getElementById('root')).render(<><App />{import.meta.env.PROD && <SpeedInsights beforeSend={redactSpeedInsightsUrl} />}</>)
+if (document.getElementById('root')) createRoot(document.getElementById('root')).render(<><App />{import.meta.env.PROD && <SpeedInsights beforeSend={redactSpeedInsightsUrl} />}</>)

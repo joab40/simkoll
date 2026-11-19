@@ -15,10 +15,11 @@ import { loadFormKollen } from '../server/form-kollen.js'
 import { loadTaperKollen, saveTaperGoal } from '../server/taper-kollen.js'
 import { saveCoachFormContext } from '../server/form-context.js'
 import { normalizeFormContext } from '../shared/form-context.js'
-import { planningWeekStart } from '../shared/weekly-planning.js'
+import { planningWeekStart, planningGoalWeeks } from '../shared/weekly-planning.js'
 import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 import { validProgramType } from '../shared/program-kind.js'
 import { mapDrylandLog } from '../shared/dryland-program.js'
+import { loadPersonalTraining, savePersonalTraining } from '../server/personal-training.js'
 import { saveDrylandLog, authorizeDrylandCoach } from '../server/dryland-program.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
@@ -67,8 +68,8 @@ async function loadTraining(profileId = null, { summary = false } = {}) {
   const data = {
     seasonGoals: (await goalsResult.json()).map(mapSeasonGoal),
     crossGoals: (await crossGoalsResult.json()).map((goal) => ({ id: goal.id, profileId: goal.profile_id, strengthTarget: goal.strength_sessions_per_week, drylandTarget: goal.dryland_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date })),
-    sessions: sessionRows.map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at, ...(item.activity_type === 'swim' ? (swimMetrics.get(`${item.profile_id}|${item.session_date}|${item.session_slot}`) || {}) : {}) })),
-    plannedSessions: (await plannedResult.json()).map((item) => ({ id: item.id, profileId: item.profile_id, weekStart: item.week_start, date: item.planned_date, slot: item.session_slot })),
+    sessions: sessionRows.map((item) => ({ id: item.id, profileId: item.profile_id, type: item.activity_type, slot: item.session_slot, date: item.session_date, source: item.source, completedAt: item.completed_at, ...(item.personal_details ? { ...item.personal_details, personalSession: true } : item.activity_type === 'swim' ? (swimMetrics.get(`${item.profile_id}|${item.session_date}|${item.session_slot}`) || {}) : {}) })),
+    plannedSessions: (await plannedResult.json()).filter(item => item.personal_details?.wasPlanned !== false).map((item) => ({ id: item.id, profileId: item.profile_id, weekStart: item.week_start, date: item.planned_date, slot: item.session_slot, ...(item.personal_details ? { ...item.personal_details, personalSession: true } : {}) })),
     programs: mappedPrograms,
     assignments: assignments.map((item) => ({ id: item.id, profileId: item.profile_id, program: mapProgram(programs[item.program_id]) })).filter((item) => item.program),
     strengthLogs: strengthLogsResult.ok ? (await strengthLogsResult.json()).map((item) => ({ id: item.id, assignmentId: item.assignment_id, profileId: item.profile_id, passNumber: item.pass_number, sessionDate: item.session_date, weights: item.weights || {}, notes: item.notes || '', completedAt: item.completed_at })) : [],
@@ -86,10 +87,17 @@ const mondayOnOrAfter = (date) => { const value = new Date(`${date}T12:00:00Z`);
 async function awardCompletedWeeks(data, profileId) {
   const currentMonday = currentWeekStart()
   const filter = profileId ? `&profile_id=eq.${profileId}` : ''
-  const result = await supabaseRequest(`point_events?event_type=in.(weekly_goal,strength_weekly_goal,dryland_weekly_goal)${filter}&select=source_key&limit=10000`)
+  const result = await supabaseRequest(`point_events?event_type=in.(weekly_goal,strength_weekly_goal,dryland_weekly_goal,planning_weekly_goal)${filter}&select=source_key&limit=10000`)
   if (!result.ok) throw new Error('Weekly rewards lookup failed')
   const existing = new Set((await result.json()).map((item) => item.source_key))
   const awards = []
+  for (const goal of planningGoalWeeks(data.plannedSessions)) {
+    if (!existing.has(goal.sourceKey)) {
+      existing.add(goal.sourceKey)
+      awards.push(awardPoints(goal.profileId, 'planning_weekly_goal', 2, goal.sourceKey))
+      awards.push(awardArtifact(goal.profileId, 'proactive'))
+    }
+  }
   data.seasonGoals.forEach((goal) => {
     for (let monday = mondayOnOrAfter(goal.startDate); addDays(monday, 6) <= goal.endDate && addDays(monday, 7) <= currentMonday; monday = addDays(monday, 7)) {
       const sourceKey = `weekly:${goal.id}:${monday}`
@@ -146,6 +154,17 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if ((request.method === 'GET' && request.query?.personalSessions === 'true') || (request.method === 'POST' && ['save-personal-session','delete-personal-session'].includes(request.body?.action))) {
+      response.setHeader?.('Cache-Control', 'private, no-store')
+      if (role !== 'swimmer') return sendJson(response, 403, { error: 'Öppna din egen simmarprofil för att hantera egna pass.' })
+      const profile = await getSessionProfile(request)
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil.' })
+      try {
+        return sendJson(response, 200, request.method === 'GET'
+          ? await loadPersonalTraining(profile.id, String(request.query.start || ''), String(request.query.end || ''))
+          : await savePersonalTraining(profile.id, request.body))
+      } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
+    }
     if (request.query?.taperKollen === 'true') {
       response.setHeader?.('Cache-Control', 'private, no-store')
       const actor = coachFromRequest(request)
@@ -374,9 +393,9 @@ export default async function handler(request, response) {
           if (!result.ok) throw new Error(`Plan delete failed: ${result.status}`)
           return sendJson(response, 200, { ok: true, message: 'Planeringen är uppdaterad.' })
         }
-        const planned = await supabaseRequest(`planned_training_sessions?profile_id=eq.${profile.id}&week_start=eq.${weekStart}&select=planned_date`)
+        const planned = await supabaseRequest(`planned_training_sessions?profile_id=eq.${profile.id}&week_start=eq.${weekStart}&select=*`)
         if (!planned.ok) throw new Error('Plan lookup failed')
-        const plannedDays = new Set((await planned.json()).map((item) => item.planned_date)).size
+        const plannedDays = new Set((await planned.json()).filter(item => item.personal_details?.wasPlanned !== false).map((item) => item.planned_date)).size
         let message = plannedDays >= 3 ? `Bra planerat! Du har en plan för ${plannedDays} dagar den här veckan. 🗓️` : `Veckoplan: ${plannedDays} dagar planerade.`
         if (plannedDays >= 3) {
           const sourceKey = `planning:${profile.id}:${weekStart}`

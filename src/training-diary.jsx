@@ -9,6 +9,7 @@ import SleepHistory from './daily-sleep.jsx'
 import IllnessHistory from './daily-illness.jsx'
 import FeatureFaq from './feature-faq.jsx'
 import { diaryEntryLoad } from '../shared/training-load.js'
+import { personalEmoji } from '../shared/personal-training.js'
 
 const TYPES = { swim: ['🏊', 'Simning'], strength: ['🏋️', 'Styrka'], dryland: ['🤸', 'Landträning'], cycling: ['🚴', 'Cykling'], competition: ['🏁', 'Tävling'], other: ['👟', 'Annan träning'], unknown: ['👟', 'Träning · typ saknas'], reflection: ['📝', 'Sparad reflektion'], rest: ['🌿', 'Vila'], sick: ['🤒', 'Sjuk'] }
 const FOCUS = { kondition_frisim: 'Kondition frisim', kondition_special: 'Kondition special', fart: 'Fart', sprint: 'Sprint', troskel: 'Tröskel', syra: 'Syra', f2_frisim: 'F2 Frisim', f2_spec: 'F2 Spec', distans: 'Distans', teknik: 'Teknik', aterhamtning: 'Återhämtning', tavlingsinsim: 'Tävlingsinsim', tavling: 'Tävling' }
@@ -88,7 +89,7 @@ function ReflectionEditor({ entry, code, request, available, onSaved, onDirty })
 }
 
 export function DiaryEntry({ entry, code, request, reflectionsAvailable, onSaved, onDirty }) {
-  const type = TYPES[entry.type] || TYPES.unknown
+  const type = entry.origin ? [personalEmoji({ activityType: entry.type, origin: entry.origin, sport: entry.sport }), entry.title] : TYPES[entry.type] || TYPES.unknown
   const state = { completed: 'Genomfört', planned: 'Planerat · ej bekräftat', status: 'Dagsstatus', feedback: 'Upplevelse · pass ej entydigt kopplat' }[entry.state]
   const strokes = [...new Set((entry.content || '').match(/frisim|ryggsim|bröstsim|fjäril(?:sim)?|medley/gi) || [])]
   const load = diaryEntryLoad(entry)

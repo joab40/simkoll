@@ -1,5 +1,6 @@
 import { plannedSwimTime, commonPlannedSwimTime } from '../shared/planned-swim-time.js'
 import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
+import { isPersonalSlot } from '../shared/personal-training.js'
 
 const number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
 const keys = ['feeling', 'energy', 'body', 'rpe', 'speedFeeling', 'temperature', 'passRating']
@@ -30,8 +31,13 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
   const swimSessions = sessions.filter((row) => row.activity_type === 'swim')
   return swimSessions.map((session) => {
     const day = session.session_date
+    if (isPersonalSlot(session.session_slot)) {
+      const report = responses.filter(row => responseDay(row) === day && row.day_type === 'after' && row.session_slot === session.session_slot && row.activity_type === 'swim').sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))[0]
+      const details = session.personal_details || {}
+      return { date: day, sessionSlot: session.session_slot, title: details.title || (report?.training_origin === 'niu' ? 'NIU-simning' : 'Eget simpass'), focus: report?.activity_focus || details.focus || null, timeOfDay: details.timeOfDay || null, distanceMeters: null, durationMinutes: null, reportedDistanceMeters: number(report?.activity_distance_meters) ?? number(details.distanceMeters), reportedMinutes: number(report?.activity_minutes) ?? number(details.durationMinutes), timeBasis: null, content: '', note: '', source: report?.training_origin || details.origin || 'self', matchStatus: 'personal', matchReason: null, feedbackLink: report ? 'slot' : 'missing', feedback: report ? analysisResponse(report) : null, candidateTitles: [] }
+    }
     const sameDay = candidates.filter((row) => row.workout_date === day)
-    const sessionCount = swimSessions.filter((row) => row.session_date === day).length
+    const sessionCount = swimSessions.filter((row) => row.session_date === day && !isPersonalSlot(row.session_slot)).length
     const timeOfDay = ({ morning_swim: 'morning', afternoon_swim: 'afternoon' })[session.session_slot]
     const timed = timeOfDay ? sameDay.filter((row) => row.time_of_day === timeOfDay) : []
     let candidate = timed.length === 1 ? timed[0] : null

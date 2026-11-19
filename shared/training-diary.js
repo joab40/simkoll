@@ -1,5 +1,6 @@
 import { buildSwimmerPasses, responseDay } from '../server/individual-analysis.js'
 import { swimMeterDay } from './swim-meter-day.js'
+import { isPersonalSlot } from './personal-training.js'
 
 export const diaryAddDays = (day, amount) => new Date(Date.parse(`${day}T12:00:00Z`) + amount * 86400000).toISOString().slice(0, 10)
 export const validDiaryDate = (day) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(`${day}T12:00:00Z`)) && new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) === day
@@ -39,6 +40,7 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     const slot = session.session_slot === 'legacy' ? `legacy-${session.id}` : session.session_slot
     const entry = ensure(keyFor(day, type, slot), day, type, slot)
     entry.source = 'registered'
+    if (session.personal_details) entry.personalDetails = session.personal_details
   })
   responses.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).forEach((row) => {
     const date = responseDay(row), competition = row.competition === true
@@ -77,7 +79,7 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     entry.title = row.competition_name || 'Tävling'
     entry.results.push({ event: row.event, pool: row.pool, time: row.swim_time, source: row.source })
   })
-  const swimEntries = [...entries.values()].filter((item) => item.type === 'swim' && item.state === 'completed')
+  const swimEntries = [...entries.values()].filter((item) => item.type === 'swim' && item.state === 'completed' && !isPersonalSlot(item.slot))
   // The established pass matcher requires a unique group/time match.
   const passes = buildSwimmerPasses({ sessions: swimEntries.map((item) => ({ session_date: item.date, session_slot: item.slot, activity_type: 'swim' })), responses: responses.filter((row) => row.competition !== true), workouts, plans, trainingGroup })
   swimEntries.forEach((entry) => {
@@ -89,6 +91,12 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     Object.assign(entry, { title: pass.title, focus: pass.focus || '', plannedMeters: pass.distanceMeters, plannedMinutes: pass.durationMinutes, linked: true, content: entry.date < today || unlockedToday ? pass.content : '', note: entry.date < today || unlockedToday ? pass.note : '', contentLocked: entry.date === today && !unlockedToday })
   })
   personalPlans.forEach((plan) => {
+    if (plan.personal_details) {
+      const details = plan.personal_details, key = keyFor(plan.planned_date, details.activityType, plan.session_slot)
+      const entry = ensure(key, plan.planned_date, details.activityType, plan.session_slot, 'planned')
+      Object.assign(entry, { personalPlan: details, title: details.title, focus: details.focus || '', origin: details.origin, sport: details.sport, plannedMeters: details.distanceMeters, plannedMinutes: details.durationMinutes, timeOfDay: details.timeOfDay })
+      return
+    }
     const type = plan.session_slot.includes('swim') ? 'swim' : plan.session_slot
     const key = keyFor(plan.planned_date, type, plan.session_slot)
     if (entries.has(key)) return
@@ -109,6 +117,15 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     const after = entry.responses.filter((row) => row.day_type === 'after'), feedback = after.at(-1)
     entry.reportedMeters = feedback ? number(feedback.activity_distance_meters) : null
     entry.reportedMinutes = feedback ? number(feedback.activity_minutes) : null
+    if (isPersonalSlot(entry.slot)) {
+      const details = entry.personalDetails || entry.personalPlan || {}
+      entry.title = details.title || (feedback?.training_origin === 'niu' ? 'NIU-simning' : 'Eget pass')
+      entry.focus = feedback?.activity_focus || details.focus || ''
+      entry.origin = feedback?.training_origin || details.origin
+      entry.sport = feedback?.activity_sport || details.sport
+      entry.reportedMeters ??= entry.state === 'completed' ? number(entry.personalDetails?.distanceMeters) : null
+      entry.reportedMinutes ??= entry.state === 'completed' ? number(entry.personalDetails?.durationMinutes) : null
+    }
     entry.rpe = feedback ? number(feedback.rpe) : null
     entry.feeling = mean(entry.responses.map((row) => row.feeling))
     entry.body = mean(entry.responses.map((row) => row.body))
@@ -116,10 +133,10 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     entry.comments = entry.responses.filter((row) => row.comment?.trim()).map((row) => ({ text: row.comment, date: row.created_at, late: row.late_entry === true, phase: row.day_type }))
     entry.reflection = reflections.find((row) => row.entry_key === entry.key) ? (({ what_worked, next_time, updated_at }) => ({ whatWorked: what_worked || '', nextTime: next_time || '', updatedAt: updated_at }))(reflections.find((row) => row.entry_key === entry.key)) : null
     entry.partial = feedback?.planned_completion === 'partial'
-    entry.estimatedMeters = entry.state === 'completed' && entry.reportedMeters === null && !entry.partial && feedback?.planned_completion !== 'no' && entry.type === 'swim' ? entry.plannedMeters : null
+    entry.estimatedMeters = !isPersonalSlot(entry.slot) && entry.state === 'completed' && entry.reportedMeters === null && !entry.partial && feedback?.planned_completion !== 'no' && entry.type === 'swim' ? entry.plannedMeters : null
     // A modified/partial workout does not imply a shorter occasion. Keep meters
     // conservative above, but use coach time unless the swimmer supplies time.
-    entry.estimatedMinutes = entry.state === 'completed' && entry.reportedMinutes === null && feedback?.planned_completion !== 'no' ? entry.plannedMinutes : null
+    entry.estimatedMinutes = !isPersonalSlot(entry.slot) && entry.state === 'completed' && entry.reportedMinutes === null && feedback?.planned_completion !== 'no' ? entry.plannedMinutes : null
     delete entry.responses
     return entry
   }).sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key))

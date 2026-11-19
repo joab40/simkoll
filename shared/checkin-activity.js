@@ -1,3 +1,5 @@
+import { personalId, personalSlot, personalCheckinDetails } from './personal-training.js'
+
 export const CHECKIN_ACTIVITIES = [
   { key: 'swim', label: 'Simning', emoji: '🏊' },
   { key: 'strength', label: 'Styrka', emoji: '🏋️' },
@@ -20,10 +22,15 @@ export function checkinTraining(body) {
   // Older clients omit the type: preserve their legacy behavior, never parse comments.
   const type = body.competition === true ? 'swim' : body.activityType || 'swim'
   if (!CHECKIN_ACTIVITIES.some((item) => item.key === type)) return null
+  if (personalId(body.personalSessionId)) return { activity_type: type, session_slot: personalSlot(body.personalSessionId) }
   if (type === 'swim' && body.competition !== true && !['morning_swim', 'afternoon_swim'].includes(body.trainingSlot)) return null
   return { activity_type: type, session_slot: type === 'swim' ? (body.trainingSlot === 'morning_swim' ? 'morning_swim' : 'afternoon_swim') : type }
 }
 export function validCheckinActivity(body) {
+  if (body.personalSessionId != null) {
+    if (!personalId(body.personalSessionId) || !['before', 'after'].includes(body.type) || body.competition === true || body.identified !== true || body.workoutReference != null || body.trainingSlot != null || (body.type === 'after' && body.registerTraining === false) || body.plannedCompletion === 'no') return false
+    try { personalCheckinDetails(body) } catch { return false }
+  } else if (body.trainingOrigin != null || body.activityFocus != null || body.activitySport != null || body.personalTimeOfDay != null) return false
   if (body.workoutReference != null && (typeof body.workoutReference !== 'string' || !/^(workout|plan):[0-9a-f-]{36}$/i.test(body.workoutReference))) return false
   if (body.trainingSlot != null && !['morning_swim', 'afternoon_swim'].includes(body.trainingSlot)) return false
   if (body.registerTraining != null && typeof body.registerTraining !== 'boolean') return false

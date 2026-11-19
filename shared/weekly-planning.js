@@ -13,3 +13,16 @@ export function planningDates(today, weekOffset = 0) {
   const start = planningAddDays(planningMonday(today), weekOffset * 7)
   return Array.from({ length: 7 }, (_, index) => planningAddDays(start, index))
 }
+
+// Club slots and proactively planned personal sessions share the same weekly
+// reward. An unplanned after-report must never become planning credit.
+export function planningGoalWeeks(plans) {
+  const weeks = new Map()
+  for (const plan of plans) {
+    if (!plan.profileId || !validDate(plan.date) || plan.wasPlanned === false) continue
+    const weekStart = planningMonday(plan.date), key = `${plan.profileId}:${weekStart}`
+    if (!weeks.has(key)) weeks.set(key, { profileId: plan.profileId, weekStart, days: new Set() })
+    weeks.get(key).days.add(plan.date)
+  }
+  return [...weeks.values()].filter(week => week.days.size >= 3).map(({ profileId, weekStart }) => ({ profileId, sourceKey: `planning:${profileId}:${weekStart}` }))
+}
