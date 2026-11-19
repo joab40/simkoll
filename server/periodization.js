@@ -8,7 +8,7 @@ export async function loadPeriodization(profile, today, read = supabaseRequest) 
   const within = field => `${field}=gte.${start}&${field}=lt.${diaryAddDays(end, 1)}`
   const owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const queries = [
-    `personal_training_sessions?${owner}&${within('session_date')}&select=id,session_date,session_slot,activity_type,source&order=session_date.asc,id.asc`,
+    `personal_training_sessions?${owner}&${within('session_date')}&select=id,session_date,session_slot,activity_type,source,workout_reference&order=session_date.asc,id.asc`,
     `responses?${owner}&${within('activity_date')}&select=id,activity_date,created_at,day_type,activity_type,session_slot,competition,planned_completion,workout_reference,activity_distance_meters,activity_minutes,rpe&order=activity_date.asc,created_at.asc,id.asc`,
     `daily_workouts?${within('workout_date')}&select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=workout_date.asc,id.asc`,
     `training_plans?${within('plan_date')}&select=id,plan_date,source_workout_id,calendar_link,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups&order=plan_date.asc,id.asc`,

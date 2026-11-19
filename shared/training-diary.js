@@ -40,6 +40,7 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     const slot = session.session_slot === 'legacy' ? `legacy-${session.id}` : session.session_slot
     const entry = ensure(keyFor(day, type, slot), day, type, slot)
     entry.source = 'registered'
+    if (session.workout_reference) entry.workoutReference = session.workout_reference
     if (session.personal_details) entry.personalDetails = session.personal_details
   })
   responses.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).forEach((row) => {
@@ -81,11 +82,13 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
   })
   const swimEntries = [...entries.values()].filter((item) => item.type === 'swim' && item.state === 'completed' && !isPersonalSlot(item.slot))
   // The established pass matcher requires a unique group/time match.
-  const passes = buildSwimmerPasses({ sessions: swimEntries.map((item) => ({ session_date: item.date, session_slot: item.slot, activity_type: 'swim' })), responses: responses.filter((row) => row.competition !== true), workouts, plans, trainingGroup })
+  const passes = buildSwimmerPasses({ sessions: swimEntries.map((item) => ({ session_date: item.date, session_slot: item.slot, activity_type: 'swim', workout_reference:item.workoutReference })), responses: responses.filter((row) => row.competition !== true), workouts, plans, trainingGroup })
   swimEntries.forEach((entry) => {
     const pass = passes.find((item) => item.date === entry.date && item.sessionSlot === entry.slot)
     entry.timeLinkIssue = pass?.matchReason || null
     if (pass?.matchStatus === 'ambiguous') entry.workoutChoiceMissing = true
+    entry.canChooseWorkout = entry.workoutChoiceMissing === true && entry.source === 'registered' && entry.date <= today && ['morning_swim','afternoon_swim'].includes(entry.slot) && !entry.workoutReference && !entry.responses.some(row=>row.day_type==='after'&&row.workout_reference)
+    entry.workoutChoiceSource = pass?.choiceSource || null
     if (pass?.timeBasis === 'common-slot') Object.assign(entry, { plannedMinutes: pass.durationMinutes, timeLinked: true, timeLinkIssue: null })
     if (!pass || !['slot', 'day_only'].includes(pass.matchStatus)) return
     Object.assign(entry, { title: pass.title, focus: pass.focus || '', plannedMeters: pass.distanceMeters, plannedMinutes: pass.durationMinutes, linked: true, content: entry.date < today || unlockedToday ? pass.content : '', note: entry.date < today || unlockedToday ? pass.note : '', contentLocked: entry.date === today && !unlockedToday })

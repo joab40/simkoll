@@ -58,7 +58,8 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
     const legacyFeedback = dayFeedback.filter((row) => !row.session_slot)
     const feedbackLink = slotFeedback.length ? 'slot' : legacyFeedback.length === 1 && allSessionsCount === 1 ? 'day_only' : legacyFeedback.length ? 'ambiguous' : 'missing'
     const feedback = feedbackLink === 'slot' ? analysisResponse(slotFeedback[0]) : feedbackLink === 'day_only' ? analysisResponse(legacyFeedback[0]) : null
-    const selectedReference = (feedbackLink === 'slot' ? slotFeedback[0] : feedbackLink === 'day_only' ? legacyFeedback[0] : null)?.workout_reference
+    const feedbackReference = (feedbackLink === 'slot' ? slotFeedback[0] : feedbackLink === 'day_only' ? legacyFeedback[0] : null)?.workout_reference
+    const selectedReference = feedbackReference || session.workout_reference
     if (selectedReference) {
       candidate = sameDay.find((row) => `${row.source === 'published' ? 'workout' : 'plan'}:${row.id}` === selectedReference && (!timeOfDay || !row.time_of_day || row.time_of_day === timeOfDay)) || null
       // A swimmer may have selected the foundation before its published
@@ -80,7 +81,7 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
       else matchReason = sameDay.some(row => `${row.source === 'published' ? 'workout' : 'plan'}:${row.id}` === selectedReference) ? 'slot-mismatch' : 'selection-unavailable'
     }
     const commonMinutes = !candidate && !selectedReference ? commonPlannedSwimTime(timed.map(row => row.duration_minutes)) : null
-    return { date: day, sessionSlot: session.session_slot, title: candidate?.title || 'Registrerat simpass', focus: candidate?.focus || null, timeOfDay: candidate?.time_of_day || null, distanceMeters: candidate ? number(candidate.distance_meters) : null, durationMinutes: candidate ? number(candidate.duration_minutes) : commonMinutes, timeBasis: commonMinutes != null ? 'common-slot' : candidate ? 'linked-pass' : null, content: String(candidate?.content || '').slice(0, 5000), note: String(candidate?.note || '').slice(0, 2500), source: candidate?.source || null, matchStatus, matchReason, feedbackLink, feedback, candidateTitles: candidate ? [] : sameDay.map((row) => row.title).slice(0, 8) }
+    return { date: day, sessionSlot: session.session_slot, title: candidate?.title || 'Registrerat simpass', focus: candidate?.focus || null, timeOfDay: candidate?.time_of_day || null, distanceMeters: candidate ? number(candidate.distance_meters) : null, durationMinutes: candidate ? number(candidate.duration_minutes) : commonMinutes, timeBasis: commonMinutes != null ? 'common-slot' : candidate ? 'linked-pass' : null, content: String(candidate?.content || '').slice(0, 5000), note: String(candidate?.note || '').slice(0, 2500), source: candidate?.source || null, matchStatus, matchReason, feedbackLink, feedback, choiceSource: selectedReference && !feedbackReference ? 'diary' : null, candidateTitles: candidate ? [] : sameDay.map((row) => row.title).slice(0, 8) }
   }).sort((a, b) => a.date.localeCompare(b.date) || String(a.sessionSlot).localeCompare(String(b.sessionSlot)))
 }
 

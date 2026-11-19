@@ -137,3 +137,27 @@ sida markeras som ofullständig hämtning i svaret och synkstatusen.
 Återfunna äldre resultat och första importen utlöser inte gamla PB-belöningar.
 PB-belöning kräver ett resultat från de senaste 14 dagarna som slår tidigare
 sparat bästa och är bäst bland de hämtade tiderna i samma gren/bassäng.
+
+## Välj pass i efterhand (SQL 132)
+
+Kör `supabase/migrations/132_diary_workout_choice.sql` före publicering.
+När ett registrerat klubbsimpass saknar ett entydigt upplägg visar dagboken
+”Välj pass i efterhand”. Simmaren väljer bland sin grupps pass för samma datum
+och morgon/kväll. Starttider, meter och minuter visas, inklusive flera
+alternativ vid samma starttid. Valet kräver en uttrycklig bekräftelse.
+
+Valet sparas på den befintliga genomförda registreringen med serverns
+tidsstämpel. Äldre närvaro utan träningsloggrad får en rad med samma datum/slot,
+så samma aktivitet fortfarande bara räknas en gång. Ingen efter-check-in,
+RPE, ny närvaro eller poäng skapas. Rapporterade mängder och delvis-markeringar
+behålls; kopplade planerade mängder visas som uppskattningar.
+
+Ett redan sparat efter-check-in-passval skrivs inte över. Identiska återförsök
+är idempotenta, konkurrerande olika val avvisas, och samma koppling används av
+dagbok, träningsmängd och individuell analys/periodisering. Den service-only
+RPC-funktionen kan inte anropas av anonyma eller autentiserade databasklienter;
+API:t härleder alltid profilen ur simmarens session och kontrollerar alternativets
+grupp, datum och morgon/kväll. Funktionen återkopplar inte anonyma svar.
+
+`diary-choice-qa.html` är en lokal testvy med fiktiva uppgifter och inga riktiga
+serveranrop. `?viewport=mobile` visar samma komponent i 390 px mobilbredd.

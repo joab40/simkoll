@@ -20,6 +20,7 @@ import { sessionSwimMetrics } from '../server/session-swim-metrics.js'
 import { validProgramType } from '../shared/program-kind.js'
 import { mapDrylandLog } from '../shared/dryland-program.js'
 import { loadPersonalTraining, savePersonalTraining } from '../server/personal-training.js'
+import { diaryWorkoutChoices, saveDiaryWorkoutChoice } from '../server/diary-workout-choice.js'
 import { saveDrylandLog, authorizeDrylandCoach } from '../server/dryland-program.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
@@ -154,6 +155,16 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if ((request.method==='GET' && request.query?.diaryChoices==='true') || (request.method==='POST' && request.body?.action==='diary-workout-choice')) {
+      response.setHeader?.('Cache-Control','private, no-store')
+      if (role!=='swimmer') return sendJson(response,403,{error:'Välj pass från din egen simmarvy.'})
+      const profile=await getSessionProfile(request)
+      if (!profile) return sendJson(response,403,{error:'Logga in på din simmarprofil.'})
+      try { return sendJson(response,200,request.method==='GET'
+        ? await diaryWorkoutChoices(profile,String(request.query.date||''),String(request.query.slot||''))
+        : await saveDiaryWorkoutChoice(profile,request.body))
+      } catch(error) { return sendJson(response,error.status||502,{error:error.message}) }
+    }
     if ((request.method === 'GET' && request.query?.personalSessions === 'true') || (request.method === 'POST' && ['save-personal-session','delete-personal-session'].includes(request.body?.action))) {
       response.setHeader?.('Cache-Control', 'private, no-store')
       if (role !== 'swimmer') return sendJson(response, 403, { error: 'Öppna din egen simmarprofil för att hantera egna pass.' })
