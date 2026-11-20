@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { diaryAddDays, diaryMonday, summarizeDiaryConnections } from '../shared/training-diary.js'
 import { hasTrendValue, smoothTrendPath, trendSegments, trendGapSegments } from './trend-curve.js'
 import { diaryPlotMeters, SWIM_METER_COLOR } from './trend-swim-meters.js'
@@ -11,6 +11,7 @@ import FeatureFaq from './feature-faq.jsx'
 import { diaryEntryLoad } from '../shared/training-load.js'
 import { personalEmoji } from '../shared/personal-training.js'
 import DiaryWorkoutChoice from './diary-workout-choice.jsx'
+import { diaryMoveMonth, missingSwimDetails } from '../shared/diary-calendar.js'
 
 const TYPES = { swim: ['🏊', 'Simning'], strength: ['🏋️', 'Styrka'], dryland: ['🤸', 'Landträning'], cycling: ['🚴', 'Cykling'], competition: ['🏁', 'Tävling'], other: ['👟', 'Annan träning'], unknown: ['👟', 'Träning · typ saknas'], reflection: ['📝', 'Sparad reflektion'], rest: ['🌿', 'Vila'], sick: ['🤒', 'Sjuk'] }
 const FOCUS = { kondition_frisim: 'Kondition frisim', kondition_special: 'Kondition special', fart: 'Fart', sprint: 'Sprint', troskel: 'Tröskel', syra: 'Syra', f2_frisim: 'F2 Frisim', f2_spec: 'F2 Spec', distans: 'Distans', teknik: 'Teknik', aterhamtning: 'Återhämtning', tavlingsinsim: 'Tävlingsinsim', tavling: 'Tävling' }
@@ -74,15 +75,20 @@ function DiaryConnections({ days, byType, raceResults, goals, onDay }) {
   </section>
 }
 
-function DiaryCalendar({ range, entries, selectedDay, onDay }) {
-  const [month, setMonth] = useState(range.end.slice(0, 7))
-  useEffect(() => { setMonth(range.end.slice(0, 7)) }, [range.start, range.end])
+export function DiaryCalendar({ range, entries, selectedDay, onDay, onMonthChange, today = todayKey() }) {
+  const month = range.end.slice(0, 7)
   const first = `${month}-01`, offset = (new Date(`${first}T12:00:00Z`).getUTCDay() + 6) % 7
   const nextMonth = new Date(`${first}T12:00:00Z`); nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1)
   const last = diaryAddDays(nextMonth.toISOString().slice(0, 10), -1)
   const cells = Math.ceil((Number(last.slice(-2)) + offset) / 7) * 7
-  const move = (amount) => { const next = new Date(`${first}T12:00:00Z`); next.setUTCMonth(next.getUTCMonth() + amount); setMonth(next.toISOString().slice(0, 7)) }
-  return <section className="diary-calendar"><div className="diary-section-heading"><h2>Min kalender</h2><div><button type="button" aria-label="Föregående månad" disabled={month <= range.start.slice(0, 7)} onClick={() => move(-1)}>←</button><strong>{dateLabel(first, { month: 'long', year: 'numeric' })}</strong><button type="button" aria-label="Nästa månad" disabled={month >= range.end.slice(0, 7)} onClick={() => move(1)}>→</button></div></div><div className="diary-calendar-grid">{['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'].map((day) => <small key={day}>{day}</small>)}{Array.from({ length: cells }, (_, index) => { const date = diaryAddDays(first, index - offset), outside = date < range.start || date > range.end || date.slice(0, 7) !== month, dayEntries = entries.filter((entry) => entry.date === date), types = [...new Set(dayEntries.map((entry) => entry.type))]; return <button type="button" key={date} disabled={outside} className={`${dayEntries.length ? 'has-entries' : ''} ${selectedDay === date ? 'selected' : ''}`} aria-pressed={selectedDay === date} aria-label={`${dateLabel(date, { weekday: 'long', day: 'numeric', month: 'long' })}: ${dayEntries.length} registreringar`} onClick={() => onDay(selectedDay === date ? null : date)}><strong>{Number(date.slice(-2))}</strong><span>{types.slice(0, 3).map((type) => <i key={type} title={TYPES[type]?.[1]}>{TYPES[type]?.[0] || '•'}</i>)}</span>{dayEntries.some((entry) => entry.state === 'planned') && <small>Planerat</small>}</button> })}</div><small>Tryck på en dag för dess pass och reflektioner.</small></section>
+  const previous = diaryMoveMonth(month, -1, today), next = diaryMoveMonth(month, 1, today)
+  return <section className="diary-calendar"><div className="diary-section-heading"><h2>Min kalender</h2><div><button type="button" aria-label="Föregående månad" disabled={!previous} onClick={() => onMonthChange(previous)}>←</button><strong aria-live="polite">{dateLabel(first, { month: 'long', year: 'numeric' })}</strong><button type="button" aria-label="Nästa månad" title={next ? 'Visa nästa månad' : 'Du är i aktuell månad'} disabled={!next} onClick={() => onMonthChange(next)}>→</button></div></div><div className="diary-calendar-grid">{['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'].map((day) => <small key={day}>{day}</small>)}{Array.from({ length: cells }, (_, index) => {
+    const date = diaryAddDays(first, index - offset), outside = date < range.start || date > range.end || date.slice(0, 7) !== month
+    const dayEntries = entries.filter(entry => entry.date === date), types = [...new Set(dayEntries.map(entry => entry.type))]
+    const incomplete = dayEntries.filter(entry => missingSwimDetails(entry).length), missing = [...new Set(incomplete.flatMap(missingSwimDetails))]
+    const issue = incomplete.length ? `${incomplete.length} simpass saknar uppgifter: ${missing.join(', ')}` : ''
+    return <button type="button" key={date} disabled={outside} className={`${dayEntries.length ? 'has-entries' : ''} ${incomplete.length ? 'missing-details' : ''} ${selectedDay === date ? 'selected' : ''}`} aria-pressed={selectedDay === date} title={issue || undefined} aria-label={`${dateLabel(date, { weekday: 'long', day: 'numeric', month: 'long' })}: ${dayEntries.length} registreringar${issue ? `. ${issue}` : ''}`} onClick={() => onDay(selectedDay === date ? null : date)}><strong>{Number(date.slice(-2))}</strong>{incomplete.length > 0 && <span className="diary-calendar-missing" aria-hidden="true">?</span>}<span>{types.slice(0, 3).map(type => <i key={type} title={TYPES[type]?.[1]}>{TYPES[type]?.[0] || '•'}</i>)}</span>{dayEntries.some(entry => entry.state === 'planned') && <small>Planerat</small>}</button>
+  })}</div><small>Tryck på en dag för dess pass och reflektioner. Pilarna byter perioden till vald månad.</small><p className="diary-calendar-key"><span aria-hidden="true">?</span> Rosa markering = ett genomfört simpass saknar meter, tid eller inriktning. Det är en uppgiftslucka, inte en bedömning av träningen.</p></section>
 }
 
 function ReflectionEditor({ entry, code, request, available, onSaved, onDirty }) {
@@ -98,7 +104,9 @@ export function DiaryEntry({ entry, code, request, reflectionsAvailable, onSaved
   const state = { completed: 'Genomfört', planned: 'Planerat · ej bekräftat', status: 'Dagsstatus', feedback: 'Upplevelse · pass ej entydigt kopplat' }[entry.state]
   const strokes = [...new Set((entry.content || '').match(/frisim|ryggsim|bröstsim|fjäril(?:sim)?|medley/gi) || [])]
   const load = diaryEntryLoad(entry)
-  return <details className={`diary-entry ${entry.type}`}><summary><span className="diary-entry-emoji">{type[0]}</span><span><strong>{entry.title || type[1]}</strong><small>{dateLabel(entry.date, { weekday: 'short', day: 'numeric', month: 'short' })} {slotLabel(entry.slot) && `· ${slotLabel(entry.slot)}`} · {state}</small></span><span className="diary-entry-value">{entry.reportedMeters != null ? fmt(entry.reportedMeters, 'm') : entry.estimatedMeters != null ? `≈ ${fmt(entry.estimatedMeters, 'm')}` : entry.rpe != null ? `RPE ${entry.rpe}/10` : 'Visa'} <b>⌄</b></span></summary><div className="diary-entry-content">
+  const missing = missingSwimDetails(entry)
+  return <details className={`diary-entry ${entry.type}${missing.length ? ' diary-entry-missing' : ''}`}><summary><span className="diary-entry-emoji">{type[0]}</span><span><strong>{entry.title || type[1]}</strong><small>{dateLabel(entry.date, { weekday: 'short', day: 'numeric', month: 'short' })} {slotLabel(entry.slot) && `· ${slotLabel(entry.slot)}`} · {state}</small>{missing.length > 0 && <small className="diary-missing-label">? Saknas: {missing.join(', ')}</small>}</span><span className="diary-entry-value">{entry.reportedMeters != null ? fmt(entry.reportedMeters, 'm') : entry.estimatedMeters != null ? `≈ ${fmt(entry.estimatedMeters, 'm')}` : entry.rpe != null ? `RPE ${entry.rpe}/10` : 'Visa'} <b>⌄</b></span></summary><div className="diary-entry-content">
+    {missing.length > 0 && <p className="diary-missing-note">Uppgifter saknas: <strong>{missing.join(', ')}</strong>. Saknad uppgift betyder inte noll eller att träningen inte genomfördes.</p>}
     <div className="diary-entry-metrics"><p><strong>Distans</strong>{entry.reportedMeters != null ? fmt(entry.reportedMeters, 'm') : entry.estimatedMeters != null ? `≈ ${fmt(entry.estimatedMeters, 'm')}` : 'Uppgift saknas'}<small>{entry.reportedMeters != null ? 'Rapporterad distans' : entry.estimatedMeters != null ? 'Uppskattad från kopplat pass' : 'Ingen rapporterad eller säkert kopplad mängd'}</small></p><p><strong>Träningstid</strong>{entry.reportedMinutes != null ? fmt(entry.reportedMinutes, 'min') : entry.estimatedMinutes != null ? `≈ ${fmt(entry.estimatedMinutes, 'min')}` : 'Uppgift saknas'}<small>{entry.reportedMinutes != null ? 'Rapporterad tid' : entry.estimatedMinutes != null ? entry.timeLinked ? 'Gemensam planerad passtid' : 'Uppskattad från kopplat pass' : 'Ingen rapporterad eller säkert kopplad tid'}</small></p><p><strong>RPE</strong>{fmt(entry.rpe, '/ 10')}</p><p><strong>Känsla</strong>{fmt(entry.feeling, '/ 5')}</p></div>
     {load.value != null && <p className="diary-entry-load"><strong>{load.source === 'estimated' ? 'Uppskattad belastning' : 'Belastning från rapporterad tid'}: {load.source === 'estimated' ? '≈ ' : ''}{fmt(load.value)}</strong><span>RPE {fmt(entry.rpe)} × {fmt(load.minutes, 'min')}{load.source === 'estimated' ? ' från tränarens planerade passtid. Du behöver inte bekräfta tiden separat.' : ' rapporterad träningstid.'}</span></p>}
     {entry.workoutChoiceMissing && <p className="diary-source-note">Närvarande · passalternativ saknas. {entry.estimatedMinutes != null && entry.timeLinked ? `Alla möjliga upplägg för passvalet har samma planerade tid: ${fmt(entry.estimatedMinutes, 'min')}. Tiden räknas automatiskt en gång, men meter kräver ett valt upplägg.` : 'Planerade meter och minuter räknas först när ett upplägg eller en gemensam planerad tid kan kopplas till träningen.'}</p>}
@@ -124,6 +132,7 @@ export default function TrainingDiary({ code, request, onBack, onGoals }) {
   const [day, setDay] = useState(null), [type, setType] = useState('all'), [search, setSearch] = useState(''), [limit, setLimit] = useState(20), [metric, setMetric] = useState('rpe'), [dirtyKeys, setDirtyKeys] = useState(new Set())
   const volumeScroll = useRef(null), metricScroll = useRef(null)
   const timesSection = useRef(null), historySection = useRef(null)
+  const calendarSection = useRef(null), calendarNavigation = useRef(null)
   const [timeState, setTimeState] = useState({ rows: [], loading: true }), [createTime, setCreateTime] = useState(null)
   const showHistory = (activity) => { if (!allowLeave()) return; setType(activity); setDay(null); setSearch(''); setLimit(20); historySection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   const syncCharts = (event) => { const other = event.currentTarget === volumeScroll.current ? metricScroll.current : volumeScroll.current; if (other && other.scrollLeft !== event.currentTarget.scrollLeft) other.scrollLeft = event.currentTarget.scrollLeft }
@@ -131,7 +140,19 @@ export default function TrainingDiary({ code, request, onBack, onGoals }) {
   const allowLeave = () => !dirtyKeys.size || window.confirm('Du har osparade reflektioner eller tider. Lämna dem utan att spara?')
   useEffect(() => { if (!dirtyKeys.size) return; const warn = (event) => { event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn) }, [dirtyKeys.size])
   useEffect(() => { let active = true; setLoading(true); setError(''); setData(null); request(`/api/training?diary=true&start=${range.start}&end=${range.end}`, code).then((result) => { if (active) setData(result) }).catch((reason) => { if (active) setError(reason.message) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [code, range.start, range.end, retry])
-  const changeRange = (next) => { if (!allowLeave()) return; setRange(next); setDraft(next); setDay(null); setLimit(20) }
+  const changeRange = (next) => { if (!allowLeave()) return false; calendarNavigation.current = null; setRange(next); setDraft(next); setDay(null); setLimit(20); return true }
+  const changeCalendarMonth = (next) => {
+    const top = calendarSection.current?.getBoundingClientRect().top || 0
+    if (changeRange(next)) calendarNavigation.current = { ...next, top }
+  }
+  useLayoutEffect(() => {
+    const pending = calendarNavigation.current
+    if (!pending || !data || data.range.start !== pending.start || data.range.end !== pending.end || !calendarSection.current) return
+    // The new month is fetched through the normal owned diary endpoint. Keep
+    // the calendar in view after the loading state replaces the old content.
+    window.scrollBy({ top: calendarSection.current.getBoundingClientRect().top - pending.top, behavior: 'auto' })
+    calendarNavigation.current = null
+  }, [data])
   const onDay = (next) => { if (!allowLeave()) return; setDay(next); setLimit(20) }
   const onSaved = (key, reflection) => setData((current) => ({ ...current, entries: current.entries.map((entry) => entry.key === key ? { ...entry, reflection } : entry) }))
   const onChoiceSaved = async () => {
@@ -165,7 +186,7 @@ export default function TrainingDiary({ code, request, onBack, onGoals }) {
         <details><summary>Visa grafens värden som tabell</summary><div className="diary-table-scroll"><table><thead><tr><th>Datum</th><th>Träningspass</th><th>Rapporterade m</th><th>Uppskattade m</th><th>Minuter</th><th>RPE /10</th><th>Känsla /5</th></tr></thead><tbody>{current.days.map((item) => <tr key={item.date}><td>{dateLabel(item.date)}{item.competition ? ' 🏁' : ''}</td><td>{item.sessions}</td><td>{fmt(item.swimMeters)}</td><td>{fmt(item.estimatedSwimMeters)}</td><td>{fmt(item.minutes)}</td><td>{fmt(item.rpe)}</td><td>{fmt(item.feeling)}</td></tr>)}</tbody></table></div></details>
         <div className="diary-comparison"><span>RPE: {fmt(current.rpe, '/10')} · tidigare {fmt(previous.rpe, '/10')}</span><span>Känsla: {fmt(current.feeling, '/5')} · tidigare {fmt(previous.feeling, '/5')}</span><span>Fartkänsla: {fmt(current.speedFeeling, '/5')} · tidigare {fmt(previous.speedFeeling, '/5')}</span></div>
       </section>
-      <DiaryCalendar range={range} entries={data.entries} selectedDay={day} onDay={onDay} />
+      <div ref={calendarSection}><DiaryCalendar range={range} entries={data.entries} selectedDay={day} onDay={onDay} onMonthChange={changeCalendarMonth} /></div>
       <section className="diary-history" ref={historySection}><div className="diary-section-heading"><div><p className="eyebrow">Min träningshistorik</p><h2>{day ? dateLabel(day, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Pass och reflektioner'}</h2></div>{day && <button type="button" className="secondary-button" onClick={() => onDay(null)}>Visa hela perioden</button>}</div><div className="diary-filters"><label>Aktivitet<select value={type} onChange={(event) => { if (allowLeave()) { setType(event.target.value); setLimit(20) } }}><option value="all">Alla aktiviteter</option>{Object.entries(TYPES).filter(([key]) => !['unknown', 'cycling'].includes(key)).map(([key, [, label]]) => <option value={key} key={key}>{label}</option>)}</select></label><label>Sök<input type="search" value={search} onChange={(event) => { if (allowLeave()) { setSearch(event.target.value); setLimit(20) } }} placeholder="Pass, fokus eller reflektion…" /></label></div>{filtered.slice(0, limit).map((entry) => <DiaryEntry key={entry.key} entry={entry} code={code} request={request} reflectionsAvailable={data.reflectionsAvailable} onSaved={onSaved} onDirty={onDirty} onChoiceSaved={onChoiceSaved} />)}{!filtered.length && <p className="empty">Inga registreringar för det här urvalet. Kopplade pass och profilsvar visas här när de finns.</p>}{filtered.length > limit && <button className="secondary-button" onClick={() => setLimit((value) => value + 20)}>Visa fler ({filtered.length - limit} kvar)</button>}</section>
       <section className="diary-goals"><div className="diary-section-heading"><h2>Mina utvecklingsmål</h2><button type="button" className="secondary-button" onClick={() => { if (allowLeave()) onGoals() }}>Öppna Mina mål →</button></div>{data.goals.length ? data.goals.map((goal) => <details key={goal.id}><summary>{goal.title} <small>{goal.status === 'complete' ? 'Avslutat' : 'Utvecklingsmål'}</small></summary><p>{goal.description}</p>{goal.next_step && <p><strong>Nästa steg:</strong> {goal.next_step}</p>}</details>) : <p>Tränaren skapar utvecklingsmål tillsammans med dig. Dina mål visas här när de finns.</p>}</section>
       <p className="diary-footnote">Dagboken använder din profilkopplade historik. Anonyma svar kopplas inte tillbaka till dig. Ingen AI-analys körs när du öppnar dagboken eller sparar en reflektion.</p>

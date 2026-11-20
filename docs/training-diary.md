@@ -161,3 +161,22 @@ grupp, datum och morgon/kväll. Funktionen återkopplar inte anonyma svar.
 
 `diary-choice-qa.html` är en lokal testvy med fiktiva uppgifter och inga riktiga
 serveranrop. `?viewport=mobile` visar samma komponent i 390 px mobilbredd.
+
+## Kalenderns månadsbyte och uppgiftsluckor
+
+Kalenderpilarna byter hela dagboksperioden till föregående/nästa månad och
+hämtar den genom samma profilsessionsskyddade dagboks-API som periodväljaren.
+Aktuell månad slutar idag; framtida månader är inte tillgängliga. Periodfält,
+grafer och historik följer med. Varningen för osparade reflektioner/tider gäller
+även månadsbytet och kalendern behåller sin plats i vyn efter hämtningen.
+
+Genomförda simpass med saknade meter, minuter eller inriktning markeras med
+en svagt rosa kalenderdag och ett frågetecken. Dagknappens tillgängliga text
+och passets historikkort anger vilka uppgifter som saknas. Säkert kopplade
+uppskattningar räknas som tillgängliga mängder; enbart planerade mängder
+räcker inte. Planerade pass, vila, sjukdom och andra aktiviteter markeras inte.
+Saknade värden fylls aldrig med noll eller gissade uppgifter. Ingen SQL behövs.
+
+`diary-calendar-qa.html` visar fiktiva kompletta/ofullständiga pass. `?width=320`
+och `?width=390` visar mobilbredder; `?full` testar hela dagbokskomponenten med
+ett lokalt fiktivt API och visar den begärda perioden utan riktiga serveranrop.

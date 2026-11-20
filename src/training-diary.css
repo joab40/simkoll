@@ -80,10 +80,25 @@
 .diary-week-dots button.race { background: #f5dda5; color: #684b17; }
 .diary-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .diary-calendar-grid > small { text-align: center; color: var(--muted); padding: 6px 0; }
-.diary-calendar-grid > button { display: grid; align-content: start; gap: 5px; min-height: 83px; padding: 9px; border: 1px solid #e0ebe7; border-radius: 11px; background: #f7faf8; font: inherit; text-align: left; color: var(--ink); }
+.diary-calendar-grid > button { position: relative; display: grid; align-content: start; gap: 5px; min-height: 83px; padding: 9px; border: 1px solid #e0ebe7; border-radius: 11px; background: #f7faf8; font: inherit; text-align: left; color: var(--ink); }
 .diary-calendar-grid > button:disabled { opacity: .28; cursor: default; }
 .diary-calendar-grid > button.has-entries { background: #edf7ed; border-color: #c6dfce; }
 .diary-calendar-grid > button.selected { outline: 2px solid var(--teal); outline-offset: 0; background: #d5ede4; }
+.diary-calendar-grid > button.missing-details { background: rgba(210, 102, 100, .10); border-color: #dfb5b2; }
+.diary-calendar-grid > button.missing-details.selected { background: rgba(210, 102, 100, .18); outline-color: #9e5756; }
+.diary-calendar-missing, .diary-calendar-key > span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #f4d9d6; color: #85413f; font-size: 12px; font-weight: 800; }
+.diary-calendar-missing { position: absolute; top: 7px; right: 6px; }
+.diary-calendar-key { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.diary-calendar-key > span { margin-right: 5px; vertical-align: middle; }
+.diary-calendar-grid > button > strong { line-height: 1.2; }
+@media (max-width: 700px) {
+  .diary-calendar-grid > button.missing-details { padding-left: 4px; padding-right: 4px; }
+  .diary-calendar-missing { top: 5px; right: 2px; width: 12px; height: 12px; font-size: 9px; }
+}
+.diary-calendar .diary-section-heading button:disabled { opacity: .35; cursor: default; }
+.diary-entry.diary-entry-missing { border-color: #dfb5b2; }
+.diary-entry > summary .diary-missing-label { color: #85413f; }
+.diary-missing-note { margin: 0 0 16px; padding: 10px 13px; border-radius: 10px; background: rgba(210, 102, 100, .10); color: #713e3c; }
 .diary-calendar-grid i { font-style: normal; }
 .diary-calendar-grid > button > small { font-size: 10px; color: var(--muted); }
 .diary-calendar > small { display: block; margin-top: 12px; color: var(--muted); }
