@@ -1,0 +1,22 @@
+.lane-panel,.lane-settings { margin:16px 0; border:1px solid var(--line,#d4e3df); border-radius:22px; background:var(--paper,#fbfdf9); overflow:hidden; }
+.lane-panel-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px; border:0; background:transparent; padding:22px; text-align:left; font:inherit; color:var(--ink,#16353f); cursor:pointer; }
+.lane-panel-toggle strong { font-size:18px; }.lane-panel-toggle span { color:var(--teal,#147b7b); font-size:14px; }
+.lane-panel-body,.lane-settings { padding:22px; }.lane-panel-body>p:first-child { margin-top:0; }
+.lane-panel fieldset,.lane-settings fieldset { border:0; padding:0; margin:0; min-width:0; }
+.lane-panel label,.lane-settings label { display:grid; gap:8px; font-weight:700; min-width:0; margin:12px 0; }
+.lane-panel input:not([type=checkbox]),.lane-settings input:not([type=checkbox]) { box-sizing:border-box; width:100%; min-width:0; max-width:100%; border:1px solid #bfd6cf; border-radius:12px; padding:12px; min-height:46px; background:white; font:inherit; color:var(--ink); }
+.lane-panel .lane-check,.lane-settings .lane-check { display:flex; align-items:flex-start; gap:12px; font-weight:400; }.lane-check input { flex-shrink:0; margin-top:4px; }
+.lane-moment { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr); gap:14px; }
+.lane-presets { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.lane-presets button { border:1px solid #c5dbd4; padding:10px 15px; min-width:42px; min-height:44px; border-radius:12px; background:white; color:var(--ink); font:inherit; font-weight:700; cursor:pointer; }
+.lane-presets button[aria-pressed=true] { background:#e4f1db; border-color:var(--teal,#147b7b); box-shadow:inset 0 0 0 1px var(--teal,#147b7b); }
+.lane-club { padding:18px; margin:14px 0; border:1px solid #d1e1db; background:#f1f7f2; border-radius:16px; }.lane-club h3 { margin-top:0; }.lane-club label { max-width:260px; }.lane-live-ratio { color:var(--teal); font-weight:700; }
+.lane-help { font-size:13px; line-height:1.6; color:var(--muted,#637a7c); }.lane-error { padding:0 22px; color:#934540; }
+.lane-photo { display:block; width:auto; max-width:100%; max-height:360px; object-fit:contain; border-radius:12px; margin:12px 0; }
+.lane-setting-row { display:flex; align-items:center; gap:12px; }.lane-setting-row label { flex:1; }
+.lane-statistics-toggle { margin-top:22px; }.lane-statistics { margin-top:16px; padding:18px; border:1px solid #d4e2dd; border-radius:18px; background:#f4f9f6; }
+.lane-ratios { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:16px 0; }.lane-ratios article { border:1px solid #c8ddd5; border-radius:15px; padding:16px; background:white; min-width:0; overflow-wrap:anywhere; }.lane-ratios strong,.lane-ratios span { display:block; }.lane-ratios b { display:block; color:var(--teal); font-size:28px; margin:8px 0; }.lane-ratios b small { font-size:13px; font-weight:400; }.lane-ratios span { color:var(--muted); font-size:13px; }
+.lane-history { padding:15px; background:white; border:1px solid #d7e4de; border-radius:13px; margin-top:10px; }.lane-history h4 { margin:0 0 10px; }.lane-history p { margin:8px 0; }
+.lane-table { overflow:auto; max-height:420px; }.lane-table table { border-collapse:collapse; width:100%; font-size:14px; }.lane-table th,.lane-table td { padding:10px; border-bottom:1px solid #d5e2dc; text-align:left; }.lane-table caption { text-align:left; padding:10px; color:var(--muted); }
+.lane-panel button:disabled,.lane-settings button:disabled { opacity:.5; cursor:default; }
+@media(max-width:600px){.lane-panel-toggle { padding:17px; align-items:flex-start; flex-direction:column; gap:7px; }.lane-panel-body,.lane-settings { padding:16px; }.lane-moment { grid-template-columns:minmax(0,1fr); gap:0; }.lane-statistics { padding:12px; }.lane-club { padding:13px; }.lane-setting-row { gap:8px; }.lane-setting-row button { padding:10px; }.lane-panel input[type=date],.lane-panel input[type=time] { display:block; appearance:none; -webkit-appearance:none; text-align:left; }.lane-ratios { grid-template-columns:minmax(0,1fr); }}

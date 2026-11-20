@@ -23,6 +23,7 @@ import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
 import { personalActivityStreak, stockholmActivityDay } from '../shared/activity-streak.js'
 import ActivityCorrection from './activity-correction.jsx'
+import LaneUsagePanel,{LaneUsageSettings} from './lane-usage.jsx'
 import TrendLineChart from './trend-line-chart.jsx'
 import { activityLabel } from '../shared/checkin-activity.js'
 import { personalCheckinDetails } from '../shared/personal-training.js'
@@ -2818,7 +2819,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'push-settings' ? (
           <PushNotificationControl code={code} audience="coach" />
         ) : view === 'settings' ? (
-          <div className="coach-settings-stack">{accountRole === 'superadmin' ? <><WebappSettings code={code} /><OpenChatSettings code={code} /><PushAdminSettings code={code} /><SportAdminCalendarSettings code={code} /><DriveSettings code={code} /><SessionSettings code={code} /></> : accountRole === 'head_coach' ? <HeadCoachSettings code={code} /> : <section className="empty"><h2>Inställningar är låsta</h2><p>Be en huvudtränare eller superadmin om hjälp.</p></section>}</div>
+          <div className="coach-settings-stack">{accountRole === 'superadmin' ? <><WebappSettings code={code} /><LaneUsageSettings code={code} /><OpenChatSettings code={code} /><PushAdminSettings code={code} /><SportAdminCalendarSettings code={code} /><DriveSettings code={code} /><SessionSettings code={code} /></> : accountRole === 'head_coach' ? <HeadCoachSettings code={code} /> : <section className="empty"><h2>Inställningar är låsta</h2><p>Be en huvudtränare eller superadmin om hjälp.</p></section>}</div>
         ) : view === 'groups' ? (
           <CoachGroups code={code} profiles={groupFilteredProfiles} onProfilesChange={onProfilesChange} />
         ) : view === 'app-feedback' ? (
@@ -2832,7 +2833,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'history' ? (
           <History responses={groupFilteredResponses} />
         ) : (
-          <>{view === 'today' && <AttendancePanel code={code} profiles={groupFilteredProfiles} responses={selectedDateResponses} date={summaryDate} />}<PeriodOverview
+          <>{view === 'today' && <><AttendancePanel code={code} profiles={groupFilteredProfiles} responses={selectedDateResponses} date={summaryDate} /><LaneUsagePanel key={`${code}:${summaryDate}`} code={code} date={summaryDate}/></>}<PeriodOverview
             responses={selectedDateResponses}
             title={summaryDate === todayKey() ? 'Idag' : 'Vald dag'}
             profiles={groupFilteredProfiles}

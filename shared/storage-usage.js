@@ -27,6 +27,7 @@ export const STORAGE_BUCKET_NAMES = {
   'goal-analysis-images': 'Utvecklingsmål · bilder',
   'strength-exercise-images': 'Styrka och landträning · övningsbilder',
   'reward-level-art': 'Nivåkort · bakgrunder och emblem',
+  'lane-usage-evidence': 'Banfördelning · fotounderlag',
   'competition-pm': 'Tävlingsbilagor · PM',
 }
 export const STORAGE_BUCKET_NOTES = {
