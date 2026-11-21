@@ -3,6 +3,8 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
+import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
+import { FLIGHT_TAPER_METRICS } from '../shared/flight-taper.js'
 import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
 
@@ -178,19 +180,22 @@ function isVisibleCompetition(item, asOf) {
   return item?.id && isTimeDate(item.startDate) && (item.endDate || item.startDate) >= asOf
 }
 
-function FlightWeightRow({ signal, label, weights, selectedCount, onChange, saving, canSelect }) {
+const isBoost = key => key === 'times' || key === 'taper'
+const boostWeights = weights => ({ times: weights.times, taper: weights.taper ?? 0 })
+
+function FlightWeightRow({ signal, label, weights, selectedCount = 0, onChange, saving, canSelect }) {
   const [draft, setDraft] = useState(null)
   const startWeights = useRef(null)
-  const isTime = signal === 'times'
+  const boost = isBoost(signal)
   const selected = weights[signal] > 0
-  const max = isTime ? 100 : 100 - Math.max(0, selectedCount - 1)
-  const initialShare = isTime ? defaultFlightWeights.times : Math.round(100 / (selectedCount + 1))
+  const max = boost ? 100 : 100 - Math.max(0, selectedCount - 1)
+  const initialShare = boost ? defaultFlightWeights[signal] ?? 60 : Math.round(100 / (selectedCount + 1))
   return <div className="flight-weight-row">
     <label><input type="checkbox" checked={selected} disabled={saving || (!canSelect && !selected)}
       onChange={event => onChange(signal, event.target.checked ? initialShare : 0)} /> {label}</label>
     <div className="flight-weight-percent">
       <input type="number" inputMode="numeric" min={1} max={max} step={1} value={draft ?? weights[signal] ?? 0}
-        aria-label={`Procentvikt för ${label}`} disabled={!selected || saving} readOnly={!isTime && selectedCount === 1}
+        aria-label={`Procentvikt för ${label}`} disabled={!selected || saving} readOnly={!boost && selectedCount === 1}
         onFocus={() => { startWeights.current = weights }}
         onChange={event => {
           const { value, valueAsNumber } = event.target
@@ -204,14 +209,25 @@ function FlightWeightRow({ signal, label, weights, selectedCount, onChange, savi
   </div>
 }
 
-function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, saving, available, message, customMeasures, sleepGoalMinutes, measuresAvailable }) {
+function FlightSettingActions({ onSave, onReset, dirty, saving, available, message, label }) {
+  return <>
+    <div className="flight-actions">
+      <button className="primary-button" type="button" disabled={!available || !dirty || saving} onClick={onSave}>{saving ? 'Sparar…' : label}</button>
+      <button className="secondary-button" type="button" disabled={saving} onClick={onReset}>Återställ förval</button>
+    </div>
+    {!available && <p className="flight-muted">Du kan prova inställningarna här. Sparandet är inte tillgängligt ännu.</p>}
+    {message?.text && <p className={message.error ? 'flight-error' : ''} role={message.error ? 'alert' : 'status'}>{message.text}</p>}
+  </>
+}
+
+function FlightWeightControls({ weights, onChange, customMeasures, sleepGoalMinutes, measuresAvailable, ...actions }) {
   const groups = flightSignalGroups(customMeasures)
-  const selectedCount = Object.entries(weights).filter(([key, value]) => key !== 'times' && value > 0).length
+  const selectedCount = Object.entries(weights).filter(([key, value]) => !isBoost(key) && value > 0).length
   const row = ({ key, label }) => <FlightWeightRow key={key} signal={key} label={label}
-    weights={weights} selectedCount={selectedCount} onChange={onChange} saving={saving}
-    canSelect={key === 'times' || (selectedCount < 100 && (key !== 'sleepGoal' || sleepGoalMinutes != null))} />
+    weights={weights} selectedCount={selectedCount} onChange={onChange} saving={actions.saving}
+    canSelect={selectedCount < 100 && (key !== 'sleepGoal' || sleepGoalMinutes != null)} />
   return <details className="flight-weights">
-    <summary>Vikta signaler{dirty ? ' · osparade ändringar' : ''}</summary>
+    <summary>Vikta signaler{actions.dirty ? ' · osparade ändringar' : ''}</summary>
     <p>Kryssa i måtten som ska ingå och ange en procentvikt. Övriga valda mått räknas om så att summan blir 100 %.</p>
     {groups.map(group => <fieldset className="flight-weight-group" key={group.label}>
       <legend>{group.label}</legend>
@@ -219,27 +235,61 @@ function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, savin
       {group.label === 'Återhämtning' && measuresAvailable && sleepGoalMinutes == null && <p>Ställ in simmarens sömnmål för att vikta sovtid.</p>}
     </fieldset>)}
     {selectedCount > 0 && <p className="flight-weight-total">{selectedCount} valda mått · 100 % totalt</p>}
+    <FlightSettingActions {...actions} label="Spara vikter" />
+  </details>
+}
+
+const boostFields = [
+  ['maxSteps', 'Max lyft (steg)', 0, 100],
+  ['minusSteps', 'Max minus (steg)', 0, 100],
+  ['fullDays', 'Full effekt (dagar)', 1, FLIGHT_BOOST_MAX_DAYS],
+  ['fadeDays', 'Avtoning (dagar)', 0, FLIGHT_BOOST_MAX_DAYS],
+]
+
+function FlightBoostFields({ settings, kind, onChange, saving }) {
+  return <div className="flight-measure-fields">
+    {boostFields.filter(([key]) => Object.hasOwn(settings[kind], key)).map(([key, label, min, max]) => <label key={key}>
+      {label}
+      <input type="number" inputMode="numeric" min={min} max={max} step={1} disabled={saving} value={settings[kind][key]}
+        onChange={event => onChange(kind, key, event.target.value === '' ? '' : event.target.valueAsNumber)} />
+    </label>)}
+  </div>
+}
+
+function FlightBoostControls({ weights, onChange, taperAvailable, configAvailable, config, onConfigChange, configError, ...actions }) {
+  return <details className="flight-weights">
+    <summary>Boostar{actions.dirty ? ' · osparade ändringar' : ''}</summary>
+    <p>Ställ in varje justering för sig. Flight-linjen uppdateras direkt när du provar en procentsats.</p>
     <fieldset className="flight-weight-group flight-weight-lift">
-      <legend>Tidslyft</legend>
-      {row({ key: 'times', label: 'Simmade tider' })}
-      <p>Separat från grundvikterna. En snabbare jämförbar simtid kan ge upp till 5 steg vid 100 %.</p>
+      <legend>Simmade tider</legend>
+      <FlightWeightRow signal="times" label="Lyft från simtider" weights={weights} onChange={onChange} saving={actions.saving} canSelect />
+      {configAvailable && <FlightBoostFields settings={config} kind="times" onChange={onConfigChange} saving={actions.saving} />}
+      <p>Procenten styr hur stor del av maxlyftet en snabbare jämförbar simtid kan ge.</p>
     </fieldset>
-    <div className="flight-actions">
-      <button className="primary-button" type="button" disabled={!available || !dirty || saving} onClick={onSave}>{saving ? 'Sparar…' : 'Spara vikter'}</button>
-      <button className="secondary-button" type="button" disabled={saving} onClick={onReset}>Återställ förval</button>
-    </div>
-    {!available && <p className="flight-muted">Du kan prova vikterna här. Sparandet är inte tillgängligt ännu.</p>}
-    {message.text && <p className={message.error ? 'flight-error' : ''} role={message.error ? 'alert' : 'status'}>{message.text}</p>}
+    <fieldset className="flight-weight-group flight-weight-lift">
+      <legend>Träning</legend>
+      <FlightWeightRow signal="taper" label="Toppning och vila" weights={weights} onChange={onChange} saving={actions.saving} canSelect={taperAvailable} />
+      {configAvailable && taperAvailable && <FlightBoostFields settings={config} kind="taper" onChange={onConfigChange} saving={actions.saving} />}
+      {taperAvailable
+        ? <p>Registrerad vila kan ge ett mindre lyft. Vid fortsatt lägre träning börjar minuseffekten efter dagarna med full effekt och avtoning{!configError ? `, från dag ${config.taper.fullDays + config.taper.fadeDays + 1}` : ''}.</p>
+        : <p>Toppningsjustering kräver SQL 138.</p>}
+    </fieldset>
+    {configError && <p className="flight-error" role="alert">{configError}</p>}
+    <FlightSettingActions {...actions} dirty={actions.dirty && !configError} label="Spara boostar" />
   </details>
 }
 
 function FlightLineDetail({ point }) {
-  const { components, value, base, timeLift, events, usedWeight, totalWeight } = point
+  const { components, value, base, timeLift, taper, taperEffect, events, usedWeight, totalWeight } = point
   const usable = components.filter(component => component.score != null)
   return <div className="flight-day-detail" aria-live="polite">
     <small>{shortDate(point.date)}</small>
-    <div><strong>{value == null ? 'För lite underlag' : number(value)}</strong>{timeLift > 0 && <span>⚡ +{number(timeLift)} från simtider</span>}</div>
+    <div><strong>{value == null ? 'För lite underlag' : number(value)}</strong>{timeLift > 0 && <span>⚡ +{number(timeLift)} från simtider</span>}
+      {Boolean(taperEffect) && <span className={taperEffect < 0 ? 'flight-negative-adjustment' : ''}>{taperEffect > 0 ? '+' : ''}{number(taperEffect)} från träning</span>}
+    </div>
     {value != null && <p>Grundvärde {number(base)} · {usable.length} av {components.length} valda signaler med underlag</p>}
+    {taper?.kind === 'rest' && <p>Registrerad vilodag.</p>}
+    {taper?.kind === 'reduced' && <p>Dag {taper.duration} med lättare träning. {taper.lower.map(item => `${FLIGHT_TAPER_METRICS[item.key]} ${number((1 - item.ratio) * 100, 0)} % lägre`).join(' · ')} jämfört med perioden före sänkningen.</p>}
     {!components.length && <p>Välj minst ett mått under Vikta signaler.</p>}
     {components.length > 0 && value == null && <p>{usable.length} av {components.length} valda signaler har underlag. Minst två behövs när flera är valda, med minst halva den valda vikten.</p>}
     {components.length > 0 && <details className="flight-method">
@@ -271,30 +321,50 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
   const [targetId, setTargetId] = useState('')
   const [savedWeights, setSavedWeights] = useState(() => readFlightWeights(data.weights))
   const [weights, setWeights] = useState(() => readFlightWeights(data.weights))
+  const [savedBoostSettings, setSavedBoostSettings] = useState(() => readFlightBoostSettings(data.boostSettings))
+  const [boostSettings, setBoostSettings] = useState(() => readFlightBoostSettings(data.boostSettings))
   const [saving, setSaving] = useState(false)
   const [weightMessage, setWeightMessage] = useState({ text: '' })
   const saveLock = useRef(false)
-  const dirty = [...new Set([...Object.keys(weights), ...Object.keys(savedWeights)])]
-    .some(key => (weights[key] ?? 0) !== (savedWeights[key] ?? 0))
+  const changedKeys = [...new Set([...Object.keys(weights), ...Object.keys(savedWeights)])]
+    .filter(key => (weights[key] ?? 0) !== (savedWeights[key] ?? 0))
+  const boostConfigChanged = Object.entries(boostSettings).some(([kind, config]) =>
+    Object.entries(config).some(([key, value]) => savedBoostSettings[kind][key] !== value))
+  let configError = ''
+  try { validateFlightBoostSettings(boostSettings) } catch (error) { configError = error.message }
+  const previewBoostSettings = configError ? savedBoostSettings : boostSettings
   const weighted = section === 'line'
   const customMeasures = data.customMeasures ?? []
-  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights, data.customMeasures), [data, weights])
-  const save = async () => {
-    if (!dirty || saveLock.current || !data.weightsAvailable || !saveWeights) return
+  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights, data.customMeasures, data.taperAdjustments, previewBoostSettings), [data, weights, previewBoostSettings])
+  const save = async (panel) => {
+    const savingBoosts = panel === 'boosts'
+    if ((!changedKeys.length && !boostConfigChanged) || saveLock.current || !data.weightsAvailable || !saveWeights || (savingBoosts && configError)) return
     saveLock.current = true
     setSaving(true)
     setWeightMessage({ text: '' })
+    const pending = savingBoosts ? { ...savedWeights, ...boostWeights(weights) } : { ...weights, ...boostWeights(savedWeights) }
     try {
-      const result = await saveWeights(weights)
-      setWeights(result.weights)
+      const result = await saveWeights(pending, savingBoosts && data.boostSettingsAvailable ? boostSettings : undefined)
+      setWeights(current => savingBoosts ? { ...current, ...boostWeights(result.weights) } : { ...result.weights, ...boostWeights(current) })
       setSavedWeights(result.weights)
-      setWeightMessage({ text: 'Vikterna är sparade.' })
+      if (result.boostSettings) {
+        setSavedBoostSettings(result.boostSettings)
+        setBoostSettings(result.boostSettings)
+      }
+      setWeightMessage({ panel, text: savingBoosts ? 'Boostarna är sparade.' : 'Vikterna är sparade.' })
     } catch (error) {
-      setWeightMessage({ text: error.message, error: true })
+      setWeightMessage({ panel, text: error.message, error: true })
     } finally {
       saveLock.current = false
       setSaving(false)
     }
+  }
+  const settings = {
+    weights, saving, available: data.weightsAvailable,
+    onChange(key, value, initial) {
+      setWeights(current => changeFlightWeight(initial ?? current, key, value))
+      setWeightMessage({ text: '' })
+    },
   }
   const start = coachWeekAddDays(data.asOf, 1 - period)
   const days = data.days.filter(day => day.date >= start && day.date <= data.asOf)
@@ -343,9 +413,26 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
       </div>
     </div>
     {weighted && data.measuresAvailable && saveMeasure && <FlightMeasureSettings data={data} onSave={saveMeasure} />}
-    {weighted && <FlightWeightControls weights={weights} customMeasures={customMeasures} sleepGoalMinutes={data.sleepGoalMinutes} measuresAvailable={data.measuresAvailable}
-      onChange={(key, value, initial) => { setWeights(current => changeFlightWeight(initial ?? current, key, value)); setWeightMessage({ text: '' }) }}
-      onSave={save} onReset={() => { setWeights({ ...defaultFlightWeights }); setWeightMessage({ text: '' }) }} dirty={dirty} saving={saving} available={data.weightsAvailable} message={weightMessage} />}
+    {weighted && <>
+      <FlightWeightControls {...settings} customMeasures={customMeasures} sleepGoalMinutes={data.sleepGoalMinutes} measuresAvailable={data.measuresAvailable}
+        onSave={() => save('weights')} dirty={changedKeys.some(key => !isBoost(key))} message={weightMessage.panel === 'weights' ? weightMessage : null}
+        onReset={() => {
+          setWeights(current => ({ ...defaultFlightWeights, ...boostWeights(current) }))
+          setWeightMessage({ text: '' })
+        }} />
+      <FlightBoostControls {...settings} taperAvailable={data.taperAvailable} configAvailable={data.boostSettingsAvailable}
+        config={boostSettings} configError={configError}
+        onConfigChange={(kind, key, value) => {
+          setBoostSettings(current => ({ ...current, [kind]: { ...current[kind], [key]: value } }))
+          setWeightMessage({ text: '' })
+        }}
+        onSave={() => save('boosts')} dirty={changedKeys.some(isBoost) || boostConfigChanged} message={weightMessage.panel === 'boosts' ? weightMessage : null}
+        onReset={() => {
+          setWeights(current => ({ ...current, ...boostWeights(defaultFlightWeights) }))
+          setBoostSettings(defaultFlightBoostSettings)
+          setWeightMessage({ text: '' })
+        }} />
+    </>}
     {timed && available.length > 0 && <label className="flight-field">Jämförbara tider
       <select value={series.key} onChange={event => { setSeriesKey(event.target.value); setSelectedDate(null) }}>
         {seriesKinds.map(([kind, label]) => available.some(group => group.kind === kind) && <optgroup key={kind} label={label}>
@@ -380,7 +467,8 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
     <details className="flight-method">
       <summary>Så läser du formresan</summary>
       <p>Flight-linjen jämför simmarens snitt från sju dagar med medianen från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Vikterna styr hur mycket varje mått påverkar linjen.</p>
-      <p>Ett tidslyft kräver minst tre tidigare jämförbara simdagar under 56 dagar. Varje dags bästa förbättring kan lyfta linjen. Lyftet avtar under veckan och är högst 5 steg totalt.</p>
+      <p>Ett tidslyft kräver minst tre tidigare jämförbara simdagar under 56 dagar. Varje dags bästa förbättring kan lyfta linjen under den tid tränaren valt.</p>
+      <p>Toppning och vila använder registrerade vilodagar och genomförda pass. En tydlig sänkning kräver underlag från minst fem dagar den senaste veckan och jämförs med simmarens tidigare träningsnivå. Simmeter kan även komma från ett kopplat pass. Justeringen läggs på dagar där Flight-linjen har ett grundvärde.</p>
       <p>Testlopp och träningstider jämförs med samma distans, simsätt, bassäng, start, hjälpmedel, tidtagning och övriga förutsättningar. Varje punkt visar dagens snabbaste tid i serien. Tävlingsresultat ligger för sig.</p>
       <p>Luckor är dagar utan ett värde i underlaget. När tävlingsmålet ligger nära visas tävlingsdagen till höger i grafen.</p>
     </details>

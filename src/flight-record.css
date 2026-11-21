@@ -151,6 +151,7 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-day-detail div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
 .flight-day-detail strong { font-size: clamp(24px, 4vw, 32px); letter-spacing: -.045em; }
 .flight-day-detail span { color: var(--flight-teal); font-weight: 650; }
+.flight-day-detail .flight-negative-adjustment { color: #922f32; }
 .flight-day-detail p { margin: 5px 0 0; color: var(--flight-muted); }
 .flight-method { margin-top: 14px; font-size: .9rem; }
 .flight-method summary { min-height: 44px; padding-block: 9px; color: var(--flight-ink); cursor: pointer; font-weight: 650; }

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
+import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -37,9 +38,10 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   if (extended) profile.flight_record_sleep_goal_minutes = null
+  if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
   const calls = []
   const measures = [], scores = new Map()
   t.mock.method(globalThis, 'fetch', async (input, options = {}) => {
@@ -58,6 +60,12 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       if (weightsMigrationMissing && query.get('select')?.split(',').includes('flight_record_weights')) return json({ code: 'PGRST204' }, 400)
       if (!extended && query.get('select')?.split(',').includes('flight_record_sleep_goal_minutes')) {
         return json({ code: '42703', message: 'column profiles.flight_record_sleep_goal_minutes does not exist' }, 400)
+      }
+      if (!taper && query.get('select')?.split(',').includes('flight_record_taper_weight')) {
+        return json({ code: '42703', message: 'column profiles.flight_record_taper_weight does not exist' }, 400)
+      }
+      if (!taper && query.get('select')?.split(',').includes('flight_record_boost_settings')) {
+        return json({ code: '42703', message: 'column profiles.flight_record_boost_settings does not exist' }, 400)
       }
       if (scope === 'is.null' && profile.flight_record_offer_id != null) return json([])
       if (scope === 'not.is.null' && profile.flight_record_offer_id == null) return json([])
@@ -106,6 +114,11 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     })))
     if (['personal_training_sessions', 'responses', 'planned_training_sessions', 'session_attendance', 'strength_program_logs', 'program_assignments', 'workout_unlocks', 'dryland_program_logs'].includes(table)) assert.equal(query.get('profile_id'), `eq.${id}`)
     if (table === 'responses') {
+      if (taper) return json(Array.from({ length: 146 }, (_, offset) => ({
+        activity_date: coachWeekAddDays(today, -offset), day_type: 'after', activity_type: 'swim', session_slot: 'afternoon_swim',
+        activity_distance_meters: offset < 22 ? 2400 : 4000, activity_minutes: offset < 22 ? 60 : 100,
+        rpe: offset < 22 ? 4 : 6, speed_feeling: 3, body: 3, energy: 3,
+      })))
       return json(Array.from({ length: 35 }, (_, offset) => ({
         activity_date: coachWeekAddDays(today, -offset),
         body: offset < 7 ? 4 : 3,
@@ -251,6 +264,33 @@ test('the trainer can add and correct measures and both views use the saved sett
   assert.equal(swimmerChart.data.points.at(-1).value, 71.9)
   assert.doesNotMatch(JSON.stringify(swimmerChart.data), /Teknikkänsla|sleepGoal|customMeasures/)
   assert(calls.some(row => row.table === 'audit_logs' && row.body?.event_type === 'flight_record_measure_change'))
+})
+
+test('taper preview and the opted-in swimmer graph use the same training history and saved strength', async (t) => {
+  const { profile } = dbFixture(t, { taper: true, extended: true, state: 'active' })
+  const details = () => call({ code: coach, mode: 'data', profileId: id })
+  const settings = (weights, code = coach, boostSettings) => call({
+    code, mode: 'weights', method: 'POST', profileId: id, body: { weights, ...(boostSettings ? { boostSettings } : {}) },
+  })
+  const preview = (await details()).data
+  assert.equal(preview.taperAvailable, true)
+  assert(preview.taperAdjustments.at(-1).duration >= 21)
+  assert.equal(preview.weights.taper, 0)
+  const weights = { ...preview.weights, taper: 80 }
+  assert.equal((await settings(weights, 'swimmer')).code, 403)
+  assert.equal((await settings({ ...weights, taper: 101 })).code, 400)
+  assert.deepEqual((await settings(weights)).data.weights, weights)
+  assert.equal(profile.flight_record_taper_weight, 80)
+  assert(!Object.hasOwn(profile.flight_record_weights, 'taper'))
+  const boostSettings = { ...defaultFlightBoostSettings, taper: { maxSteps: 7, minusSteps: 8, fullDays: 17, fadeDays: 3 } }
+  assert.deepEqual((await settings(weights, coach, boostSettings)).data.boostSettings, boostSettings)
+  assert.deepEqual((await details()).data.boostSettings, boostSettings)
+  const swimmer = await call({ mode: 'chart' })
+  assert.equal(swimmer.code, 200)
+  const line = flightLine(preview.days, preview.contextDays, preview.timeLifts, weights, preview.customMeasures, preview.taperAdjustments, boostSettings)
+  assert.deepEqual(swimmer.data.points.map(point => point.value), line.slice(-28).map(point => point.value))
+  assert(line.at(-1).value < line.at(-1).base)
+  assert.doesNotMatch(JSON.stringify(swimmer.data), /taper|load|rpe/)
 })
 
 test('revoked coaches, missing migration and revocation during a history read fail safely', async (t) => {

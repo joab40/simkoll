@@ -1,5 +1,6 @@
 import { coachWeekAddDays } from './coach-week.js'
 import { isTimeId } from './swim-times.js'
+import { boostFactor, defaultFlightBoostSettings, taperBoostSteps } from './flight-boosts.js'
 
 export const FLIGHT_RECENT_DAYS = 7
 export const FLIGHT_BASELINE_DAYS = 28
@@ -68,9 +69,9 @@ function isPercentageWeights(weights) {
   if (!weights || typeof weights !== 'object' || Array.isArray(weights)
     || !standardKeys.every(key => Object.hasOwn(weights, key))) return false
   const entries = Object.entries(weights)
-  if (entries.some(([key, weight]) => (!standardKeys.includes(key) && key !== 'sleepGoal' && !isTimeId(key))
+  if (entries.some(([key, weight]) => (!standardKeys.includes(key) && !['sleepGoal', 'taper'].includes(key) && !isTimeId(key))
     || !Number.isInteger(weight) || weight < 0 || weight > 100)) return false
-  const total = entries.reduce((sum, [key, weight]) => key === 'times' ? sum : sum + weight, 0)
+  const total = entries.reduce((sum, [key, weight]) => ['times', 'taper'].includes(key) ? sum : sum + weight, 0)
   return total === 100 || total === 0
 }
 
@@ -90,7 +91,7 @@ export function readFlightWeights(weights) {
 }
 
 export function changeFlightWeight(weights, key, percent) {
-  if (key === 'times') return { ...weights, times: Math.max(0, Math.min(percent, 100)) }
+  if (key === 'times' || key === 'taper') return { ...weights, [key]: Math.max(0, Math.min(percent, 100)) }
   const customKeys = Object.keys(weights).filter(isTimeId).sort()
   const others = [...signalKeys, ...customKeys].filter(signal => signal !== key && weights[signal] > 0)
   if (percent > 0 && others.length >= 100) return weights
@@ -144,12 +145,13 @@ export function flightTimeLifts(series) {
   return [...best.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-export function flightLine(days, contextDays, timeLifts, weights, customMeasures = []) {
+export function flightLine(days, contextDays, timeLifts, weights, customMeasures = [], taperAdjustments = [], boosts = defaultFlightBoostSettings) {
   const wanted = [...FLIGHT_SIGNALS, ...customMeasures].filter(signal => weights[signal.key] > 0)
-  const selectedWeights = Object.entries(weights).filter(([key, weight]) => key !== 'times' && weight > 0)
+  const selectedWeights = Object.entries(weights).filter(([key, weight]) => !['times', 'taper'].includes(key) && weight > 0)
   const totalWeight = selectedWeights.reduce((total, [, weight]) => total + weight, 0)
   const byDate = new Map([...contextDays, ...days].map(day => [day.date, day]))
   const liftByDate = new Map(timeLifts.map(lift => [lift.date, lift]))
+  const taperByDate = new Map(taperAdjustments.map(adjustment => [adjustment.date, adjustment]))
   return days.map(day => {
     const window = Array.from({ length: FLIGHT_RECENT_DAYS + FLIGHT_BASELINE_DAYS }, (_, offset) => coachWeekAddDays(day.date, -offset))
     const recent = window.slice(0, FLIGHT_RECENT_DAYS)
@@ -168,14 +170,22 @@ export function flightLine(days, contextDays, timeLifts, weights, customMeasures
     const enough = available.length >= Math.min(2, selectedWeights.length) && usedWeight > 0 && usedWeight * 2 >= totalWeight
     const base = enough ? available.reduce((total, component) => total + component.score * component.weight, 0) / usedWeight : null
     const events = []
-    if (weights.times > 0) recent.forEach((date, age) => {
-      const event = liftByDate.get(date)
-      if (event) events.push({ ...event, contribution: event.strength * (1 - age / FLIGHT_RECENT_DAYS) * weights.times / 100 })
-    })
-    const timeLift = base == null ? null : Math.min(100 - base, FLIGHT_MAX_TIME_LIFT, events.reduce((total, event) => total + event.contribution, 0))
+    const timeCap = boosts.times.maxSteps * weights.times / 100
+    if (timeCap > 0) {
+      for (let age = 0; age < boosts.times.fullDays + boosts.times.fadeDays; age++) {
+        const event = liftByDate.get(coachWeekAddDays(day.date, -age))
+        if (event) events.push({ ...event, contribution: event.strength / FLIGHT_MAX_TIME_LIFT * boostFactor(age, boosts.times) * timeCap })
+      }
+    }
+    const timeLift = base == null ? null : Math.min(100 - base, timeCap, events.reduce((total, event) => total + event.contribution, 0))
+    const taper = weights.taper > 0 ? taperByDate.get(day.date) : null
+    const withTimeLift = base == null ? null : base + timeLift
+    const taperSteps = taper ? taperBoostSteps(taper, boosts.taper) * weights.taper / 100 : 0
+    const adjusted = withTimeLift == null ? null : Math.max(0, Math.min(100, withTimeLift + taperSteps))
     return {
-      date: day.date, value: base == null ? null : round(base + timeLift), base: base == null ? null : round(base),
+      date: day.date, value: adjusted == null ? null : round(adjusted), base: base == null ? null : round(base),
       timeLift: timeLift == null ? null : round(timeLift), events, components, usedWeight, totalWeight,
+      taper, taperEffect: taper && adjusted != null ? round(adjusted - withTimeLift) : null,
     }
   })
 }

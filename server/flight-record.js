@@ -9,12 +9,16 @@ import { readFlightMeasures, readFlightScores, saveFlightMeasure, sleepGoalField
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { isTimeId } from '../shared/swim-times.js'
 import { FLIGHT_HISTORY_DAYS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
+import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
+import { FLIGHT_TAPER_CONTEXT_DAYS, flightTaperAdjustments } from '../shared/flight-taper.js'
 import { FLIGHT_BASELINE_DAYS, FLIGHT_RECENT_DAYS, FLIGHT_TIME_BASELINE_DAYS, FLIGHT_SIGNALS, flightLine, flightTimeLifts, readFlightWeights, sleepGoalScore, validateFlightWeights } from '../shared/flight-line.js'
 
 const configuredProfile = 'active=eq.true&approval_status=eq.approved'
 const accessFields = 'flight_record_offer_id,flight_record_choice'
 const activeOffer = 'flight_record_choice=eq.active'
 const acceptedTerms = 'terms_accepted_at=not.is.null'
+const taperWeightField = 'flight_record_taper_weight'
+const boostSettingsField = 'flight_record_boost_settings'
 const swimmerChartDays = 28
 const returning = { Prefer: 'return=representation' }
 
@@ -43,20 +47,33 @@ async function readRows(query) {
   return result.json()
 }
 
+function profileWeights(profile) {
+  const weights = readFlightWeights(profile.flight_record_weights)
+  return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
+}
+
 async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const start = coachWeekAddDays(end, 1 - (chartOnly ? swimmerChartDays : FLIGHT_HISTORY_DAYS))
   const contextStart = coachWeekAddDays(start, 1 - FLIGHT_RECENT_DAYS - FLIGHT_BASELINE_DAYS)
-  const firstLiftDay = coachWeekAddDays(start, 1 - FLIGHT_RECENT_DAYS)
+  const boostSettings = readFlightBoostSettings(profile[boostSettingsField])
+  const boostSettingsAvailable = Object.hasOwn(profile, boostSettingsField)
+  const timeDays = !chartOnly && boostSettingsAvailable ? FLIGHT_BOOST_MAX_DAYS : boostSettings.times.fullDays + boostSettings.times.fadeDays
+  const firstLiftDay = coachWeekAddDays(start, 1 - timeDays)
   const timeStart = coachWeekAddDays(firstLiftDay, -FLIGHT_TIME_BASELINE_DAYS)
   const owner = `profile_id=eq.${profile.id}`
   const during = (column, from) => `${column}=gte.${from}&${column}=lte.${end}`
-  const weights = readFlightWeights(profile.flight_record_weights)
+  const weights = profileWeights(profile)
+  const taperAvailable = Object.hasOwn(profile, taperWeightField)
+  const needTaper = taperAvailable && (!chartOnly || weights.taper > 0)
+  // Use the same run-up for both views so a long reduction keeps the same anchor.
+  const historyStart = needTaper ? coachWeekAddDays(end, 1 - FLIGHT_HISTORY_DAYS - FLIGHT_TAPER_CONTEXT_DAYS) : contextStart
+  const raceStart = needTaper && historyStart < timeStart ? historyStart : timeStart
   const extended = Object.hasOwn(profile, sleepGoalField)
   const needCustom = extended && (!chartOnly || Object.keys(weights).some(key => isTimeId(key) && weights[key] > 0))
   const [diary, practice, races, sleep, audit, measures, scores] = await Promise.allSettled([
-    loadTrainingDiary(profile, contextStart, end, { includeComparison: false, includeReflections: false, includeResults: false, includeGoals: false, includeCheckinSignals: true }),
+    loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false, includeGoals: false, includeCheckinSignals: true }),
     readRows(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`),
-    readRows(`competition_results?${owner}&${during('result_date', timeStart)}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`),
+    readRows(`competition_results?${owner}&${during('result_date', raceStart)}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`),
     readRows(`profile_daily_sleep?${owner}&${during('activity_date', contextStart)}&select=activity_date,minutes,quality,skipped&order=activity_date.asc`),
     chartOnly ? [] : readRows(`audit_logs?${owner}&event_type=eq.training_time_create&status=eq.success&created_at=gte.${start}T00:00:00Z&select=role,details&order=created_at.asc,id.asc`),
     needCustom ? readFlightMeasures(profile.id) : [],
@@ -76,14 +93,21 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const history = flightTimeSeries(practice.value ?? [], races.value ?? [], origins)
   const customMeasures = measures.value ?? []
   const sleepGoalMinutes = profile[sleepGoalField] ?? null
-  const days = flightRecordDays(contextStart, end, diary.value, sleep.value ?? []).map(day => ({
+  const days = flightRecordDays(historyStart, end, diary.value, sleep.value ?? [])
+  const raceDays = new Set((races.value ?? []).map(row => row.result_date))
+  const trainingDataIncomplete = diary.value?.warnings.some(warning => /^(registrerade pass|incheckningar|upplagda pass|grundplanering|tränarens närvaromarkeringar|styrkeloggar|landträningsloggar)/.test(warning))
+  const taperAdjustments = needTaper && diary.status === 'fulfilled' && !trainingDataIncomplete
+    ? flightTaperAdjustments(days.map(day => raceDays.has(day.date) && day.taperObservation?.kind !== 'sick' ? { ...day, taperObservation: null } : day))
+      .filter(point => point.date >= start)
+    : []
+  const signalDays = days.filter(day => day.date >= contextStart).map(({ taperObservation, ...day }) => ({
     ...day, ...scores.value?.get(day.date), sleepGoal: sleepGoalScore(day.sleepMinutes, sleepGoalMinutes),
   }))
-  const visibleDays = days.filter(day => day.date >= start)
-  const contextDays = days.filter(day => day.date < start)
+  const visibleDays = signalDays.filter(day => day.date >= start)
+  const contextDays = signalDays.filter(day => day.date < start)
   const timeLifts = flightTimeLifts(history).filter(lift => lift.date >= firstLiftDay)
   if (chartOnly) {
-    const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures).map(point => ({
+    const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings).map(point => ({
       date: point.date, value: point.value,
       newTimeLift: point.timeLift > 0 && point.events.some(event => event.date === point.date),
     }))
@@ -96,6 +120,10 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   return {
     start, asOf: end, warnings,
     weights,
+    taperAvailable,
+    taperAdjustments,
+    boostSettings,
+    boostSettingsAvailable,
     weightsAvailable: Object.hasOwn(profile, 'flight_record_weights') && measures.status === 'fulfilled',
     measuresAvailable: extended && measures.status === 'fulfilled' && scores.status === 'fulfilled',
     sleepGoalMinutes,
@@ -146,26 +174,40 @@ async function saveWeights(request, response, endpoint, profile, coach) {
   const customMeasures = hasCustom ? await readFlightMeasures(profile.id) : []
   let weights
   try { weights = validateFlightWeights(input, customMeasures) } catch (error) { return sendJson(response, 400, { error: error.message }) }
-  const { sleepGoal, ...standardWeights } = weights
-  const [updated] = await checkAccessResult(await supabaseRequest(`${endpoint}&select=flight_record_weights`, {
-    method: 'PATCH', headers: returning, body: JSON.stringify({ flight_record_weights: sleepGoal || hasCustom ? weights : standardWeights }),
+  const { taper = 0, sleepGoal, ...standardWeights } = weights
+  const taperAvailable = Object.hasOwn(profile, taperWeightField)
+  if (taper > 0 && !taperAvailable) return sendJson(response, 503, { error: 'Toppningsjustering kräver SQL 138.' })
+  const patch = {
+    flight_record_weights: sleepGoal || hasCustom ? { ...standardWeights, sleepGoal } : standardWeights,
+    ...(taperAvailable ? { [taperWeightField]: taper } : {}),
+  }
+  if (Object.hasOwn(request.body ?? {}, 'boostSettings')) {
+    if (!Object.hasOwn(profile, boostSettingsField)) return sendJson(response, 503, { error: 'Boostvärden och tidshorisont kräver SQL 138.' })
+    try { patch[boostSettingsField] = validateFlightBoostSettings(request.body.boostSettings) }
+    catch (error) { return sendJson(response, 400, { error: error.message }) }
+  }
+  const [updated] = await checkAccessResult(await supabaseRequest(`${endpoint}&select=${Object.keys(patch).join(',')}`, {
+    method: 'PATCH', headers: returning, body: JSON.stringify(patch),
   }), 135)
   if (!updated) return sendJson(response, 404, { error: 'Simmarprofilen är inte tillgänglig.' })
   await writeAuditLog(request, { eventType: 'flight_record_weights', role: 'coach', profileId: profile.id, details: { coachAccountId: coach.sub } })
-  return sendJson(response, 200, { weights: readFlightWeights(updated.flight_record_weights) })
+  return sendJson(response, 200, {
+    weights: profileWeights(updated),
+    ...(Object.hasOwn(updated, boostSettingsField) ? { boostSettings: readFlightBoostSettings(updated[boostSettingsField]) } : {}),
+  })
 }
 
 async function loadCoachProfile(endpoint) {
   const fields = 'id,training_group,flight_record_weights'
-  let result = await supabaseRequest(`${endpoint}&select=${fields},${sleepGoalField}&limit=1`)
-  if (!result.ok) {
+  let optional = [sleepGoalField, taperWeightField, boostSettingsField]
+  for (;;) {
+    const result = await supabaseRequest(`${endpoint}&select=${[fields, ...optional].join(',')}&limit=1`)
+    if (result.ok) return (await result.json())[0]
     const detail = await result.clone().json().catch(() => null)
-    if (['42703', 'PGRST204'].includes(detail?.code) && detail.message?.includes(sleepGoalField)) {
-      result = await supabaseRequest(`${endpoint}&select=${fields}&limit=1`)
-    }
+    const missing = optional.find(field => detail?.message?.includes(field))
+    if (!missing || !['42703', 'PGRST204'].includes(detail.code)) return (await checkAccessResult(result, 135))[0]
+    optional = optional.filter(field => field !== missing)
   }
-  const [profile] = await checkAccessResult(result, 135)
-  return profile
 }
 
 async function loadChartForSwimmer(response, profile) {

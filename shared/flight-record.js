@@ -1,6 +1,7 @@
 import { coachWeekAddDays } from './coach-week.js'
 import { comparableSwimTimes, isTimeDate, parseTrainingTime } from './swim-times.js'
 import { diaryEntryLoad } from './training-load.js'
+import { swimMeterDay } from './swim-meter-day.js'
 
 export const FLIGHT_HISTORY_DAYS = 90
 export const FLIGHT_PERIODS = [14, 28, 90]
@@ -19,12 +20,29 @@ function mean(values) {
   return known.length ? Math.round(known.reduce((total, value) => total + value, 0) / known.length * 10) / 10 : null
 }
 
+function taperObservation(dayEntries, completed, load) {
+  if (dayEntries.some(entry => entry.type === 'sick' && entry.state === 'status')) return { kind: 'sick' }
+  if (dayEntries.some(entry => entry.type === 'competition' && entry.state === 'completed')) return null
+  if (!completed.length) {
+    return dayEntries.some(entry => entry.type === 'rest' && entry.state === 'status')
+      && !dayEntries.some(entry => entry.state === 'feedback' && entry.type !== 'reflection')
+      ? { kind: 'rest', meters: 0, load: 0, sessions: 0, rpe: null }
+      : null
+  }
+  const rpe = completed.map(entry => finite(entry.rpe, 1, 10))
+  return {
+    kind: 'training',
+    meters: swimMeterDay(dayEntries).swimMetersPlot,
+    load: load.length === completed.length ? sum(load.map(item => item.value)) : null,
+    rpe: rpe.some(value => value == null) ? null : mean(rpe),
+    sessions: completed.length,
+  }
+}
+
 export function flightRecordDays(start, end, diary, sleep = []) {
   const days = new Map((diary?.current?.days ?? []).map(day => [day.date, day]))
   const entriesByDate = new Map()
   for (const entry of diary?.entries ?? []) {
-    if (!['completed', 'feedback'].includes(entry.state)) continue
-    if (['competition', 'rest', 'sick', 'reflection'].includes(entry.type)) continue
     if (!entriesByDate.has(entry.date)) entriesByDate.set(entry.date, [])
     entriesByDate.get(entry.date).push(entry)
   }
@@ -32,7 +50,8 @@ export function flightRecordDays(start, end, diary, sleep = []) {
   const output = []
   for (let date = start; date <= end; date = coachWeekAddDays(date, 1)) {
     const daily = days.get(date)
-    const entries = entriesByDate.get(date) ?? []
+    const dayEntries = entriesByDate.get(date) ?? []
+    const entries = dayEntries.filter(entry => ['completed', 'feedback'].includes(entry.state) && !['competition', 'rest', 'sick', 'reflection'].includes(entry.type))
     const completed = entries.filter(entry => entry.state === 'completed')
     const load = completed.map(diaryEntryLoad).filter(item => item.value != null)
     const night = nights.get(date)
@@ -55,6 +74,7 @@ export function flightRecordDays(start, end, diary, sleep = []) {
       load: sum(load.map(item => item.value)),
       loadCount: load.length,
       loadEstimatedCount: load.filter(item => item.source === 'estimated').length,
+      taperObservation: taperObservation(dayEntries, completed, load),
       sleepMinutes: finite(night?.minutes, 0, 840),
       sleepQuality: [1, 3, 5].includes(night?.quality) ? night.quality : null,
     })
