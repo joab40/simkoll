@@ -10,6 +10,7 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import { isTimeId } from '../shared/swim-times.js'
 import { FLIGHT_HISTORY_DAYS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
+import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_CONTEXT_DAYS, flightTaperAdjustments } from '../shared/flight-taper.js'
 import { FLIGHT_BASELINE_DAYS, FLIGHT_RECENT_DAYS, FLIGHT_TIME_BASELINE_DAYS, FLIGHT_SIGNALS, flightLine, flightTimeLifts, readFlightWeights, sleepGoalScore, validateFlightWeights } from '../shared/flight-line.js'
 
@@ -19,6 +20,7 @@ const activeOffer = 'flight_record_choice=eq.active'
 const acceptedTerms = 'terms_accepted_at=not.is.null'
 const taperWeightField = 'flight_record_taper_weight'
 const boostSettingsField = 'flight_record_boost_settings'
+const pbSettingsField = 'flight_record_pb_boost_settings'
 const swimmerChartDays = 28
 const returning = { Prefer: 'return=representation' }
 
@@ -57,12 +59,16 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const contextStart = coachWeekAddDays(start, 1 - FLIGHT_RECENT_DAYS - FLIGHT_BASELINE_DAYS)
   const boostSettings = readFlightBoostSettings(profile[boostSettingsField])
   const boostSettingsAvailable = Object.hasOwn(profile, boostSettingsField)
-  const timeDays = !chartOnly && boostSettingsAvailable ? FLIGHT_BOOST_MAX_DAYS : boostSettings.times.fullDays + boostSettings.times.fadeDays
+  const pbBoostSettings = readFlightPbSettings(profile[pbSettingsField], boostSettings.times)
+  const pbBoostSettingsAvailable = Object.hasOwn(profile, pbSettingsField)
+  const timeDays = !chartOnly && boostSettingsAvailable ? FLIGHT_BOOST_MAX_DAYS
+    : Math.max(FLIGHT_PRACTICE_BOOST_DAYS, boostSettings.times.fullDays + boostSettings.times.fadeDays)
   const firstLiftDay = coachWeekAddDays(start, 1 - timeDays)
   const timeStart = coachWeekAddDays(firstLiftDay, -FLIGHT_TIME_BASELINE_DAYS)
   const owner = `profile_id=eq.${profile.id}`
   const during = (column, from) => `${column}=gte.${from}&${column}=lte.${end}`
   const weights = profileWeights(profile)
+  const needPb = pbBoostSettingsAvailable && (!chartOnly || weights.times > 0)
   const taperAvailable = Object.hasOwn(profile, taperWeightField)
   const needTaper = taperAvailable && (!chartOnly || weights.taper > 0)
   // Use the same run-up for both views so a long reduction keeps the same anchor.
@@ -70,7 +76,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const raceStart = needTaper && historyStart < timeStart ? historyStart : timeStart
   const extended = Object.hasOwn(profile, sleepGoalField)
   const needCustom = extended && (!chartOnly || Object.keys(weights).some(key => isTimeId(key) && weights[key] > 0))
-  const [diary, practice, races, sleep, audit, measures, scores] = await Promise.allSettled([
+  const [diary, practice, races, sleep, audit, measures, scores, tempus] = await Promise.allSettled([
     loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false, includeGoals: false, includeCheckinSignals: true }),
     readRows(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`),
     readRows(`competition_results?${owner}&${during('result_date', raceStart)}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`),
@@ -78,6 +84,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
     chartOnly ? [] : readRows(`audit_logs?${owner}&event_type=eq.training_time_create&status=eq.success&created_at=gte.${start}T00:00:00Z&select=role,details&order=created_at.asc,id.asc`),
     needCustom ? readFlightMeasures(profile.id) : [],
     needCustom ? readFlightScores(profile.id, contextStart, end) : new Map(),
+    needPb ? readRows(`competition_results?${owner}&source=eq.tempus&result_date=lte.${end}&select=source,result_date,event,pool,result_time,swim_time&order=result_date.asc,id.asc`) : [],
   ])
   if ([diary, practice, races, sleep].every(result => result.status === 'rejected') && !scores.value?.size) {
     throw Object.assign(new Error('Formresans underlag kunde inte hämtas. Försök igen.'), { status: 502 })
@@ -88,6 +95,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
     races.status === 'rejected' ? 'Tävlingsresultaten kunde inte hämtas.' : '',
     sleep.status === 'rejected' ? 'Sömnkollen kunde inte hämtas.' : '',
     measures.status === 'rejected' || scores.status === 'rejected' ? 'Egna mätvärden kunde inte hämtas.' : '',
+    tempus.status === 'rejected' ? 'Personbästan från Tempus kunde inte hämtas.' : '',
   ].filter(Boolean)
   const origins = new Map((audit.value ?? []).map(row => [row.details?.timeId, row.role]))
   const history = flightTimeSeries(practice.value ?? [], races.value ?? [], origins)
@@ -105,9 +113,17 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   }))
   const visibleDays = signalDays.filter(day => day.date >= start)
   const contextDays = signalDays.filter(day => day.date < start)
-  const timeLifts = flightTimeLifts(history).filter(lift => lift.date >= firstLiftDay)
+  const practiceSeries = history.filter(group => group.kind !== 'race')
+  const practiceStart = coachWeekAddDays(start, 1 - FLIGHT_PRACTICE_BOOST_DAYS)
+  const referenceFor = tempusPbLookup(tempus.value ?? [])
+  const raceLifts = flightTimeLifts(history.filter(group => group.kind === 'race')).filter(lift => lift.date >= firstLiftDay)
+  const practiceLifts = tempus.status === 'fulfilled' ? [
+    ...flightPbCandidates(practiceSeries, referenceFor, practiceStart),
+    ...flightTimeLifts(practiceSeries, (group, point) => point.date >= practiceStart && !referenceFor(group.raceReference, point.date)),
+  ] : []
+  const timeLifts = [...practiceLifts, ...raceLifts]
   if (chartOnly) {
-    const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings).map(point => ({
+    const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings).map(point => ({
       date: point.date, value: point.value,
       newTimeLift: point.timeLift > 0 && point.events.some(event => event.date === point.date),
     }))
@@ -124,6 +140,8 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
     taperAdjustments,
     boostSettings,
     boostSettingsAvailable,
+    pbBoostSettings,
+    pbBoostSettingsAvailable,
     weightsAvailable: Object.hasOwn(profile, 'flight_record_weights') && measures.status === 'fulfilled',
     measuresAvailable: extended && measures.status === 'fulfilled' && scores.status === 'fulfilled',
     sleepGoalMinutes,
@@ -186,6 +204,11 @@ async function saveWeights(request, response, endpoint, profile, coach) {
     try { patch[boostSettingsField] = validateFlightBoostSettings(request.body.boostSettings) }
     catch (error) { return sendJson(response, 400, { error: error.message }) }
   }
+  if (Object.hasOwn(request.body ?? {}, 'pbBoostSettings')) {
+    if (!Object.hasOwn(profile, pbSettingsField)) return sendJson(response, 503, { error: 'PB-boostar kräver SQL 139.' })
+    try { patch[pbSettingsField] = validateFlightPbSettings(request.body.pbBoostSettings) }
+    catch (error) { return sendJson(response, 400, { error: error.message }) }
+  }
   const [updated] = await checkAccessResult(await supabaseRequest(`${endpoint}&select=${Object.keys(patch).join(',')}`, {
     method: 'PATCH', headers: returning, body: JSON.stringify(patch),
   }), 135)
@@ -194,12 +217,13 @@ async function saveWeights(request, response, endpoint, profile, coach) {
   return sendJson(response, 200, {
     weights: profileWeights(updated),
     ...(Object.hasOwn(updated, boostSettingsField) ? { boostSettings: readFlightBoostSettings(updated[boostSettingsField]) } : {}),
+    ...(Object.hasOwn(updated, pbSettingsField) ? { pbBoostSettings: readFlightPbSettings(updated[pbSettingsField]) } : {}),
   })
 }
 
 async function loadCoachProfile(endpoint) {
   const fields = 'id,training_group,flight_record_weights'
-  let optional = [sleepGoalField, taperWeightField, boostSettingsField]
+  let optional = [sleepGoalField, taperWeightField, boostSettingsField, pbSettingsField]
   for (;;) {
     const result = await supabaseRequest(`${endpoint}&select=${[fields, ...optional].join(',')}&limit=1`)
     if (result.ok) return (await result.json())[0]

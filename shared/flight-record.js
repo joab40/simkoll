@@ -82,10 +82,10 @@ export function flightRecordDays(start, end, diary, sleep = []) {
   return output
 }
 
-function racePool(value) {
+export function racePool(value) {
   const label = String(value || '').trim().toLowerCase()
-  if (/^25(?:\s*m)?$/.test(label) || label === 'kortbana') return 25
-  if (/^50(?:\s*m)?$/.test(label) || label === 'långbana') return 50
+  if (/^25(?:\s*m(?:eter)?)?$/.test(label) || label === 'kortbana') return 25
+  if (/^50(?:\s*m(?:eter)?)?$/.test(label) || label === 'långbana') return 50
   return null
 }
 
@@ -101,17 +101,22 @@ function bestPerDay(points) {
 
 export function flightTimeSeries(practice, races, origins = new Map()) {
   const usablePractice = practice.filter(row => isTimeDate(row.result_date) && Number.isInteger(row.result_time) && row.result_time > 0)
-  const series = comparableSwimTimes(usablePractice).map(group => ({
-    key: 'practice:' + group.key,
-    label: group.description,
-    kind: group.items[0].kind === 'test' ? 'test' : 'training',
-    points: bestPerDay(group.items.map(row => ({
-      date: row.result_date,
-      centis: row.result_time,
-      source: origins.get(row.id) === 'coach' ? 'Registrerat av tränare'
-        : origins.get(row.id) === 'swimmer' ? 'Registrerat av simmaren' : 'Rapporterad tid',
-    }))),
-  }))
+  const series = comparableSwimTimes(usablePractice).map(group => {
+    const sample = group.items[0]
+    return {
+      key: 'practice:' + group.key,
+      label: group.description,
+      kind: sample.kind === 'test' ? 'test' : 'training',
+      raceReference: sample.exercise === 'full' && !sample.equipment?.length && !sample.conditions?.trim()
+        ? { distance: sample.distance_meters, stroke: sample.stroke, pool: sample.pool_length } : null,
+      points: bestPerDay(group.items.map(row => ({
+        date: row.result_date,
+        centis: row.result_time,
+        source: origins.get(row.id) === 'coach' ? 'Registrerat av tränare'
+          : origins.get(row.id) === 'swimmer' ? 'Registrerat av simmaren' : 'Rapporterad tid',
+      }))),
+    }
+  })
   const raceGroups = new Map()
   for (const row of races) {
     if (!isTimeDate(row.result_date) || !row.event?.trim()) continue

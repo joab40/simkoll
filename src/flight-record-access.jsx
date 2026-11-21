@@ -122,7 +122,7 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
     <button type="button" className="text-button" onClick={() => setAttempt(current => current + 1)}>Hämta igen</button>
   </div>
   if (!data) return <p className="empty" role="status">Hämtar formresan…</p>
-  const saveWeights = (weights, boostSettings) => request(weightsUrl + profileQuery, code, postOptions({ weights, boostSettings }))
+  const saveWeights = (weights, boostSettings, pbBoostSettings) => request(weightsUrl + profileQuery, code, postOptions({ weights, boostSettings, pbBoostSettings }))
   const saveMeasure = async input => {
     const result = await request('/api/training?flightRecord=measures' + profileQuery, code, postOptions(input))
     try {

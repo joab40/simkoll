@@ -5,6 +5,7 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import { flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
+import { defaultFlightPbSettings } from '../shared/flight-pb.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -38,10 +39,11 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   if (extended) profile.flight_record_sleep_goal_minutes = null
   if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
+  if (pb) profile.flight_record_pb_boost_settings = null
   const calls = []
   const measures = [], scores = new Map()
   t.mock.method(globalThis, 'fetch', async (input, options = {}) => {
@@ -66,6 +68,9 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       }
       if (!taper && query.get('select')?.split(',').includes('flight_record_boost_settings')) {
         return json({ code: '42703', message: 'column profiles.flight_record_boost_settings does not exist' }, 400)
+      }
+      if (!pb && query.get('select')?.split(',').includes('flight_record_pb_boost_settings')) {
+        return json({ code: '42703', message: 'column profiles.flight_record_pb_boost_settings does not exist' }, 400)
       }
       if (scope === 'is.null' && profile.flight_record_offer_id != null) return json([])
       if (scope === 'not.is.null' && profile.flight_record_offer_id == null) return json([])
@@ -108,7 +113,10 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       scores.set(`${body.metric_id}:${body.activity_date}`, body)
       return json([body])
     }
-    if (table === 'competition_results') return json([{ id: 'race', result_date: yesterday, event: '100 m Frisim', pool: '50m', result_time: 6201, source: 'tempus' }])
+    if (table === 'competition_results') {
+      if (query.get('source') === 'eq.tempus') return json([{ source: 'tempus', result_date: '2022-06-11', event: '100 m Frisim', pool: '25m', result_time: 6080 }])
+      return json([{ id: 'race', result_date: yesterday, event: '100 m Frisim', pool: '50m', result_time: 6201, source: 'tempus' }])
+    }
     if (table === 'profile_daily_sleep') return failSleep ? json({}, 503) : json(Array.from({ length: 35 }, (_, offset) => ({
       activity_date: coachWeekAddDays(today, -offset), minutes: 510, quality: 5,
     })))
@@ -291,6 +299,28 @@ test('taper preview and the opted-in swimmer graph use the same training history
   assert.deepEqual(swimmer.data.points.map(point => point.value), line.slice(-28).map(point => point.value))
   assert(line.at(-1).value < line.at(-1).base)
   assert.doesNotMatch(JSON.stringify(swimmer.data), /taper|load|rpe/)
+})
+
+test('PB boosts use complete Tempus history, persist settings and stay private in the swimmer projection', async (t) => {
+  const { profile, calls } = dbFixture(t, { state: 'active', pb: true })
+  const result = await call({ code: coach, mode: 'data', profileId: id })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.pbBoostSettingsAvailable, true)
+  assert.equal(result.data.timeLifts.find(point => point.date === today).referenceDate, '2022-06-11')
+  const history = calls.find(row => row.table === 'competition_results' && row.query.get('source') === 'eq.tempus')
+  assert.deepEqual(history.query.getAll('result_date'), [`lte.${today}`])
+  const boosted = await call({ mode: 'chart' })
+  assert.equal(boosted.code, 200)
+  assert.equal(boosted.data.points.at(-1).newTimeLift, true)
+  const pbBoostSettings = defaultFlightPbSettings()
+  pbBoostSettings.margins[100] = 50
+  const saved = await call({ code: coach, mode: 'weights', method: 'POST', profileId: id, body: { weights: defaultFlightWeights, pbBoostSettings } })
+  assert.deepEqual(saved.data.pbBoostSettings, pbBoostSettings)
+  assert.deepEqual(profile.flight_record_pb_boost_settings, pbBoostSettings)
+  const reduced = await call({ mode: 'chart' })
+  assert.equal(reduced.data.points.at(-1).newTimeLift, false)
+  assert(reduced.data.points.at(-1).value < boosted.data.points.at(-1).value)
+  assert.doesNotMatch(JSON.stringify(boosted.data), /referenceDate|Tempus|Frisim/)
 })
 
 test('revoked coaches, missing migration and revocation during a history read fail safely', async (t) => {

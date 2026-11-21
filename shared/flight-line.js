@@ -1,6 +1,7 @@
 import { coachWeekAddDays } from './coach-week.js'
 import { isTimeId } from './swim-times.js'
 import { boostFactor, defaultFlightBoostSettings, taperBoostSteps } from './flight-boosts.js'
+import { defaultFlightPbSettings, FLIGHT_PRACTICE_BOOST_DAYS, pbBoostFraction } from './flight-pb.js'
 
 export const FLIGHT_RECENT_DAYS = 7
 export const FLIGHT_BASELINE_DAYS = 28
@@ -126,31 +127,72 @@ function median(values) {
 // Time series are already split by conditions and contain one point per date.
 // Evaluate each improvement against earlier dates only. Keep the strongest
 // signal per date so a meet with several events yields at most one lift.
-export function flightTimeLifts(series) {
+export function flightTimeLifts(series, canLift = () => true) {
   const best = new Map()
   for (const group of series) {
     const points = group.points.map(point => ({ ...point, day: dayNumber(point.date) }))
     for (let index = 3, first = 0; index < points.length; index++) {
       const point = points[index]
       while (first < index && points[first].day < point.day - FLIGHT_TIME_BASELINE_DAYS) first++
-      if (index - first < 3) continue
+      if (index - first < 3 || !canLift(group, point)) continue
       const reference = Math.round(median(points.slice(first, index).map(row => row.centis)))
       const gain = reference - point.centis
       if (gain <= 0) continue
       const strength = Math.min(FLIGHT_MAX_TIME_LIFT, gain / reference * 200)
-      const lift = { date: point.date, label: group.label, centis: point.centis, reference, priorDays: index - first, strength }
+      const lift = { date: point.date, label: group.label, kind: group.kind, centis: point.centis, reference, priorDays: index - first, strength }
       if ((best.get(point.date)?.strength ?? 0) < strength) best.set(point.date, lift)
     }
   }
   return [...best.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-export function flightLine(days, contextDays, timeLifts, weights, customMeasures = [], taperAdjustments = [], boosts = defaultFlightBoostSettings) {
+function pickTimeLifts(timeLifts, timeBoost, pbBoosts, strength) {
+  const byDate = new Map()
+  for (const event of timeLifts) {
+    const practice = event.kind === 'training' || event.kind === 'test'
+    const kind = practice ? event.pbKind ?? 'progress' : 'race'
+    const settings = practice ? pbBoosts[kind] : timeBoost
+    const fraction = event.pbKind ? pbBoostFraction(event, pbBoosts) : event.strength / FLIGHT_MAX_TIME_LIFT
+    const peak = fraction * settings.maxSteps * strength / 100
+    if (!(peak > 0)) continue
+    if (!byDate.has(event.date)) byDate.set(event.date, new Map())
+    const byKind = byDate.get(event.date)
+    if (peak > (byKind.get(kind)?.peak ?? 0)) byKind.set(kind, { event, practice, peak, settings })
+  }
+  return byDate
+}
+
+function timeEffect(date, liftByDate, timeBoost, strength) {
+  const raceCap = timeBoost.maxSteps * strength / 100
+  const length = Math.max(FLIGHT_PRACTICE_BOOST_DAYS, timeBoost.fullDays + timeBoost.fadeDays)
+  const raceEvents = []
+  let raceTotal = 0
+  let practiceEvent = null
+  for (let age = 0; age < length; age++) {
+    const lifts = liftByDate.get(coachWeekAddDays(date, -age))
+    if (!lifts) continue
+    for (const lift of lifts.values()) {
+      const contribution = lift.peak * boostFactor(age, lift.settings)
+      if (contribution <= 0) continue
+      const event = { ...lift.event, contribution }
+      if (!lift.practice) {
+        raceEvents.push(event)
+        raceTotal += contribution
+      } else if (contribution > (practiceEvent?.contribution ?? 0)) practiceEvent = event
+    }
+  }
+  const raceLift = Math.min(raceTotal, raceCap)
+  return practiceEvent && practiceEvent.contribution >= raceLift
+    ? { lift: practiceEvent.contribution, events: [practiceEvent] }
+    : { lift: raceLift, events: raceEvents }
+}
+
+export function flightLine(days, contextDays, timeLifts, weights, customMeasures = [], taperAdjustments = [], boosts = defaultFlightBoostSettings, pbBoosts = defaultFlightPbSettings(boosts.times)) {
   const wanted = [...FLIGHT_SIGNALS, ...customMeasures].filter(signal => weights[signal.key] > 0)
   const selectedWeights = Object.entries(weights).filter(([key, weight]) => !['times', 'taper'].includes(key) && weight > 0)
   const totalWeight = selectedWeights.reduce((total, [, weight]) => total + weight, 0)
   const byDate = new Map([...contextDays, ...days].map(day => [day.date, day]))
-  const liftByDate = new Map(timeLifts.map(lift => [lift.date, lift]))
+  const liftByDate = pickTimeLifts(timeLifts, boosts.times, pbBoosts, weights.times)
   const taperByDate = new Map(taperAdjustments.map(adjustment => [adjustment.date, adjustment]))
   return days.map(day => {
     const window = Array.from({ length: FLIGHT_RECENT_DAYS + FLIGHT_BASELINE_DAYS }, (_, offset) => coachWeekAddDays(day.date, -offset))
@@ -169,15 +211,8 @@ export function flightLine(days, contextDays, timeLifts, weights, customMeasures
     const usedWeight = available.reduce((total, component) => total + component.weight, 0)
     const enough = available.length >= Math.min(2, selectedWeights.length) && usedWeight > 0 && usedWeight * 2 >= totalWeight
     const base = enough ? available.reduce((total, component) => total + component.score * component.weight, 0) / usedWeight : null
-    const events = []
-    const timeCap = boosts.times.maxSteps * weights.times / 100
-    if (timeCap > 0) {
-      for (let age = 0; age < boosts.times.fullDays + boosts.times.fadeDays; age++) {
-        const event = liftByDate.get(coachWeekAddDays(day.date, -age))
-        if (event) events.push({ ...event, contribution: event.strength / FLIGHT_MAX_TIME_LIFT * boostFactor(age, boosts.times) * timeCap })
-      }
-    }
-    const timeLift = base == null ? null : Math.min(100 - base, timeCap, events.reduce((total, event) => total + event.contribution, 0))
+    const { lift, events } = liftByDate.size ? timeEffect(day.date, liftByDate, boosts.times, weights.times) : { lift: 0, events: [] }
+    const timeLift = base == null ? null : Math.min(100 - base, lift)
     const taper = weights.taper > 0 ? taperByDate.get(day.date) : null
     const withTimeLift = base == null ? null : base + timeLift
     const taperSteps = taper ? taperBoostSteps(taper, boosts.taper) * weights.taper / 100 : 0

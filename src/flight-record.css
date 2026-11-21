@@ -176,6 +176,7 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-weights .flight-weight-total { font-size: .86rem; font-weight: 700; }
 .flight-weight-lift { background: #edf7f0; }
 .flight-measure-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 8px 12px; }
+.flight-pb-margins { margin-top: 8px; }
 .flight-measure-fields label { display: grid; align-content: start; gap: 5px; min-width: 0; font-weight: 650; font-size: .9rem; }
 .flight-measure-fields :is(input, select) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 7px 9px; font: inherit; font-size: 16px; color: var(--flight-ink); border: 1px solid var(--flight-line); border-radius: 8px; background: white; }
 .flight-measure-settings fieldset > p, .flight-weight-group > p { color: var(--flight-muted); font-size: .88rem; }

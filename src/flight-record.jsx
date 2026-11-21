@@ -4,6 +4,7 @@ import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
+import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, defaultFlightPbSettings, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_METRICS } from '../shared/flight-taper.js'
 import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
@@ -246,25 +247,54 @@ const boostFields = [
   ['fadeDays', 'Avtoning (dagar)', 0, FLIGHT_BOOST_MAX_DAYS],
 ]
 
-function FlightBoostFields({ settings, kind, onChange, saving }) {
+function FlightBoostFields({ settings, kind, onChange, saving, maxDays = FLIGHT_BOOST_MAX_DAYS }) {
   return <div className="flight-measure-fields">
     {boostFields.filter(([key]) => Object.hasOwn(settings[kind], key)).map(([key, label, min, max]) => <label key={key}>
       {label}
-      <input type="number" inputMode="numeric" min={min} max={max} step={1} disabled={saving} value={settings[kind][key]}
+      <input type="number" inputMode="numeric" min={min} max={key.endsWith('Days') ? maxDays : max} step={1} disabled={saving} value={settings[kind][key]}
         onChange={event => onChange(kind, key, event.target.value === '' ? '' : event.target.valueAsNumber)} />
     </label>)}
   </div>
 }
 
-function FlightBoostControls({ weights, onChange, taperAvailable, configAvailable, config, onConfigChange, configError, ...actions }) {
+const practiceBoostLabels = [
+  ['near', 'Nära Tempus-PB'],
+  ['faster', 'Snabbare än Tempus-PB'],
+  ['progress', 'Egen utveckling'],
+]
+
+function FlightPracticeBoostFields({ config, onChange, saving }) {
+  return <>
+    <p>Träningstider och testlopp får full effekt och avtoning i sammanlagt högst sju dagar. Maxlyft på 0 stänger av en boost.</p>
+    {practiceBoostLabels.map(([kind, label]) => <fieldset className="flight-weight-group" key={kind}>
+      <legend>{label}</legend>
+      <FlightBoostFields settings={config} kind={kind} onChange={onChange} saving={saving} maxDays={FLIGHT_PRACTICE_BOOST_DAYS} />
+      {kind === 'near' && <div className="flight-measure-fields flight-pb-margins">
+        {FLIGHT_PB_DISTANCES.map(distance => <label key={distance}>Gräns för {distance} m (sekunder)
+          <input type="number" inputMode="decimal" min={0} step={.01} disabled={saving}
+            value={config.margins[distance] === '' ? '' : config.margins[distance] / 100}
+            onChange={event => onChange('margins', distance, event.target.value === '' ? '' : Math.round(event.target.valueAsNumber * 100))} />
+        </label>)}
+      </div>}
+      {kind === 'progress' && <p>Jämför med tidigare pass under samma förutsättningar när ett jämförbart Tempus-PB saknas.</p>}
+    </fieldset>)}
+  </>
+}
+
+function FlightBoostControls({ weights, onChange, taperAvailable, configAvailable, config, onConfigChange,
+  pbAvailable, pbConfig, onPbChange, configError, ...actions }) {
   return <details className="flight-weights">
     <summary>Boostar{actions.dirty ? ' · osparade ändringar' : ''}</summary>
     <p>Ställ in varje justering för sig. Flight-linjen uppdateras direkt när du provar en procentsats.</p>
     <fieldset className="flight-weight-group flight-weight-lift">
       <legend>Simmade tider</legend>
       <FlightWeightRow signal="times" label="Lyft från simtider" weights={weights} onChange={onChange} saving={actions.saving} canSelect />
-      {configAvailable && <FlightBoostFields settings={config} kind="times" onChange={onConfigChange} saving={actions.saving} />}
-      <p>Procenten styr hur stor del av maxlyftet en snabbare jämförbar simtid kan ge.</p>
+      <p>Procenten styr hur stor del av maxlyftet en tid kan ge.</p>
+      {pbAvailable && <FlightPracticeBoostFields config={pbConfig} onChange={onPbChange} saving={actions.saving} />}
+      {configAvailable && <fieldset className="flight-weight-group">
+        <legend>Tävlingsresultat</legend>
+        <FlightBoostFields settings={config} kind="times" onChange={onConfigChange} saving={actions.saving} />
+      </fieldset>}
     </fieldset>
     <fieldset className="flight-weight-group flight-weight-lift">
       <legend>Träning</legend>
@@ -306,10 +336,17 @@ function FlightLineDetail({ point }) {
     {events.length > 0 && <ul className="flight-time-evidence">
       {events.map(event => <li key={event.date}>
         <strong>{shortDate(event.date)} · {formatTrainingTime(event.centis)}</strong>
-        <span>{event.label} · {number((event.reference - event.centis) / 100, 2)} s snabbare än medianen från {event.priorDays} tidigare jämförbara dagar.</span>
+        <span>{event.label} · {timeEvidence(event)}</span>
       </li>)}
     </ul>}
   </div>
+}
+
+function timeEvidence(event) {
+  if (!event.pbKind) return `${number((event.reference - event.centis) / 100, 2)} s snabbare än medianen från ${event.priorDays} tidigare jämförbara dagar.`
+  const delta = event.centis - event.reference
+  const difference = delta === 0 ? 'I nivå med' : `${number(Math.abs(delta) / 100, 2)} s ${delta < 0 ? 'snabbare än' : 'bakom'}`
+  return `${difference} Tempus-PB ${formatTrainingTime(event.reference)} (${shortDate(event.referenceDate)}).`
 }
 
 export function FlightRecordView({ data, competitions = [], saveWeights, saveMeasure }) {
@@ -323,6 +360,8 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
   const [weights, setWeights] = useState(() => readFlightWeights(data.weights))
   const [savedBoostSettings, setSavedBoostSettings] = useState(() => readFlightBoostSettings(data.boostSettings))
   const [boostSettings, setBoostSettings] = useState(() => readFlightBoostSettings(data.boostSettings))
+  const [savedPbSettings, setSavedPbSettings] = useState(() => readFlightPbSettings(data.pbBoostSettings, savedBoostSettings.times))
+  const [pbSettings, setPbSettings] = useState(savedPbSettings)
   const [saving, setSaving] = useState(false)
   const [weightMessage, setWeightMessage] = useState({ text: '' })
   const saveLock = useRef(false)
@@ -330,26 +369,39 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
     .filter(key => (weights[key] ?? 0) !== (savedWeights[key] ?? 0))
   const boostConfigChanged = Object.entries(boostSettings).some(([kind, config]) =>
     Object.entries(config).some(([key, value]) => savedBoostSettings[kind][key] !== value))
+    || JSON.stringify(pbSettings) !== JSON.stringify(savedPbSettings)
   let configError = ''
   try { validateFlightBoostSettings(boostSettings) } catch (error) { configError = error.message }
   const previewBoostSettings = configError ? savedBoostSettings : boostSettings
+  let pbError = ''
+  if (data.pbBoostSettingsAvailable) {
+    try { validateFlightPbSettings(pbSettings) } catch (error) { pbError = error.message }
+  }
+  const previewPbSettings = data.pbBoostSettingsAvailable ? (pbError ? savedPbSettings : pbSettings) : undefined
   const weighted = section === 'line'
   const customMeasures = data.customMeasures ?? []
-  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights, data.customMeasures, data.taperAdjustments, previewBoostSettings), [data, weights, previewBoostSettings])
+  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights, data.customMeasures, data.taperAdjustments, previewBoostSettings, previewPbSettings), [data, weights, previewBoostSettings, previewPbSettings])
   const save = async (panel) => {
     const savingBoosts = panel === 'boosts'
-    if ((!changedKeys.length && !boostConfigChanged) || saveLock.current || !data.weightsAvailable || !saveWeights || (savingBoosts && configError)) return
+    if ((!changedKeys.length && !boostConfigChanged) || saveLock.current || !data.weightsAvailable || !saveWeights || (savingBoosts && (configError || pbError))) return
     saveLock.current = true
     setSaving(true)
     setWeightMessage({ text: '' })
     const pending = savingBoosts ? { ...savedWeights, ...boostWeights(weights) } : { ...weights, ...boostWeights(savedWeights) }
     try {
-      const result = await saveWeights(pending, savingBoosts && data.boostSettingsAvailable ? boostSettings : undefined)
+      const result = await saveWeights(pending,
+        savingBoosts && data.boostSettingsAvailable ? boostSettings : undefined,
+        savingBoosts && data.pbBoostSettingsAvailable ? pbSettings : undefined)
       setWeights(current => savingBoosts ? { ...current, ...boostWeights(result.weights) } : { ...result.weights, ...boostWeights(current) })
       setSavedWeights(result.weights)
       if (result.boostSettings) {
         setSavedBoostSettings(result.boostSettings)
         setBoostSettings(result.boostSettings)
+      }
+      if (result.pbBoostSettings) {
+        const saved = readFlightPbSettings(result.pbBoostSettings)
+        setSavedPbSettings(saved)
+        setPbSettings(saved)
       }
       setWeightMessage({ panel, text: savingBoosts ? 'Boostarna är sparade.' : 'Vikterna är sparade.' })
     } catch (error) {
@@ -421,7 +473,11 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
           setWeightMessage({ text: '' })
         }} />
       <FlightBoostControls {...settings} taperAvailable={data.taperAvailable} configAvailable={data.boostSettingsAvailable}
-        config={boostSettings} configError={configError}
+        pbAvailable={data.pbBoostSettingsAvailable} pbConfig={pbSettings} config={boostSettings} configError={configError || pbError}
+        onPbChange={(kind, key, value) => {
+          setPbSettings(current => ({ ...current, [kind]: { ...current[kind], [key]: value } }))
+          setWeightMessage({ text: '' })
+        }}
         onConfigChange={(kind, key, value) => {
           setBoostSettings(current => ({ ...current, [kind]: { ...current[kind], [key]: value } }))
           setWeightMessage({ text: '' })
@@ -430,6 +486,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
         onReset={() => {
           setWeights(current => ({ ...current, ...boostWeights(defaultFlightWeights) }))
           setBoostSettings(defaultFlightBoostSettings)
+          setPbSettings(defaultFlightPbSettings())
           setWeightMessage({ text: '' })
         }} />
     </>}
@@ -467,7 +524,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
     <details className="flight-method">
       <summary>Så läser du formresan</summary>
       <p>Flight-linjen jämför simmarens snitt från sju dagar med medianen från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Vikterna styr hur mycket varje mått påverkar linjen.</p>
-      <p>Ett tidslyft kräver minst tre tidigare jämförbara simdagar under 56 dagar. Varje dags bästa förbättring kan lyfta linjen under den tid tränaren valt.</p>
+      <p>Testlopp och träningstider för hela distansen utan hjälpmedel jämförs med ett tidigare Tempus-PB i samma gren och bassänglängd. När ett sådant PB saknas kan en förbättring mot medianen från minst tre jämförbara simdagar under de senaste 56 dagarna ge ett lyft. Full effekt och avtoning varar tillsammans i högst sju dagar från passdatumet.</p>
       <p>Toppning och vila använder registrerade vilodagar och genomförda pass. En tydlig sänkning kräver underlag från minst fem dagar den senaste veckan och jämförs med simmarens tidigare träningsnivå. Simmeter kan även komma från ett kopplat pass. Justeringen läggs på dagar där Flight-linjen har ett grundvärde.</p>
       <p>Testlopp och träningstider jämförs med samma distans, simsätt, bassäng, start, hjälpmedel, tidtagning och övriga förutsättningar. Varje punkt visar dagens snabbaste tid i serien. Tävlingsresultat ligger för sig.</p>
       <p>Luckor är dagar utan ett värde i underlaget. När tävlingsmålet ligger nära visas tävlingsdagen till höger i grafen.</p>
