@@ -23,6 +23,7 @@ import { loadPersonalTraining, savePersonalTraining } from '../server/personal-t
 import { diaryWorkoutChoices, saveDiaryWorkoutChoice } from '../server/diary-workout-choice.js'
 import { saveDrylandLog, authorizeDrylandCoach } from '../server/dryland-program.js'
 import { handleLaneUsage } from '../server/lane-usage.js'
+import { handleFlightRecord } from '../server/flight-record.js'
 
 const mapProgram = (program) => program ? ({ id: program.id, type: program.program_type, title: program.title, description: program.description, content: program.content, startDate: program.start_date, endDate: program.end_date, active: program.active, exerciseImages: program.exercise_images || [] }) : null
 const mapSeasonGoal = (goal) => ({ id: goal.id, profileId: goal.profile_id, title: goal.title, target: goal.target_sessions_per_week, startDate: goal.start_date, endDate: goal.end_date, reflection: goal.reflection || '', active: goal.active })
@@ -156,6 +157,7 @@ export default async function handler(request, response) {
   const code = String(request.headers['x-simkoll-code'] || '')
   const role = getRole(code)
   try {
+    if (request.query?.flightRecord !== undefined) return await handleFlightRecord(request, response, role)
     if(request.query?.laneUsage || ['save-lane-settings','save-lane-measurement'].includes(request.body?.action)) return await handleLaneUsage(request,response)
     if ((request.method==='GET' && request.query?.diaryChoices==='true') || (request.method==='POST' && request.body?.action==='diary-workout-choice')) {
       response.setHeader?.('Cache-Control','private, no-store')

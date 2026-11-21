@@ -20,7 +20,7 @@ async function rows(query, { optional = false, warnings, label }) {
   return all
 }
 
-export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true } = {}) {
+export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true, includeGoals = true } = {}) {
   const range = diaryRange(start, end, stockholmDate())
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${includeComparison ? range.previousStart : start}&${field}=lt.${range.endExclusive}`
@@ -34,8 +34,8 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     read(`session_attendance?${owner}&${within('attendance_date')}&present=eq.true&select=attendance_date,session_slot,present,marked_at&order=attendance_date.asc,marked_at.asc`, 'tränarens närvaromarkeringar', true),
     read(`strength_program_logs?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'styrkeloggar', true),
     read(`program_assignments?${owner}&select=id,training_programs(title,content)&order=id.asc`, 'styrkeprogram', true),
-    read(`competition_results?${owner}&${within('result_date')}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`, 'tävlingsresultat', true),
-    read(`development_goals?${owner}&start_date=lte.${end}&select=id,title,description,next_step,start_date,target_date,status&order=start_date.desc,id.asc`, 'utvecklingsmål', true),
+    includeResults ? read(`competition_results?${owner}&${within('result_date')}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`, 'tävlingsresultat', true) : [],
+    includeGoals ? read(`development_goals?${owner}&start_date=lte.${end}&select=id,title,description,next_step,start_date,target_date,status&order=start_date.desc,id.asc`, 'utvecklingsmål', true) : [],
     includeReflections ? read(`training_diary_reflections?${owner}&${within('activity_date')}&select=entry_key,activity_date,what_worked,next_time,updated_at&order=activity_date.asc,id.asc`, 'dagboksanteckningar (kräver migration 095)', true) : Promise.resolve([]),
     read(`workout_unlocks?${owner}&workout_date=eq.${stockholmDate()}&select=profile_id&order=profile_id.asc`, 'dagens passåtkomst'),
     read(`dryland_program_logs?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'landträningsloggar (kräver SQL 111)', true),
