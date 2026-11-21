@@ -86,7 +86,7 @@ export function flightPbCandidates(series, referenceFor, start) {
       const reference = referenceFor(group.raceReference, point.date)
       if (!reference) return []
       return [{
-        date: point.date, label: group.label, kind: group.kind, centis: point.centis,
+        date: point.date, label: group.label, seriesKey: group.key, kind: group.kind, centis: point.centis,
         distance: group.raceReference.distance, reference: reference.centis, referenceDate: reference.date,
         pbKind: point.centis < reference.centis ? 'faster' : 'near',
       }]

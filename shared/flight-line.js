@@ -124,24 +124,27 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
-// Time series are already split by conditions and contain one point per date.
-// Evaluate each improvement against earlier dates only. Keep the strongest
-// signal per date so a meet with several events yields at most one lift.
-export function flightTimeLifts(series, canLift = () => true) {
-  const best = new Map()
+// Time series are split by conditions and contain one point per date.
+export function* flightTimeComparisons(series, include) {
   for (const group of series) {
     const points = group.points.map(point => ({ ...point, day: dayNumber(point.date) }))
-    for (let index = 3, first = 0; index < points.length; index++) {
+    for (let index = 0, first = 0; index < points.length; index++) {
       const point = points[index]
       while (first < index && points[first].day < point.day - FLIGHT_TIME_BASELINE_DAYS) first++
-      if (index - first < 3 || !canLift(group, point)) continue
-      const reference = Math.round(median(points.slice(first, index).map(row => row.centis)))
-      const gain = reference - point.centis
-      if (gain <= 0) continue
-      const strength = Math.min(FLIGHT_MAX_TIME_LIFT, gain / reference * 200)
-      const lift = { date: point.date, label: group.label, kind: group.kind, centis: point.centis, reference, priorDays: index - first, strength }
-      if ((best.get(point.date)?.strength ?? 0) < strength) best.set(point.date, lift)
+      if (include && !include(group, point)) continue
+      const priorDays = index - first
+      const reference = priorDays >= 3 ? Math.round(median(points.slice(first, index).map(row => row.centis))) : null
+      const strength = reference > point.centis ? Math.min(FLIGHT_MAX_TIME_LIFT, (reference - point.centis) / reference * 200) : 0
+      yield { date: point.date, label: group.label, seriesKey: group.key, kind: group.kind, centis: point.centis, reference, priorDays, strength }
     }
+  }
+}
+
+// Keep the strongest signal per date so a meet yields at most one lift.
+export function flightTimeLifts(series, canLift) {
+  const best = new Map()
+  for (const lift of flightTimeComparisons(series, canLift)) {
+    if (lift.strength > (best.get(lift.date)?.strength ?? 0)) best.set(lift.date, lift)
   }
   return [...best.values()].sort((a, b) => a.date.localeCompare(b.date))
 }

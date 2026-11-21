@@ -12,7 +12,7 @@ import { FLIGHT_HISTORY_DAYS, flightRecordDays, flightTimeSeries } from '../shar
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_CONTEXT_DAYS, flightTaperAdjustments } from '../shared/flight-taper.js'
-import { FLIGHT_BASELINE_DAYS, FLIGHT_RECENT_DAYS, FLIGHT_TIME_BASELINE_DAYS, FLIGHT_SIGNALS, flightLine, flightTimeLifts, readFlightWeights, sleepGoalScore, validateFlightWeights } from '../shared/flight-line.js'
+import { FLIGHT_BASELINE_DAYS, FLIGHT_RECENT_DAYS, FLIGHT_TIME_BASELINE_DAYS, FLIGHT_SIGNALS, flightLine, flightTimeComparisons, flightTimeLifts, readFlightWeights, sleepGoalScore, validateFlightWeights } from '../shared/flight-line.js'
 
 const configuredProfile = 'active=eq.true&approval_status=eq.approved'
 const accessFields = 'flight_record_offer_id,flight_record_choice'
@@ -117,10 +117,11 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const practiceStart = coachWeekAddDays(start, 1 - FLIGHT_PRACTICE_BOOST_DAYS)
   const referenceFor = tempusPbLookup(tempus.value ?? [])
   const raceLifts = flightTimeLifts(history.filter(group => group.kind === 'race')).filter(lift => lift.date >= firstLiftDay)
-  const practiceLifts = tempus.status === 'fulfilled' ? [
+  const practiceChecks = [
     ...flightPbCandidates(practiceSeries, referenceFor, practiceStart),
-    ...flightTimeLifts(practiceSeries, (group, point) => point.date >= practiceStart && !referenceFor(group.raceReference, point.date)),
-  ] : []
+    ...flightTimeComparisons(practiceSeries, (group, point) => point.date >= practiceStart && !referenceFor(group.raceReference, point.date)),
+  ]
+  const practiceLifts = tempus.status === 'fulfilled' ? practiceChecks.filter(time => time.pbKind || time.strength > 0) : []
   const timeLifts = [...practiceLifts, ...raceLifts]
   if (chartOnly) {
     const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings).map(point => ({
@@ -151,6 +152,9 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
       date: day.date, ...Object.fromEntries(signalKeys.map(key => [key, day[key] ?? null])),
     })),
     timeLifts,
+    practiceChecks: practiceChecks.filter(time => time.date >= start),
+    practiceTimesAvailable: practice.status === 'fulfilled',
+    tempusHistoryAvailable: tempus.status === 'fulfilled',
     series,
   }
 }

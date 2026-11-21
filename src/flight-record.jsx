@@ -4,7 +4,7 @@ import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
-import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, defaultFlightPbSettings, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
+import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, defaultFlightPbSettings, pbBoostFraction, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_METRICS } from '../shared/flight-taper.js'
 import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
@@ -119,15 +119,16 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
       {path && <path className="flight-observed-line" d={path} fill="none" />}
       {points.filter(point => Number.isFinite(point.value)).map(point => {
         const label = `${shortDate(point.date)} · ${pointValue(point.value)}`
+        const liftLabel = point.timeLift > 0 ? `${label} · Tidsboost +${number(point.timeLift)} steg` : label
         const marked = point.date === selected ? ' selected' : ''
         const onClick = onSelect ? () => onSelect(point.date) : undefined
         if (point.newTimeLift || (point.timeLift > 0 && point.events.some(event => event.date === point.date))) {
           const cx = x(point.date), cy = y(point.value), size = marked ? 7 : 5.5
-          return <path key={point.date} className="flight-lift-mark" d={`M ${cx} ${cy - size} l ${size} ${size} l ${-size} ${size} l ${-size} ${-size} Z`} onClick={onClick}><title>{label} · tidslyft</title></path>
+          return <path key={point.date} className="flight-lift-mark" d={`M ${cx} ${cy - size} l ${size} ${size} l ${-size} ${size} l ${-size} ${-size} Z`} onClick={onClick}><title>{point.newTimeLift ? `${label} · Nytt tidslyft` : liftLabel}</title></path>
         }
         return metric.bars && !timed
           ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={onClick}><title>{label}</title></rect>
-          : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{label}</title></circle>
+          : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
       })}
       {!values.length && <text className="flight-empty-label" x={(left + right) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
       <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>
@@ -309,12 +310,50 @@ function FlightBoostControls({ weights, onChange, taperAvailable, configAvailabl
   </details>
 }
 
-function FlightLineDetail({ point }) {
-  const { components, value, base, timeLift, taper, taperEffect, events, usedWeight, totalWeight } = point
+function PracticeTimeBoost({ point, checks, available, tempusAvailable, weight, settings }) {
+  const { value, timeLift, events } = point
+  const applied = timeLift > 0 ? events : []
+  const other = checks.filter(time => !applied.some(event => event.date === time.date && event.seriesKey === time.seriesKey))
+  const status = value == null ? 'Grundvärde saknas' : timeLift > 0 ? `+${number(timeLift)} steg` : '0 steg'
+  const reason = time => {
+    if (!tempusAvailable) return 'Tempus-historiken kunde inte hämtas.'
+    if (!weight) return 'Lyft från simtider är avstängt under Boostar.'
+    if (!settings[time.pbKind ?? 'progress'].maxSteps) return 'Maxlyftet för den här jämförelsen är 0 steg.'
+    if (time.pbKind && !pbBoostFraction(time, settings)) {
+      const margin = settings.margins[time.distance]
+      return margin ? `Tiden ligger utanför gränsen på ${number(margin / 100, 2)} s.` : 'Ingen marginal är inställd för distansen.'
+    }
+    if (time.reference == null) return `Jämförbart Tempus-PB saknas. Egen utveckling kräver 3 tidigare jämförbara dagar inom 56 dagar (${time.priorDays} hittades).`
+    if (!time.pbKind && time.strength === 0) return 'Egen utveckling ger ett lyft när tiden är snabbare än medianen.'
+    if (value == null) return 'Tidsboosten behöver ett grundvärde för dagen.'
+    if (point.base === 100) return 'Grundvärdet är redan 100.'
+    if (timeLift > 0) return 'Ett annat tidslyft räknas den här dagen.'
+    return 'Effekten på grafen avrundas till 0 steg.'
+  }
+  return <section className={timeLift > 0 ? 'flight-time-boost active' : 'flight-time-boost'} aria-label="Tidsboost">
+    <header><b>Tidsboost</b><span>{status}</span></header>
+    {available === false && <p>Tränings- och testtider kunde inte hämtas.</p>}
+    {available === true && !checks.length && !applied.length && <p>Dagen saknar registrerade tränings- och testtider.</p>}
+    {(applied.length > 0 || other.length > 0) && <ul className="flight-time-evidence">
+      {applied.map(event => <li key={event.date}>
+        <strong>{shortDate(event.date)} · {formatTrainingTime(event.centis)}</strong>
+        <span>{event.label} · {timeEvidence(event)}</span>
+      </li>)}
+      {other.map(time => <li key={time.seriesKey}>
+        <strong>{formatTrainingTime(time.centis)} · {time.label}</strong>
+        {time.reference != null && tempusAvailable && <span>{timeEvidence(time)}</span>}
+        <span>{reason(time)}</span>
+      </li>)}
+    </ul>}
+  </section>
+}
+
+function FlightLineDetail({ point, practiceChecks, practiceAvailable, tempusAvailable, timeWeight, pbSettings }) {
+  const { components, value, base, taper, taperEffect, usedWeight, totalWeight } = point
   const usable = components.filter(component => component.score != null)
   return <div className="flight-day-detail" aria-live="polite">
     <small>{shortDate(point.date)}</small>
-    <div><strong>{value == null ? 'För lite underlag' : number(value)}</strong>{timeLift > 0 && <span>⚡ +{number(timeLift)} från simtider</span>}
+    <div><strong>{value == null ? 'För lite underlag' : number(value)}</strong>
       {Boolean(taperEffect) && <span className={taperEffect < 0 ? 'flight-negative-adjustment' : ''}>{taperEffect > 0 ? '+' : ''}{number(taperEffect)} från träning</span>}
     </div>
     {value != null && <p>Grundvärde {number(base)} · {usable.length} av {components.length} valda signaler med underlag</p>}
@@ -322,6 +361,7 @@ function FlightLineDetail({ point }) {
     {taper?.kind === 'reduced' && <p>Dag {taper.duration} med lättare träning. {taper.lower.map(item => `${FLIGHT_TAPER_METRICS[item.key]} ${number((1 - item.ratio) * 100, 0)} % lägre`).join(' · ')} jämfört med perioden före sänkningen.</p>}
     {!components.length && <p>Välj minst ett mått under Vikta signaler.</p>}
     {components.length > 0 && value == null && <p>{usable.length} av {components.length} valda signaler har underlag. Minst två behövs när flera är valda, med minst halva den valda vikten.</p>}
+    <PracticeTimeBoost point={point} checks={practiceChecks} available={practiceAvailable} tempusAvailable={tempusAvailable} weight={timeWeight} settings={pbSettings} />
     {components.length > 0 && <details className="flight-method">
       <summary>Vad påverkade linjen?</summary>
       <ul className="flight-contributions">
@@ -333,17 +373,15 @@ function FlightLineDetail({ point }) {
       </ul>
       {usedWeight < totalWeight && <p>Övriga valda signaler saknar tillräckligt underlag för dagen.</p>}
     </details>}
-    {events.length > 0 && <ul className="flight-time-evidence">
-      {events.map(event => <li key={event.date}>
-        <strong>{shortDate(event.date)} · {formatTrainingTime(event.centis)}</strong>
-        <span>{event.label} · {timeEvidence(event)}</span>
-      </li>)}
-    </ul>}
   </div>
 }
 
 function timeEvidence(event) {
-  if (!event.pbKind) return `${number((event.reference - event.centis) / 100, 2)} s snabbare än medianen från ${event.priorDays} tidigare jämförbara dagar.`
+  if (!event.pbKind) {
+    const delta = event.reference - event.centis
+    const comparison = delta === 0 ? 'Samma tid som' : `${number(Math.abs(delta) / 100, 2)} s ${delta > 0 ? 'snabbare' : 'långsammare'} än`
+    return `${comparison} medianen ${formatTrainingTime(event.reference)} från ${event.priorDays} tidigare jämförbara dagar.`
+  }
   const delta = event.centis - event.reference
   const difference = delta === 0 ? 'I nivå med' : `${number(Math.abs(delta) / 100, 2)} s ${delta < 0 ? 'snabbare än' : 'bakom'}`
   return `${difference} Tempus-PB ${formatTrainingTime(event.reference)} (${shortDate(event.referenceDate)}).`
@@ -517,7 +555,9 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
         </select>
       </label>
     </div> : <p>Välj ett eller flera mått att visa.</p>}
-    {linePoint ? <FlightLineDetail point={linePoint} /> : plots.length > 0 && <div className="flight-day-list">
+    {linePoint ? <FlightLineDetail point={linePoint} practiceChecks={data.practiceChecks?.filter(time => time.date === day.date) ?? []}
+      practiceAvailable={data.practiceTimesAvailable} tempusAvailable={data.tempusHistoryAvailable}
+      timeWeight={weights.times} pbSettings={previewPbSettings ?? defaultFlightPbSettings(previewBoostSettings.times)} /> : plots.length > 0 && <div className="flight-day-list">
       {plots.map(({ metric }) => <DayDetail key={metric.key} day={day} metric={metric} timed={timed} series={series} timedPoints={timedPoints} showMetric={plots.length > 1} />)}
     </div>}
     {data.warnings.length > 0 && <details className="flight-method"><summary>Underlag som saknas</summary><ul>{data.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}

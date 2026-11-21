@@ -183,7 +183,10 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-metric-picker { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .flight-weights .flight-actions { margin-bottom: 12px; }
 .flight-contributions, .flight-time-evidence { display: grid; gap: 8px; padding: 0; margin: 5px 0 0; list-style: none; }
-.flight-time-evidence { margin-top: 12px; }
+.flight-time-boost { margin-top: 12px; padding: 8px 12px; border: 1px solid var(--flight-line); border-radius: 10px; background: #f8fbfa; }
+.flight-time-boost.active { background: #fff7dc; border-color: #e8d494; }
+.flight-time-boost > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.flight-time-boost > header span { color: var(--flight-ink); }
 .flight-contributions li, .flight-time-evidence li { display: grid; gap: 2px; padding: 7px 0 0; border-top: 1px solid var(--flight-line); }
 .flight-day-detail li strong { font-size: inherit; letter-spacing: 0; }
 .flight-day-detail li span { color: var(--flight-muted); font-weight: 400; font-size: .9rem; }

@@ -307,6 +307,9 @@ test('PB boosts use complete Tempus history, persist settings and stay private i
   assert.equal(result.code, 200)
   assert.equal(result.data.pbBoostSettingsAvailable, true)
   assert.equal(result.data.timeLifts.find(point => point.date === today).referenceDate, '2022-06-11')
+  assert.equal(result.data.practiceTimesAvailable, true)
+  assert.equal(result.data.tempusHistoryAvailable, true)
+  assert.equal(result.data.practiceChecks.find(point => point.date === yesterday).reference, 6080)
   const history = calls.find(row => row.table === 'competition_results' && row.query.get('source') === 'eq.tempus')
   assert.deepEqual(history.query.getAll('result_date'), [`lte.${today}`])
   const boosted = await call({ mode: 'chart' })
@@ -320,7 +323,17 @@ test('PB boosts use complete Tempus history, persist settings and stay private i
   const reduced = await call({ mode: 'chart' })
   assert.equal(reduced.data.points.at(-1).newTimeLift, false)
   assert(reduced.data.points.at(-1).value < boosted.data.points.at(-1).value)
-  assert.doesNotMatch(JSON.stringify(boosted.data), /referenceDate|Tempus|Frisim/)
+  assert.doesNotMatch(JSON.stringify(boosted.data), /practiceChecks|referenceDate|Tempus|Frisim/)
+})
+
+test('the selected time can be explained in the coach view even without three earlier days', async (t) => {
+  dbFixture(t)
+  const { data } = await call({ code: coach, mode: 'data', profileId: id })
+  const time = data.practiceChecks.find(point => point.date === today)
+  assert.equal(time.centis, trial.result_time)
+  assert.equal(time.reference, null)
+  assert.equal(time.priorDays, 1)
+  assert.equal(data.timeLifts.some(point => point.date === today), false)
 })
 
 test('revoked coaches, missing migration and revocation during a history read fail safely', async (t) => {
