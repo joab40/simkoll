@@ -27,6 +27,9 @@ function access(row) {
 async function checkAccessResult(result, migration = 134) {
   if (result.ok) return result.json()
   const detail = await result.json().catch(() => null)
+  if (detail?.code === '23514' && detail.message?.includes('profiles_flight_record_weights_check')) {
+    throw Object.assign(new Error('Procentvikter kräver databasuppdatering 136.'), { status: 503 })
+  }
   if (['42703', 'PGRST204'].includes(detail?.code)) {
     throw Object.assign(new Error(`Flight Record kräver databasuppdatering ${migration}. Be administratören köra SQL-filen.`), { status: 503 })
   }

@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
-import { FLIGHT_SIGNALS, defaultFlightWeights, flightLine, readFlightWeights } from '../shared/flight-line.js'
+import { FLIGHT_SIGNALS, FLIGHT_SIGNAL_GROUPS, changeFlightWeight, defaultFlightWeights, flightLine, readFlightWeights } from '../shared/flight-line.js'
 import './flight-record.css'
 
 const sections = [
   ['line', 'Flight-linje'], ['feel', 'Känsla'], ['times', 'Simmade tider'], ['training', 'Träning'], ['sleep', 'Sömn'],
 ]
 const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = vanlig nivå' }
+const timeMetric = { key: 'time' }
 const metrics = {
   feel: [
     { key: 'speedFeeling', label: 'Fartkänsla', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning efter simpass.' },
@@ -142,7 +143,7 @@ function timeDelta(value) {
   return `${(Math.abs(value) / 100).toLocaleString('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} s ${value > 0 ? 'snabbare' : 'långsammare'} än senast`
 }
 
-function DayDetail({ day, metric, timed, series, timedPoints }) {
+function DayDetail({ day, metric, timed, series, timedPoints, showMetric }) {
   const result = timed ? timedPoints.find(point => point.date === day.date) : null
   let value = 'Uppgift saknas', context = '', caption = ''
   if (timed) {
@@ -164,7 +165,7 @@ function DayDetail({ day, metric, timed, series, timedPoints }) {
     if (metric.key === 'reportedMinutes' && day.estimatedMinutes != null) caption = `≈ ${number(day.estimatedMinutes)} min från kopplade pass`
   }
   return <div className="flight-day-detail" aria-live="polite">
-    <small>{shortDate(day.date)}</small>
+    <small>{showMetric ? `${metric.label} · ` : ''}{shortDate(day.date)}</small>
     <div><strong>{value}</strong>{caption && <span>{caption}</span>}</div>
     {context && <p>{context}</p>}
     {timed && series && <p>{series.label}</p>}
@@ -175,29 +176,49 @@ function isVisibleCompetition(item, asOf) {
   return item?.id && isTimeDate(item.startDate) && (item.endDate || item.startDate) >= asOf
 }
 
-function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, saving, available, message }) {
-  const total = FLIGHT_SIGNALS.reduce((sum, signal) => sum + weights[signal.key], 0)
-  const row = (key, label) => <div className="flight-weight-row" key={key}>
-    <label><input type="checkbox" checked={weights[key] > 0} disabled={saving}
-      onChange={event => onChange(key, event.target.checked ? defaultFlightWeights[key] || 3 : 0)} /> {label}</label>
-    <div>
-      <select value={weights[key]} aria-label={`Vikt för ${label}`} disabled={weights[key] === 0 || saving} onChange={event => onChange(key, Number(event.target.value))}>
-        {weights[key] === 0 && <option value={0}>Av</option>}
-        {[1, 2, 3, 4, 5].map(weight => <option key={weight} value={weight}>{weight}{weight === 1 ? ' · lägst' : weight === 5 ? ' · högst' : ''}</option>)}
-      </select>
-      {key !== 'times' && <small>{number(total ? weights[key] * 100 / total : 0, 0)} % av grundvikten</small>}
+function FlightWeightRow({ signal, label, weights, selectedCount, onChange, saving }) {
+  const [draft, setDraft] = useState(null)
+  const startWeights = useRef(null)
+  const isTime = signal === 'times'
+  const selected = weights[signal] > 0
+  const max = isTime ? 100 : 100 - Math.max(0, selectedCount - 1)
+  const initialShare = isTime ? defaultFlightWeights.times : Math.round(100 / (selectedCount + 1))
+  return <div className="flight-weight-row">
+    <label><input type="checkbox" checked={selected} disabled={saving}
+      onChange={event => onChange(signal, event.target.checked ? initialShare : 0)} /> {label}</label>
+    <div className="flight-weight-percent">
+      <input type="number" inputMode="numeric" min={1} max={max} step={1} value={draft ?? weights[signal]}
+        aria-label={`Procentvikt för ${label}`} disabled={!selected || saving} readOnly={!isTime && selectedCount === 1}
+        onFocus={() => { startWeights.current = weights }}
+        onChange={event => {
+          const { value, valueAsNumber } = event.target
+          setDraft(value)
+          if (Number.isInteger(valueAsNumber) && valueAsNumber > 0) onChange(signal, valueAsNumber, startWeights.current)
+        }}
+        onBlur={() => { setDraft(null); startWeights.current = null }}
+        onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+      <span aria-hidden="true">%</span>
     </div>
   </div>
+}
 
+function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, saving, available, message }) {
+  const selectedCount = FLIGHT_SIGNALS.filter(signal => weights[signal.key] > 0).length
+  const row = ({ key, label }) => <FlightWeightRow key={key} signal={key} label={label}
+    weights={weights} selectedCount={selectedCount} onChange={onChange} saving={saving} />
   return <details className="flight-weights">
     <summary>Vikta signaler{dirty ? ' · osparade ändringar' : ''}</summary>
-    <p>Välj vilka signaler som ska ingå i simmarens formgraf. En högre vikt ger signalen större inflytande.</p>
-    <div className="flight-weight-list">{FLIGHT_SIGNALS.map(({ key, label }) => row(key, label))}</div>
-    <div className="flight-weight-lift">
-      <strong>Tidslyft</strong>
-      {row('times', 'Simmade tider')}
-      <p>Vikten styr lyftet från en snabbare jämförbar simtid. Det läggs till grundvärdet och kan ge upp till 5 steg.</p>
-    </div>
+    <p>Kryssa i måtten som ska ingå och ange en procentvikt. Övriga valda mått räknas om så att summan blir 100 %.</p>
+    {FLIGHT_SIGNAL_GROUPS.map(group => <fieldset className="flight-weight-group" key={group.label}>
+      <legend>{group.label}</legend>
+      <div className="flight-weight-list">{group.signals.map(row)}</div>
+    </fieldset>)}
+    {selectedCount > 0 && <p className="flight-weight-total">{selectedCount} valda mått · 100 % totalt</p>}
+    <fieldset className="flight-weight-group flight-weight-lift">
+      <legend>Tidslyft</legend>
+      {row({ key: 'times', label: 'Simmade tider' })}
+      <p>Separat från grundvikterna. En snabbare jämförbar simtid kan ge upp till 5 steg vid 100 %.</p>
+    </fieldset>
     <div className="flight-actions">
       <button className="primary-button" type="button" disabled={!available || !dirty || saving} onClick={onSave}>{saving ? 'Sparar…' : 'Spara vikter'}</button>
       <button className="secondary-button" type="button" disabled={saving} onClick={onReset}>Återställ förval</button>
@@ -214,7 +235,7 @@ function FlightLineDetail({ point }) {
     <small>{shortDate(point.date)}</small>
     <div><strong>{value == null ? 'För lite underlag' : number(value)}</strong>{timeLift > 0 && <span>⚡ +{number(timeLift)} från simtider</span>}</div>
     {value != null && <p>Grundvärde {number(base)} · {usable.length} av {components.length} valda signaler med underlag</p>}
-    {!components.length && <p>Välj minst ett känslomått under Vikta signaler.</p>}
+    {!components.length && <p>Välj minst ett mått under Vikta signaler.</p>}
     {components.length > 0 && value == null && <p>{usable.length} av {components.length} valda signaler har underlag. Minst två behövs när flera är valda, med minst halva den valda vikten.</p>}
     {components.length > 0 && <details className="flight-method">
       <summary>Vad påverkade linjen?</summary>
@@ -275,18 +296,23 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
   const series = available.find(group => group.key === seriesKey) ?? available[0]
   const timedPoints = series?.points.filter(point => point.date >= start) ?? []
   const options = metrics[section] ?? []
-  const metric = weighted ? lineMetric : options.find(option => option.key === metricChoice[section]) ?? options[0] ?? {}
-  const points = weighted ? line.filter(day => day.date >= start) : timed
-    ? timedPoints.map(point => ({ date: point.date, value: point.centis }))
-    : days.map(day => ({ date: day.date, value: metric.key === 'sleepMinutes' && day.sleepMinutes != null ? day.sleepMinutes / 60 : day[metric.key] }))
-  const latest = points.filter(point => Number.isFinite(point.value)).at(-1)?.date ?? data.asOf
+  const checkedMetrics = metricChoice[section] ?? options.slice(0, 1).map(option => option.key)
+  const shownMetrics = weighted ? [lineMetric] : timed ? [timeMetric] : options.filter(option => checkedMetrics.includes(option.key))
+  const plots = shownMetrics.map(metric => ({
+    metric,
+    points: weighted ? line.filter(day => day.date >= start) : timed
+      ? timedPoints.map(point => ({ date: point.date, value: point.centis }))
+      : days.map(day => ({ date: day.date, value: metric.key === 'sleepMinutes' && day.sleepMinutes != null ? day.sleepMinutes / 60 : day[metric.key] })),
+  }))
+  const observedDates = new Set(plots.flatMap(({ points }) => points.filter(point => Number.isFinite(point.value)).map(point => point.date)))
+  const latest = days.findLast(item => observedDates.has(item.date))?.date ?? data.asOf
   const day = days.find(item => item.date === (selectedDate ?? latest)) ?? days.at(-1)
   const targets = competitions.filter(item => isVisibleCompetition(item, data.asOf))
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
   const competition = targets.find(item => item.id === targetId) ?? targets[0]
   const target = competition ? { title: competition.title, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
   const remaining = target ? daysBetween(data.asOf, target.date) : null
-  const coverage = points.filter(point => Number.isFinite(point.value)).length
+  const coverage = observedDates.size
   const linePoint = weighted ? line.find(point => point.date === day.date) : null
 
   return <>
@@ -308,7 +334,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
         {sections.map(([key, label]) => <button key={key} type="button" aria-pressed={section === key} onClick={() => { setSection(key); setSelectedDate(null) }}>{label}</button>)}
       </div>
     </div>
-    {weighted && <FlightWeightControls weights={weights} onChange={(key, value) => { setWeights(current => ({ ...current, [key]: value })); setWeightMessage({ text: '' }) }}
+    {weighted && <FlightWeightControls weights={weights} onChange={(key, value, initial) => { setWeights(current => changeFlightWeight(initial ?? current, key, value)); setWeightMessage({ text: '' }) }}
       onSave={save} onReset={() => { setWeights({ ...defaultFlightWeights }); setWeightMessage({ text: '' }) }} dirty={dirty} saving={saving} available={data.weightsAvailable} message={weightMessage} />}
     {timed && available.length > 0 && <label className="flight-field">Jämförbara tider
       <select value={series.key} onChange={event => { setSeriesKey(event.target.value); setSelectedDate(null) }}>
@@ -317,21 +343,29 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
         </optgroup>)}
       </select>
     </label>}
-    {!weighted && !timed && <label className="flight-field">Mått
-      <select value={metric.key} onChange={event => { setMetricChoice(current => ({ ...current, [section]: event.target.value })); setSelectedDate(null) }}>
-        {options.map(option => <option value={option.key} key={option.key}>{option.label}</option>)}
-      </select>
-    </label>}
-    {coverage > 0 && <FlightPlot days={days} metric={metric} timed={timed} points={points} selected={day.date} onSelect={setSelectedDate} asOf={data.asOf} target={target} period={period} />}
-    <div className="flight-detail-row">
-      <p>{coverage ? `${coverage} ${weighted ? 'dagar med tillräckligt underlag' : timed ? 'jämförbara dagar' : 'rapporterade dagar'} i perioden` : 'För lite underlag för att visa en graf i perioden.'}</p>
+    {!weighted && !timed && <fieldset className="flight-metric-picker">
+      <legend>Mått att visa</legend>
+      {options.map(option => <label key={option.key}><input type="checkbox" checked={checkedMetrics.includes(option.key)}
+        onChange={event => {
+          const keys = event.target.checked ? [...checkedMetrics, option.key] : checkedMetrics.filter(key => key !== option.key)
+          setMetricChoice(current => ({ ...current, [section]: keys }))
+        }} />{option.label}</label>)}
+    </fieldset>}
+    {coverage > 0 && <div className="flight-chart-list">
+      {plots.map(({ metric, points }) => <FlightPlot key={metric.key ?? 'line'} days={days} metric={metric} timed={timed}
+        points={points} selected={day.date} onSelect={setSelectedDate} asOf={data.asOf} target={target} period={period} />)}
+    </div>}
+    {plots.length > 0 ? <div className="flight-detail-row">
+      <p>{coverage ? `${coverage} ${weighted ? 'dagar med tillräckligt underlag' : timed ? 'jämförbara dagar' : 'dagar med rapporterade mått'} i perioden` : 'För lite underlag för att visa en graf i perioden.'}</p>
       <label className="flight-field">Visa dag
         <select value={day.date} onChange={event => setSelectedDate(event.target.value)}>
           {[...days].reverse().map(item => <option value={item.date} key={item.date}>{item.date === data.asOf ? 'Idag · ' : ''}{shortDate(item.date)}</option>)}
         </select>
       </label>
-    </div>
-    {linePoint ? <FlightLineDetail point={linePoint} /> : <DayDetail day={day} metric={metric} timed={timed} series={series} timedPoints={timedPoints} />}
+    </div> : <p>Välj ett eller flera mått att visa.</p>}
+    {linePoint ? <FlightLineDetail point={linePoint} /> : plots.length > 0 && <div className="flight-day-list">
+      {plots.map(({ metric }) => <DayDetail key={metric.key} day={day} metric={metric} timed={timed} series={series} timedPoints={timedPoints} showMetric={plots.length > 1} />)}
+    </div>}
     {data.warnings.length > 0 && <details className="flight-method"><summary>Underlag som saknas</summary><ul>{data.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
     <details className="flight-method">
       <summary>Så läser du formresan</summary>

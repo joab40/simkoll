@@ -5,36 +5,84 @@ export const FLIGHT_BASELINE_DAYS = 28
 export const FLIGHT_TIME_BASELINE_DAYS = 56
 export const FLIGHT_MAX_TIME_LIFT = 5
 
-export const FLIGHT_SIGNALS = [
-  { key: 'speedFeeling', label: 'Fartkänsla', defaultWeight: 4 },
-  { key: 'body', label: 'Kroppskänsla', defaultWeight: 3 },
-  { key: 'energy', label: 'Energi', defaultWeight: 2 },
-  { key: 'sleepQuality', label: 'Sömnkvalitet', defaultWeight: 2 },
-  { key: 'feeling', label: 'Dagskänsla', defaultWeight: 0 },
-  { key: 'motivation', label: 'Motivation', defaultWeight: 0 },
+export const FLIGHT_SIGNAL_GROUPS = [
+  { label: 'Känsla', signals: [
+    { key: 'speedFeeling', label: 'Fartkänsla' },
+    { key: 'body', label: 'Kroppskänsla' },
+    { key: 'energy', label: 'Energi' },
+    { key: 'feeling', label: 'Dagskänsla' },
+    { key: 'motivation', label: 'Motivation' },
+    { key: 'passRating', label: 'Passbetyg' },
+    { key: 'setupRating', label: 'Uppläggsbetyg' },
+  ] },
+  { label: 'Sömn', signals: [{ key: 'sleepQuality', label: 'Sömnkvalitet' }] },
 ]
-const weightKeys = [...FLIGHT_SIGNALS.map(signal => signal.key), 'times']
-export const defaultFlightWeights = Object.freeze({
-  ...Object.fromEntries(FLIGHT_SIGNALS.map(signal => [signal.key, signal.defaultWeight])),
-  times: 3,
-})
+export const FLIGHT_SIGNALS = FLIGHT_SIGNAL_GROUPS.flatMap(group => group.signals)
+const signalKeys = FLIGHT_SIGNALS.map(signal => signal.key)
+const weightKeys = [...signalKeys, 'times']
+const legacyDefaults = { speedFeeling: 4, body: 3, energy: 2, sleepQuality: 2, feeling: 0, motivation: 0, times: 3 }
+const legacyKeys = Object.keys(legacyDefaults)
 
-function isWeight(value) {
-  return Number.isInteger(value) && value >= 0 && value <= 5
+// Round proportionally and keep every checked measure at one percent or more.
+function distributeWeights(weights, keys, total) {
+  if (!keys.length) return {}
+  const sum = keys.reduce((value, key) => value + weights[key], 0)
+  const shares = keys.map(key => {
+    const quota = weights[key] * total / sum
+    const percent = Math.floor(quota)
+    return { key, percent, remainder: quota - percent }
+  })
+  const remaining = total - shares.reduce((value, share) => value + share.percent, 0)
+  const ranked = [...shares].sort((a, b) => b.remainder - a.remainder)
+  ranked.slice(0, remaining).forEach(share => { share.percent++ })
+  for (const share of shares.filter(item => item.percent === 0)) {
+    const donor = shares.reduce((largest, item) => item.percent > largest.percent ? item : largest)
+    donor.percent--
+    share.percent = 1
+  }
+  return Object.fromEntries(shares.map(share => [share.key, share.percent]))
+}
+
+function upgradeWeights(weights) {
+  return {
+    ...Object.fromEntries(signalKeys.map(key => [key, 0])),
+    ...distributeWeights(weights, signalKeys.filter(key => weights[key] > 0), 100),
+    times: weights.times * 20,
+  }
+}
+
+export const defaultFlightWeights = Object.freeze(upgradeWeights(legacyDefaults))
+
+function hasWeights(weights, keys, max) {
+  return weights && typeof weights === 'object' && !Array.isArray(weights)
+    && Object.keys(weights).length === keys.length
+    && keys.every(key => Object.hasOwn(weights, key)
+      && Number.isInteger(weights[key]) && weights[key] >= 0 && weights[key] <= max)
+}
+
+function isPercentageWeights(weights) {
+  if (!hasWeights(weights, weightKeys, 100)) return false
+  const total = signalKeys.reduce((sum, key) => sum + weights[key], 0)
+  return total === 100 || total === 0
 }
 
 export function validateFlightWeights(weights) {
-  if (!weights || typeof weights !== 'object' || Array.isArray(weights)
-    || Object.keys(weights).length !== weightKeys.length
-    || weightKeys.some(key => !Object.hasOwn(weights, key) || !isWeight(weights[key]))) {
-    throw new Error('Ange en vikt mellan 0 och 5 för varje signal.')
+  if (!isPercentageWeights(weights)) {
+    throw new Error('Ange hela procenttal mellan 0 och 100. Valda grundvikter ska tillsammans bli 100 %.')
   }
   return Object.fromEntries(weightKeys.map(key => [key, weights[key]]))
 }
 
 export function readFlightWeights(weights) {
-  const saved = weights && typeof weights === 'object' && !Array.isArray(weights) ? weights : {}
-  return Object.fromEntries(weightKeys.map(key => [key, isWeight(saved[key]) ? saved[key] : defaultFlightWeights[key]]))
+  if (isPercentageWeights(weights)) return weights
+  return hasWeights(weights, legacyKeys, 5) ? upgradeWeights(weights) : { ...defaultFlightWeights }
+}
+
+export function changeFlightWeight(weights, key, percent) {
+  if (key === 'times') return { ...weights, times: Math.max(0, Math.min(percent, 100)) }
+  const others = signalKeys.filter(signal => signal !== key && weights[signal] > 0)
+  const share = percent <= 0 ? 0 : others.length ? Math.min(percent, 100 - others.length) : 100
+  return { ...weights, ...distributeWeights(weights, others, 100 - share), [key]: share }
 }
 
 const round = value => Math.round(value * 10) / 10
@@ -92,7 +140,7 @@ export function flightLine(days, contextDays, timeLifts, weights) {
     const events = []
     if (weights.times > 0) recent.forEach((date, age) => {
       const event = liftByDate.get(date)
-      if (event) events.push({ ...event, contribution: event.strength * (1 - age / FLIGHT_RECENT_DAYS) * weights.times / 5 })
+      if (event) events.push({ ...event, contribution: event.strength * (1 - age / FLIGHT_RECENT_DAYS) * weights.times / 100 })
     })
     const timeLift = base == null ? null : Math.min(100 - base, FLIGHT_MAX_TIME_LIFT, events.reduce((total, event) => total + event.contribution, 0))
     return {

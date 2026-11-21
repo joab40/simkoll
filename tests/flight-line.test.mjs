@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
-import { defaultFlightWeights, flightLine, flightTimeLifts, validateFlightWeights } from '../shared/flight-line.js'
+import { changeFlightWeight, defaultFlightWeights, flightLine, flightTimeLifts, readFlightWeights, validateFlightWeights } from '../shared/flight-line.js'
 
 const asOf = '2026-11-21'
 const days = Array.from({ length: 35 }, (_, index) => ({
@@ -10,24 +10,25 @@ const days = Array.from({ length: 35 }, (_, index) => ({
   speedFeeling: index < 28 ? 3 : 4,
   body: index < 28 ? 3 : 2,
 }))
-const weights = { ...defaultFlightWeights, speedFeeling: 4, body: 1, energy: 0, sleepQuality: 0, times: 0 }
+const legacyWeights = { speedFeeling: 4, body: 1, energy: 0, sleepQuality: 0, feeling: 0, motivation: 0, times: 0 }
+const weights = { ...defaultFlightWeights, speedFeeling: 80, body: 20, energy: 0, sleepQuality: 0, times: 0 }
 const latest = (history, overrides, lifts = []) => flightLine(history.slice(-1), history.slice(0, -1), lifts, { ...weights, ...overrides })[0]
 
 test('priorities change the combined line in the expected direction', () => {
   assert.equal(latest(days).value, 57.5)
-  assert.equal(latest(days, { speedFeeling: 1, body: 4 }).value, 42.5)
-  assert.equal(latest(days, { body: 0 }).value, 62.5)
+  assert.equal(latest(days, { speedFeeling: 20, body: 80 }).value, 42.5)
+  assert.equal(latest(days, { speedFeeling: 100, body: 0 }).value, 62.5)
   assert.equal(latest(days, { body: 0, speedFeeling: 0 }).value, null)
 })
 
 test('the selected period stays honest about missing and insufficient readings', () => {
-  assert.equal(latest(days, { body: 1, energy: 5, sleepQuality: 5 }).value, null)
+  assert.equal(latest(days, { speedFeeling: 25, body: 20, energy: 30, sleepQuality: 25 }).value, null)
   const sparse = days.map((row, index) => index >= 28 && index < 34 ? { ...row, speedFeeling: null, body: null } : row)
   assert.equal(latest(sparse).value, null)
-  const partial = latest(days, { energy: 1 })
+  const partial = latest(days, { speedFeeling: 64, body: 16, energy: 20 })
   assert.equal(partial.value, 57.5)
-  assert.equal(partial.usedWeight, 5)
-  assert.equal(partial.totalWeight, 6)
+  assert.equal(partial.usedWeight, 80)
+  assert.equal(partial.totalWeight, 100)
   assert.equal(partial.components.find(item => item.key === 'energy').score, null)
 })
 
@@ -51,32 +52,59 @@ test('time lift uses earlier comparable days, at most one event per day', () => 
 test('time lift respects priority, decays, expires after a week and caps repeated fast times', () => {
   const lift = (age) => ({ date: coachWeekAddDays(asOf, -age), strength: 5 })
   assert.equal(latest(days, { times: 0 }, [lift(0)]).timeLift, 0)
-  assert.equal(latest(days, { times: 3 }, [lift(0)]).timeLift, 3)
-  assert.equal(latest(days, { times: 5 }, [lift(0)]).timeLift, 5)
-  assert(latest(days, { times: 5 }, [lift(4)]).timeLift < 3)
-  assert.equal(latest(days, { times: 5 }, [lift(7)]).timeLift, 0)
-  assert.equal(latest(days, { times: 5 }, [lift(0), lift(1), lift(2)]).timeLift, 5)
+  assert.equal(latest(days, { times: 60 }, [lift(0)]).timeLift, 3)
+  assert.equal(latest(days, { times: 100 }, [lift(0)]).timeLift, 5)
+  assert(latest(days, { times: 100 }, [lift(4)]).timeLift < 3)
+  assert.equal(latest(days, { times: 100 }, [lift(7)]).timeLift, 0)
+  assert.equal(latest(days, { times: 100 }, [lift(0), lift(1), lift(2)]).timeLift, 5)
 })
 
-test('priority validation accepts only the defined keys and integer weights', () => {
+test('percentage edits preserve the chosen share and automatically adjust the other checked measures', () => {
+  const selected = { ...weights, speedFeeling: 50, body: 30, passRating: 20 }
+  assert.deepEqual(changeFlightWeight(selected, 'speedFeeling', 60), { ...selected, speedFeeling: 60, body: 24, passRating: 16 })
+  assert.deepEqual(changeFlightWeight(selected, 'passRating', 0), { ...selected, speedFeeling: 63, body: 37, passRating: 0 })
+  assert.deepEqual(changeFlightWeight(selected, 'setupRating', 20), { ...selected, speedFeeling: 40, body: 24, passRating: 16, setupRating: 20 })
+  assert.deepEqual(changeFlightWeight(selected, 'speedFeeling', 100), { ...selected, speedFeeling: 98, body: 1, passRating: 1 })
+  assert.deepEqual(changeFlightWeight(selected, 'times', 30), { ...selected, times: 30 })
+  assert.equal(changeFlightWeight(weights, 'body', 0).speedFeeling, 100)
+})
+
+test('upgrading existing weights keeps their proportions and the existing time lift', () => {
+  assert.deepEqual(readFlightWeights({ ...legacyWeights, times: 3 }), { ...weights, times: 60 })
+  assert.deepEqual(readFlightWeights(weights), weights)
+  assert.deepEqual(readFlightWeights(null), defaultFlightWeights)
+  const neutral = Object.fromEntries(Object.keys(weights).map(key => [key, 0]))
+  assert.deepEqual(changeFlightWeight(neutral, 'passRating', 20), { ...neutral, passRating: 100 })
+  assert.deepEqual(changeFlightWeight({ ...neutral, passRating: 100 }, 'passRating', 0), neutral)
+})
+
+test('percentage validation requires known keys and 100% among selected base measures', () => {
   assert.deepEqual(validateFlightWeights(weights), weights)
-  for (const invalid of [null, { ...weights, invented: 4 }, { ...weights, energy: '4' }, { ...weights, times: 6 }, { ...weights, times: 1.5 }]) {
-    assert.throws(() => validateFlightWeights(invalid), /vikt/)
+  for (const invalid of [null, legacyWeights, { ...weights, invented: 4 }, { ...weights, energy: '4' },
+    { ...weights, body: 10 }, { ...weights, times: 101 }, { ...weights, times: 1.5 }]) {
+    assert.throws(() => validateFlightWeights(invalid), /procent/)
   }
 })
 
-test('SQL 135 stores valid weights and rejects malformed preferences', { skip: !process.env.SIMKOLL_PGLITE_MODULE }, async () => {
+test('SQL 136 accepts old and percentage weights, and rejects malformed preferences', { skip: !process.env.SIMKOLL_PGLITE_MODULE }, async () => {
   const { PGlite } = await import(process.env.SIMKOLL_PGLITE_MODULE)
   const db = new PGlite()
   try {
     await db.exec('create table profiles(id integer primary key); insert into profiles values (1);')
-    const sql = await readFile(new URL('../supabase/migrations/135_flight_record_weights.sql', import.meta.url), 'utf8')
-    await db.exec(sql)
-    await db.exec(sql)
+    const original = await readFile(new URL('../supabase/migrations/135_flight_record_weights.sql', import.meta.url), 'utf8')
+    const migration = await readFile(new URL('../supabase/migrations/136_flight_record_percentage_weights.sql', import.meta.url), 'utf8')
+    await db.exec(original)
     const update = (value) => db.query('update profiles set flight_record_weights=$1::jsonb', [JSON.stringify(value)])
+    await update(legacyWeights)
+    await assert.rejects(update(weights), /profiles_flight_record_weights_check/)
+    await db.exec(migration)
+    assert.deepEqual((await db.query('select flight_record_weights from profiles')).rows[0].flight_record_weights, legacyWeights)
     await update(weights)
+    await db.exec(migration)
+    await db.exec(original)
     assert.deepEqual((await db.query('select flight_record_weights from profiles')).rows[0].flight_record_weights, weights)
-    for (const invalid of [[5], { ...weights, times: 7 }, { ...weights, times: 2.5 }, { ...weights, times: '4' }, { ...weights, times: [4] }, { ...weights, another: 2 }, {}]) {
+    for (const invalid of [[5], { ...weights, body: 21 }, { ...weights, times: 101 }, { ...weights, times: 2.5 },
+      { ...weights, times: '4' }, { ...weights, energy: null }, { ...weights, times: [4] }, { ...weights, another: 2 }, {}]) {
       await assert.rejects(update(invalid), /profiles_flight_record_weights_check/)
     }
   } finally { await db.close() }

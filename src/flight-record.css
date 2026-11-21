@@ -123,6 +123,9 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-plot figcaption { padding: 13px 14px 0; font-size: .92rem; font-weight: 700; }
 .flight-plot svg { display: block; width: 100%; height: 220px; }
 .flight-coach-content:modal .flight-plot svg { height: clamp(260px, 55dvh, 640px); }
+.flight-chart-list, .flight-day-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 390px), 1fr)); gap: 8px 14px; }
+.flight-chart-list > * { min-width: 0; }
+.flight-coach-content:modal .flight-chart-list:has(> :nth-child(2)) svg { height: clamp(220px, 36dvh, 400px); }
 .flight-plot svg text { fill: #def3fc; font: 12px system-ui, sans-serif; }
 .flight-grid { stroke: #def3fc; opacity: .24; }
 .flight-today, .flight-goal { stroke: #def3fc; stroke-dasharray: 4 5; opacity: .78; }
@@ -160,24 +163,24 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 }
 .flight-weights > summary { padding: 12px 0; cursor: pointer; font-weight: 700; }
 .flight-weights > p, .flight-weight-lift p { margin: 0 0 8px; color: var(--flight-muted); }
-.flight-weight-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
-.flight-weight-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; padding: 7px 0; border-bottom: 1px solid var(--flight-line); }
-.flight-weight-row label { display: flex; align-items: center; gap: 7px; min-height: 44px; font-weight: 650; }
-.flight-weight-row input { width: 20px; height: 20px; accent-color: var(--flight-teal); }
-.flight-weight-row > div { display: grid; justify-items: end; gap: 3px; min-width: 6rem; }
-.flight-weight-row select { min-height: 44px; padding: 6px 8px; font: inherit; font-size: 16px; color: var(--flight-ink); border: 1px solid var(--flight-line); border-radius: 9px; background: white; }
-.flight-weight-row small { color: var(--flight-muted); }
-.flight-weight-lift { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #edf7f0; }
-.flight-weight-lift .flight-weight-row { border-bottom: 0; }
+.flight-weight-group, .flight-metric-picker { min-width: 0; margin: 12px 0; padding: 4px 12px 8px; border: 1px solid var(--flight-line); border-radius: 10px; }
+.flight-weight-group legend, .flight-metric-picker legend { padding-inline: 4px; font-weight: 700; }
+.flight-weight-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 232px), 1fr)); gap: 0 18px; }
+.flight-weight-row { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 5px 0; }
+.flight-weight-row label, .flight-metric-picker label { display: flex; align-items: center; gap: 7px; min-height: 44px; font-weight: 650; }
+.flight-weight-row input[type=checkbox], .flight-metric-picker input { flex: none; width: 19px; height: 19px; accent-color: var(--flight-teal); }
+.flight-weight-percent { display: flex; align-items: center; gap: 6px; }
+.flight-weight-percent input { box-sizing: border-box; width: 4.1rem; min-height: 44px; padding: 5px 6px; font: inherit; font-size: 16px; text-align: center; color: var(--flight-ink); border: 1px solid var(--flight-line); border-radius: 8px; background: white; }
+.flight-weight-percent input:disabled { background: transparent; color: var(--flight-muted); }
+.flight-weights .flight-weight-total { font-size: .86rem; font-weight: 700; }
+.flight-weight-lift { background: #edf7f0; }
+.flight-metric-picker { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .flight-weights .flight-actions { margin-bottom: 12px; }
 .flight-contributions, .flight-time-evidence { display: grid; gap: 8px; padding: 0; margin: 5px 0 0; list-style: none; }
 .flight-time-evidence { margin-top: 12px; }
 .flight-contributions li, .flight-time-evidence li { display: grid; gap: 2px; padding: 7px 0 0; border-top: 1px solid var(--flight-line); }
 .flight-day-detail li strong { font-size: inherit; letter-spacing: 0; }
 .flight-day-detail li span { color: var(--flight-muted); font-weight: 400; font-size: .9rem; }
-@media (max-width: 640px) {
-  .flight-weight-list { grid-template-columns: 1fr; }
-}
 @media (max-width: 410px) {
   .flight-filters { gap: 7px; }
   .flight-segments button { padding-inline: 8px; font-size: .81rem; }

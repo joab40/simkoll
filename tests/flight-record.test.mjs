@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
-import { defaultFlightWeights, flightLine } from '../shared/flight-line.js'
+import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -145,7 +145,7 @@ test('the coach gets date-bounded measurements and comparisons without private c
 
 test('only a personal coach can save weights for an approved profile, even with visibility off', async (t) => {
   const { profile, calls } = dbFixture(t, { offerId: null })
-  const weights = { ...defaultFlightWeights, speedFeeling: 5, energy: 0 }
+  const weights = changeFlightWeight(defaultFlightWeights, 'passRating', 20)
   const save = (overrides = {}) => call({ method: 'POST', mode: 'weights', code: coach, profileId: id, body: { profileId: other, weights }, ...overrides })
   assert.equal((await save({ code: 'swimmer' })).code, 403)
   assert.equal((await save({ code: 'shared-coach' })).code, 403)
@@ -163,7 +163,7 @@ test('only a personal coach can save weights for an approved profile, even with 
 
 test('the opted-in swimmer receives only 28 chart points with the coach’s weighting', async (t) => {
   const { calls } = dbFixture(t, { state: 'active', failSleep: true })
-  const weights = { ...defaultFlightWeights, speedFeeling: 0, body: 5, energy: 1, sleepQuality: 0 }
+  const weights = { ...defaultFlightWeights, speedFeeling: 0, body: 83, energy: 17, sleepQuality: 0 }
   assert.equal((await call({ code: coach, mode: 'weights', method: 'POST', profileId: id, body: { weights } })).code, 200)
   const offset = calls.length
   const result = await call({ mode: 'chart', profileId: other })
