@@ -103,11 +103,14 @@ export function flightTimeSeries(practice, races, origins = new Map()) {
   const usablePractice = practice.filter(row => isTimeDate(row.result_date) && Number.isInteger(row.result_time) && row.result_time > 0)
   const series = comparableSwimTimes(usablePractice).map(group => {
     const sample = group.items[0]
+    const conditions = sample.conditions?.trim().toLocaleLowerCase('sv-SE')
+    const comparableToRace = sample.exercise === 'full' && !sample.equipment?.length
+      && (!conditions || conditions === 'tävlingsdräkt')
     return {
       key: 'practice:' + group.key,
       label: group.description,
       kind: sample.kind === 'test' ? 'test' : 'training',
-      raceReference: sample.exercise === 'full' && !sample.equipment?.length && !sample.conditions?.trim()
+      raceReference: comparableToRace
         ? { distance: sample.distance_meters, stroke: sample.stroke, pool: sample.pool_length } : null,
       points: bestPerDay(group.items.map(row => ({
         date: row.result_date,

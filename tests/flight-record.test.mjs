@@ -39,7 +39,7 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, practiceTimes, tempusHistory } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   if (extended) profile.flight_record_sleep_goal_minutes = null
   if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
@@ -85,7 +85,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     if (table === 'training_swim_times') {
       if (revokeWhileLoading) { profile.flight_record_choice = 'pending'; profile.flight_record_offer_id = null }
       assert(!query.get('select').split(',').includes('note'))
-      return json([{ ...trial, note: 'PRIVATE NOTE' }, { ...trial, id: 'time-2', result_date: yesterday, result_time: 6235 }])
+      return json(practiceTimes ?? [{ ...trial, note: 'PRIVATE NOTE' }, { ...trial, id: 'time-2', result_date: yesterday, result_time: 6235 }])
     }
     if (table === 'audit_logs') {
       return method === 'POST' ? new Response(null, { status: 204 }) : json([{ role: 'coach', details: { timeId: 'time-1', coachAccountId: coachId } }])
@@ -114,7 +114,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       return json([body])
     }
     if (table === 'competition_results') {
-      if (query.get('source') === 'eq.tempus') return json([{ source: 'tempus', result_date: '2022-06-11', event: '100 m Frisim', pool: '25m', result_time: 6080 }])
+      if (query.get('source') === 'eq.tempus') return json(tempusHistory ?? [{ source: 'tempus', result_date: '2022-06-11', event: '100 m Frisim', pool: '25m', result_time: 6080 }])
       return json([{ id: 'race', result_date: yesterday, event: '100 m Frisim', pool: '50m', result_time: 6201, source: 'tempus' }])
     }
     if (table === 'profile_daily_sleep') return failSleep ? json({}, 503) : json(Array.from({ length: 35 }, (_, offset) => ({
@@ -334,6 +334,30 @@ test('the selected time can be explained in the coach view even without three ea
   assert.equal(time.reference, null)
   assert.equal(time.priorDays, 1)
   assert.equal(data.timeLifts.some(point => point.date === today), false)
+})
+
+test('a practice PB in a competition suit against a Tempus Freestyle result still lifts the line two days later', async (t) => {
+  const practiceDate = coachWeekAddDays(today, -2)
+  dbFixture(t, {
+    state: 'active', pb: true,
+    practiceTimes: [{ ...trial, kind: 'training', start_type: 'dive', result_date: practiceDate, result_time: 6003, conditions: 'Tävlingsdräkt' }],
+    tempusHistory: [
+      { source: 'tempus', result_date: '2025-10-12', event: '100m Freestyle', pool: '25 M', swim_time: '01:00.04' },
+      { source: 'tempus', result_date: '2026-07-16', event: '100m Freestyle', pool: '50 M', swim_time: '01:03.37' },
+    ],
+  })
+  const { data } = await call({ code: coach, mode: 'data', profileId: id })
+  const [lift] = data.timeLifts
+  assert.equal(lift.pbKind, 'faster')
+  assert.equal(lift.reference - lift.centis, 1)
+  assert.match(lift.label, /Tävlingsdräkt/)
+  const line = flightLine(data.days, data.contextDays, data.timeLifts, data.weights)
+  const latest = line.at(-1)
+  assert.equal(latest.timeLift, 3.4)
+  assert.equal(latest.events[0].date, practiceDate)
+  const swimmer = await call({ mode: 'chart' })
+  assert.equal(swimmer.data.points.at(-1).value, latest.value)
+  assert.equal(swimmer.data.points.find(point => point.date === practiceDate).newTimeLift, true)
 })
 
 test('revoked coaches, missing migration and revocation during a history read fail safely', async (t) => {

@@ -46,7 +46,10 @@ export function readFlightPbSettings(settings, timeBoost) {
   try { return validateFlightPbSettings(settings) } catch { return defaultFlightPbSettings(timeBoost) }
 }
 
-const strokesByName = new Map(Object.entries(TIME_STROKES).map(([key, label]) => [label.toLocaleLowerCase('sv-SE'), key]))
+const strokesByName = new Map([
+  ...Object.entries(TIME_STROKES).flatMap(([key, label]) => [[key, key], [label.toLocaleLowerCase('sv-SE'), key]]),
+  ['individual medley', 'medley'],
+])
 const eventKey = ({ distance, stroke, pool }) => `${distance}:${stroke}:${pool}`
 
 export function tempusPbLookup(rows) {
