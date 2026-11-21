@@ -9,12 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/fiber": "9.8.2",
     "@vercel/functions": "^3.9.11",
     "@vercel/speed-insights": "2.1.0",
     "@vitejs/plugin-react": "latest",
     "js-tiktoken": "1.0.21",
     "react": "latest",
     "react-dom": "latest",
+    "three": "0.187.0",
     "vite": "latest",
     "web-push": "^3.6.7",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"

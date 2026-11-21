@@ -83,7 +83,7 @@ test('weekly, lifetime and combined record lists include balance without using a
     const response = await call(null, query)
     assert.equal(response.code, 200)
     assert.equal(response.data.leaderboard[0].displayName, 'Testcyklist')
-    assert.ok(reads.some((path) => path.includes(query.game === 'alltime' ? 'dino,balance)' : 'game_key=eq.balance')))
+    assert.ok(reads.some((path) => query.game === 'alltime' ? /game_key=in\.\([^)]*\bbalance\b[^)]*\)/.test(path) : path.includes('game_key=eq.balance')))
   }
 })
 
@@ -103,7 +103,7 @@ test('combined leaderboard ignores impossible historical balance scores', async 
   assert.equal(response.data.leaderboard.length, 1)
   assert.equal(response.data.leaderboard[0].displayName, 'Testcyklist')
   assert.equal(response.data.leaderboard[0].score, 10)
-  assert.ok(reads.some((path) => path.includes('dino,balance)')))
+  assert.ok(reads.some((path) => /game_key=in\.\([^)]*\bbalance\b[^)]*\)/.test(path)))
   const lifetime = db()
   await call(null, { game: 'balance', lifetime: 'true' })
   assert.ok(lifetime.reads.some((path) => path.includes(`game_key=eq.balance&score=gt.0&score=lte.${BALANCE_MAX_SCORE}`)))
