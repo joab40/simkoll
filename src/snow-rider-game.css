@@ -8,4 +8,30 @@
 .snow-fullscreen.immersive { position:fixed; inset:0; z-index:10000; border-radius:0; height:100dvh; }.snow-fullscreen { display:flex; flex-direction:column; width:100%; }.snow-fullscreen .snow-stage { flex:1; height:auto; min-height:0; }.snow-fullscreen .snow-toolbar,.snow-fullscreen .snow-controls,.snow-fullscreen .snow-bottomline { flex-shrink:0; }.snow-shell:fullscreen { height:100%; border-radius:0; }.snow-shell:-webkit-full-screen { height:100%; border-radius:0; }
 @media(max-width:950px){.snow-layout { grid-template-columns:minmax(0,1fr); }.snow-aside { padding:14px; }.snow-stage { height:min(65vh,650px); min-height:400px; }.snow-page { max-width:850px; }.snow-heading { margin-bottom:20px; }}
 @media(max-width:550px){.snow-page { padding:12px 10px 25px; }.snow-heading { align-items:flex-start; flex-direction:column; gap:12px; margin:14px 5px 18px; }.snow-heading h1 { font-size:43px; }.snow-heading p:last-child { font-size:12px; }.snow-mode { font-size:10px; padding:7px 10px; }.snow-shell { border-radius:20px; }.snow-toolbar { padding:11px 10px; gap:6px; }.snow-toolbar strong { font-size:9px; }.snow-toolbar strong span { display:none; }.snow-toolbar button { font-size:9px; padding:6px 7px; }.snow-stage { height:440px; min-height:320px; }.snow-hud { top:17px; left:15px; right:15px; }.snow-hud strong { font-size:22px; }.snow-hud small { font-size:8px; }.snow-overlay { padding:18px; }.snow-overlay>div { padding:20px; max-width:315px; }.snow-overlay h2 { font-size:40px; }.snow-overlay p:not(.snow-kicker) { font-size:12px; }.snow-controls { gap:7px; padding:10px 10px 6px; }.snow-control { min-height:58px; gap:8px; }.snow-bottomline { padding:7px 12px 14px; font-size:7px; }.snow-fullscreen .snow-stage { min-height:0; }}
+.snow-cue {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 13px;
+  border: 1px solid #ffffff66;
+  border-radius: 999px;
+  background: #153d4cf2;
+  color: #fff;
+  box-shadow: 0 2px 12px #173c4944;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.snow-cue.now {
+  background: #ffcf75;
+  color: #462611;
+}
+.snow-shell {
+  scroll-margin-top: max(8px, env(safe-area-inset-top));
+}
+@media(max-width:550px) {
+  .snow-cue { top: 66px; }
+}
 @media(prefers-reduced-motion:reduce){.snow-page * { scroll-behavior:auto!important; }.snow-overlay>div { backdrop-filter:none; }}

@@ -19,7 +19,7 @@ spel-/betainställningar. I tränar-/betatest används `preview`: inga anrop fö
 topplistor eller sparande, inga poäng och inga localStorage-rekord. Bästa
 testresultatet finns bara i komponentens minne.
 
-## Första versionens regler
+## Regler
 
 Styr vänster/höger med piltangenter eller A/D. Hoppa med mellanslag/uppåtpil/W
 eller mobilens hoppknapp. Tryck/håll vänster/höger på mobilen; flera pekare kan
@@ -28,11 +28,13 @@ väntande hopp. Synlighetsbyte, fönsterblur och längre renderingsuppehåll
 pausar åket. Fullskärm använder native-läge eller CSS-fallback och kan lämnas
 med Stäng/Escape. Kroppens scroll återställs när fullskärm avslutas.
 
-Åket varar högst 120 sekunder, om inte en krock avslutar tidigare. Farten ökar
-från 18 m/s (cirka 65 km/h) med 0,085 m/s per sekund. Låga stockar/stenar kan
-hoppas över; granar behöver undvikas. En spelmeter ger 1 poäng, en kristall 25.
-Alla åk använder samma deterministiska bana. Stegvis fysik på 1/120 s hindrar
-skillnader mellan vanliga skärmuppdateringar och tunnling genom hinder.
+Pulkan startar i cirka 122 km/h och når upp till 173 km/h. Första bommen
+kommer efter ungefär tre sekunder. Hoppa över bommarna och styr genom
+öppningarna i isvallarna. Ledtråden ovanför banan visar vart du ska styra
+eller när du ska hoppa. Resultatet visar hur länge åket varade, upp till
+120 sekunder. En spelmeter ger 1 poäng och en kristall ger 25 poäng.
+Alla åk använder samma kurvor, krön, svackor och hinder. Fysiken använder
+steg på 1/120 s även när bildfrekvensen varierar.
 
 I publicerat läge sparas bästa resultat per svensk kalendervecka och simmare.
 Listan visar veckans tio bästa. En sämre runda skriver inte över ett bättre
