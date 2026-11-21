@@ -17,6 +17,7 @@ const id = '11111111-1111-4111-8111-111111111111'
 const other = '22222222-2222-4222-8222-222222222222'
 const coachId = '33333333-3333-4333-8333-333333333333'
 const offer = '44444444-4444-4444-8444-444444444444'
+const customId = '55555555-5555-4555-8555-555555555555'
 const coach = createCoachToken({ id: coachId, role: 'coach' })
 const today = stockholmDate(), yesterday = coachWeekAddDays(today, -1)
 const trial = { id: 'time-1', result_date: today, distance_meters: 100, stroke: 'freestyle', pool_length: 25, result_time: 6147, kind: 'test', start_type: 'push', exercise: 'full', equipment: [], timing_method: 'hand' }
@@ -36,9 +37,11 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
+  if (extended) profile.flight_record_sleep_goal_minutes = null
   const calls = []
+  const measures = [], scores = new Map()
   t.mock.method(globalThis, 'fetch', async (input, options = {}) => {
     const url = new URL(input), table = url.pathname.split('/').at(-1), query = url.searchParams
     const method = options.method ?? 'GET', body = options.body ? JSON.parse(options.body) : null
@@ -53,6 +56,9 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       const scope = query.get('flight_record_offer_id')
       if (migrationMissing && query.get('select') !== '*') return json({ code: '42703' }, 400)
       if (weightsMigrationMissing && query.get('select')?.split(',').includes('flight_record_weights')) return json({ code: 'PGRST204' }, 400)
+      if (!extended && query.get('select')?.split(',').includes('flight_record_sleep_goal_minutes')) {
+        return json({ code: '42703', message: 'column profiles.flight_record_sleep_goal_minutes does not exist' }, 400)
+      }
       if (scope === 'is.null' && profile.flight_record_offer_id != null) return json([])
       if (scope === 'not.is.null' && profile.flight_record_offer_id == null) return json([])
       if (scope?.startsWith('eq.') && scope !== `eq.${profile.flight_record_offer_id}`) return json([])
@@ -70,6 +76,29 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     }
     if (table === 'audit_logs') {
       return method === 'POST' ? new Response(null, { status: 204 }) : json([{ role: 'coach', details: { timeId: 'time-1', coachAccountId: coachId } }])
+    }
+    if (table === 'flight_record_metrics') {
+      assert.equal(extended, true)
+      if (method === 'GET') {
+        assert.equal(query.get('profile_id'), `eq.${id}`)
+        return json(measures)
+      }
+      assert.equal(body.profile_id, id)
+      const measure = { id: customId, ...body }
+      measures.push(measure)
+      return json([measure])
+    }
+    if (table === 'flight_record_scores') {
+      assert.equal(extended, true)
+      if (method === 'GET') {
+        assert.equal(query.get('profile_id'), `eq.${id}`)
+        return json([...scores.values()])
+      }
+      assert.equal(body.profile_id, id)
+      assert.equal(query.get('on_conflict'), 'profile_id,metric_id,activity_date')
+      if (!measures.some(measure => measure.id === body.metric_id)) return json({ code: '23503' }, 409)
+      scores.set(`${body.metric_id}:${body.activity_date}`, body)
+      return json([body])
     }
     if (table === 'competition_results') return json([{ id: 'race', result_date: yesterday, event: '100 m Frisim', pool: '50m', result_time: 6201, source: 'tempus' }])
     if (table === 'profile_daily_sleep') return failSleep ? json({}, 503) : json(Array.from({ length: 35 }, (_, offset) => ({
@@ -188,6 +217,40 @@ test('the swimmer chart can use defaults until SQL 135 is run', async (t) => {
   const save = await call({ mode: 'weights', method: 'POST', code: coach, profileId: id, body: { weights: defaultFlightWeights } })
   assert.equal(save.code, 503)
   assert.match(save.data.error, /135/)
+})
+
+test('the trainer can add and correct measures and both views use the saved settings', async (t) => {
+  const { calls } = dbFixture(t, { extended: true, state: 'active' })
+  const modify = (body, code = coach) => call({ code, profileId: id, mode: 'measures', method: 'POST', body })
+  assert.equal((await modify({ action: 'sleep-goal', minutes: 480 }, 'swimmer')).code, 403)
+  assert.equal((await modify({ action: 'sleep-goal', minutes: 841 })).code, 400)
+  assert.equal((await modify({ action: 'sleep-goal', minutes: 480 })).code, 200)
+  const create = await modify({ action: 'create-measure', name: '  Teknikkänsla ', category: 'Teknik', profileId: other })
+  assert.deepEqual(create.data, { action: 'create-measure', measureId: customId })
+  const score = (offset, value, measureId = customId) => modify({
+    action: 'save-score', measureId, date: coachWeekAddDays(today, offset), value,
+  })
+  assert.equal((await score(1, 3)).code, 400)
+  assert.equal((await score(0, 6)).code, 400)
+  assert.equal((await score(0, 4, other)).code, 404)
+  for (const [offset, value] of [[-12, 2], [-11, 2], [-10, 2], [-1, 4], [0, 3], [0, 5]]) {
+    assert.equal((await score(offset, value)).code, 200)
+  }
+  const weights = Object.fromEntries(Object.keys(defaultFlightWeights).map(key => [key, 0]))
+  Object.assign(weights, { sleepGoal: 30, [customId]: 70 })
+  const save = weights => call({ code: coach, profileId: id, mode: 'weights', method: 'POST', body: { weights } })
+  assert.equal((await save({ ...weights, [customId]: 0, [other]: 70 })).code, 400)
+  assert.equal((await save(weights)).code, 200)
+  const coachView = (await call({ code: coach, mode: 'data', profileId: id })).data
+  assert.deepEqual(coachView.customMeasures, [{ key: customId, label: 'Teknikkänsla', category: 'Teknik' }])
+  assert.equal(coachView.sleepGoalMinutes, 480)
+  assert.equal(coachView.days.at(-1).sleepGoal, 5)
+  assert.equal(coachView.days.at(-1)[customId], 5)
+  const swimmerChart = await call({ mode: 'chart' })
+  assert.equal(swimmerChart.code, 200)
+  assert.equal(swimmerChart.data.points.at(-1).value, 71.9)
+  assert.doesNotMatch(JSON.stringify(swimmerChart.data), /Teknikkänsla|sleepGoal|customMeasures/)
+  assert(calls.some(row => row.table === 'audit_logs' && row.body?.event_type === 'flight_record_measure_change'))
 })
 
 test('revoked coaches, missing migration and revocation during a history read fail safely', async (t) => {

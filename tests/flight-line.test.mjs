@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
-import { changeFlightWeight, defaultFlightWeights, flightLine, flightTimeLifts, readFlightWeights, validateFlightWeights } from '../shared/flight-line.js'
+import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, flightTimeLifts, readFlightWeights, sleepGoalScore, validateFlightWeights } from '../shared/flight-line.js'
 
 const asOf = '2026-11-21'
 const days = Array.from({ length: 35 }, (_, index) => ({
@@ -12,6 +12,7 @@ const days = Array.from({ length: 35 }, (_, index) => ({
 }))
 const legacyWeights = { speedFeeling: 4, body: 1, energy: 0, sleepQuality: 0, feeling: 0, motivation: 0, times: 0 }
 const weights = { ...defaultFlightWeights, speedFeeling: 80, body: 20, energy: 0, sleepQuality: 0, times: 0 }
+const { sleepGoal: _sleepGoal, ...percentageWeights136 } = weights
 const latest = (history, overrides, lifts = []) => flightLine(history.slice(-1), history.slice(0, -1), lifts, { ...weights, ...overrides })[0]
 
 test('priorities change the combined line in the expected direction', () => {
@@ -86,6 +87,26 @@ test('percentage validation requires known keys and 100% among selected base mea
   }
 })
 
+test('sleep and custom measures use the same weighting and preserve missing observations', () => {
+  assert.equal(sleepGoalScore(null, 480), null)
+  assert.equal(sleepGoalScore(500, null), null)
+  assert.equal(sleepGoalScore(360, 480), 4)
+  assert.equal(sleepGoalScore(480, 480), 5)
+  assert.equal(sleepGoalScore(600, 480), 5)
+  const measure = { key: '10101010-1010-4010-8010-101010101010', label: 'Teknikkänsla', category: 'Teknik' }
+  assert.deepEqual(flightSignalGroups([measure]).at(-1), { label: 'Teknik', signals: [measure] })
+  const byShare = changeFlightWeight(changeFlightWeight(weights, 'sleepGoal', 15), measure.key, 40)
+  assert.deepEqual(validateFlightWeights(byShare, [measure]), byShare)
+  assert.throws(() => validateFlightWeights(byShare), /saknas/)
+  const history = days.map((day, index) => ({
+    ...day, sleepGoal: index < 28 ? 4 : 5, [measure.key]: index < 28 ? 2 : 4,
+  }))
+  const [point] = flightLine(history.slice(-1), history.slice(0, -1), [], byShare, [measure])
+  assert.equal(point.components.find(item => item.key === measure.key).score, 75)
+  assert.equal(point.components.find(item => item.key === 'sleepGoal').score, 62.5)
+  assert.equal(point.totalWeight, 100)
+})
+
 test('SQL 136 accepts old and percentage weights, and rejects malformed preferences', { skip: !process.env.SIMKOLL_PGLITE_MODULE }, async () => {
   const { PGlite } = await import(process.env.SIMKOLL_PGLITE_MODULE)
   const db = new PGlite()
@@ -96,15 +117,15 @@ test('SQL 136 accepts old and percentage weights, and rejects malformed preferen
     await db.exec(original)
     const update = (value) => db.query('update profiles set flight_record_weights=$1::jsonb', [JSON.stringify(value)])
     await update(legacyWeights)
-    await assert.rejects(update(weights), /profiles_flight_record_weights_check/)
+    await assert.rejects(update(percentageWeights136), /profiles_flight_record_weights_check/)
     await db.exec(migration)
     assert.deepEqual((await db.query('select flight_record_weights from profiles')).rows[0].flight_record_weights, legacyWeights)
-    await update(weights)
+    await update(percentageWeights136)
     await db.exec(migration)
     await db.exec(original)
-    assert.deepEqual((await db.query('select flight_record_weights from profiles')).rows[0].flight_record_weights, weights)
-    for (const invalid of [[5], { ...weights, body: 21 }, { ...weights, times: 101 }, { ...weights, times: 2.5 },
-      { ...weights, times: '4' }, { ...weights, energy: null }, { ...weights, times: [4] }, { ...weights, another: 2 }, {}]) {
+    assert.deepEqual((await db.query('select flight_record_weights from profiles')).rows[0].flight_record_weights, percentageWeights136)
+    for (const invalid of [[5], { ...percentageWeights136, body: 21 }, { ...percentageWeights136, times: 101 }, { ...percentageWeights136, times: 2.5 },
+      { ...percentageWeights136, times: '4' }, { ...percentageWeights136, energy: null }, { ...percentageWeights136, times: [4] }, { ...percentageWeights136, another: 2 }, {}]) {
       await assert.rejects(update(invalid), /profiles_flight_record_weights_check/)
     }
   } finally { await db.close() }

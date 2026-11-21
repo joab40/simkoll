@@ -1,4 +1,5 @@
 import { coachWeekAddDays } from './coach-week.js'
+import { isTimeId } from './swim-times.js'
 
 export const FLIGHT_RECENT_DAYS = 7
 export const FLIGHT_BASELINE_DAYS = 28
@@ -15,11 +16,14 @@ export const FLIGHT_SIGNAL_GROUPS = [
     { key: 'passRating', label: 'Passbetyg' },
     { key: 'setupRating', label: 'Uppläggsbetyg' },
   ] },
-  { label: 'Sömn', signals: [{ key: 'sleepQuality', label: 'Sömnkvalitet' }] },
+  { label: 'Återhämtning', signals: [
+    { key: 'sleepQuality', label: 'Sömnkvalitet' },
+    { key: 'sleepGoal', label: 'Sovtid mot sömnmål' },
+  ] },
 ]
 export const FLIGHT_SIGNALS = FLIGHT_SIGNAL_GROUPS.flatMap(group => group.signals)
 const signalKeys = FLIGHT_SIGNALS.map(signal => signal.key)
-const weightKeys = [...signalKeys, 'times']
+const standardKeys = [...signalKeys.filter(key => key !== 'sleepGoal'), 'times']
 const legacyDefaults = { speedFeeling: 4, body: 3, energy: 2, sleepQuality: 2, feeling: 0, motivation: 0, times: 3 }
 const legacyKeys = Object.keys(legacyDefaults)
 
@@ -61,28 +65,53 @@ function hasWeights(weights, keys, max) {
 }
 
 function isPercentageWeights(weights) {
-  if (!hasWeights(weights, weightKeys, 100)) return false
-  const total = signalKeys.reduce((sum, key) => sum + weights[key], 0)
+  if (!weights || typeof weights !== 'object' || Array.isArray(weights)
+    || !standardKeys.every(key => Object.hasOwn(weights, key))) return false
+  const entries = Object.entries(weights)
+  if (entries.some(([key, weight]) => (!standardKeys.includes(key) && key !== 'sleepGoal' && !isTimeId(key))
+    || !Number.isInteger(weight) || weight < 0 || weight > 100)) return false
+  const total = entries.reduce((sum, [key, weight]) => key === 'times' ? sum : sum + weight, 0)
   return total === 100 || total === 0
 }
 
-export function validateFlightWeights(weights) {
+export function validateFlightWeights(weights, customMeasures = []) {
   if (!isPercentageWeights(weights)) {
     throw new Error('Ange hela procenttal mellan 0 och 100. Valda grundvikter ska tillsammans bli 100 %.')
   }
-  return Object.fromEntries(weightKeys.map(key => [key, weights[key]]))
+  if (Object.keys(weights).some(key => isTimeId(key) && !customMeasures.some(measure => measure.key === key))) {
+    throw new Error('Ett valt mätvärde saknas på simmarens profil.')
+  }
+  return readFlightWeights(weights)
 }
 
 export function readFlightWeights(weights) {
-  if (isPercentageWeights(weights)) return weights
+  if (isPercentageWeights(weights)) return { sleepGoal: 0, ...weights }
   return hasWeights(weights, legacyKeys, 5) ? upgradeWeights(weights) : { ...defaultFlightWeights }
 }
 
 export function changeFlightWeight(weights, key, percent) {
   if (key === 'times') return { ...weights, times: Math.max(0, Math.min(percent, 100)) }
-  const others = signalKeys.filter(signal => signal !== key && weights[signal] > 0)
+  const customKeys = Object.keys(weights).filter(isTimeId).sort()
+  const others = [...signalKeys, ...customKeys].filter(signal => signal !== key && weights[signal] > 0)
+  if (percent > 0 && others.length >= 100) return weights
   const share = percent <= 0 ? 0 : others.length ? Math.min(percent, 100 - others.length) : 100
   return { ...weights, ...distributeWeights(weights, others, 100 - share), [key]: share }
+}
+
+export function sleepGoalScore(minutes, goalMinutes) {
+  return Number.isFinite(minutes) && minutes >= 0 && Number.isInteger(goalMinutes) && goalMinutes > 0
+    ? 1 + 4 * Math.min(minutes / goalMinutes, 1)
+    : null
+}
+
+export function flightSignalGroups(customMeasures = []) {
+  const groups = FLIGHT_SIGNAL_GROUPS.map(group => ({ ...group, signals: [...group.signals] }))
+  for (const measure of customMeasures) {
+    const existing = groups.find(group => group.label.toLocaleLowerCase('sv-SE') === measure.category.toLocaleLowerCase('sv-SE'))
+    if (existing) existing.signals.push(measure)
+    else groups.push({ label: measure.category, signals: [measure] })
+  }
+  return groups
 }
 
 const round = value => Math.round(value * 10) / 10
@@ -115,9 +144,10 @@ export function flightTimeLifts(series) {
   return [...best.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-export function flightLine(days, contextDays, timeLifts, weights) {
-  const wanted = FLIGHT_SIGNALS.filter(signal => weights[signal.key] > 0)
-  const totalWeight = wanted.reduce((total, signal) => total + weights[signal.key], 0)
+export function flightLine(days, contextDays, timeLifts, weights, customMeasures = []) {
+  const wanted = [...FLIGHT_SIGNALS, ...customMeasures].filter(signal => weights[signal.key] > 0)
+  const selectedWeights = Object.entries(weights).filter(([key, weight]) => key !== 'times' && weight > 0)
+  const totalWeight = selectedWeights.reduce((total, [, weight]) => total + weight, 0)
   const byDate = new Map([...contextDays, ...days].map(day => [day.date, day]))
   const liftByDate = new Map(timeLifts.map(lift => [lift.date, lift]))
   return days.map(day => {
@@ -135,7 +165,7 @@ export function flightLine(days, contextDays, timeLifts, weights) {
     })
     const available = components.filter(component => component.score != null)
     const usedWeight = available.reduce((total, component) => total + component.weight, 0)
-    const enough = available.length >= Math.min(2, wanted.length) && usedWeight > 0 && usedWeight * 2 >= totalWeight
+    const enough = available.length >= Math.min(2, selectedWeights.length) && usedWeight > 0 && usedWeight * 2 >= totalWeight
     const base = enough ? available.reduce((total, component) => total + component.score * component.weight, 0) / usedWeight : null
     const events = []
     if (weights.times > 0) recent.forEach((date, age) => {

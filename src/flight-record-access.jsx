@@ -123,8 +123,18 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
   </div>
   if (!data) return <p className="empty" role="status">Hämtar formresan…</p>
   const saveWeights = weights => request(weightsUrl + profileQuery, code, postOptions({ weights }))
+  const saveMeasure = async input => {
+    const result = await request('/api/training?flightRecord=measures' + profileQuery, code, postOptions(input))
+    try {
+      const next = await request(dataUrl + profileQuery, code, { retry: false })
+      setData(next)
+      return { ...result, refreshed: true }
+    } catch {
+      return { ...result, refreshed: false }
+    }
+  }
   return <React.Suspense fallback={<p className="empty" role="status">Öppnar formresan…</p>}>
-    <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} />
+    <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} saveMeasure={saveMeasure} />
   </React.Suspense>
 }
 

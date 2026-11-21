@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
-import { FLIGHT_SIGNALS, FLIGHT_SIGNAL_GROUPS, changeFlightWeight, defaultFlightWeights, flightLine, readFlightWeights } from '../shared/flight-line.js'
+import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
+import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
 
 const sections = [
-  ['line', 'Flight-linje'], ['feel', 'Känsla'], ['times', 'Simmade tider'], ['training', 'Träning'], ['sleep', 'Sömn'],
+  ['line', 'Flight-linje'], ['feel', 'Känsla'], ['times', 'Simmade tider'], ['training', 'Träning'], ['sleep', 'Återhämtning'],
 ]
 const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = vanlig nivå' }
 const timeMetric = { key: 'time' }
@@ -33,6 +34,7 @@ const metrics = {
   sleep: [
     { key: 'sleepMinutes', label: 'Sovtid', unit: 'tim', bars: true },
     { key: 'sleepQuality', label: 'Sömnkvalitet', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning från sömnkollen.' },
+    { key: 'sleepGoal', label: 'Sovtid mot sömnmål', unit: '/ 5', scale: [1, 5], note: 'Uppnått personligt sömnmål ger 5 av 5.' },
   ],
 }
 const seriesKinds = [['test', 'Testlopp'], ['training', 'Träningstider'], ['race', 'Tävlingsresultat']]
@@ -176,7 +178,7 @@ function isVisibleCompetition(item, asOf) {
   return item?.id && isTimeDate(item.startDate) && (item.endDate || item.startDate) >= asOf
 }
 
-function FlightWeightRow({ signal, label, weights, selectedCount, onChange, saving }) {
+function FlightWeightRow({ signal, label, weights, selectedCount, onChange, saving, canSelect }) {
   const [draft, setDraft] = useState(null)
   const startWeights = useRef(null)
   const isTime = signal === 'times'
@@ -184,10 +186,10 @@ function FlightWeightRow({ signal, label, weights, selectedCount, onChange, savi
   const max = isTime ? 100 : 100 - Math.max(0, selectedCount - 1)
   const initialShare = isTime ? defaultFlightWeights.times : Math.round(100 / (selectedCount + 1))
   return <div className="flight-weight-row">
-    <label><input type="checkbox" checked={selected} disabled={saving}
+    <label><input type="checkbox" checked={selected} disabled={saving || (!canSelect && !selected)}
       onChange={event => onChange(signal, event.target.checked ? initialShare : 0)} /> {label}</label>
     <div className="flight-weight-percent">
-      <input type="number" inputMode="numeric" min={1} max={max} step={1} value={draft ?? weights[signal]}
+      <input type="number" inputMode="numeric" min={1} max={max} step={1} value={draft ?? weights[signal] ?? 0}
         aria-label={`Procentvikt för ${label}`} disabled={!selected || saving} readOnly={!isTime && selectedCount === 1}
         onFocus={() => { startWeights.current = weights }}
         onChange={event => {
@@ -202,16 +204,19 @@ function FlightWeightRow({ signal, label, weights, selectedCount, onChange, savi
   </div>
 }
 
-function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, saving, available, message }) {
-  const selectedCount = FLIGHT_SIGNALS.filter(signal => weights[signal.key] > 0).length
+function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, saving, available, message, customMeasures, sleepGoalMinutes, measuresAvailable }) {
+  const groups = flightSignalGroups(customMeasures)
+  const selectedCount = Object.entries(weights).filter(([key, value]) => key !== 'times' && value > 0).length
   const row = ({ key, label }) => <FlightWeightRow key={key} signal={key} label={label}
-    weights={weights} selectedCount={selectedCount} onChange={onChange} saving={saving} />
+    weights={weights} selectedCount={selectedCount} onChange={onChange} saving={saving}
+    canSelect={key === 'times' || (selectedCount < 100 && (key !== 'sleepGoal' || sleepGoalMinutes != null))} />
   return <details className="flight-weights">
     <summary>Vikta signaler{dirty ? ' · osparade ändringar' : ''}</summary>
     <p>Kryssa i måtten som ska ingå och ange en procentvikt. Övriga valda mått räknas om så att summan blir 100 %.</p>
-    {FLIGHT_SIGNAL_GROUPS.map(group => <fieldset className="flight-weight-group" key={group.label}>
+    {groups.map(group => <fieldset className="flight-weight-group" key={group.label}>
       <legend>{group.label}</legend>
-      <div className="flight-weight-list">{group.signals.map(row)}</div>
+      <div className="flight-weight-list">{group.signals.filter(signal => signal.key !== 'sleepGoal' || measuresAvailable || weights.sleepGoal > 0).map(row)}</div>
+      {group.label === 'Återhämtning' && measuresAvailable && sleepGoalMinutes == null && <p>Ställ in simmarens sömnmål för att vikta sovtid.</p>}
     </fieldset>)}
     {selectedCount > 0 && <p className="flight-weight-total">{selectedCount} valda mått · 100 % totalt</p>}
     <fieldset className="flight-weight-group flight-weight-lift">
@@ -257,7 +262,7 @@ function FlightLineDetail({ point }) {
   </div>
 }
 
-export function FlightRecordView({ data, competitions = [], saveWeights }) {
+export function FlightRecordView({ data, competitions = [], saveWeights, saveMeasure }) {
   const [period, setPeriod] = useState(28)
   const [section, setSection] = useState('line')
   const [metricChoice, setMetricChoice] = useState({})
@@ -269,9 +274,11 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
   const [saving, setSaving] = useState(false)
   const [weightMessage, setWeightMessage] = useState({ text: '' })
   const saveLock = useRef(false)
-  const dirty = Object.keys(weights).some(key => weights[key] !== savedWeights[key])
+  const dirty = [...new Set([...Object.keys(weights), ...Object.keys(savedWeights)])]
+    .some(key => (weights[key] ?? 0) !== (savedWeights[key] ?? 0))
   const weighted = section === 'line'
-  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights), [data, weights])
+  const customMeasures = data.customMeasures ?? []
+  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights, data.customMeasures), [data, weights])
   const save = async () => {
     if (!dirty || saveLock.current || !data.weightsAvailable || !saveWeights) return
     saveLock.current = true
@@ -295,7 +302,8 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
   const timed = section === 'times'
   const series = available.find(group => group.key === seriesKey) ?? available[0]
   const timedPoints = series?.points.filter(point => point.date >= start) ?? []
-  const options = metrics[section] ?? []
+  const options = section === 'custom' ? customMeasures.map(measure => ({ ...measure, unit: '/ 5', scale: [1, 5], note: measure.category }))
+    : (metrics[section] ?? []).filter(metric => metric.key !== 'sleepGoal' || data.sleepGoalMinutes != null)
   const checkedMetrics = metricChoice[section] ?? options.slice(0, 1).map(option => option.key)
   const shownMetrics = weighted ? [lineMetric] : timed ? [timeMetric] : options.filter(option => checkedMetrics.includes(option.key))
   const plots = shownMetrics.map(metric => ({
@@ -331,10 +339,12 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
         {FLIGHT_PERIODS.map(value => <button key={value} type="button" aria-pressed={period === value} onClick={() => { setPeriod(value); setSelectedDate(null) }}>{value} dagar</button>)}
       </div>
       <div className="flight-segments" role="group" aria-label="Visa i diagrammet">
-        {sections.map(([key, label]) => <button key={key} type="button" aria-pressed={section === key} onClick={() => { setSection(key); setSelectedDate(null) }}>{label}</button>)}
+        {[...sections, ...(customMeasures.length ? [['custom', 'Egna mått']] : [])].map(([key, label]) => <button key={key} type="button" aria-pressed={section === key} onClick={() => { setSection(key); setSelectedDate(null) }}>{label}</button>)}
       </div>
     </div>
-    {weighted && <FlightWeightControls weights={weights} onChange={(key, value, initial) => { setWeights(current => changeFlightWeight(initial ?? current, key, value)); setWeightMessage({ text: '' }) }}
+    {weighted && data.measuresAvailable && saveMeasure && <FlightMeasureSettings data={data} onSave={saveMeasure} />}
+    {weighted && <FlightWeightControls weights={weights} customMeasures={customMeasures} sleepGoalMinutes={data.sleepGoalMinutes} measuresAvailable={data.measuresAvailable}
+      onChange={(key, value, initial) => { setWeights(current => changeFlightWeight(initial ?? current, key, value)); setWeightMessage({ text: '' }) }}
       onSave={save} onReset={() => { setWeights({ ...defaultFlightWeights }); setWeightMessage({ text: '' }) }} dirty={dirty} saving={saving} available={data.weightsAvailable} message={weightMessage} />}
     {timed && available.length > 0 && <label className="flight-field">Jämförbara tider
       <select value={series.key} onChange={event => { setSeriesKey(event.target.value); setSelectedDate(null) }}>
