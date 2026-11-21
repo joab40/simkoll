@@ -1,22 +1,32 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
+import { FLIGHT_SIGNALS, defaultFlightWeights, flightLine, readFlightWeights } from '../shared/flight-line.js'
 import './flight-record.css'
 
 const sections = [
-  ['feel', 'Känsla'], ['times', 'Simmade tider'], ['training', 'Träning'], ['sleep', 'Sömn'],
+  ['line', 'Flight-linje'], ['feel', 'Känsla'], ['times', 'Simmade tider'], ['training', 'Träning'], ['sleep', 'Sömn'],
 ]
+const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = din vanliga nivå' }
 const metrics = {
   feel: [
     { key: 'speedFeeling', label: 'Fartkänsla', unit: '/ 5', scale: [1, 5], note: 'Din skattning efter simpass.' },
     { key: 'body', label: 'Kroppskänsla', unit: '/ 5', scale: [1, 5], note: 'Din skattning i incheckningarna.' },
     { key: 'feeling', label: 'Dagskänsla', unit: '/ 5', scale: [1, 5], note: 'Din skattning i incheckningarna.' },
+    { key: 'energy', label: 'Energi', unit: '/ 5', scale: [1, 5], note: 'Din skattning i incheckningarna.' },
+    { key: 'motivation', label: 'Motivation', unit: '/ 5', scale: [1, 5], note: 'Din skattning inför träningen.' },
+    { key: 'passRating', label: 'Passbetyg', unit: '/ 5', scale: [1, 5], note: 'Ditt omdöme om passet.' },
+    { key: 'setupRating', label: 'Uppläggsbetyg', unit: '/ 5', scale: [1, 5], note: 'Ditt omdöme om upplägget.' },
+    { key: 'temperature', label: 'Upplevd temperatur', unit: '/ 5', scale: [1, 5], note: 'Hur träningsmiljön kändes. 1 = väldigt kallt, 5 = för varmt.' },
   ],
   training: [
     { key: 'load', label: 'Belastning', unit: 'RPE × min', bars: true },
     { key: 'reportedMeters', label: 'Rapporterade simmeter', unit: 'm', bars: true },
     { key: 'reportedMinutes', label: 'Rapporterad träningstid', unit: 'min', bars: true },
+    { key: 'sessions', label: 'Genomförda pass', unit: 'pass', bars: true },
+    { key: 'estimatedMeters', label: 'Uppskattade simmeter', unit: 'm', bars: true, note: 'Planerad mängd från genomförda och kopplade pass.' },
+    { key: 'estimatedMinutes', label: 'Uppskattad träningstid', unit: 'min', bars: true, note: 'Planerad tid från genomförda och kopplade pass.' },
     { key: 'rpe', label: 'Upplevd ansträngning', unit: '/ 10', scale: [1, 10], note: 'Genomsnittlig RPE för genomförda pass.' },
   ],
   sleep: [
@@ -79,7 +89,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
     previous = point
   }
   const todayPoint = points.find(point => point.date === asOf && Number.isFinite(point.value))
-  const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.unit}`
+  const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.subtitle ?? metric.unit}`
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : `${number(value)} ${metric.unit}`
@@ -98,6 +108,10 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
       {points.filter(point => Number.isFinite(point.value)).map(point => {
         const label = `${shortDate(point.date)} · ${pointValue(point.value)}`
         const marked = point.date === selected ? ' selected' : ''
+        if (point.timeLift > 0 && point.events.some(event => event.date === point.date)) {
+          const cx = x(point.date), cy = y(point.value), size = marked ? 7 : 5.5
+          return <path key={point.date} className="flight-lift-mark" d={`M ${cx} ${cy - size} l ${size} ${size} l ${-size} ${size} l ${-size} ${-size} Z`} onClick={() => onSelect(point.date)}><title>{label} · tidslyft</title></path>
+        }
         return metric.bars && !timed
           ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={() => onSelect(point.date)}><title>{label}</title></rect>
           : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={() => onSelect(point.date)}><title>{label}</title></circle>
@@ -106,7 +120,11 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
       {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? 'Idag' : shortDate(date)}</text>)}
       {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
     </svg>
-    <div className="flight-legend"><span><i/> Registrerade uppgifter</span>{future > 0 && <span><i className="flight-legend-future"/> Planerad tävlingsdag</span>}</div>
+    <div className="flight-legend">
+      <span><i/> {metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter'}</span>
+      {metric === lineMetric && <span><i className="flight-legend-lift"/> Nytt tidslyft</span>}
+      {future > 0 && <span><i className="flight-legend-future"/> Planerad tävlingsdag</span>}
+    </div>
   </figure>
 }
 
@@ -148,13 +166,99 @@ function isVisibleCompetition(item, asOf) {
   return item?.id && isTimeDate(item.startDate) && (item.endDate || item.startDate) >= asOf
 }
 
-export function FlightRecordView({ data, competitions = [] }) {
+function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, saving, available, message }) {
+  const total = FLIGHT_SIGNALS.reduce((sum, signal) => sum + weights[signal.key], 0)
+  const row = (key, label) => <div className="flight-weight-row" key={key}>
+    <label><input type="checkbox" checked={weights[key] > 0} disabled={saving}
+      onChange={event => onChange(key, event.target.checked ? defaultFlightWeights[key] || 3 : 0)} /> {label}</label>
+    <div>
+      <select value={weights[key]} aria-label={`Vikt för ${label}`} disabled={weights[key] === 0 || saving} onChange={event => onChange(key, Number(event.target.value))}>
+        {weights[key] === 0 && <option value={0}>Av</option>}
+        {[1, 2, 3, 4, 5].map(weight => <option key={weight} value={weight}>{weight}{weight === 1 ? ' · lägst' : weight === 5 ? ' · högst' : ''}</option>)}
+      </select>
+      {key !== 'times' && <small>{number(total ? weights[key] * 100 / total : 0, 0)} % av grundvikten</small>}
+    </div>
+  </div>
+
+  return <details className="flight-weights">
+    <summary>Vikta signaler{dirty ? ' · osparade ändringar' : ''}</summary>
+    <p>Bocka i det du vill följa. En högre vikt ger signalen större plats i linjen.</p>
+    <div className="flight-weight-list">{FLIGHT_SIGNALS.map(({ key, label }) => row(key, label))}</div>
+    <div className="flight-weight-lift">
+      <strong>Tidslyft</strong>
+      {row('times', 'Simmade tider')}
+      <p>Vikten styr lyftet från en snabbare jämförbar simtid. Det läggs till grundvärdet och kan ge upp till 5 steg.</p>
+    </div>
+    <div className="flight-actions">
+      <button className="primary-button" type="button" disabled={!available || !dirty || saving} onClick={onSave}>{saving ? 'Sparar…' : 'Spara vikter'}</button>
+      <button className="secondary-button" type="button" disabled={saving} onClick={onReset}>Återställ förval</button>
+    </div>
+    {!available && <p className="flight-muted">Du kan prova vikterna här. Sparandet är inte tillgängligt ännu.</p>}
+    {message.text && <p className={message.error ? 'flight-error' : ''} role={message.error ? 'alert' : 'status'}>{message.text}</p>}
+  </details>
+}
+
+function FlightLineDetail({ point }) {
+  const { components, value, base, timeLift, events, usedWeight, totalWeight } = point
+  const usable = components.filter(component => component.score != null)
+  return <div className="flight-day-detail" aria-live="polite">
+    <small>{shortDate(point.date)}</small>
+    <div><strong>{value == null ? 'För lite underlag' : number(value)}</strong>{timeLift > 0 && <span>⚡ +{number(timeLift)} från simtider</span>}</div>
+    {value != null && <p>Grundvärde {number(base)} · {usable.length} av {components.length} valda signaler med underlag</p>}
+    {!components.length && <p>Välj minst ett känslomått under Vikta signaler.</p>}
+    {components.length > 0 && value == null && <p>{usable.length} av {components.length} valda signaler har underlag. Minst två behövs när flera är valda, med minst halva den valda vikten.</p>}
+    {components.length > 0 && <details className="flight-method">
+      <summary>Vad påverkade linjen?</summary>
+      <ul className="flight-contributions">
+        {components.map(item => <li key={item.key}>
+          <strong>{item.label}</strong>
+          <span>{item.score == null ? `Underlag saknas · ${item.currentDays} svarsdagar senaste veckan, ${item.referenceDays} i jämförelsen`
+            : `${number(item.current)}/5 nu mot median ${number(item.reference)}/5 · ${number(item.weight * 100 / usedWeight, 0)} % av tillgänglig vikt`}</span>
+        </li>)}
+      </ul>
+      {usedWeight < totalWeight && <p>Övriga valda signaler saknar tillräckligt underlag för dagen.</p>}
+    </details>}
+    {events.length > 0 && <ul className="flight-time-evidence">
+      {events.map(event => <li key={event.date}>
+        <strong>{shortDate(event.date)} · {formatTrainingTime(event.centis)}</strong>
+        <span>{event.label} · {number((event.reference - event.centis) / 100, 2)} s snabbare än medianen från {event.priorDays} tidigare jämförbara dagar.</span>
+      </li>)}
+    </ul>}
+  </div>
+}
+
+export function FlightRecordView({ data, competitions = [], saveWeights }) {
   const [period, setPeriod] = useState(28)
-  const [section, setSection] = useState('feel')
+  const [section, setSection] = useState('line')
   const [metricChoice, setMetricChoice] = useState({})
   const [seriesKey, setSeriesKey] = useState('')
   const [selectedDate, setSelectedDate] = useState(null)
   const [targetId, setTargetId] = useState('')
+  const [savedWeights, setSavedWeights] = useState(() => readFlightWeights(data.weights))
+  const [weights, setWeights] = useState(() => readFlightWeights(data.weights))
+  const [saving, setSaving] = useState(false)
+  const [weightMessage, setWeightMessage] = useState({ text: '' })
+  const saveLock = useRef(false)
+  const dirty = Object.keys(weights).some(key => weights[key] !== savedWeights[key])
+  const weighted = section === 'line'
+  const line = useMemo(() => flightLine(data.days, data.contextDays ?? [], data.timeLifts ?? [], weights), [data, weights])
+  const save = async () => {
+    if (!dirty || saveLock.current || !data.weightsAvailable || !saveWeights) return
+    saveLock.current = true
+    setSaving(true)
+    setWeightMessage({ text: '' })
+    try {
+      const result = await saveWeights(weights)
+      setWeights(result.weights)
+      setSavedWeights(result.weights)
+      setWeightMessage({ text: 'Vikterna är sparade.' })
+    } catch (error) {
+      setWeightMessage({ text: error.message, error: true })
+    } finally {
+      saveLock.current = false
+      setSaving(false)
+    }
+  }
   const start = coachWeekAddDays(data.asOf, 1 - period)
   const days = data.days.filter(day => day.date >= start && day.date <= data.asOf)
   const available = data.series.filter(group => group.points.some(point => point.date >= start))
@@ -162,8 +266,8 @@ export function FlightRecordView({ data, competitions = [] }) {
   const series = available.find(group => group.key === seriesKey) ?? available[0]
   const timedPoints = series?.points.filter(point => point.date >= start) ?? []
   const options = metrics[section] ?? []
-  const metric = options.find(option => option.key === metricChoice[section]) ?? options[0] ?? {}
-  const points = timed
+  const metric = weighted ? lineMetric : options.find(option => option.key === metricChoice[section]) ?? options[0] ?? {}
+  const points = weighted ? line.filter(day => day.date >= start) : timed
     ? timedPoints.map(point => ({ date: point.date, value: point.centis }))
     : days.map(day => ({ date: day.date, value: metric.key === 'sleepMinutes' && day.sleepMinutes != null ? day.sleepMinutes / 60 : day[metric.key] }))
   const latest = points.filter(point => Number.isFinite(point.value)).at(-1)?.date ?? data.asOf
@@ -174,6 +278,7 @@ export function FlightRecordView({ data, competitions = [] }) {
   const target = competition ? { title: competition.title, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
   const remaining = target ? daysBetween(data.asOf, target.date) : null
   const coverage = points.filter(point => Number.isFinite(point.value)).length
+  const linePoint = weighted ? line.find(point => point.date === day.date) : null
 
   return <>
     <section className="flight-destination">
@@ -194,6 +299,8 @@ export function FlightRecordView({ data, competitions = [] }) {
         {sections.map(([key, label]) => <button key={key} type="button" aria-pressed={section === key} onClick={() => { setSection(key); setSelectedDate(null) }}>{label}</button>)}
       </div>
     </div>
+    {weighted && <FlightWeightControls weights={weights} onChange={(key, value) => { setWeights(current => ({ ...current, [key]: value })); setWeightMessage({ text: '' }) }}
+      onSave={save} onReset={() => { setWeights({ ...defaultFlightWeights }); setWeightMessage({ text: '' }) }} dirty={dirty} saving={saving} available={data.weightsAvailable} message={weightMessage} />}
     {timed && available.length > 0 && <label className="flight-field">Jämförbara tider
       <select value={series.key} onChange={event => { setSeriesKey(event.target.value); setSelectedDate(null) }}>
         {seriesKinds.map(([kind, label]) => available.some(group => group.kind === kind) && <optgroup key={kind} label={label}>
@@ -201,31 +308,33 @@ export function FlightRecordView({ data, competitions = [] }) {
         </optgroup>)}
       </select>
     </label>}
-    {!timed && <label className="flight-field">Mått
+    {!weighted && !timed && <label className="flight-field">Mått
       <select value={metric.key} onChange={event => { setMetricChoice(current => ({ ...current, [section]: event.target.value })); setSelectedDate(null) }}>
         {options.map(option => <option value={option.key} key={option.key}>{option.label}</option>)}
       </select>
     </label>}
     {coverage > 0 && <FlightPlot days={days} metric={metric} timed={timed} points={points} selected={day.date} onSelect={setSelectedDate} asOf={data.asOf} target={target} period={period} />}
     <div className="flight-detail-row">
-      <p>{coverage ? `${coverage} ${timed ? 'jämförbara' : 'rapporterade'} ${coverage === 1 ? 'dag' : 'dagar'} i perioden` : 'Inga registrerade värden för det här måttet i perioden.'}</p>
+      <p>{coverage ? `${coverage} ${weighted ? 'dagar med tillräckligt underlag' : timed ? 'jämförbara dagar' : 'rapporterade dagar'} i perioden` : 'För lite underlag för att visa en graf i perioden.'}</p>
       <label className="flight-field">Visa dag
         <select value={day.date} onChange={event => setSelectedDate(event.target.value)}>
           {[...days].reverse().map(item => <option value={item.date} key={item.date}>{item.date === data.asOf ? 'Idag · ' : ''}{shortDate(item.date)}</option>)}
         </select>
       </label>
     </div>
-    <DayDetail day={day} metric={metric} timed={timed} series={series} timedPoints={timedPoints} />
+    {linePoint ? <FlightLineDetail point={linePoint} /> : <DayDetail day={day} metric={metric} timed={timed} series={series} timedPoints={timedPoints} />}
     {data.warnings.length > 0 && <details className="flight-method"><summary>Underlag som saknas</summary><ul>{data.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
     <details className="flight-method">
       <summary>Så läser du formresan</summary>
+      <p>Flight-linjen jämför snittet från sju dagar med din median från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Vikterna styr hur mycket varje mått påverkar linjen.</p>
+      <p>Ett tidslyft kräver minst tre tidigare jämförbara simdagar under 56 dagar. Varje dags bästa förbättring kan lyfta linjen. Lyftet avtar under veckan och är högst 5 steg totalt.</p>
       <p>Testlopp och träningstider jämförs med samma distans, simsätt, bassäng, start, hjälpmedel, tidtagning och övriga förutsättningar. Varje punkt visar dagens snabbaste tid i serien. Tävlingsresultat ligger för sig.</p>
       <p>Luckor är dagar utan ett värde i underlaget. Vid ett valt tävlingsmål visar högerkanten datumet när det ligger nära nog. Kurvan visar dina tidigare skattningar och rapporterade resultat.</p>
     </details>
   </>
 }
 
-export default function FlightRecord({ code, request, competitions, onBack, onRefreshAccess }) {
+export default function FlightRecord({ code, offerId, request, competitions, onBack, onRefreshAccess }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -242,6 +351,9 @@ export default function FlightRecord({ code, request, competitions, onBack, onRe
     })
     return () => controller.abort()
   }, [code, request, attempt, onRefreshAccess])
+  const saveWeights = (weights) => request('/api/training?flightRecord=weights', code, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerId, weights }),
+  })
 
   return <div className="flight-page">
     <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button>
@@ -250,7 +362,7 @@ export default function FlightRecord({ code, request, competitions, onBack, onRe
       <h1>Flight Record <span aria-hidden="true">✈︎</span></h1>
     </header>
     {error ? <div className="flight-error" role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={() => setAttempt(current => current + 1)}>Försök igen</button></div>
-      : result ? <FlightRecordView data={result} competitions={competitions} />
+      : result ? <FlightRecordView data={result} competitions={competitions} saveWeights={saveWeights} />
         : <p className="empty" role="status">Hämtar din formresa…</p>}
   </div>
 }

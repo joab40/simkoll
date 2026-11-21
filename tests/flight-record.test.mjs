@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
+import { defaultFlightWeights } from '../shared/flight-line.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -35,8 +36,8 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, revokeWhileLoading = false, failSleep = false } = {}) {
-  const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state }
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false } = {}) {
+  const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   const calls = []
   t.mock.method(globalThis, 'fetch', async (input, options = {}) => {
     const url = new URL(input), table = url.pathname.split('/').at(-1), query = url.searchParams
@@ -51,6 +52,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       assert.equal(query.get('approval_status'), 'eq.approved')
       const scope = query.get('flight_record_offer_id')
       if (migrationMissing && query.get('select') !== '*') return json({ code: '42703' }, 400)
+      if (weightsMigrationMissing && query.get('select') === 'flight_record_weights') return json({ code: 'PGRST204' }, 400)
       if (scope === 'is.null' && profile.flight_record_offer_id != null) return json([])
       if (scope === 'not.is.null' && profile.flight_record_offer_id == null) return json([])
       if (scope?.startsWith('eq.') && scope !== `eq.${profile.flight_record_offer_id}`) return json([])
@@ -117,6 +119,7 @@ test('the active swimmer sees only a minimal, date-bounded projection of own dat
   const result = await call({ mode: 'data', profileId: other })
   assert.equal(result.code, 200)
   assert.equal(result.data.days.length, 90)
+  assert.equal(result.data.contextDays.length, 34)
   assert.equal(result.data.days.at(-1).date, today)
   assert(result.data.days.every(day => day.sleepMinutes === null))
   assert.match(result.data.warnings.join(' '), /Sömnkollen/)
@@ -125,6 +128,34 @@ test('the active swimmer sees only a minimal, date-bounded projection of own dat
   assert.equal(flightTimeComparison(result.data.series[0].points, today), 88)
   assert.doesNotMatch(JSON.stringify(result.data), /PRIVATE NOTE|coachAccountId|flight_record_offer_id/)
   assert(calls.every(call => call.method === 'GET'))
+})
+
+test('only the opted-in swimmer can save valid priorities for the current offer', async (t) => {
+  const { profile, calls } = dbFixture(t, { state: 'active' })
+  const weights = { ...defaultFlightWeights, speedFeeling: 5, energy: 0 }
+  const save = (overrides = {}) => call({ method: 'POST', mode: 'weights', profileId: other, body: { offerId: offer, weights }, ...overrides })
+  assert.equal((await save({ code: coach })).code, 403)
+  assert.equal((await save({ body: { offerId: other, weights } })).code, 409)
+  assert.equal((await save({ body: { offerId: offer, weights: { ...weights, energy: -1 } } })).code, 400)
+  assert.equal(calls.filter(row => row.method === 'PATCH').length, 0)
+  assert.deepEqual((await save()).data, { weights })
+  const patch = calls.find(row => row.method === 'PATCH')
+  assert.equal(patch.query.get('id'), `eq.${id}`)
+  assert.equal(patch.query.get('flight_record_choice'), 'eq.active')
+  assert.deepEqual((await call({ mode: 'data' })).data.weights, weights)
+  profile.flight_record_choice = 'later'
+  assert.equal((await save()).code, 403)
+})
+
+test('the weighted view can use defaults until SQL 135 is run', async (t) => {
+  dbFixture(t, { state: 'active', weightsMigrationMissing: true })
+  const result = await call({ mode: 'data' })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.weightsAvailable, false)
+  assert.deepEqual(result.data.weights, defaultFlightWeights)
+  const save = await call({ mode: 'weights', method: 'POST', body: { offerId: offer, weights: defaultFlightWeights } })
+  assert.equal(save.code, 503)
+  assert.match(save.data.error, /135/)
 })
 
 test('revoked coaches, missing migration and revocation during a history read fail safely', async (t) => {

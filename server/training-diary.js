@@ -20,7 +20,7 @@ async function rows(query, { optional = false, warnings, label }) {
   return all
 }
 
-export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true, includeGoals = true } = {}) {
+export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true, includeGoals = true, includeCheckinSignals = false } = {}) {
   const range = diaryRange(start, end, stockholmDate())
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${includeComparison ? range.previousStart : start}&${field}=lt.${range.endExclusive}`
@@ -51,7 +51,7 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     source: 'coach-attendance',
   }))
   const entries = buildDiaryEntries({ sessions: [...sessions, ...attendanceSessions], responses, workouts, plans, personalPlans, strengthLogs, drylandLogs, assignments, results, reflections, trainingGroup: profile.training_group || profile.trainingGroup, today: stockholmDate(), unlockedToday: unlocks.length > 0 })
-  const current = summarizeDiary(entries, responses, start, end), previous = summarizeDiary(entries, responses, range.previousStart, range.previousEnd)
+  const current = summarizeDiary(entries, responses, start, end, { includeCheckinSignals }), previous = summarizeDiary(entries, responses, range.previousStart, range.previousEnd)
   if (warnings.some(warning => /^(registrerade pass|incheckningar|upplagda pass|grundplanering|tränarens närvaromarkeringar)/.test(warning))) {
     for (const summary of [current, previous]) summary.days = summary.days.map(day => ({ ...day, swimMetersPlot: null, swimMeterPlotSource: 'Ofullständigt mängdunderlag' }))
   }

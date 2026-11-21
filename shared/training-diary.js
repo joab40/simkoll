@@ -145,7 +145,7 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
   }).sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key))
 }
 
-export function summarizeDiary(entries, responses, start, end) {
+export function summarizeDiary(entries, responses, start, end, { includeCheckinSignals = false } = {}) {
   const selected = entries.filter((entry) => entry.date >= start && entry.date <= end)
   const training = selected.filter((entry) => entry.state === 'completed' && !['competition', 'rest', 'sick'].includes(entry.type))
   const days = []
@@ -153,7 +153,14 @@ export function summarizeDiary(entries, responses, start, end) {
     const dayEntries = selected.filter((entry) => entry.date === date)
     const dayTraining = training.filter((entry) => entry.date === date)
     const dayResponses = responses.filter((row) => responseDay(row) === date)
-    days.push({ date, ...swimMeterDay(dayEntries), sessions: dayTraining.length, competition: dayEntries.some((entry) => entry.type === 'competition'), completedCompetition: dayEntries.some((entry) => entry.type === 'competition' && entry.state === 'completed'), plannedCompetition: dayEntries.some((entry) => entry.type === 'competition' && entry.state === 'planned'), swimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.reportedMeters)), estimatedSwimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.estimatedMeters)), minutes: sumKnown(dayTraining.map((entry) => entry.reportedMinutes)), feeling: mean(dayResponses.map((row) => row.feeling)), body: mean(dayResponses.map((row) => row.body)), rpe: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.rpe)), speedFeeling: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.speedFeeling)) })
+    const extra = includeCheckinSignals ? {
+      energy: mean(dayResponses.map(row => row.energy)),
+      motivation: mean(dayResponses.map(row => row.motivation)),
+      passRating: mean(dayResponses.map(row => row.pass_rating)),
+      setupRating: mean(dayResponses.map(row => row.setup_rating)),
+      temperature: mean(dayResponses.map(row => row.temperature)),
+    } : {}
+    days.push({ date, ...swimMeterDay(dayEntries), sessions: dayTraining.length, competition: dayEntries.some((entry) => entry.type === 'competition'), completedCompetition: dayEntries.some((entry) => entry.type === 'competition' && entry.state === 'completed'), plannedCompetition: dayEntries.some((entry) => entry.type === 'competition' && entry.state === 'planned'), swimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.reportedMeters)), estimatedSwimMeters: sumKnown(dayTraining.filter((entry) => entry.type === 'swim').map((entry) => entry.estimatedMeters)), minutes: sumKnown(dayTraining.map((entry) => entry.reportedMinutes)), feeling: mean(dayResponses.map((row) => row.feeling)), body: mean(dayResponses.map((row) => row.body)), rpe: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.rpe)), speedFeeling: mean(dayEntries.filter((entry) => ['completed', 'feedback'].includes(entry.state)).map((entry) => entry.speedFeeling)), ...extra })
   }
   return { sessions: training.length, byType: Object.fromEntries([...new Set(training.map((entry) => entry.type))].map((type) => [type, training.filter((entry) => entry.type === type).length])), activeDays: new Set(training.map((entry) => entry.date)).size, competitionDays: new Set(selected.filter((entry) => entry.type === 'competition' && entry.state === 'completed').map((entry) => entry.date)).size, plannedCompetitionDays: new Set(selected.filter((entry) => entry.type === 'competition' && entry.state === 'planned').map((entry) => entry.date)).size, swimMeters: sumKnown(training.filter((entry) => entry.type === 'swim').map((entry) => entry.reportedMeters)), estimatedSwimMeters: sumKnown(training.filter((entry) => entry.type === 'swim').map((entry) => entry.estimatedMeters)), minutes: sumKnown(training.map((entry) => entry.reportedMinutes)), estimatedMinutes: sumKnown(training.map((entry) => entry.estimatedMinutes)), rpe: mean(days.map((row) => row.rpe)), feeling: mean(days.map((row) => row.feeling)), speedFeeling: mean(days.map((row) => row.speedFeeling)), days }
 }
