@@ -1,6 +1,8 @@
 // Original, deterministic downhill course. World units are game metres, not
 // training distance. Fixed physics steps keep touch/keyboard and FPS equal.
 export const SNOW_SECONDS=120, SNOW_MAX_SCORE=10000, SNOW_STEP=1/120
+const START_SPEED = 18
+const ACCELERATION = .085
 export const snowTrackCentre=s=>Math.sin(s*.008)*9+Math.sin(s*.019)*2
 export const snowNoise=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)}
 export const validSnowScore=score=>Number.isInteger(score)&&score>0&&score<=SNOW_MAX_SCORE
@@ -13,7 +15,7 @@ function spawnRow(game){
   game.objects.push({id:`g${row}`,s:s+7,x:(free-1)*3,kind:'gem',radius:.75,height:1.1})
 }
 export function createSnowGame(seed=137){
-  const game={status:'ready',seed:Number.isFinite(seed)?Math.floor(seed):137,elapsed:0,distance:0,speed:15,x:0,vx:0,y:0,vy:0,gems:0,score:0,row:0,objects:[],accumulator:0,reason:'',jumpQueued:false}
+  const game={status:'ready',seed:Number.isFinite(seed)?Math.floor(seed):137,elapsed:0,distance:0,speed:START_SPEED,x:0,vx:0,y:0,vy:0,gems:0,score:0,row:0,objects:[],accumulator:0,reason:'',jumpQueued:false}
   while(65+game.row*24<210)spawnRow(game)
   return game
 }
@@ -29,7 +31,7 @@ export function advanceSnow(game,delta,steer=0){
     game.accumulator-=SNOW_STEP;const dt=SNOW_STEP
     if(game.jumpQueued){if(game.y<=.001){game.vy=7;game.y=.002}game.jumpQueued=false}
     game.elapsed=Math.min(SNOW_SECONDS,game.elapsed+dt)
-    game.speed=Math.min(32,15+game.elapsed*.11)
+    game.speed=Math.min(32, START_SPEED + game.elapsed * ACCELERATION)
     game.distance+=game.speed*dt
     game.vx+=(direction*8.5-game.vx)*Math.min(1,dt*9)
     game.x=Math.max(-4.25,Math.min(4.25,game.x+game.vx*dt))

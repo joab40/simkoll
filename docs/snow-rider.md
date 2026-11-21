@@ -29,7 +29,7 @@ pausar åket. Fullskärm använder native-läge eller CSS-fallback och kan lämn
 med Stäng/Escape. Kroppens scroll återställs när fullskärm avslutas.
 
 Åket varar högst 120 sekunder, om inte en krock avslutar tidigare. Farten ökar
-från 15 m/s med 0,11 m/s per sekund (maxgräns 32 m/s). Låga stockar/stenar kan
+från 18 m/s (cirka 65 km/h) med 0,085 m/s per sekund. Låga stockar/stenar kan
 hoppas över; granar behöver undvikas. En spelmeter ger 1 poäng, en kristall 25.
 Alla åk använder samma deterministiska bana. Stegvis fysik på 1/120 s hindrar
 skillnader mellan vanliga skärmuppdateringar och tunnling genom hinder.
