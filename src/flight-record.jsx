@@ -4,7 +4,7 @@ import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
-import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, defaultFlightPbSettings, pbBoostFraction, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
+import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, changePracticeBoost, defaultFlightPbSettings, pbBoostFraction, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_METRICS } from '../shared/flight-taper.js'
 import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
@@ -211,10 +211,10 @@ function FlightWeightRow({ signal, label, weights, selectedCount = 0, onChange, 
   </div>
 }
 
-function FlightSettingActions({ onSave, onReset, dirty, saving, available, message, label }) {
+function FlightSettingActions({ onSave, onReset, dirty, saving, available, blocked, message, label }) {
   return <>
     <div className="flight-actions">
-      <button className="primary-button" type="button" disabled={!available || !dirty || saving} onClick={onSave}>{saving ? 'Sparar…' : label}</button>
+      <button className="primary-button" type="button" disabled={!available || !dirty || saving || blocked} onClick={onSave}>{saving ? 'Sparar…' : label}</button>
       <button className="secondary-button" type="button" disabled={saving} onClick={onReset}>Återställ förval</button>
     </div>
     {!available && <p className="flight-muted">Du kan prova inställningarna här. Sparandet är inte tillgängligt ännu.</p>}
@@ -249,10 +249,11 @@ const boostFields = [
 ]
 
 function FlightBoostFields({ settings, kind, onChange, saving, maxDays = FLIGHT_BOOST_MAX_DAYS }) {
+  const dayLimits = { fullDays: maxDays, fadeDays: maxDays - 1 }
   return <div className="flight-measure-fields">
     {boostFields.filter(([key]) => Object.hasOwn(settings[kind], key)).map(([key, label, min, max]) => <label key={key}>
       {label}
-      <input type="number" inputMode="numeric" min={min} max={key.endsWith('Days') ? maxDays : max} step={1} disabled={saving} value={settings[kind][key]}
+      <input type="number" inputMode="numeric" min={min} max={dayLimits[key] ?? max} step={1} disabled={saving} value={settings[kind][key]}
         onChange={event => onChange(kind, key, event.target.value === '' ? '' : event.target.valueAsNumber)} />
     </label>)}
   </div>
@@ -264,12 +265,15 @@ const practiceBoostLabels = [
   ['progress', 'Egen utveckling'],
 ]
 
-function FlightPracticeBoostFields({ config, onChange, saving }) {
+function FlightPracticeBoostFields({ config, onChange, saving, weight }) {
   return <>
-    <p>Träningstider och testlopp får full effekt och avtoning i sammanlagt högst sju dagar. Maxlyft på 0 stänger av en boost.</p>
+    <p>Full effekt och avtoning får tillsammans vara högst sju dagar. Ändrar du ett av fälten kortas det andra vid behov. Maxlyft på 0 stänger av en boost.</p>
     {practiceBoostLabels.map(([kind, label]) => <fieldset className="flight-weight-group" key={kind}>
       <legend>{label}</legend>
       <FlightBoostFields settings={config} kind={kind} onChange={onChange} saving={saving} maxDays={FLIGHT_PRACTICE_BOOST_DAYS} />
+      {Object.values(config[kind]).every(Number.isInteger) && <p>
+        Upp till {number(config[kind].maxSteps * weight / 100)} steg med {weight} % vikt · {config[kind].fullDays + config[kind].fadeDays} dagar totalt
+      </p>}
       {kind === 'near' && <div className="flight-measure-fields flight-pb-margins">
         {FLIGHT_PB_DISTANCES.map(distance => <label key={distance}>Gräns för {distance} m (sekunder)
           <input type="number" inputMode="decimal" min={0} step={.01} disabled={saving}
@@ -291,7 +295,7 @@ function FlightBoostControls({ weights, onChange, taperAvailable, configAvailabl
       <legend>Simmade tider</legend>
       <FlightWeightRow signal="times" label="Lyft från simtider" weights={weights} onChange={onChange} saving={actions.saving} canSelect />
       <p>Procenten styr hur stor del av maxlyftet en tid kan ge.</p>
-      {pbAvailable && <FlightPracticeBoostFields config={pbConfig} onChange={onPbChange} saving={actions.saving} />}
+      {pbAvailable && <FlightPracticeBoostFields config={pbConfig} onChange={onPbChange} saving={actions.saving} weight={weights.times} />}
       {configAvailable && <fieldset className="flight-weight-group">
         <legend>Tävlingsresultat</legend>
         <FlightBoostFields settings={config} kind="times" onChange={onConfigChange} saving={actions.saving} />
@@ -306,7 +310,7 @@ function FlightBoostControls({ weights, onChange, taperAvailable, configAvailabl
         : <p>Toppningsjustering kräver SQL 138.</p>}
     </fieldset>
     {configError && <p className="flight-error" role="alert">{configError}</p>}
-    <FlightSettingActions {...actions} dirty={actions.dirty && !configError} label="Spara boostar" />
+    <FlightSettingActions {...actions} blocked={Boolean(configError)} label="Spara boostar" />
   </details>
 }
 
@@ -335,10 +339,15 @@ function PracticeTimeBoost({ point, checks, available, tempusAvailable, weight, 
     {available === false && <p>Tränings- och testtider kunde inte hämtas.</p>}
     {available === true && !checks.length && !applied.length && <p>Dagen saknar registrerade tränings- och testtider.</p>}
     {(applied.length > 0 || other.length > 0) && <ul className="flight-time-evidence">
-      {applied.map(event => <li key={event.date}>
-        <strong>{shortDate(event.date)} · {formatTrainingTime(event.centis)}</strong>
-        <span>{event.label} · {timeEvidence(event)}</span>
-      </li>)}
+      {applied.map(event => {
+        const horizon = event.kind === 'race' ? null : settings[event.pbKind ?? 'progress']
+        const day = daysBetween(event.date, point.date) + 1
+        return <li key={event.date}>
+          <strong>{shortDate(event.date)} · {formatTrainingTime(event.centis)}</strong>
+          <span>{event.label} · {timeEvidence(event)}</span>
+          {horizon && <span>Dag {day} av {horizon.fullDays + horizon.fadeDays} · {day <= horizon.fullDays ? 'full effekt' : 'avtoning'}</span>}
+        </li>
+      })}
       {other.map(time => <li key={time.seriesKey}>
         <strong>{formatTrainingTime(time.centis)} · {time.label}</strong>
         {time.reference != null && tempusAvailable && <span>{timeEvidence(time)}</span>}
@@ -513,7 +522,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
       <FlightBoostControls {...settings} taperAvailable={data.taperAvailable} configAvailable={data.boostSettingsAvailable}
         pbAvailable={data.pbBoostSettingsAvailable} pbConfig={pbSettings} config={boostSettings} configError={configError || pbError}
         onPbChange={(kind, key, value) => {
-          setPbSettings(current => ({ ...current, [kind]: { ...current[kind], [key]: value } }))
+          setPbSettings(current => ({ ...current, [kind]: changePracticeBoost(current[kind], key, value) }))
           setWeightMessage({ text: '' })
         }}
         onConfigChange={(kind, key, value) => {

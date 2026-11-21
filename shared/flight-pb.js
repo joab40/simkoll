@@ -22,6 +22,20 @@ export function defaultFlightPbSettings(timeBoost = defaultFlightBoostSettings.t
   }
 }
 
+export function changePracticeBoost(config, field, value) {
+  const updated = { ...config, [field]: value }
+  if (!Number.isInteger(value)) return updated
+  if (field === 'fullDays' && value >= 1) {
+    updated.fullDays = Math.min(value, FLIGHT_PRACTICE_BOOST_DAYS)
+    if (Number.isInteger(config.fadeDays)) updated.fadeDays = Math.min(config.fadeDays, FLIGHT_PRACTICE_BOOST_DAYS - updated.fullDays)
+  }
+  if (field === 'fadeDays' && value >= 0) {
+    updated.fadeDays = Math.min(value, FLIGHT_PRACTICE_BOOST_DAYS - 1)
+    if (Number.isInteger(config.fullDays)) updated.fullDays = Math.min(config.fullDays, FLIGHT_PRACTICE_BOOST_DAYS - updated.fadeDays)
+  }
+  return updated
+}
+
 const hasFields = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
 

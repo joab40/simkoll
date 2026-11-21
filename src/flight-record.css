@@ -164,6 +164,7 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 }
 .flight-weights > summary { padding: 12px 0; cursor: pointer; font-weight: 700; }
 .flight-weights > p, .flight-weight-lift p { margin: 0 0 8px; color: var(--flight-muted); }
+.flight-weights > p.flight-error { color: #922f32; }
 .flight-weight-group, .flight-metric-picker { min-width: 0; margin: 12px 0; padding: 4px 12px 8px; border: 1px solid var(--flight-line); border-radius: 10px; }
 .flight-weight-group legend, .flight-metric-picker legend { padding-inline: 4px; font-weight: 700; }
 .flight-weight-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 232px), 1fr)); gap: 0 18px; }

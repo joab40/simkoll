@@ -5,7 +5,7 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 import { defaultFlightWeights, flightLine, flightTimeLifts } from '../shared/flight-line.js'
 import { flightTimeSeries } from '../shared/flight-record.js'
-import { defaultFlightPbSettings, flightPbCandidates, pbBoostFraction, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
+import { changePracticeBoost, defaultFlightPbSettings, flightPbCandidates, pbBoostFraction, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
 
 const date = '2026-11-21'
 const time = (overrides = {}) => ({
@@ -52,6 +52,18 @@ test('near-PB cutoffs are configurable per distance and a faster test is a separ
   assert.equal(fraction(200, 301), 0)
   assert.equal(fraction(200, -25), 1)
   assert.throws(() => validateFlightPbSettings({ ...settings, faster: { maxSteps: 8, fullDays: 4, fadeDays: 4 } }), /högst 7 dagar/)
+})
+
+test('editing either phase of a practice boost preserves the chosen value within the seven-day limit', () => {
+  const settings = defaultFlightPbSettings()
+  const fullFirst = changePracticeBoost({ ...settings.faster, maxSteps: 25 }, 'fullDays', 6)
+  assert.deepEqual(fullFirst, { maxSteps: 25, fullDays: 6, fadeDays: 1 })
+  const fadeLast = changePracticeBoost(fullFirst, 'fadeDays', 4)
+  assert.deepEqual(fadeLast, { maxSteps: 25, fullDays: 3, fadeDays: 4 })
+  assert.deepEqual(validateFlightPbSettings({ ...settings, faster: fadeLast }).faster, fadeLast)
+  assert.deepEqual(changePracticeBoost(fadeLast, 'fullDays', 9), { maxSteps: 25, fullDays: 7, fadeDays: 0 })
+  assert.deepEqual(changePracticeBoost(fadeLast, 'fadeDays', 9), { maxSteps: 25, fullDays: 1, fadeDays: 6 })
+  assert.deepEqual(changePracticeBoost(fadeLast, 'fullDays', ''), { maxSteps: 25, fullDays: '', fadeDays: 4 })
 })
 
 test('a like-for-like practice improvement is available when no matching Tempus PB exists', () => {
