@@ -47,7 +47,43 @@
 .flight-toggle input { margin: 0; width: 21px; height: 21px; flex: none; accent-color: var(--flight-teal); }
 .flight-home-card h2 span { color: var(--flight-teal); }
 .flight-coach-card { margin-block: 14px; min-width: 0; border: 1px solid var(--flight-line); border-radius: 16px; background: var(--flight-paper); }
-.flight-coach-content { padding: 0 clamp(12px, 3vw, 20px) 16px; }
+.flight-coach-content {
+  position: static;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 clamp(12px, 3vw, 20px) 16px;
+  border: 0;
+  background: transparent;
+  color: var(--flight-ink);
+}
+.flight-coach-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-block: 8px; }
+.flight-coach-toolbar button { min-height: 44px; }
+.flight-coach-toolbar h2 { margin: 0; min-width: 0; font-size: clamp(1.1rem, 2.5vw, 1.65rem); overflow-wrap: anywhere; }
+.flight-coach-content:not(:modal) :is(.flight-coach-toolbar h2, .flight-coach-restore),
+.flight-coach-content:modal .flight-coach-expand { display: none; }
+html:has(.flight-coach-content:modal) { overflow: hidden; }
+.flight-coach-content:modal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-height: none;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--flight-paper);
+}
+.flight-coach-content:modal .flight-coach-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--flight-paper);
+}
 .flight-coach-setting { padding-block: 9px; margin-bottom: 12px; border-block: 1px solid var(--flight-line); }
 .flight-invitation .flight-error, .flight-error { color: #922f32; }
 
@@ -85,7 +121,8 @@
   color: #f4fbff;
 }
 .flight-plot figcaption { padding: 13px 14px 0; font-size: .92rem; font-weight: 700; }
-.flight-plot svg { display: block; width: 100%; height: auto; }
+.flight-plot svg { display: block; width: 100%; height: 220px; }
+.flight-coach-content:modal .flight-plot svg { height: clamp(260px, 55dvh, 640px); }
 .flight-plot svg text { fill: #def3fc; font: 12px system-ui, sans-serif; }
 .flight-grid { stroke: #def3fc; opacity: .24; }
 .flight-today, .flight-goal { stroke: #def3fc; stroke-dasharray: 4 5; opacity: .78; }

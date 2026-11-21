@@ -5205,7 +5205,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             <SwimmerStrengthProgramCard profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerStrengthProgramCard programType="dryland" profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
-            {code?.startsWith('coach.') && <FlightRecordCoachCard key={`flight-record-${profile.id}`} profileId={profile.id} code={code} request={apiRequest} competitions={competitions.filter(item => !item.targetGroups?.length || item.targetGroups.includes(profile.trainingGroup))} />}
+            {code?.startsWith('coach.') && <FlightRecordCoachCard key={`flight-record-${profile.id}`} profileId={profile.id} swimmerName={profile.displayName} code={code} request={apiRequest} competitions={competitions.filter(item => !item.targetGroups?.length || item.targetGroups.includes(profile.trainingGroup))} />}
             <SleepHistory profileId={profile.id} code={code} request={apiRequest} responses={responses.filter((item) => item.profileId === profile.id)} />
             <IllnessHistory key={`illness-${profile.id}`} profileId={profile.id} code={code} request={apiRequest} />
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>

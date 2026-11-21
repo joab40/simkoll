@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createVisibleRefresh } from './visible-refresh.js'
 import SwimmerCardSummary from './swimmer-card-summary.jsx'
 import './flight-record.css'
@@ -172,11 +172,35 @@ function FlightRecordCoachVisibility({ profileId, code, request }) {
 
 export function FlightRecordCoachCard(props) {
   const [open, setOpen] = useState(false)
+  const panel = useRef(null)
+  const expandButton = useRef(null)
+  const restoreButton = useRef(null)
+  const titleId = useId()
+
+  const expand = () => {
+    // Switch the same dialog into the top layer so the filters and any draft stay mounted.
+    panel.current.close()
+    panel.current.showModal()
+    panel.current.scrollTop = 0
+    restoreButton.current.focus({ preventScroll: true })
+  }
+
+  const restore = () => {
+    panel.current.close()
+    panel.current.show()
+    expandButton.current.focus({ preventScroll: true })
+  }
+
   return <details className="flight-coach-card swimmer-disclosure" onToggle={event => setOpen(event.currentTarget.open)}>
     <SwimmerCardSummary icon="✈︎" title="Flight Record" description="Formgraf, mätvärden och vikter" />
-    {open && <div className="flight-coach-content">
+    {open && <dialog open ref={panel} className="flight-coach-content" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); restore() }}>
+      <header className="flight-coach-toolbar">
+        <h2 id={titleId}>Flight Record{props.swimmerName && ` · ${props.swimmerName}`}</h2>
+        <button ref={expandButton} type="button" className="secondary-button flight-coach-expand" aria-haspopup="dialog" onClick={expand}>⛶ Helskärm</button>
+        <button ref={restoreButton} type="button" className="secondary-button flight-coach-restore" onClick={restore}>↙ Tillbaka till simmarkortet</button>
+      </header>
       <FlightRecordCoachVisibility {...props} />
       <CoachFlightRecord {...props} />
-    </div>}
+    </dialog>}
   </details>
 }

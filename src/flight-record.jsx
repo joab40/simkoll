@@ -52,18 +52,23 @@ function chartScale(values, metric, timed) {
 }
 
 function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status }) {
-  const frame = useRef(null)
-  const [width, setWidth] = useState(640)
+  const graph = useRef(null)
+  const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
-    const measure = () => setWidth(Math.max(240, Math.round(frame.current?.clientWidth || 640)))
+    const element = graph.current
+    const measure = () => {
+      const { clientWidth, clientHeight } = element
+      if (!clientWidth || !clientHeight) return
+      const width = Math.max(240, clientWidth)
+      setSize(current => current.width === width && current.height === clientHeight ? current : { width, height: clientHeight })
+    }
     measure()
     if (!globalThis.ResizeObserver) return undefined
     const observer = new ResizeObserver(measure)
-    observer.observe(frame.current)
+    observer.observe(element)
     return () => observer.disconnect()
   }, [])
 
-  const height = 220
   const start = days[0].date
   const goalOffset = target ? daysBetween(asOf, target.date) : 0
   // Distant calendar events stay in the destination header, so the history has room.
@@ -94,9 +99,9 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
-  return <figure className={onSelect ? 'flight-plot' : 'flight-plot flight-plot-static'} ref={frame} aria-label={plotLabel}>
+  return <figure className={onSelect ? 'flight-plot' : 'flight-plot flight-plot-static'} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}`}>
+    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={right - today} height={base - top} />}
       {ticks.map(tick => <g key={tick}>
         <line className="flight-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)} />
