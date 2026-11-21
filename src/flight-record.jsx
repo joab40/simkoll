@@ -8,16 +8,16 @@ import './flight-record.css'
 const sections = [
   ['line', 'Flight-linje'], ['feel', 'Känsla'], ['times', 'Simmade tider'], ['training', 'Träning'], ['sleep', 'Sömn'],
 ]
-const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = din vanliga nivå' }
+const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = vanlig nivå' }
 const metrics = {
   feel: [
-    { key: 'speedFeeling', label: 'Fartkänsla', unit: '/ 5', scale: [1, 5], note: 'Din skattning efter simpass.' },
-    { key: 'body', label: 'Kroppskänsla', unit: '/ 5', scale: [1, 5], note: 'Din skattning i incheckningarna.' },
-    { key: 'feeling', label: 'Dagskänsla', unit: '/ 5', scale: [1, 5], note: 'Din skattning i incheckningarna.' },
-    { key: 'energy', label: 'Energi', unit: '/ 5', scale: [1, 5], note: 'Din skattning i incheckningarna.' },
-    { key: 'motivation', label: 'Motivation', unit: '/ 5', scale: [1, 5], note: 'Din skattning inför träningen.' },
-    { key: 'passRating', label: 'Passbetyg', unit: '/ 5', scale: [1, 5], note: 'Ditt omdöme om passet.' },
-    { key: 'setupRating', label: 'Uppläggsbetyg', unit: '/ 5', scale: [1, 5], note: 'Ditt omdöme om upplägget.' },
+    { key: 'speedFeeling', label: 'Fartkänsla', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning efter simpass.' },
+    { key: 'body', label: 'Kroppskänsla', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning i incheckningarna.' },
+    { key: 'feeling', label: 'Dagskänsla', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning i incheckningarna.' },
+    { key: 'energy', label: 'Energi', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning i incheckningarna.' },
+    { key: 'motivation', label: 'Motivation', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning inför träningen.' },
+    { key: 'passRating', label: 'Passbetyg', unit: '/ 5', scale: [1, 5], note: 'Simmarens omdöme om passet.' },
+    { key: 'setupRating', label: 'Uppläggsbetyg', unit: '/ 5', scale: [1, 5], note: 'Simmarens omdöme om upplägget.' },
     { key: 'temperature', label: 'Upplevd temperatur', unit: '/ 5', scale: [1, 5], note: 'Hur träningsmiljön kändes. 1 = väldigt kallt, 5 = för varmt.' },
   ],
   training: [
@@ -31,7 +31,7 @@ const metrics = {
   ],
   sleep: [
     { key: 'sleepMinutes', label: 'Sovtid', unit: 'tim', bars: true },
-    { key: 'sleepQuality', label: 'Sömnkvalitet', unit: '/ 5', scale: [1, 5], note: 'Din skattning från sömnkollen.' },
+    { key: 'sleepQuality', label: 'Sömnkvalitet', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning från sömnkollen.' },
   ],
 }
 const seriesKinds = [['test', 'Testlopp'], ['training', 'Träningstider'], ['race', 'Tävlingsresultat']]
@@ -51,7 +51,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period }) {
+function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status }) {
   const frame = useRef(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -90,12 +90,13 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   }
   const todayPoint = points.find(point => point.date === asOf && Number.isFinite(point.value))
   const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.subtitle ?? metric.unit}`
+  const latestPoint = points.findLast(point => Number.isFinite(point.value))
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
-  const pointValue = (value) => timed ? formatTrainingTime(value) : `${number(value)} ${metric.unit}`
-  return <figure className="flight-plot" ref={frame} aria-label={plotLabel}>
+  const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
+  return <figure className={onSelect ? 'flight-plot' : 'flight-plot flight-plot-static'} ref={frame} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag. Exakta värden finns under diagrammet.`}>
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={right - today} height={base - top} />}
       {ticks.map(tick => <g key={tick}>
         <line className="flight-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)} />
@@ -103,19 +104,21 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
       </g>)}
       <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />
       {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
-      {selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
+      {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
       {path && <path className="flight-observed-line" d={path} fill="none" />}
       {points.filter(point => Number.isFinite(point.value)).map(point => {
         const label = `${shortDate(point.date)} · ${pointValue(point.value)}`
         const marked = point.date === selected ? ' selected' : ''
-        if (point.timeLift > 0 && point.events.some(event => event.date === point.date)) {
+        const onClick = onSelect ? () => onSelect(point.date) : undefined
+        if (point.newTimeLift || (point.timeLift > 0 && point.events.some(event => event.date === point.date))) {
           const cx = x(point.date), cy = y(point.value), size = marked ? 7 : 5.5
-          return <path key={point.date} className="flight-lift-mark" d={`M ${cx} ${cy - size} l ${size} ${size} l ${-size} ${size} l ${-size} ${-size} Z`} onClick={() => onSelect(point.date)}><title>{label} · tidslyft</title></path>
+          return <path key={point.date} className="flight-lift-mark" d={`M ${cx} ${cy - size} l ${size} ${size} l ${-size} ${size} l ${-size} ${-size} Z`} onClick={onClick}><title>{label} · tidslyft</title></path>
         }
         return metric.bars && !timed
-          ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={() => onSelect(point.date)}><title>{label}</title></rect>
-          : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={() => onSelect(point.date)}><title>{label}</title></circle>
+          ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={onClick}><title>{label}</title></rect>
+          : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{label}</title></circle>
       })}
+      {!values.length && <text className="flight-empty-label" x={(left + right) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
       <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>
       {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? 'Idag' : shortDate(date)}</text>)}
       {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
@@ -123,7 +126,8 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
     <div className="flight-legend">
       <span><i/> {metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter'}</span>
       {metric === lineMetric && <span><i className="flight-legend-lift"/> Nytt tidslyft</span>}
-      {future > 0 && <span><i className="flight-legend-future"/> Planerad tävlingsdag</span>}
+      {future > 0 && <span><i className="flight-legend-future"/> {onSelect ? 'Planerad tävlingsdag' : target.title}</span>}
+      {status && <span role="status">{status}</span>}
     </div>
   </figure>
 }
@@ -182,7 +186,7 @@ function FlightWeightControls({ weights, onChange, onSave, onReset, dirty, savin
 
   return <details className="flight-weights">
     <summary>Vikta signaler{dirty ? ' · osparade ändringar' : ''}</summary>
-    <p>Bocka i det du vill följa. En högre vikt ger signalen större plats i linjen.</p>
+    <p>Välj vilka signaler som ska ingå i simmarens formgraf. En högre vikt ger signalen större inflytande.</p>
     <div className="flight-weight-list">{FLIGHT_SIGNALS.map(({ key, label }) => row(key, label))}</div>
     <div className="flight-weight-lift">
       <strong>Tidslyft</strong>
@@ -326,15 +330,23 @@ export function FlightRecordView({ data, competitions = [], saveWeights }) {
     {data.warnings.length > 0 && <details className="flight-method"><summary>Underlag som saknas</summary><ul>{data.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
     <details className="flight-method">
       <summary>Så läser du formresan</summary>
-      <p>Flight-linjen jämför snittet från sju dagar med din median från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Vikterna styr hur mycket varje mått påverkar linjen.</p>
+      <p>Flight-linjen jämför simmarens snitt från sju dagar med medianen från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Vikterna styr hur mycket varje mått påverkar linjen.</p>
       <p>Ett tidslyft kräver minst tre tidigare jämförbara simdagar under 56 dagar. Varje dags bästa förbättring kan lyfta linjen. Lyftet avtar under veckan och är högst 5 steg totalt.</p>
       <p>Testlopp och träningstider jämförs med samma distans, simsätt, bassäng, start, hjälpmedel, tidtagning och övriga förutsättningar. Varje punkt visar dagens snabbaste tid i serien. Tävlingsresultat ligger för sig.</p>
-      <p>Luckor är dagar utan ett värde i underlaget. Vid ett valt tävlingsmål visar högerkanten datumet när det ligger nära nog. Kurvan visar dina tidigare skattningar och rapporterade resultat.</p>
+      <p>Luckor är dagar utan ett värde i underlaget. När tävlingsmålet ligger nära visas tävlingsdagen till höger i grafen.</p>
     </details>
   </>
 }
 
-export default function FlightRecord({ code, offerId, request, competitions, onBack, onRefreshAccess }) {
+function SwimmerFlightChart({ data, competitions }) {
+  const competition = competitions?.filter(item => isVisibleCompetition(item, data.asOf))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+  const target = competition ? { title: competition.title, date: competition.startDate } : null
+  return <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
+    status={data.partial ? 'Delar av underlaget saknas' : undefined} />
+}
+
+export default function FlightRecordChart({ code, request, competitions, onRefreshAccess }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -342,7 +354,7 @@ export default function FlightRecord({ code, offerId, request, competitions, onB
     const controller = new AbortController()
     setResult(null)
     setError('')
-    request('/api/training?flightRecord=data', code, { signal: controller.signal, retry: false }).then(data => {
+    request('/api/training?flightRecord=chart', code, { signal: controller.signal, retry: false }).then(data => {
       if (!controller.signal.aborted) setResult(data)
     }).catch(failure => {
       if (controller.signal.aborted) return
@@ -351,18 +363,7 @@ export default function FlightRecord({ code, offerId, request, competitions, onB
     })
     return () => controller.abort()
   }, [code, request, attempt, onRefreshAccess])
-  const saveWeights = (weights) => request('/api/training?flightRecord=weights', code, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerId, weights }),
-  })
-
-  return <div className="flight-page">
-    <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button>
-    <header className="flight-heading">
-      <p className="eyebrow">Din formresa</p>
-      <h1>Flight Record <span aria-hidden="true">✈︎</span></h1>
-    </header>
-    {error ? <div className="flight-error" role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={() => setAttempt(current => current + 1)}>Försök igen</button></div>
-      : result ? <FlightRecordView data={result} competitions={competitions} saveWeights={saveWeights} />
-        : <p className="empty" role="status">Hämtar din formresa…</p>}
-  </div>
+  if (error) return <div className="flight-error" role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={() => setAttempt(current => current + 1)}>Försök igen</button></div>
+  if (result) return <SwimmerFlightChart data={result} competitions={competitions} />
+  return <p className="empty" role="status">Hämtar formgrafen…</p>
 }

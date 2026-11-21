@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createVisibleRefresh } from './visible-refresh.js'
+import SwimmerCardSummary from './swimmer-card-summary.jsx'
 import './flight-record.css'
 
 const statusUrl = '/api/training?flightRecord=status'
+const dataUrl = '/api/training?flightRecord=data'
+const weightsUrl = '/api/training?flightRecord=weights'
 const postOptions = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const empty = { access: null, saving: false, error: '' }
+const FlightRecordChart = React.lazy(() => import('./flight-record.jsx'))
+const FlightRecordDetails = React.lazy(() => import('./flight-record.jsx').then(module => ({ default: module.FlightRecordView })))
 
 export function useFlightRecordAccess(profileId, code, request) {
   const scope = useMemo(() => ({ profileId, code, alive: false, revision: 0, saving: false }), [profileId, code])
@@ -60,45 +65,75 @@ export function useFlightRecordAccess(profileId, code, request) {
   return { ...state, choose, refresh }
 }
 
-export function FlightRecordHomeCard({ flight, onOpen }) {
+export function FlightRecordHomeCard({ flight, code, request, competitions }) {
   if (!flight.access?.offered || flight.access.choice === 'later') return null
-  const active = flight.access.choice === 'active'
+  if (flight.access.choice === 'active') return <section className="flight-home-card" aria-label="Flight Record">
+    <h2>Flight Record <span aria-hidden="true">✈︎</span></h2>
+    <React.Suspense fallback={<p className="empty" role="status">Öppnar formgrafen…</p>}>
+      <FlightRecordChart key={flight.access.offerId} code={code} request={request} competitions={competitions} onRefreshAccess={flight.refresh} />
+    </React.Suspense>
+  </section>
   return <section className="flight-invitation" aria-label="Flight Record">
     <span className="flight-invitation-icon" aria-hidden="true">✈︎</span>
     <div>
-      <p className="eyebrow">Din formresa</p>
       <h2>Flight Record</h2>
-      <p>{active ? 'Följ farten och träningen fram till nästa tävling.' : 'Vill du följa dina simtider, din fartkänsla och träningen fram till nästa tävling?'}</p>
+      <p>Vill du visa din formgraf på startsidan?</p>
       <div className="flight-actions">
-        {active ? <button type="button" className="primary-button" onClick={onOpen}>Öppna formresan →</button> : <>
-          <button type="button" className="primary-button" disabled={flight.saving} onClick={() => flight.choose('active')}>Aktivera</button>
-          <button type="button" className="secondary-button" disabled={flight.saving} onClick={() => flight.choose('later')}>Inte nu</button>
-        </>}
+        <button type="button" className="primary-button" disabled={flight.saving} onClick={() => flight.choose('active')}>Visa grafen</button>
+        <button type="button" className="secondary-button" disabled={flight.saving} onClick={() => flight.choose('later')}>Inte nu</button>
       </div>
-      {!active && <p className="flight-invitation-help">Du kan ändra valet under Min profil.</p>}
+      <p className="flight-invitation-help">Du kan ändra valet under Min profil.</p>
       {flight.error && <p role="alert" className="flight-error">{flight.error}</p>}
     </div>
   </section>
 }
 
-export function FlightRecordProfileSetting({ flight, onOpen }) {
+export function FlightRecordProfileSetting({ flight }) {
   if (!flight.access?.offered) return null
   const active = flight.access.choice === 'active'
   return <section className="flight-profile-setting">
     <label className="flight-toggle">
-      <span><strong>✈︎ Flight Record</strong><small>Visa din formresa mot nästa tävling.</small></span>
+      <span><strong>✈︎ Visa Flight Record</strong><small>Visa formgrafen på startsidan.</small></span>
       <input type="checkbox" checked={active} disabled={flight.saving} onChange={event => flight.choose(event.target.checked ? 'active' : 'later')} />
     </label>
-    {active && <button type="button" className="text-button" onClick={onOpen}>Öppna formresan →</button>}
     {flight.error && <p role="alert" className="flight-error">{flight.error}</p>}
   </section>
 }
 
-export function FlightRecordCoachSetting({ profileId, code, request }) {
+function CoachFlightRecord({ profileId, code, request, competitions }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  const profileQuery = '&profileId=' + encodeURIComponent(profileId)
+  useEffect(() => {
+    const controller = new AbortController()
+    setData(null)
+    setError('')
+    request(dataUrl + profileQuery, code, { signal: controller.signal, retry: false }).then(data => {
+      if (!controller.signal.aborted) setData(data)
+    }).catch(error => {
+      if (!controller.signal.aborted) setError(error.message)
+    })
+    return () => controller.abort()
+  }, [profileQuery, code, request, attempt])
+
+  if (error) return <div className="flight-error">
+    <p role="alert">{error}</p>
+    <button type="button" className="text-button" onClick={() => setAttempt(current => current + 1)}>Hämta igen</button>
+  </div>
+  if (!data) return <p className="empty" role="status">Hämtar formresan…</p>
+  const saveWeights = weights => request(weightsUrl + profileQuery, code, postOptions({ weights }))
+  return <React.Suspense fallback={<p className="empty" role="status">Öppnar formresan…</p>}>
+    <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} />
+  </React.Suspense>
+}
+
+function FlightRecordCoachVisibility({ profileId, code, request }) {
   const [state, setState] = useState({ offered: null, saving: false, error: '' })
   const [attempt, setAttempt] = useState(0)
   const scope = useMemo(() => ({ alive: false, saving: false }), [profileId, code, attempt])
-  const url = statusUrl + '&profileId=' + encodeURIComponent(profileId)
+  const profileQuery = '&profileId=' + encodeURIComponent(profileId)
+  const url = statusUrl + profileQuery
 
   useEffect(() => {
     scope.alive = true
@@ -127,10 +162,21 @@ export function FlightRecordCoachSetting({ profileId, code, request }) {
 
   return <section className="flight-coach-setting">
     <label className="flight-toggle">
-      <span><strong>Erbjud Flight Record</strong><small>Simmaren väljer själv om formresan visas.</small></span>
+      <span><strong>Visa för simmaren</strong><small>Simmaren väljer själv om grafen visas på startsidan.</small></span>
       <input type="checkbox" checked={state.offered === true} disabled={state.offered == null || state.saving} onChange={event => save(event.target.checked)} />
     </label>
     {state.offered == null && !state.error && <small role="status">Hämtar inställningen…</small>}
     {state.error && <p role="alert" className="flight-error">{state.error} {state.offered == null && <button type="button" onClick={() => setAttempt(current => current + 1)}>Hämta igen</button>}</p>}
   </section>
+}
+
+export function FlightRecordCoachCard(props) {
+  const [open, setOpen] = useState(false)
+  return <details className="flight-coach-card swimmer-disclosure" onToggle={event => setOpen(event.currentTarget.open)}>
+    <SwimmerCardSummary icon="✈︎" title="Flight Record" description="Formgraf, mätvärden och vikter" />
+    {open && <div className="flight-coach-content">
+      <FlightRecordCoachVisibility {...props} />
+      <CoachFlightRecord {...props} />
+    </div>}
+  </details>
 }

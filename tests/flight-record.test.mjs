@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
-import { defaultFlightWeights } from '../shared/flight-line.js'
+import { defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -52,7 +52,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       assert.equal(query.get('approval_status'), 'eq.approved')
       const scope = query.get('flight_record_offer_id')
       if (migrationMissing && query.get('select') !== '*') return json({ code: '42703' }, 400)
-      if (weightsMigrationMissing && query.get('select') === 'flight_record_weights') return json({ code: 'PGRST204' }, 400)
+      if (weightsMigrationMissing && query.get('select')?.split(',').includes('flight_record_weights')) return json({ code: 'PGRST204' }, 400)
       if (scope === 'is.null' && profile.flight_record_offer_id != null) return json([])
       if (scope === 'not.is.null' && profile.flight_record_offer_id == null) return json([])
       if (scope?.startsWith('eq.') && scope !== `eq.${profile.flight_record_offer_id}`) return json([])
@@ -72,19 +72,28 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       return method === 'POST' ? new Response(null, { status: 204 }) : json([{ role: 'coach', details: { timeId: 'time-1', coachAccountId: coachId } }])
     }
     if (table === 'competition_results') return json([{ id: 'race', result_date: yesterday, event: '100 m Frisim', pool: '50m', result_time: 6201, source: 'tempus' }])
-    if (table === 'profile_daily_sleep') return failSleep ? json({}, 503) : json([{ activity_date: today, minutes: 510, quality: 5 }])
+    if (table === 'profile_daily_sleep') return failSleep ? json({}, 503) : json(Array.from({ length: 35 }, (_, offset) => ({
+      activity_date: coachWeekAddDays(today, -offset), minutes: 510, quality: 5,
+    })))
     if (['personal_training_sessions', 'responses', 'planned_training_sessions', 'session_attendance', 'strength_program_logs', 'program_assignments', 'workout_unlocks', 'dryland_program_logs'].includes(table)) assert.equal(query.get('profile_id'), `eq.${id}`)
+    if (table === 'responses') {
+      return json(Array.from({ length: 35 }, (_, offset) => ({
+        activity_date: coachWeekAddDays(today, -offset),
+        body: offset < 7 ? 4 : 3,
+        energy: offset < 7 ? 2 : 3,
+      })))
+    }
     assert(!['training_diary_reflections', 'coach_taper_goals', 'coach_form_observations', 'profile_daily_illness', 'development_goals'].includes(table), table)
     return json([])
   })
   return { profile, calls }
 }
 
-test('personal active coaches can offer the feature, but cannot read the choice or form data', async (t) => {
+test('personal active coaches can configure visibility independently of viewing the form data', async (t) => {
   const db = dbFixture(t, { offerId: null })
   assert.equal((await call({ code: 'shared-coach', profileId: id })).code, 403)
   assert.equal(db.calls.length, 0)
-  assert.equal((await call({ code: coach, profileId: id, mode: 'data' })).code, 403)
+  assert.equal((await call({ code: coach, profileId: id, mode: 'data' })).code, 200)
   const offered = await call({ code: coach, method: 'POST', profileId: id, body: { offered: true } })
   assert.deepEqual(offered.data, { offered: true })
   assert.equal(offered.headers['Cache-Control'], 'no-store')
@@ -96,27 +105,31 @@ test('personal active coaches can offer the feature, but cannot read the choice 
 test('an active offer is required; decline stays reversible, revocation cancels old choices, and writes use the session profile', async (t) => {
   const { profile, calls } = dbFixture(t)
   assert.equal((await call({ profileId: other })).data.offerId, offer)
-  assert.equal((await call({ mode: 'data', profileId: other })).code, 403)
+  assert.equal((await call({ mode: 'chart', profileId: other })).code, 403)
   const choose = (choice, offerId = offer) => call({ method: 'POST', profileId: other, body: { choice, offerId, profileId: other } })
   assert.equal((await choose('later')).data.choice, 'later')
-  assert.equal((await call({ mode: 'data' })).code, 403)
+  assert.equal((await call({ mode: 'chart' })).code, 403)
   assert.equal((await choose('active')).data.choice, 'active')
   assert.deepEqual(calls.filter(call => call.method === 'PATCH').at(-1).body, { flight_record_choice: 'active' })
+  assert.equal((await call({ mode: 'chart' })).code, 200)
+  assert.equal((await choose('later')).data.choice, 'later')
+  assert.equal((await call({ mode: 'chart' })).code, 403)
+  assert.equal((await choose('active')).data.choice, 'active')
   const coachSelect = (offered) => call({ code: coach, method: 'POST', profileId: id, body: { offered } })
   await coachSelect(true)
   assert.equal(profile.flight_record_choice, 'active')
   await coachSelect(false)
   assert.equal(profile.flight_record_choice, 'pending')
-  assert.equal((await call({ mode: 'data' })).code, 403)
+  assert.equal((await call({ mode: 'chart' })).code, 403)
   await coachSelect(true)
   assert.notEqual(profile.flight_record_offer_id, offer)
   assert.equal((await choose('active')).code, 409)
   assert.equal((await choose('active', profile.flight_record_offer_id)).data.choice, 'active')
 })
 
-test('the active swimmer sees only a minimal, date-bounded projection of own data even when a source fails', async (t) => {
+test('the coach gets date-bounded measurements and comparisons without private content', async (t) => {
   const { calls } = dbFixture(t, { state: 'active', failSleep: true })
-  const result = await call({ mode: 'data', profileId: other })
+  const result = await call({ mode: 'data', code: coach, profileId: id })
   assert.equal(result.code, 200)
   assert.equal(result.data.days.length, 90)
   assert.equal(result.data.contextDays.length, 34)
@@ -130,30 +143,49 @@ test('the active swimmer sees only a minimal, date-bounded projection of own dat
   assert(calls.every(call => call.method === 'GET'))
 })
 
-test('only the opted-in swimmer can save valid priorities for the current offer', async (t) => {
-  const { profile, calls } = dbFixture(t, { state: 'active' })
+test('only a personal coach can save weights for an approved profile, even with visibility off', async (t) => {
+  const { profile, calls } = dbFixture(t, { offerId: null })
   const weights = { ...defaultFlightWeights, speedFeeling: 5, energy: 0 }
-  const save = (overrides = {}) => call({ method: 'POST', mode: 'weights', profileId: other, body: { offerId: offer, weights }, ...overrides })
-  assert.equal((await save({ code: coach })).code, 403)
-  assert.equal((await save({ body: { offerId: other, weights } })).code, 409)
-  assert.equal((await save({ body: { offerId: offer, weights: { ...weights, energy: -1 } } })).code, 400)
+  const save = (overrides = {}) => call({ method: 'POST', mode: 'weights', code: coach, profileId: id, body: { profileId: other, weights }, ...overrides })
+  assert.equal((await save({ code: 'swimmer' })).code, 403)
+  assert.equal((await save({ code: 'shared-coach' })).code, 403)
+  assert.equal((await save({ profileId: 'invalid' })).code, 400)
+  assert.equal((await save({ body: { weights: { ...weights, energy: -1 } } })).code, 400)
   assert.equal(calls.filter(row => row.method === 'PATCH').length, 0)
   assert.deepEqual((await save()).data, { weights })
   const patch = calls.find(row => row.method === 'PATCH')
   assert.equal(patch.query.get('id'), `eq.${id}`)
-  assert.equal(patch.query.get('flight_record_choice'), 'eq.active')
-  assert.deepEqual((await call({ mode: 'data' })).data.weights, weights)
-  profile.flight_record_choice = 'later'
-  assert.equal((await save()).code, 403)
+  assert.equal(patch.query.get('terms_accepted_at'), 'not.is.null')
+  assert.equal(profile.flight_record_offer_id, null)
+  assert.deepEqual((await call({ code: coach, mode: 'data', profileId: id })).data.weights, weights)
+  assert.equal(calls.find(row => row.method === 'POST' && row.table === 'audit_logs').body.details.coachAccountId, coachId)
 })
 
-test('the weighted view can use defaults until SQL 135 is run', async (t) => {
-  dbFixture(t, { state: 'active', weightsMigrationMissing: true })
-  const result = await call({ mode: 'data' })
+test('the opted-in swimmer receives only 28 chart points with the coach’s weighting', async (t) => {
+  const { calls } = dbFixture(t, { state: 'active', failSleep: true })
+  const weights = { ...defaultFlightWeights, speedFeeling: 0, body: 5, energy: 1, sleepQuality: 0 }
+  assert.equal((await call({ code: coach, mode: 'weights', method: 'POST', profileId: id, body: { weights } })).code, 200)
+  const offset = calls.length
+  const result = await call({ mode: 'chart', profileId: other })
   assert.equal(result.code, 200)
-  assert.equal(result.data.weightsAvailable, false)
-  assert.deepEqual(result.data.weights, defaultFlightWeights)
-  const save = await call({ mode: 'weights', method: 'POST', body: { offerId: offer, weights: defaultFlightWeights } })
+  assert.deepEqual(Object.keys(result.data).sort(), ['asOf', 'partial', 'points'])
+  assert.equal(result.data.partial, true)
+  assert.equal(result.data.points.length, 28)
+  assert.deepEqual(result.data.points.at(-1), { date: today, value: 58.3, newTimeLift: false })
+  assert(!calls.slice(offset).some(row => row.table === 'audit_logs'))
+  assert.equal((await call({ mode: 'data' })).code, 403)
+  assert.equal((await call({ code: coach, mode: 'chart', profileId: id })).code, 403)
+  const details = (await call({ code: coach, mode: 'data', profileId: id })).data
+  const coachLine = flightLine(details.days, details.contextDays, details.timeLifts, details.weights)
+  assert.deepEqual(result.data.points.map(point => point.value), coachLine.slice(-28).map(point => point.value))
+})
+
+test('the swimmer chart can use defaults until SQL 135 is run', async (t) => {
+  dbFixture(t, { state: 'active', weightsMigrationMissing: true })
+  const result = await call({ mode: 'chart' })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.points.at(-1).value, 51.8)
+  const save = await call({ mode: 'weights', method: 'POST', code: coach, profileId: id, body: { weights: defaultFlightWeights } })
   assert.equal(save.code, 503)
   assert.match(save.data.error, /135/)
 })
@@ -162,6 +194,8 @@ test('revoked coaches, missing migration and revocation during a history read fa
   await t.test('revoked coach', async (t) => {
     const { calls } = dbFixture(t, { revoked: true })
     assert.equal((await call({ code: coach, profileId: id })).code, 401)
+    assert.equal((await call({ code: coach, profileId: id, mode: 'data' })).code, 401)
+    assert.equal((await call({ code: coach, profileId: id, mode: 'weights', method: 'POST', body: { weights: defaultFlightWeights } })).code, 401)
     assert(calls.every(call => call.table === 'coach_accounts'))
   })
   await t.test('SQL missing', async (t) => {
@@ -172,9 +206,9 @@ test('revoked coaches, missing migration and revocation during a history read fa
   })
   await t.test('revoke while reading data', async (t) => {
     dbFixture(t, { state: 'active', revokeWhileLoading: true })
-    const result = await call({ mode: 'data' })
+    const result = await call({ mode: 'chart' })
     assert.equal(result.code, 403)
-    assert.equal(result.data.days, undefined)
+    assert.equal(result.data.points, undefined)
   })
 })
 
