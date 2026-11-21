@@ -62,6 +62,8 @@ import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-ex
 import CoachMetricDetails from './coach-metric-details.jsx'
 import CoachCheckinTrend from './coach-checkin-trend.jsx'
 import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
+import {createWeeklyTrainingSync,pendingWeeklySessions} from './weekly-training-sync.js'
+import WeeklyTrainingVolume from './weekly-training-volume.jsx'
 import CoachHeader from './coach-header.jsx'
 import DriveSettings from './drive-settings.jsx'
 import { CalendarVisibilityButton, HiddenCalendarActivities } from './calendar-visibility.jsx'
@@ -189,6 +191,8 @@ function App() {
   const [notifications, setNotifications] = useState([])
   const [newDevelopmentGoals, setNewDevelopmentGoals] = useState([])
   const [training, setTraining] = useState(null)
+  const weeklyTrainingSync=useMemo(()=>createWeeklyTrainingSync({request:apiRequest,code:auth?.code,profileId:profile?.id,onChange:setTraining}),[auth?.code,profile?.id])
+  useEffect(()=>{weeklyTrainingSync.activate();return()=>weeklyTrainingSync.dispose()},[weeklyTrainingSync])
   const [identified, setIdentified] = useState(false)
   const [checkinActivityDate, setCheckinActivityDate] = useState(todayKey())
   const [loading, setLoading] = useState(false)
@@ -214,11 +218,11 @@ function App() {
   const [betaGames, setBetaGames] = useState([]), [betaGameKey, setBetaGameKey] = useState('')
   useEffect(() => {
     if (auth?.role !== 'swimmer' || !profile) return
-    let active = true
-    const refresh = () => { void apiRequest('/api/training?summary=true', auth.code).then(data => { if (active) setTraining(data) }).catch(() => {}) }
+    const refresh = () => { void weeklyTrainingSync.refresh().catch(() => {}) }
     window.addEventListener('simkoll-personal-training-changed', refresh)
-    return () => { active = false; window.removeEventListener('simkoll-personal-training-changed', refresh) }
-  }, [auth?.code, auth?.role, profile?.id])
+    window.addEventListener('simkoll-home-open', refresh)
+    return () => { window.removeEventListener('simkoll-personal-training-changed', refresh);window.removeEventListener('simkoll-home-open', refresh) }
+  }, [auth?.code, auth?.role, profile?.id,weeklyTrainingSync])
   useEffect(() => { setBetaGames([]); setBetaGameKey('') }, [profile?.id, auth?.code])
   usePushSession(auth, profile, (target) => {
     if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
@@ -269,7 +273,7 @@ function App() {
     // Each card can render as soon as its own request completes.
     const load = (url, apply) => apiRequest(url, auth.code).then((data) => { if (active) apply(data) })
     const loadProfileData = () => Promise.allSettled([
-      load('/api/training?summary=true', setTraining),
+      weeklyTrainingSync.refresh(),
       load('/api/workouts', (data) => { setWorkout(data.workouts?.length ? data.workouts : data.workout); setWorkoutLocked(data.locked) }),
       load('/api/activity?streak=true', (data) => { setActiveProfilesToday(data.activeProfilesToday); setActivityDates(data.activityDates || []) }),
       load('/api/workouts?calendar=true', (data) => { setCompetitions(data.competitions || []); setCompetitionsLoaded(true) }).catch(() => { if (active) { setCompetitions([]); setCompetitionsLoaded(true) } }),
@@ -282,7 +286,7 @@ function App() {
     window.addEventListener('focus', refreshOnFocus)
     document.addEventListener('visibilitychange', refreshOnFocus)
     return () => { active = false; refresh.dispose(); window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus) }
-  }, [auth, profile?.id])
+  }, [auth, profile?.id,weeklyTrainingSync])
 
   // The first swimmer response fetch is intentionally anonymized for the
   // group view. Once a profile is restored, merge the profile's detailed
@@ -436,7 +440,7 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={async (date, slot, completed) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-session', date, slot, completed, skipCheer: true }) })} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home code={auth.code} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           // A previous after-registration can leave yesterday selected.
           // Every normal check-in must start on the current activity date.
           setCheckinActivityDate(todayKey())
@@ -1766,16 +1770,14 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
   const planDesiredRef = useRef(new Map())
   const planWorkersRef = useRef(new Set())
   const [cheer, setCheer] = useState('')
-  const [localSessions, setLocalSessions] = useState(null)
+  const [sessionEdits,setSessionEdits]=useState(()=>new Map())
+  const localSessions=pendingWeeklySessions(training?.sessions,sessionEdits)
   const [localPlans, setLocalPlans] = useState(null)
-  useEffect(() => { setLocalSessions(training?.sessions || []); setLocalPlans(training?.plannedSessions || []) }, [training])
+  useEffect(() => { setLocalPlans(training?.plannedSessions || []) }, [training?.plannedSessions])
   const goal = currentSeasonGoal(training)
   const completed = currentWeekSwims({ sessions: localSessions || training?.sessions || [] })
   const start = weekStart(), today = todayKey()
   const weeklySessions = (localSessions || []).filter((item) => item.date >= dateKey(start) && item.date <= today)
-  const weeklySwimSessions = weeklySessions.filter((item) => item.type === 'swim')
-  const weeklyMeters = weeklySwimSessions.reduce((sum, item) => sum + (Number(item.distanceMeters) || 0), 0)
-  const weeklyMinutes = weeklySwimSessions.reduce((sum, item) => sum + (Number(item.durationMinutes) || 0), 0)
   const plannedSessions = (localPlans || []).filter((item) => item.weekStart === dateKey(start))
   const plannedDays = new Set(plannedSessions.map((item) => item.date)).size
   const crossGoal = training?.crossGoals?.find((item) => item.startDate <= today && (!item.endDate || item.endDate >= today))
@@ -1784,16 +1786,6 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
     dryland: { completed: weeklySessions.filter((item) => item.type === 'dryland').length, target: crossGoal?.drylandTarget || 0 },
   }
   const stars = currentStarState(training)
-  useEffect(() => {
-    const card = document.querySelector('.weekly-training-card .weekly-summary')
-    const heading = card?.querySelector('h3')
-    if (!card || !heading) return
-    card.querySelectorAll('.weekly-volume-summary').forEach((item) => item.remove())
-    const volume = document.createElement('div')
-    volume.className = 'weekly-volume-summary'
-    volume.innerHTML = `<span><strong>${weeklyMeters ? weeklyMeters.toLocaleString('sv-SE') : '–'}</strong><small>genomförda simmeter</small></span><span><strong>${weeklyMinutes || '–'}</strong><small>genomförda minuter</small></span>`
-    heading.insertAdjacentElement('afterend', volume)
-  }, [weeklyMeters, weeklyMinutes, weeklySessions.length])
   const setSavingKey = (key, active) => {
     if (active) savingRef.current.add(key)
     else savingRef.current.delete(key)
@@ -1802,18 +1794,14 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
   const toggle = async (date, slot, checked) => {
     const key = `${date}-${slot}`
     if (savingRef.current.has(key)) return
-    const previous = localSessions || training?.sessions || []
-    const previousItem = previous.find((item) => item.date === date && item.slot === slot)
-    const type = slot.includes('swim') ? 'swim' : slot
-    setLocalSessions((current) => { const base = current || training?.sessions || []; return checked ? [...base.filter((item) => !(item.date === date && item.slot === slot)), { date, slot, type }] : base.filter((item) => !(item.date === date && item.slot === slot)) })
+    setSessionEdits(current=>new Map(current).set(key,{date,slot,completed:checked}))
     setSavingKey(key, true)
     try {
       const result = await onToggle(date, slot, checked)
       setCheer(result?.message || (checked ? 'Passet är registrerat! ✓' : 'Passet är avmarkerat.'))
     } catch (error) {
-      setLocalSessions((current) => { const base = (current || training?.sessions || []).filter((item) => !(item.date === date && item.slot === slot)); return previousItem ? [...base, previousItem] : base })
       window.alert(error.message)
-    } finally { setSavingKey(key, false) }
+    } finally { setSessionEdits(current=>{const next=new Map(current);next.delete(key);return next});setSavingKey(key, false) }
   }
   const togglePlan = async (date, slot) => {
     const key = `plan-${date}-${slot}`
@@ -1858,7 +1846,7 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
   const percentage = goal ? Math.round((completed / goal.target) * 100) : null
   return <section className="weekly-training-card">
     {winter && <WinterTrainingBuddy />}
-    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button>{halloween && <span className="weekly-halloween-spider" aria-hidden="true">🕷️</span>}</div>
+    <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3><WeeklyTrainingVolume sessions={weeklySessions}/>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button>{halloween && <span className="weekly-halloween-spider" aria-hidden="true">🕷️</span>}</div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför simmålet under de fyra senaste avslutade veckorna.</small></details>}
     <SwimmerWeekPlanner today={today} sessions={localSessions || []} plans={localPlans || []} saving={saving} onToggle={toggle} onPlan={togglePlan} onWeekChange={() => setCheer('')} /><div className="week-status-slot"><div className="week-save-status" role="status" aria-live="polite">{savingPlan || savingTraining ? <><span aria-hidden="true">⏳</span>{savingPlan && savingTraining ? 'Sparar planering och genomförd träning…' : savingPlan ? 'Sparar din planering…' : 'Sparar genomförd träning…'}</> : cheer ? <><span aria-hidden="true">✨</span><strong>{cheer}</strong><button type="button" aria-label="Dölj bekräftelsen" onClick={() => setCheer('')}>×</button></> : null}</div></div>

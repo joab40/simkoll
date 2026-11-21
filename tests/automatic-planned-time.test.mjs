@@ -109,8 +109,8 @@ test('partial content uses coach time across diary, heart and weekly totals, nev
   assert.equal(load.missingTime, 0)
   const metrics = rows => sessionSwimMetrics({ sessions: [session], responses: rows, workouts,
     plans: [], profiles: [{ id: 'p', training_group: 'junior' }] }).get(`p|${date}|afternoon_swim`)
-  assert.deepEqual(metrics([raw]), { durationMinutes: 120, distanceMeters: null })
-  assert.deepEqual(metrics([{ ...raw, activity_minutes: 65, activity_distance_meters: 2000 }]), { durationMinutes: 65, distanceMeters: 2000 })
+  assert.deepEqual(metrics([raw]), { durationMinutes: 120, distanceMeters: null,distanceBasis:null,durationBasis:'estimated' })
+  assert.deepEqual(metrics([{ ...raw, activity_minutes: 65, activity_distance_meters: 2000 }]), { durationMinutes: 65, distanceMeters: 2000,distanceBasis:'reported',durationBasis:'reported' })
   assert.deepEqual(raw, before)
   assert.equal(calculate([{ ...raw, rpe: null }], workouts).load.value, null)
   assert.equal(calculate([{ ...raw, rpe: null }], workouts).load.missingTime, 0)

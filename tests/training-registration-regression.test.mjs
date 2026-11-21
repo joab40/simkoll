@@ -105,3 +105,15 @@ test('server rejects a choice from another group, date or slot before saving', a
     assert.equal(data.writes.length,0)
   }
 })
+
+test('manual tick survives fresh reads and supplies linked 1500m/120min without creating any after-check-in',async(t)=>{
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-20T20:00:00Z')})
+  const data=fixture({workouts:[{id:'11111111-1111-4111-8111-111111111111',workout_date:'2026-11-20',title:'Lopp',time_of_day:'afternoon',distance_meters:1500,duration_minutes:120,target_groups:['junior']}]})
+  await call(training,'POST',{action:'toggle-session',date:'2026-11-20',slot:'afternoon_swim',completed:true,skipCheer:true})
+  for(let i=0;i<2;i++){
+    const result=await call(training,'GET',null)
+    assert.equal(result.sessions.length,1);assert.equal(result.sessions[0].distanceMeters,1500);assert.equal(result.sessions[0].durationMinutes,120)
+    assert.equal(result.sessions[0].distanceBasis,'estimated');assert.equal(result.sessions[0].durationBasis,'estimated')
+  }
+  assert.equal(data.responses.length,0)
+})

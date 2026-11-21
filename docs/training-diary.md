@@ -180,3 +180,26 @@ Saknade värden fylls aldrig med noll eller gissade uppgifter. Ingen SQL behövs
 `diary-calendar-qa.html` visar fiktiva kompletta/ofullständiga pass. `?width=320`
 och `?width=390` visar mobilbredder; `?full` testar hela dagbokskomponenten med
 ett lokalt fiktivt API och visar den begärda perioden utan riktiga serveranrop.
+
+## Veckokortets synkronisering efter manuell markering
+
+En manuell bock sparar bara genomförandet, inte en efter-check-in eller RPE.
+Efter lyckat POST uppdateras appens gemensamma registreringar och samma
+profilsessionsskyddade sammanfattning hämtas på nytt. Därifrån kommer säkert
+kopplade meter/minuter, även utan efter-check-in. Veckokortet visar `≈` när
+planerade mängder ingår och upplyser om pass som saknar mängduppgift.
+
+Optimistiska bockar läggs ovanpå gemensamma data medan de sparas. De får inte
+försvinna när en bakgrundshämtning avslutas. Olika manuella registreringar och
+deras återläsningar köas, gamla lässvar kan inte återställa inaktuella värden,
+och byte av profil spärrar sena uppdateringar från den gamla profilen. Byte
+av meny lämnar däremot appens gemensamma sparande aktivt.
+
+Om POST misslyckas tas bara den väntande lokala markeringen bort. Om POST
+lyckas men sammanfattningen inte kan hämtas behålls den bekräftade
+registreringen, utan gissade mängder, med ett meddelande om att hämtningen
+misslyckades. En avbruten check-in behövs inte längre för att uppdatera kortet.
+Ingen SQL eller ändring av historiska träningsrader behövs.
+
+`weekly-training-sync-qa.html` använder samma synkmodul, veckorutnät och
+mängdsummering med fiktiva uppgifter för att testa markering och menybyte.

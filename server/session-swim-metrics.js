@@ -12,7 +12,9 @@ export function sessionSwimMetrics({ sessions, responses, workouts, plans, profi
       const report = reports[0]
       const estimateTime = report?.planned_completion !== 'no'
       const estimateDistance = estimateTime && report?.planned_completion !== 'partial'
-      metrics.set(`${profileId}|${pass.date}|${pass.sessionSlot}`, { distanceMeters: number(report?.activity_distance_meters) ?? (estimateDistance ? pass.distanceMeters : null), durationMinutes: number(report?.activity_minutes) ?? (estimateTime ? pass.durationMinutes : null) })
+      const reportedDistance=number(report?.activity_distance_meters),reportedTime=number(report?.activity_minutes)
+      const distanceMeters=reportedDistance??(estimateDistance?pass.distanceMeters:null),durationMinutes=reportedTime??(estimateTime?pass.durationMinutes:null)
+      metrics.set(`${profileId}|${pass.date}|${pass.sessionSlot}`, { distanceMeters,durationMinutes,distanceBasis:distanceMeters==null?null:reportedDistance!=null?'reported':'estimated',durationBasis:durationMinutes==null?null:reportedTime!=null?'reported':'estimated' })
     }
   }
   return metrics
