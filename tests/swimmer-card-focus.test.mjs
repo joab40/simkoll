@@ -44,10 +44,10 @@ test('illness precedes the single-line comment in the upper header; full comment
   assert.match(main, /<SwimmerTodayComment comment=\{todayComment\}/)
 })
 
-test('trainer-facing expanded card order prioritizes goals, weekly planning, direction and collapsed Formkollen', () => {
+test('trainer-facing expanded card places Flight Record and test times below the weekly plan', () => {
   const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const details = main.slice(main.indexOf('{isExpanded && <div className="swimmer-card-details">'), main.indexOf('function PeriodOverview'))
-  const markers = ['swimmer-traffic-reasons', '<SwimmerTodayComment', '<SwimmerTrainingGoals', '<SwimmerCompactWeek', 'className="swimmer-trend-card"', '<FormKollenCard', '<SwimmerPeriodization', '<SwimmerAgreementCard', '<SwimmerDevelopmentGoalsCard', '<SwimmerStrengthProgramCard', '<SwimmerTrainingTimesCard', '<SleepHistory', '<IllnessHistory', '<SwimmerNotes', 'Profilinställningar']
+  const markers = ['swimmer-traffic-reasons', '<SwimmerTodayComment', '<SwimmerTrainingGoals', '<SwimmerCompactWeek', '<FlightRecordCoachCard', '<SwimmerTrainingTimesCard', 'className="swimmer-trend-card"', '<FormKollenCard', '<SwimmerPeriodization', '<SwimmerAgreementCard', '<SwimmerDevelopmentGoalsCard', '<SwimmerStrengthProgramCard', '<SleepHistory', '<IllnessHistory', '<SwimmerNotes', 'Profilinställningar']
   const positions = markers.map(marker => details.indexOf(marker))
   assert.ok(positions.every(index => index >= 0))
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b))

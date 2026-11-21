@@ -5192,6 +5192,8 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             <SwimmerTrainingGoals goals={trainingGoals} sessions={profileSessions} draft={trainingGoalDrafts[profile.id]} status={trainingGoalStatus[profile.id]} onChange={(key, value) => setTrainingGoalDrafts(current => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), [key]: value } }))} onSave={() => saveTrainingGoals(profile, swimGoal)} />
             <SwimmerCompactWeek training={training} profileId={profile.id} />
+            {code?.startsWith('coach.') && <FlightRecordCoachCard key={`flight-record-${profile.id}`} profileId={profile.id} swimmerName={profile.displayName} code={code} request={apiRequest} competitions={competitions.filter(item => !item.targetGroups?.length || item.targetGroups.includes(profile.trainingGroup))} />}
+            <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
             <button type="button" className="swimmer-trend-card" onClick={() => setSelectedProfile(profile)} aria-label={`Öppna statistik för ${profile.displayName}`}>
               <span className={`swimmer-trend-arrow ${trendState.tone}`} aria-hidden="true">{trendLoading && !trendSummary ? '…' : trendState.arrow}</span>
               <span className="swimmer-trend-copy"><small>Simmarens riktning</small><strong>{trendLoading && !trendSummary ? 'Hämtar riktning…' : trendError ? 'Riktningen kunde inte hämtas' : trendState.title}</strong><span>{trendSummary?.periods ? `${trendDate(trendSummary.periods.start)}–${trendLastDay(trendSummary.periods.end)} jämfört med ${trendDate(trendSummary.periods.previousStart)}–${trendLastDay(trendSummary.periods.previousEnd)}` : 'Senaste 7 dagarna jämfört med föregående 7 dagar'}</span></span>
@@ -5204,8 +5206,6 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {goalsEnabled && <SwimmerDevelopmentGoalsCard code={code} profile={profile} goals={developmentGoals.filter((goal) => goal.profileId === profile.id)} onOpenGoal={onOpenGoal} onCreateGoal={onCreateGoal} />}
             <SwimmerStrengthProgramCard profile={profile} training={training} code={code} onChanged={loadTraining} />
             <SwimmerStrengthProgramCard programType="dryland" profile={profile} training={training} code={code} onChanged={loadTraining} />
-            <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
-            {code?.startsWith('coach.') && <FlightRecordCoachCard key={`flight-record-${profile.id}`} profileId={profile.id} swimmerName={profile.displayName} code={code} request={apiRequest} competitions={competitions.filter(item => !item.targetGroups?.length || item.targetGroups.includes(profile.trainingGroup))} />}
             <SleepHistory profileId={profile.id} code={code} request={apiRequest} responses={responses.filter((item) => item.profileId === profile.id)} />
             <IllnessHistory key={`illness-${profile.id}`} profileId={profile.id} code={code} request={apiRequest} />
             <div className="swimmer-stats"><div><strong>{items.length}</strong><small>svar</small></div><div><strong>{average('feeling', items)}</strong><small>känsla</small></div><div><strong>{average('rpe', after)}</strong><small>RPE</small></div></div>
