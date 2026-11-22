@@ -14,7 +14,7 @@ const LOOKAHEAD = 210
 
 const OPENING_CHALLENGES = ['jump', 'left', 'jump', 'right', 'middle']
 const CHALLENGES = ['left', 'jump', 'right', 'jump', 'middle']
-const OPENINGS = {left: [-SNOW_HALF_WIDTH, -1.45], right: [1.45, SNOW_HALF_WIDTH], middle: [-1.65, 1.65]}
+const OPENINGS = {left: [-SNOW_HALF_WIDTH, -1.15], right: [1.15, SNOW_HALF_WIDTH], middle: [-1.9, 1.9]}
 const GEM_LANES = {left: -3.2, middle: 0, right: 3.2}
 const COLLISION_REASONS = {
   rail: 'Pulkan tog i bommen. Hoppa strax före den.',
@@ -68,6 +68,9 @@ function spawnChallenges(game) {
     addBank('left', -SNOW_HALF_WIDTH, openLeft)
     addBank('right', openRight, SNOW_HALF_WIDTH)
     game.objects.push({id: `gem${row}`, kind: 'gem', s: along + 4, x: GEM_LANES[challenge], radius: .8, height: 1.1, depth: 1})
+    if (row % 2 === 1) {
+      game.objects.push({id: `bonus${row}`, kind: 'gem', s: along + 13, x: GEM_LANES[challenge], radius: .8, height: 1.1, depth: 1})
+    }
   }
 }
 

@@ -58,6 +58,19 @@ test('the opening ends an unsteered run after three seconds and a hop alone is i
   }
 })
 
+test('side-by-side ice banks leave more clearance and bonus crystals follow the open lane', () => {
+  const game = startSnow(createSnowGame())
+  game.distance = 100
+  advanceSnow(game, SNOW_STEP)
+  const [left, right] = game.objects.filter(item => item.challenge === 'middle' && item.kind === 'bank')
+  assert(Math.abs((right.x - right.radius) - (left.x + left.radius) - 3.8) < 1e-9)
+  const first = game.objects.find(item => item.id === 'gem1')
+  const extra = game.objects.find(item => item.id === 'bonus1')
+  assert.equal(extra.x, first.x)
+  assert(extra.s > first.s)
+  assert(game.objects.every((item, index) => !index || item.s >= game.objects[index - 1].s))
+})
+
 test('a runner who times jumps and steers through the gaps can finish at maximum speed', () => {
   const game = startSnow(createSnowGame())
   const lanes = {left: -3.2, middle: 0, right: 3.2}

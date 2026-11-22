@@ -13,6 +13,7 @@ import { coachFromRequest } from '../server/coach-auth.js'
 import { assistantCoachMessages } from '../server/assistant-messages.js'
 import { assistantScheduleLabels, buildAssistantSwimCalendar, addScheduleWeekdays } from '../server/assistant-schedule.js'
 import { assistantSystemPrompt } from '../server/assistant-style.js'
+import { handleAssistantBonus, isAssistantBonusQuestion } from '../server/assistant-bonus.js'
 import { featureFaqGuide } from '../shared/feature-faq.js'
 import { buildCoachAssistantFeatureSnapshot, COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
 import { queueCategoryPush } from '../server/web-push.js'
@@ -857,6 +858,7 @@ export default async function handler(request, response) {
         }
       }
       if (request.body?.action === 'assistant-chat') {
+        if (role === 'swimmer' && isAssistantBonusQuestion(request.body.question)) return await handleAssistantBonus(request, response)
         const availability = await aiAvailability()
         if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         return sendJson(response, 200, await answerAssistant(request, role))

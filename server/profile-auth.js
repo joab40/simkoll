@@ -58,13 +58,14 @@ export async function touchProfileActivity(profileId, activityDate = stockholmDa
   await awardPoints(profileId, 'daily_active', 1, activityDate)
 }
 
-export async function awardPoints(profileId, eventType, points, sourceKey) {
+export async function awardPoints(profileId, eventType, points, sourceKey, { reportAward = false } = {}) {
   const result = await supabaseRequest('point_events?on_conflict=profile_id,event_type,source_key', {
     method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates' },
+    headers: { Prefer: reportAward ? 'resolution=ignore-duplicates,return=representation' : 'resolution=ignore-duplicates' },
     body: JSON.stringify({ profile_id: profileId, event_type: eventType, points, source_key: String(sourceKey) }),
   })
   if (!result.ok) throw new Error(`Points insert failed: ${result.status} ${await result.text()}`)
+  if (reportAward) return (await result.json()).length > 0
 }
 
 export async function awardArtifact(profileId, artifactKey) {

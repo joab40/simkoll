@@ -286,10 +286,18 @@ function App() {
     ])
     const refresh = createVisibleRefresh(loadProfileData, { minInterval: 15000 })
     const refreshOnFocus = () => { void refresh.refresh().catch(() => {}) }
+    const refreshPoints = () => { void load('/api/points', setPoints).catch(() => {}) }
     refreshOnFocus()
     window.addEventListener('focus', refreshOnFocus)
+    window.addEventListener('simkoll-points-changed', refreshPoints)
     document.addEventListener('visibilitychange', refreshOnFocus)
-    return () => { active = false; refresh.dispose(); window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus) }
+    return () => {
+      active = false
+      refresh.dispose()
+      window.removeEventListener('focus', refreshOnFocus)
+      window.removeEventListener('simkoll-points-changed', refreshPoints)
+      document.removeEventListener('visibilitychange', refreshOnFocus)
+    }
   }, [auth, profile?.id,weeklyTrainingSync])
 
   // The first swimmer response fetch is intentionally anonymized for the
@@ -842,7 +850,15 @@ function Assistant({ code, role, profile, onClose }) {
       return
     }
     setLoading(true)
-    try { const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-chat', question: value, history: messages.slice(-10) }) }); setMessages((current) => [...current, { from: 'assistant', text: data.text || data.error || 'Jag kunde inte hitta ett svar.' }]) } catch (error) { setMessages((current) => [...current, { from: 'assistant', text: error.message }]) } finally { setLoading(false) }
+    try {
+      const data = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assistant-chat', question: value, history: messages.slice(-10) }) })
+      setMessages((current) => [...current, { from: 'assistant', text: data.text || data.error || 'Jag kunde inte hitta ett svar.' }])
+      if (Number.isInteger(data.assistantBonus)) window.dispatchEvent(new Event('simkoll-points-changed'))
+    } catch (error) {
+      setMessages((current) => [...current, { from: 'assistant', text: error.message }])
+    } finally {
+      setLoading(false)
+    }
   }
   const stopRecording = () => { recorderRef.current?.stop(); setRecording(false) }
   const startRecording = async () => {
