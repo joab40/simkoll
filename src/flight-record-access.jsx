@@ -116,6 +116,11 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [overrideSaved, setOverrideSaved] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const resetLock = useRef(false)
+  const pendingOverrides = useRef(0)
   const profileQuery = '&profileId=' + encodeURIComponent(profileId)
   const loadPreview = useCallback(signal => request('/api/training?flightRecord=preview' + profileQuery, code, { signal, retry: false }),
     [profileQuery, code, request])
@@ -123,6 +128,7 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
     const controller = new AbortController()
     setData(null)
     setError('')
+    setOverrideSaved(false)
     request(dataUrl + profileQuery, code, { signal: controller.signal, retry: false }).then(data => {
       if (!controller.signal.aborted) setData(data)
     }).catch(error => {
@@ -136,8 +142,38 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
     <button type="button" className="text-button" onClick={() => setAttempt(current => current + 1)}>Hämta igen</button>
   </div>
   if (!data) return <p className="empty" role="status">Hämtar formresan…</p>
-  const saveWeights = (weights, boostSettings, pbBoostSettings) => request(weightsUrl + profileQuery, code, postOptions({ weights, boostSettings, pbBoostSettings }))
-  const savePresentation = (presentation) => request('/api/training?flightRecord=presentation' + profileQuery, code, postOptions({ presentation }))
+  const saveOverride = async (path, body) => {
+    if (resetLock.current) throw new Error('Standardinställningarna hämtas. Försök igen om en stund.')
+    pendingOverrides.current++
+    try {
+      const result = await request(path + profileQuery, code, postOptions(body))
+      setOverrideSaved(true)
+      return result
+    } finally {
+      pendingOverrides.current--
+    }
+  }
+  const saveWeights = (weights, boostSettings, pbBoostSettings) => saveOverride(weightsUrl, { weights, boostSettings, pbBoostSettings })
+  const savePresentation = (presentation) => saveOverride('/api/training?flightRecord=presentation', { presentation })
+  const reset = async () => {
+    if (pendingOverrides.current) {
+      setResetError('Vänta tills simmarens inställningar har sparats.')
+      return
+    }
+    if (resetLock.current || !window.confirm('Använd standardvärden för simmarens vikter, boostar och visning?')) return
+    resetLock.current = true
+    setResetting(true)
+    setResetError('')
+    try {
+      await request('/api/training?flightRecord=inherit' + profileQuery, code, postOptions({}))
+      setAttempt(value => value + 1)
+    } catch (error) {
+      setResetError(error.message)
+    } finally {
+      resetLock.current = false
+      setResetting(false)
+    }
+  }
   const saveMeasure = async input => {
     const result = await request('/api/training?flightRecord=measures' + profileQuery, code, postOptions(input))
     try {
@@ -149,6 +185,14 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
     }
   }
   return <React.Suspense fallback={<p className="empty" role="status">Öppnar formresan…</p>}>
+    <p className="flight-muted">
+      {data.hasOverrides || overrideSaved ? <>
+        Simmaren har individuella inställningar. <button type="button" className="text-button" disabled={resetting} onClick={reset}>
+          {resetting ? 'Återställer…' : 'Följ standardinställningarna'}
+        </button>
+      </> : data.inheritedFromGroup ? 'Simmaren följer träningsgruppens standardinställningar.' : 'Simmaren följer klubbens standardinställningar.'}
+    </p>
+    {resetError && <p className="flight-error" role="alert">{resetError}</p>}
     <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} saveMeasure={saveMeasure}
       loadPreview={loadPreview} savePresentation={savePresentation} />
   </React.Suspense>

@@ -110,6 +110,7 @@ const PlanningImport = deferredPanel(() => import('./planning-import.jsx'), 'Öp
 const StrengthProgramBuilder = deferredPanel(() => import('./strength-program-builder.jsx'))
 const WorkoutWorkbookReview = deferredPanel(() => import('./workout-workbook-review.jsx'))
 const CoachControlPanel = deferredPanel(() => import('./coach-control-panel.jsx'))
+const CoachFlightRecord = deferredPanel(() => import('./coach-flight-record.jsx'), 'Öppnar Flight Record…')
 const StorageAdmin = deferredPanel(() => import('./storage-admin.jsx'), 'Hämtar lagringsöversikten…')
 const DevelopmentTalkEditor = deferredPanel(() => import('./development-talk-editor.jsx'))
 const SwimmerTalkHistory = deferredPanel(() => import('./swimmer-talk-history.jsx'))
@@ -2665,6 +2666,7 @@ function HeadCoachSettings({ code }) {
 function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, onProfilesChange, activeProfilesToday, code, loading, onLogout, onSwitchToSwimmer, onClear }) {
   const feedbackCount = useFeedbackCount(code, accountRole === 'superadmin')
   const [view, setView] = useState('today')
+  const [openFlightOverview, setOpenFlightOverview] = useState(false)
   const [focusedSwimmerId, setFocusedSwimmerId] = useState('')
   const [goalNavigation, setGoalNavigation] = useState(null)
   const [talkNavigation, setTalkNavigation] = useState(null)
@@ -2725,7 +2727,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   }, [globalNavigationSettings, coachProfile, personalSettingsEnabled])
   const aiEnabled = navigationSettings.aiEnabled !== false
   const overviewVisible = (key) => key === 'today' || key === 'settings' || navigationSettings.overview?.[key] !== false
-  const coachVisible = (key) => key === 'today' || key === 'settings' || navigationSettings.coach?.[key] !== false
+  const coachVisible = (key) => key === 'today' || key === 'settings' || (navigationSettings.coach?.[key] !== false && (key !== 'flight-record' || code?.startsWith('coach.')))
   const overviewItems = COACH_NAV_ITEMS
   const orderedOverviewKeys = [...(navigationSettings.overviewOrder || []), ...overviewItems.map((item) => item.key)].filter((key, index, keys) => keys.indexOf(key) === index)
   const orderedOverviewItems = orderedOverviewKeys.map((key) => overviewItems.find((item) => item.key === key)).filter((item) => item && item.key !== 'community')
@@ -2750,7 +2752,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
   const selectedDateResponses = groupFilteredResponses.filter((response) => dateKey(responseDate(response)) === summaryDate)
   const hasCompetitionOnSummaryDate = summaryCompetitionPlans.length > 0 || selectedDateResponses.some((item) => item.competition === true)
   const selectedActiveProfiles = new Set(selectedDateResponses.map((item) => item.profileId).filter(Boolean)).size
-  const selectCoachView = (nextView) => { if (nextView === 'goals') setGoalNavigation(null); setTalkNavigation(null); setView(nextView); if (nextView === 'competition') loadCompetitionResults() }
+  const selectCoachView = (nextView) => { if (nextView === 'goals') setGoalNavigation(null); setTalkNavigation(null); setOpenFlightOverview(false); setView(nextView); if (nextView === 'competition') loadCompetitionResults() }
   const openViewFromMenu = (nextView) => { selectCoachView(nextView); document.querySelectorAll('.coach-header-menu, .legacy-tools').forEach((menu) => { menu.open = false }) }
   const openGoalsForProfile = (profileId, goalId = '', create = false) => {
     setGoalNavigation({ profileId, goalId, create, key: Date.now() })
@@ -2813,7 +2815,10 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
         ) : view === 'control-panel' ? (
-          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+          <CoachControlPanel showFlightRecord={coachVisible('flight-record')} openFlightOverview={openFlightOverview} onOpenFlightSettings={() => selectCoachView('flight-record')} profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+        ) : view === 'flight-record' ? (
+          <CoachFlightRecord code={code} request={apiRequest} groups={availableGroups}
+            onOpenOverview={coachVisible('control-panel') ? () => { selectCoachView('control-panel'); setOpenFlightOverview(true) } : undefined} />
         ) : view === 'trends' ? (
           <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
         ) : view === 'rewards' ? (

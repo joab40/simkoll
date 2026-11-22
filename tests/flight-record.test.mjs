@@ -7,6 +7,7 @@ import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 import { defaultFlightPbSettings } from '../shared/flight-pb.js'
 import { defaultFlightPresentation, flightChartPoints, flightDirection, validateFlightPresentation } from '../shared/flight-presentation.js'
+import { builtInFlightDefaults, flightGroupCurve } from '../shared/flight-defaults.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -52,7 +53,7 @@ test('the flight journey recognizes championships from the calendar category or 
 })
 
 const json = (rows, status = 200) => new Response(JSON.stringify(rows), { status })
-async function call({ code = 'swimmer', method = 'GET', mode = 'status', profileId, body } = {}) {
+async function call({ code = 'swimmer', method = 'GET', mode = 'status', profileId, body, query = {} } = {}) {
   const response = {
     headers: {},
     setHeader(name, value) { this.headers[name] = value },
@@ -60,7 +61,7 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
     json(value) { this.data = value },
   }
   await handler({
-    method, query: { flightRecord: mode, ...(profileId ? { profileId } : {}) }, body,
+    method, query: { flightRecord: mode, ...(profileId ? { profileId } : {}), ...query }, body,
     headers: { 'x-simkoll-code': code, cookie: 'simkoll_session=fixture' },
   }, response)
   return response
@@ -72,6 +73,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
   if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
   if (pb) profile.flight_record_pb_boost_settings = null
   if (presentation) profile.flight_record_presentation = null
+  const appSettings = new Map()
   const calls = []
   const measures = [], scores = new Map()
   t.mock.method(globalThis, 'fetch', async (input, options = {}) => {
@@ -80,9 +82,19 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     assert.equal(url.hostname, 'flight-fixture.invalid')
     calls.push({ table, method, query, body })
     if (table === 'coach_accounts') return json(revoked ? [] : [{ id: coachId }])
+    if (table === 'app_settings') {
+      if (method === 'POST') {
+        assert.notEqual(body.setting_value, null)
+        appSettings.set(body.setting_key, body.setting_value)
+        return new Response(null, { status: 204 })
+      }
+      const keys = (query.get('setting_key') ?? '').slice(4, -1).split(',')
+      return json(keys.filter(key => appSettings.has(key)).map(key => ({ setting_key: key, setting_value: appSettings.get(key) })))
+    }
+    if (table === 'training_groups') return json(query.get('id') === 'eq.junior' && query.get('active') === 'eq.true' ? [{ id: 'junior' }] : [])
     if (table === 'profile_sessions') return json([{ profile_id: id }])
     if (table === 'profiles') {
-      assert.equal(query.get('id'), `eq.${id}`)
+      assert([`eq.${id}`, `in.(${id})`].includes(query.get('id')))
       assert.equal(query.get('active'), 'eq.true')
       assert.equal(query.get('approval_status'), 'eq.approved')
       const scope = query.get('flight_record_offer_id')
@@ -173,7 +185,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     assert(!['training_diary_reflections', 'coach_taper_goals', 'coach_form_observations', 'profile_daily_illness', 'development_goals'].includes(table), table)
     return json([])
   })
-  return { profile, calls }
+  return { profile, calls, appSettings }
 }
 
 test('personal active coaches can configure visibility independently of viewing the form data', async (t) => {
@@ -315,6 +327,58 @@ test('flight direction respects recent support and manual settings; plane size s
   assert.deepEqual(flightDirection(points.slice(0, -1), today, defaultFlightPresentation), { angle: 0, days: 0 })
   assert.deepEqual(flightDirection(points.slice(-1), today, { angle: -30, forwardDays: 1 }), { angle: -30, days: 1 })
   assert.deepEqual(flightDirection(points, today, { angle: null, forwardDays: 0 }), { angle: 18, days: 0 })
+})
+
+test('Flight Record supports club defaults and separate group overrides without replacing personal settings', async t => {
+  const { profile, appSettings } = dbFixture(t, { state: 'active', presentation: true, extended: true, taper: true, pb: true })
+  profile.training_group = 'junior'
+  const headCoach = createCoachToken({ id: coachId, role: 'head_coach' })
+  const save = (code, settings, group) => call({ code, mode: 'defaults', method: 'POST', body: { settings },
+    query: group === undefined ? {} : { group } })
+  const club = { ...builtInFlightDefaults, minSwimmers: 4, presentation: { sky: true, angle: null, forwardDays: 2 } }
+  assert.equal((await save('swimmer', club, 'junior')).code, 403)
+  assert.equal((await save(coach, club)).code, 403)
+  assert.equal((await save(headCoach, club, 'unknown')).code, 404)
+  assert.equal((await save(headCoach, { ...club, minSwimmers: 1 })).code, 400)
+  assert.equal((await save(headCoach, club)).code, 200)
+  const group = { ...club, minSwimmers: 2, presentation: { sky: true, angle: 12, forwardDays: 3 } }
+  assert.equal((await save(coach, group, 'junior')).code, 200)
+  assert.equal(appSettings.size, 2)
+  assert.deepEqual((await call({ mode: 'chart' })).data.presentation, group.presentation)
+  profile.flight_record_presentation = { sky: false, angle: 0, forwardDays: 0 }
+  assert.deepEqual((await call({ mode: 'chart' })).data.presentation, profile.flight_record_presentation)
+  assert.equal((await call({ code: coach, mode: 'inherit', profileId: id, method: 'POST' })).code, 200)
+  assert.equal(profile.flight_record_choice, 'active')
+  assert.deepEqual((await call({ mode: 'chart' })).data.presentation, group.presentation)
+  assert.equal((await save(coach, null, 'junior')).data.inherited, true)
+  assert.deepEqual((await call({ mode: 'chart' })).data.presentation, club.presentation)
+})
+
+test('the coach roster returns only date-limited chart values for approved profiles', async t => {
+  const { calls } = dbFixture(t, { state: 'later', extended: true, taper: true, pb: true, presentation: true })
+  const query = { ids: id, end: yesterday }
+  assert.equal((await call({ mode: 'overview', query })).code, 403)
+  assert.equal((await call({ code: coach, mode: 'overview', query: { ...query, ids: 'invalid' } })).code, 400)
+  assert.equal((await call({ code: coach, mode: 'defaults', method: 'POST', body: { action: 'logout', settings: builtInFlightDefaults } })).code, 400)
+  const result = await call({ code: coach, mode: 'overview', query })
+  assert.equal(result.code, 200)
+  assert.equal(calls.find(row => row.table === 'profiles').query.get('is_test_profile'), 'eq.false')
+  assert.equal(result.data.clubMinSwimmers, 3)
+  assert.deepEqual(Object.keys(result.data.profiles[0]).sort(), ['group', 'id', 'minSwimmers', 'partial', 'points'])
+  assert.equal(result.data.profiles[0].points.length, 28)
+  assert.equal(result.data.profiles[0].points.at(-1).date, yesterday)
+  assert.doesNotMatch(JSON.stringify(result.data), /PRIVATE NOTE|coachAccountId|flight_record_choice/)
+})
+
+test('group curve respects coverage thresholds and never treats missing values as zero', () => {
+  const members = [{ points: [{ date: yesterday, value: 44, limited: true }, { date: today, value: 0 }] },
+    { points: [{ date: yesterday, value: 51 }, { date: today, value: null }] }, { points: [] }]
+  assert.deepEqual(flightGroupCurve([yesterday, today], members, 2), [
+    { date: yesterday, count: 2, value: 47.5, limited: true },
+    { date: today, count: 1, value: null, limited: false },
+  ])
+  assert.deepEqual(flightGroupCurve([yesterday], [...members, { points: [{ date: yesterday, value: 55 }] }], 2),
+    [{ date: yesterday, count: 3, value: 50, limited: false }])
 })
 
 test('SQL 142 validates exactly the presentation fields and accepts the automatic angle', { skip: !process.env.SIMKOLL_PGLITE_MODULE }, async () => {

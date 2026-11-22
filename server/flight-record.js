@@ -7,7 +7,9 @@ import { analyticsRows } from './analytics-rows.js'
 import { loadTrainingDiary } from './training-diary.js'
 import { readFlightMeasures, readFlightScores, saveFlightMeasure, sleepGoalField } from './flight-record-measures.js'
 import { coachWeekAddDays } from '../shared/coach-week.js'
-import { isTimeId } from '../shared/swim-times.js'
+import { isTimeDate, isTimeId } from '../shared/swim-times.js'
+import { flightGroupId, FLIGHT_OVERVIEW_BATCH } from '../shared/flight-defaults.js'
+import { coachFlightDefaults, loadFlightDefaults } from './flight-defaults.js'
 import { FLIGHT_HISTORY_DAYS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
@@ -56,14 +58,16 @@ function profileWeights(profile) {
   return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
 }
 
-async function loadFlightRecord(profile, end, { chartOnly = false, preview = false } = {}) {
+async function loadFlightRecord(profile, end, { chartOnly = false, preview = false, defaults: loadedDefaults, planningCache } = {}) {
+  const defaults = loadedDefaults ?? await loadFlightDefaults([profile.training_group])
+  const inherited = defaults.group(profile.training_group) ?? defaults.club
   const start = coachWeekAddDays(end, 1 - (chartOnly ? swimmerChartDays : FLIGHT_HISTORY_DAYS))
   const contextStart = coachWeekAddDays(start, 1 - FLIGHT_RECENT_DAYS - FLIGHT_BASELINE_DAYS)
-  const boostSettings = readFlightBoostSettings(profile[boostSettingsField])
-  const presentation = readFlightPresentation(profile[presentationField])
+  const boostSettings = readFlightBoostSettings(profile[boostSettingsField] ?? inherited.boosts)
+  const presentation = readFlightPresentation(profile[presentationField] ?? inherited.presentation)
   const presentationAvailable = Object.hasOwn(profile, presentationField)
   const boostSettingsAvailable = Object.hasOwn(profile, boostSettingsField)
-  const pbBoostSettings = readFlightPbSettings(profile[pbSettingsField], boostSettings.times)
+  const pbBoostSettings = readFlightPbSettings(profile[pbSettingsField] ?? (profile[boostSettingsField] == null ? inherited.pbBoosts : null), boostSettings.times)
   const pbBoostSettingsAvailable = Object.hasOwn(profile, pbSettingsField)
   const timeDays = !chartOnly && boostSettingsAvailable ? FLIGHT_BOOST_MAX_DAYS
     : Math.max(FLIGHT_PRACTICE_BOOST_DAYS, boostSettings.times.fullDays + boostSettings.times.fadeDays)
@@ -71,7 +75,9 @@ async function loadFlightRecord(profile, end, { chartOnly = false, preview = fal
   const timeStart = coachWeekAddDays(firstLiftDay, -FLIGHT_TIME_BASELINE_DAYS)
   const owner = `profile_id=eq.${profile.id}`
   const during = (column, from) => `${column}=gte.${from}&${column}=lte.${end}`
-  const weights = profileWeights(profile)
+  const weights = profile.flight_record_weights == null
+    ? { ...inherited.weights, taper: Object.hasOwn(profile, taperWeightField) ? inherited.weights.taper : 0 }
+    : profileWeights(profile)
   const needPb = pbBoostSettingsAvailable && (!chartOnly || weights.times > 0)
   const taperAvailable = Object.hasOwn(profile, taperWeightField)
   const needTaper = taperAvailable && (!chartOnly || weights.taper > 0)
@@ -81,7 +87,8 @@ async function loadFlightRecord(profile, end, { chartOnly = false, preview = fal
   const extended = Object.hasOwn(profile, sleepGoalField)
   const needCustom = extended && (!chartOnly || Object.keys(weights).some(key => isTimeId(key) && weights[key] > 0))
   const [diary, practice, races, sleep, audit, measures, scores, tempus] = await Promise.allSettled([
-    loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false, includeGoals: false, includeCheckinSignals: true }),
+    loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false,
+      includeGoals: false, includeCheckinSignals: true, planningCache }),
     readRows(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`),
     readRows(`competition_results?${owner}&${during('result_date', raceStart)}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`),
     readRows(`profile_daily_sleep?${owner}&${during('activity_date', contextStart)}&select=activity_date,minutes,quality,skipped&order=activity_date.asc`),
@@ -138,6 +145,8 @@ async function loadFlightRecord(profile, end, { chartOnly = false, preview = fal
   const signalKeys = [...FLIGHT_SIGNALS, ...customMeasures].map(signal => signal.key)
   return {
     start, asOf: end, warnings,
+    hasOverrides: [profile.flight_record_weights, profile[boostSettingsField], profile[pbSettingsField], profile[presentationField]].some(value => value != null),
+    inheritedFromGroup: Boolean(defaults.group(profile.training_group)),
     presentation,
     presentationAvailable,
     weights,
@@ -250,9 +259,34 @@ async function loadChartForSwimmer(response, profile) {
   return sendJson(response, 200, data)
 }
 
-async function coachFlight(request, response, mode) {
-  const coach = coachFromRequest(request)
-  if (!isTimeId(coach?.sub)) return sendJson(response, 403, { error: 'Logga in med ditt personliga tränarkonto.' })
+async function coachFlightOverview(request, response) {
+  const end = request.query.end
+  const ids = typeof request.query.ids === 'string' ? [...new Set(request.query.ids.split(','))] : []
+  if (!isTimeDate(end) || end > stockholmDate() || end < '1900-01-01'
+    || !ids.length || ids.length > FLIGHT_OVERVIEW_BATCH || !ids.every(isTimeId)) {
+    return sendJson(response, 400, { error: 'Välj en giltig dag och giltiga simmarprofiler.' })
+  }
+  const rows = await checkAccessResult(await supabaseRequest(`profiles?id=in.(${ids.join(',')})&${configuredProfile}&${acceptedTerms}&is_test_profile=eq.false&select=id,training_group,flight_record_weights,${sleepGoalField},${taperWeightField},${boostSettingsField},${pbSettingsField},${presentationField}`), 142)
+  const defaults = await loadFlightDefaults(rows.map(row => row.training_group))
+  const planningCache = new Map()
+  const profiles = []
+  for (let index = 0; index < rows.length; index += 3) {
+    const batch = await Promise.all(rows.slice(index, index + 3).map(async profile => {
+      const group = flightGroupId(profile.training_group)
+      const model = { id: profile.id, group, minSwimmers: (defaults.group(group) ?? defaults.club).minSwimmers }
+      try {
+        const chart = await loadFlightRecord(profile, end, { chartOnly: true, defaults, planningCache })
+        return { ...model, partial: chart.partial, points: chart.points.map(({ date, value, limited }) => ({ date, value, ...(limited ? { limited } : {}) })) }
+      } catch {
+        return { ...model, unavailable: true, points: [] }
+      }
+    }))
+    profiles.push(...batch)
+  }
+  return sendJson(response, 200, { profiles, clubMinSwimmers: defaults.club.minSwimmers })
+}
+
+async function coachFlight(request, response, mode, coach) {
   const { profileId } = request.query
   if (!isTimeId(profileId)) return sendJson(response, 400, { error: 'Välj en giltig simmarprofil.' })
   const endpoint = `${profileEndpoint(profileId)}&${acceptedTerms}`
@@ -278,23 +312,40 @@ async function coachFlight(request, response, mode) {
     await writeAuditLog(request, { eventType: 'flight_record_measure_change', role: 'coach', profileId, details: { ...result, coachAccountId: coach.sub } })
     return sendJson(response, 200, result)
   }
+  if (mode === 'inherit') {
+    const patch = { flight_record_weights: null }
+    for (const field of [boostSettingsField, pbSettingsField, presentationField]) if (Object.hasOwn(profile, field)) patch[field] = null
+    if (Object.hasOwn(profile, taperWeightField)) patch[taperWeightField] = 0
+    const [updated] = await checkAccessResult(await supabaseRequest(`${endpoint}&select=id`, {
+      method: 'PATCH', headers: returning, body: JSON.stringify(patch),
+    }), 135)
+    if (!updated) return sendJson(response, 404, { error: 'Simmarprofilen är inte tillgänglig.' })
+    await writeAuditLog(request, { eventType: 'flight_record_inherit', role: 'coach', profileId, details: { coachAccountId: coach.sub } })
+    return sendJson(response, 200, { inherited: true })
+  }
   return sendJson(response, 200, await loadFlightRecord(profile, stockholmDate()))
 }
 
 /** Called after api/training's live guardCoachSession check. */
 export async function handleFlightRecord(request, response, role) {
   const mode = request.query.flightRecord
-  const coachWrites = ['weights', 'measures', 'presentation']
-  const coachReads = ['data', 'preview']
-  if (!['status', 'chart', ...coachReads, ...coachWrites].includes(mode)) return sendJson(response, 400, { error: 'Okänd Flight Record-vy.' })
+  if (request.body?.action === 'logout') return sendJson(response, 400, { error: 'Åtgärden hör till inloggningen.' })
+  const coachWrites = ['weights', 'measures', 'presentation', 'inherit']
+  const coachReads = ['data', 'preview', 'overview']
+  const coachOnly = ['defaults', ...coachReads, ...coachWrites]
+  if (!['status', 'chart', ...coachOnly].includes(mode)) return sendJson(response, 400, { error: 'Okänd Flight Record-vy.' })
   if (!['GET', 'POST'].includes(request.method) || (['chart', ...coachReads].includes(mode) && request.method !== 'GET') || (coachWrites.includes(mode) && request.method !== 'POST')) {
     return sendJson(response, 405, { error: 'Åtgärden stöds inte.' })
   }
   try {
     if (role === 'coach' && mode === 'status') return await coachAccess(request, response)
-    if (role === 'coach' && [...coachReads, ...coachWrites].includes(mode)) return await coachFlight(request, response, mode)
-    if (coachWrites.includes(mode)) return sendJson(response, 403, { error: 'Tränarna hanterar Flight Records inställningar.' })
-    if (coachReads.includes(mode)) return sendJson(response, 403, { error: 'Detaljvyn öppnas från tränarens simmarkort.' })
+    if (coachOnly.includes(mode)) {
+      const coach = role === 'coach' && coachFromRequest(request)
+      if (!isTimeId(coach?.sub)) return sendJson(response, 403, { error: 'Logga in med ditt personliga tränarkonto.' })
+      if (mode === 'defaults') return sendJson(response, 200, await coachFlightDefaults(request, coach))
+      if (mode === 'overview') return await coachFlightOverview(request, response)
+      return await coachFlight(request, response, mode, coach)
+    }
     if (role !== 'swimmer') return sendJson(response, 403, { error: 'Formresan öppnas från simmarens egen profil.' })
     const profile = await getSessionProfile(request)
     if (!profile || !isTimeId(profile.id) || !profile.terms_accepted_at) return sendJson(response, 403, { error: 'Logga in på din simmarprofil.' })

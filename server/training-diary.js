@@ -20,16 +20,27 @@ async function rows(query, { optional = false, warnings, label }) {
   return all
 }
 
-export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true, includeGoals = true, includeCheckinSignals = false } = {}) {
+export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true,
+  includeGoals = true, includeCheckinSignals = false, planningCache } = {}) {
   const range = diaryRange(start, end, stockholmDate())
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${includeComparison ? range.previousStart : start}&${field}=lt.${range.endExclusive}`
   const read = (query, label, optional = false) => rows(query, { label, optional, warnings })
+  const readPlanning = async (query, label) => {
+    if (!planningCache) return read(query, label)
+    if (!planningCache.has(query)) {
+      const notes = []
+      planningCache.set(query, rows(query, { label, warnings: notes }).then(value => ({ value, notes })))
+    }
+    const { value, notes } = await planningCache.get(query)
+    warnings.push(...notes)
+    return value
+  }
   const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks, drylandLogs] = await Promise.all([
     read(`personal_training_sessions?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'registrerade pass'),
     read(`responses?${owner}&${within('activity_date')}&select=*&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
-    read(`daily_workouts?${within('workout_date')}&select=*&order=workout_date.asc,id.asc`, 'upplagda pass'),
-    read(`training_plans?${within('plan_date')}&select=*&order=plan_date.asc,id.asc`, 'grundplanering'),
+    readPlanning(`daily_workouts?${within('workout_date')}&select=*&order=workout_date.asc,id.asc`, 'upplagda pass'),
+    readPlanning(`training_plans?${within('plan_date')}&select=*&order=plan_date.asc,id.asc`, 'grundplanering'),
     read(`planned_training_sessions?${owner}&${within('planned_date')}&select=*&order=planned_date.asc,id.asc`, 'personlig planering'),
     read(`session_attendance?${owner}&${within('attendance_date')}&present=eq.true&select=attendance_date,session_slot,present,marked_at&order=attendance_date.asc,marked_at.asc`, 'tränarens närvaromarkeringar', true),
     read(`strength_program_logs?${owner}&${within('session_date')}&select=*&order=session_date.asc,id.asc`, 'styrkeloggar', true),

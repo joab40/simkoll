@@ -11,6 +11,7 @@ import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
 import { sleepDuration } from './daily-sleep.jsx'
 import { FOLLOWUP_RULES } from '../shared/followup-signals.js'
 import CoachMildIllnessCard from './coach-mild-illness.jsx'
+import CoachFlightOverview from './coach-flight-overview.jsx'
 
 const fmt = (value) => value == null ? '–' : Number(value).toLocaleString('sv-SE')
 const dayLabel = (value) => new Date(`${value}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' })
@@ -19,7 +20,8 @@ function FollowupList({ items, report, onOpenSwimmer, onMessage }) {
   return <div className="coach-panel-followup-list">{items.map(item => <article key={item.profileId}><span className="coach-panel-avatar" aria-hidden="true">{item.emoji}</span><div><strong>{item.displayName}</strong><ul>{item.reasons.map(reason => <CoachFollowUpReason key={reason} reason={reason} warning={item.sleepWarning?.label === reason ? item.sleepWarning.level : undefined} periodLabel={`${dayLabel(reason.startsWith('Tung ') ? report.signalStart : report.symptomStart)}–${dayLabel(report.end)}`} />)}</ul><small>{item.completed} rapporterade pass · RPE {fmt(item.rpe)}/10</small></div><div className="coach-panel-actions"><button type="button" className="secondary-button" onClick={() => onOpenSwimmer(item.profileId)}>Visa simmare</button><button type="button" className="text-button" onClick={() => onMessage(item.profileId)}>Skriv privat →</button></div></article>)}</div>
 }
 
-export default function CoachControlPanel({ profiles, asOf, code, request, onOpenSwimmer, onMessage, renderWeekOverview, includeAnonymous = false }) {
+export default function CoachControlPanel({ profiles, asOf, code, request, onOpenSwimmer, onMessage, renderWeekOverview,
+  includeAnonymous = false, showFlightRecord = false, openFlightOverview = false, onOpenFlightSettings }) {
   const [weekStart, setWeekStart] = useState(() => coachWeekMonday(asOf)), [refresh, setRefresh] = useState(0)
   const weekEnd = coachWeekAddDays(weekStart, 6), future = weekStart > asOf
   const observedEnd = future ? weekEnd : [weekEnd, asOf].sort()[0]
@@ -70,6 +72,8 @@ export default function CoachControlPanel({ profiles, asOf, code, request, onOpe
       <button type="button" className="secondary-button" aria-pressed={weekStart === coachWeekAddDays(coachWeekMonday(asOf), -7)} onClick={() => setWeekStart(coachWeekAddDays(coachWeekMonday(asOf), -7))}>Förra veckan</button>
       <button type="button" className="text-button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Uppdatera</button>
     </nav>
+    {showFlightRecord && !future && <CoachFlightOverview profiles={profiles} end={observedEnd} isToday={observedEnd === asOf} refreshKey={refresh} code={code} request={request}
+      initialOpen={openFlightOverview} onOpenSwimmer={onOpenSwimmer} onOpenSettings={onOpenFlightSettings} />}
     <CoachWeek profiles={profiles} asOf={asOf} code={code} request={request} onOpenSwimmer={onOpenSwimmer} weekStart={weekStart} refreshKey={refresh} />
     <p className="coach-panel-intro">Översikten följer den valda veckan; pågående vecka visar svar till och med idag. Träningspassen räknas från simmarnas efterrapporter; närvaro utan efterrapport syns i veckomatrisen men ingår inte i dessa rapportkort. Individuell uppföljning använder 14 dagar för ihållande tung kropp/dagskänsla och sju dagar för sjukdom, sömn och RPE. Signaler nollställs inte vid veckoskiftet.</p>
     {future && <p role="status">Kommande vecka: planeringen visas ovan. Det finns ännu inga genomförda pass att sammanställa.</p>}

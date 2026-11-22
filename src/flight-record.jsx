@@ -60,7 +60,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation }) {
+export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag' }) {
   const graph = useRef(null)
   const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
@@ -114,6 +114,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   }
   const todayPoint = points.find(point => point.date === asOf && Number.isFinite(point.value))
   const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.subtitle ?? metric.unit}`
+  const endDescription = endLabel.toLocaleLowerCase('sv-SE').replace(/\.$/, '')
   const latestPoint = points.findLast(point => Number.isFinite(point.value))
   const hasLimited = points.some(point => point.limited)
   const pilotPoint = todayPoint ?? latestPoint
@@ -142,7 +143,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
   return <figure className={`flight-plot${onSelect ? '' : ' flight-plot-static'}${sky ? ' flight-plot-sky' : ''}`} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
-    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}${course ? ` ${course.label}.` : ''}`}>
+    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till ${endDescription}.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}${course ? ` ${course.label}.` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={goalWidth} height={base - top} />}
       {skyGoal && <g aria-hidden="true">
         <rect className="flight-palace-sky" x={today + 4} y={top} width={goalWidth - 4} height={base - top} rx="12" />
@@ -183,12 +184,12 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
           width={planeWidth} height={planeWidth * .5} />
       </g>
         : <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
-      {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? 'Idag' : shortDate(date)}</text>)}
+      {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? endLabel : shortDate(date)}</text>)}
       {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
       {skyGoal && <text x={palaceCenter} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
     </svg>
     <div className="flight-legend">
-      <span><i/> {metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter'}</span>
+      <span><i/> {metric.legend ?? (metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter')}</span>
       {hasLimited && <span><i className="flight-legend-limited"/> Begränsat underlag</span>}
       {metric === lineMetric && <span><i className="flight-legend-lift"/> Nytt tidslyft</span>}
       {course && <span><i className="flight-legend-course"/> {course.label}</span>}
@@ -276,7 +277,7 @@ function FlightSettingActions({ onSave, onReset, dirty, saving, available, block
   </>
 }
 
-function FlightWeightControls({ weights, onChange, customMeasures, sleepGoalMinutes, measuresAvailable, ...actions }) {
+export function FlightWeightControls({ weights, onChange, customMeasures, sleepGoalMinutes, measuresAvailable, shared = false, ...actions }) {
   const groups = flightSignalGroups(customMeasures)
   const selectedCount = Object.entries(weights).filter(([key, value]) => !isBoost(key) && value > 0).length
   const row = ({ key, label }) => <FlightWeightRow key={key} signal={key} label={label}
@@ -291,7 +292,7 @@ function FlightWeightControls({ weights, onChange, customMeasures, sleepGoalMinu
       {group.label === 'Återhämtning' && measuresAvailable && sleepGoalMinutes == null && <p>Ställ in simmarens sömnmål för att vikta sovtid.</p>}
     </fieldset>)}
     {selectedCount > 0 && <p className="flight-weight-total">{selectedCount} valda mått · 100 % totalt</p>}
-    <FlightSettingActions {...actions} label="Spara vikter" />
+    {!shared && <FlightSettingActions {...actions} label="Spara vikter" />}
   </details>
 }
 
@@ -340,11 +341,11 @@ function FlightPracticeBoostFields({ config, onChange, saving, weight }) {
   </>
 }
 
-function FlightBoostControls({ weights, onChange, taperAvailable, configAvailable, config, onConfigChange,
-  pbAvailable, pbConfig, onPbChange, configError, ...actions }) {
+export function FlightBoostControls({ weights, onChange, taperAvailable, configAvailable, config, onConfigChange,
+  pbAvailable, pbConfig, onPbChange, configError, shared = false, ...actions }) {
   return <details className="flight-weights">
     <summary>Boostar{actions.dirty ? ' · osparade ändringar' : ''}</summary>
-    <p>Ställ in varje justering för sig. Flight-linjen uppdateras direkt när du provar en procentsats.</p>
+    <p>Ställ in varje justering för sig.{!shared && ' Flight-linjen uppdateras direkt när du provar en procentsats.'}</p>
     <fieldset className="flight-weight-group flight-weight-lift">
       <legend>Simmade tider</legend>
       <FlightWeightRow signal="times" label="Lyft från simtider" weights={weights} onChange={onChange} saving={actions.saving} canSelect />
@@ -364,7 +365,7 @@ function FlightBoostControls({ weights, onChange, taperAvailable, configAvailabl
         : <p>Toppningsjustering kräver SQL 138.</p>}
     </fieldset>
     {configError && <p className="flight-error" role="alert">{configError}</p>}
-    <FlightSettingActions {...actions} blocked={Boolean(configError)} label="Spara boostar" />
+    {!shared && <FlightSettingActions {...actions} blocked={Boolean(configError)} label="Spara boostar" />}
   </details>
 }
 
@@ -677,6 +678,30 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
   </section>
 }
 
+export function FlightPresentationFields({ draft, saving, update }) {
+  return <>
+    <label className="flight-presentation-toggle"><input type="checkbox" checked={draft.sky} disabled={saving} onChange={event => update({ sky: event.target.checked })} /> Flygtema</label>
+    {draft.sky && <div className="flight-presentation-fields">
+      <label className="flight-field">Planets lutning
+        <select value={draft.angle == null ? 'trend' : 'manual'} disabled={saving} onChange={event => update({ angle: event.target.value === 'trend' ? null : 0 })}>
+          <option value="trend">Följ senaste trenden</option><option value="manual">Välj lutning själv</option>
+        </select>
+      </label>
+      {draft.angle != null && <label className="flight-field flight-presentation-range">
+        <span>Lutning <strong>{draft.angle > 0 ? '+' : ''}{draft.angle}°</strong></span>
+        <input type="range" min={-FLIGHT_PITCH_LIMIT} max={FLIGHT_PITCH_LIMIT} value={draft.angle} disabled={saving}
+          onChange={event => update({ angle: Number(event.target.value) })} />
+      </label>}
+      <label className="flight-field">Illustrerad riktning
+        <select value={draft.forwardDays} disabled={saving} onChange={event => update({ forwardDays: Number(event.target.value) })}>
+          <option value={0}>Av</option>
+          {Array.from({ length: FLIGHT_FORWARD_LIMIT }, (_, index) => index + 1).map(days => <option key={days} value={days}>{days} {days === 1 ? 'dag' : 'dagar'}</option>)}
+        </select>
+      </label>
+    </div>}
+  </>
+}
+
 function FlightPresentationSettings({ initial, available, competitions, loadPreview, savePresentation, refreshKey }) {
   const [saved, setSaved] = useState(() => readFlightPresentation(initial))
   const [draft, setDraft] = useState(saved)
@@ -726,25 +751,7 @@ function FlightPresentationSettings({ initial, available, competitions, loadPrev
   return <details className="flight-presentation" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Simmarens visning {saved.sky && <small>Flygtema på</small>}</summary>
     {open && <div className="flight-presentation-body">
-      <label className="flight-presentation-toggle"><input type="checkbox" checked={draft.sky} disabled={saving} onChange={event => update({ sky: event.target.checked })} /> Flygtema</label>
-      {draft.sky && <div className="flight-presentation-fields">
-        <label className="flight-field">Planets lutning
-          <select value={draft.angle == null ? 'trend' : 'manual'} disabled={saving} onChange={event => update({ angle: event.target.value === 'trend' ? null : 0 })}>
-            <option value="trend">Följ senaste trenden</option><option value="manual">Välj lutning själv</option>
-          </select>
-        </label>
-        {draft.angle != null && <label className="flight-field flight-presentation-range">
-          <span>Lutning <strong>{draft.angle > 0 ? '+' : ''}{draft.angle}°</strong></span>
-          <input type="range" min={-FLIGHT_PITCH_LIMIT} max={FLIGHT_PITCH_LIMIT} value={draft.angle} disabled={saving}
-            onChange={event => update({ angle: Number(event.target.value) })} />
-        </label>}
-        <label className="flight-field">Illustrerad riktning
-          <select value={draft.forwardDays} disabled={saving} onChange={event => update({ forwardDays: Number(event.target.value) })}>
-            <option value={0}>Av</option>
-            {Array.from({ length: FLIGHT_FORWARD_LIMIT }, (_, index) => index + 1).map(days => <option key={days} value={days}>{days} {days === 1 ? 'dag' : 'dagar'}</option>)}
-          </select>
-        </label>
-      </div>}
+      <FlightPresentationFields draft={draft} saving={saving} update={update} />
       <FlightSettingActions available={available} dirty={dirty} saving={saving} onSave={save} label="Spara visning" message={message}
         onReset={() => { setDraft(defaultFlightPresentation); setMessage(null) }} />
       <h3>Förhandsvisning av simmarvyn</h3>
