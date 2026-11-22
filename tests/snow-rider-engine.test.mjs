@@ -63,7 +63,12 @@ test('side-by-side ice banks leave more clearance and bonus crystals follow the 
   game.distance = 100
   advanceSnow(game, SNOW_STEP)
   const [left, right] = game.objects.filter(item => item.challenge === 'middle' && item.kind === 'bank')
-  assert(Math.abs((right.x - right.radius) - (left.x + left.radius) - 3.8) < 1e-9)
+  assert(Math.abs((right.x - right.radius) - (left.x + left.radius) - 4.3) < 1e-9)
+  assert.equal(left.height, 2.45)
+  for (const [x, status] of [[1.7, 'playing'], [1.9, 'over']]) {
+    const approach = { ...game, objects: [left, right], row: 1000, distance: left.s - 2, x }
+    assert.equal(advanceSnow(approach, SNOW_STEP).status, status)
+  }
   const first = game.objects.find(item => item.id === 'gem1')
   const extra = game.objects.find(item => item.id === 'bonus1')
   assert.equal(extra.x, first.x)

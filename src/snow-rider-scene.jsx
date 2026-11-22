@@ -81,17 +81,18 @@ function JumpRail() {
 }
 
 function IceBank() {
+  // Unit height. The holder scales the wall to match its collision height.
   return <group>
-    <mesh position={[0, 1, 0]}>
-      <boxGeometry args={[2, 2.2, 3.5]}/>
+    <mesh position={[0, .36, 0]}>
+      <boxGeometry args={[2, .8, 3.5]}/>
       <meshStandardMaterial color="#478097"/>
     </mesh>
-    <mesh position={[0, 2.36, 0]}>
-      <boxGeometry args={[2, .78, 3.5]}/>
+    <mesh position={[0, .86, 0]}>
+      <boxGeometry args={[2, .28, 3.5]}/>
       <meshStandardMaterial color="#dfedf0"/>
     </mesh>
-    <mesh position={[0, 1.58, 1.751]}>
-      <planeGeometry args={[1.98, .19]}/>
+    <mesh position={[0, .57, 1.751]}>
+      <planeGeometry args={[1.98, .07]}/>
       <meshStandardMaterial color="#a1d2de"/>
     </mesh>
   </group>
@@ -200,13 +201,11 @@ export default function SnowRiderScene({model,effects,onContextLost}){
       rail.visible = item.kind === 'rail'
       bank.visible = item.kind === 'bank'
       gem.visible = isGem
+      holder.scale.set(isGem ? 1 : item.radius, bank.visible ? item.height : 1, 1)
       if (isGem) {
         gem.rotation.y = elapsed * 2
         gem.position.y = item.height + Math.sin(elapsed * 3 + item.s) * .14
-      } else {
-        holder.scale.x = item.radius
       }
-      if (isGem) holder.scale.x = 1
     })
     if (snow.current) {
       snow.current.position.x = centre
