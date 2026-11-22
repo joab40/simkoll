@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseStorageRequest, supabaseStorageUrl } from './supabase.js'
+import { competitionUuid } from './competition-participation.js'
 
-export const competitionUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export { canReadCompetition, competitionUuid } from './competition-participation.js'
 const bucket = 'competition-pm'
 const validPath = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png|webp)$/i
-export const canReadCompetition = (competition, role, profile) => Boolean(competition && (role === 'coach' || profile && (profile.is_test_profile || !competition.target_groups?.length || competition.target_groups.includes(profile.training_group))))
 export const publicPm = (competition) => competition.pm_document?.path ? { name: competition.pm_document.name || 'Tävlings-PM', mimeType: competition.pm_document.mimeType, uploadedAt: competition.pm_document.uploadedAt } : null
 
 export function decodeCompetitionPm(data, name) {

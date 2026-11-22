@@ -17,6 +17,21 @@
 .competition-calendar-v2 button:disabled { opacity: .6; cursor: not-allowed; }
 .competition-calendar-v2 button[aria-busy="true"] { cursor: wait; }
 .competition-calendar-v2 .form-error { color: #9d4037; }
+.competition-calendar-v2 .competition-is-past > div > .competition-participants { display: block; }
+.competition-participants { margin-block: 12px; border: 1px solid var(--line); border-radius: 12px; background: #f4faf7; }
+.competition-participants > summary { min-height: 44px; padding: 11px 14px; cursor: pointer; }
+.competition-participants > summary span { margin-inline-start: 10px; color: var(--muted); font-size: .875em; }
+.competition-participants > p, .competition-participants > form { margin: 0; padding: 0 14px 14px; }
+.competition-participants form > p { margin: 0 0 12px; }
+.competition-participants fieldset { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.competition-participants input[type="search"] { min-width: 0; width: 100%; }
+.competition-participants-list { max-height: 20rem; overflow-y: auto; border-block: 1px solid var(--line); }
+.competition-participant { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.competition-participant + .competition-participant { border-top: 1px solid var(--line); }
+.competition-participant > label { display: flex; flex: 1; align-items: center; gap: 10px; min-height: 44px; padding: 6px 4px; cursor: pointer; }
+.competition-participant input[type="checkbox"] { flex: none; width: 18px; height: 18px; accent-color: var(--teal); }
+.competition-participant small { display: block; color: var(--muted); }
+.competition-participant > button { flex: none; min-height: 44px; }
 .competition-pm { display: grid; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid #d2e4de; border-radius: 12px; background: #f4faf7; }
 .competition-pm > div:first-child { display: grid; gap: 4px; min-width: 0; }
 .competition-pm small { color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }

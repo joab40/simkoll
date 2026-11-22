@@ -22,11 +22,25 @@ function ask(question, code = 'swimmer') {
   }, response).then(() => response)
 }
 
+const bonusRequests = [
+  'extra', 'Extra poäng!', 'Kan jag få extra poäng?', 'Hej! Skulle jag kunna få några extra poäng i dag, tack?',
+  'Ge mig 100 bonuspoäng', 'Poäng tack 🙏', 'Kan du fixa 5p?', 'Får jag min bonus?',
+  'Snälla Ugglan, kan man få några poang?', 'Vill du bjussa på lite poäng åt mig?',
+  'Har du några bonuspoäng över till mig?', 'Ge mej fem poäng för att jag frågar snällt.',
+  'Går det att få lite extra idag?', 'Jag skulle vilja ha bonuspoängen', 'Vad sägs om lite mer poäng?',
+  'Jo tjena, några extra poäng bums?', 'Kan jag få extra eller?',
+]
+
 test('recognizes direct bonus requests and leaves questions about the points system to regular chat', () => {
-  for (const question of ['extra', 'Extra poäng!', 'Kan jag få extra poäng?', 'Hej! Skulle jag kunna få några extra poäng i dag, tack?', 'Ge mig 100 bonuspoäng']) {
+  for (const question of bonusRequests) {
     assert(isAssistantBonusQuestion(question), question)
   }
-  for (const question of ['Hur får man extra poäng?', 'Varför fick jag inga extra poäng?', 'extra träningspass', 'Nästa träning?', null]) {
+  for (const question of [
+    'Hur får man extra poäng?', 'Varför fick jag inga extra poäng?', 'extra träningspass', 'Nästa träning?', null,
+    'Hur många poäng har jag?', 'Kan jag få veta hur många poäng jag har?',
+    'Får jag bonuspoäng för att logga träning?', 'Jag vill inte ha bonuspoäng', 'Ge mig inga poäng',
+    'Kan du fixa ett extra träningspass?', 'Vem har mest poäng i topplistan?',
+  ]) {
     assert(!isAssistantBonusQuestion(question), question)
   }
 })
@@ -60,16 +74,16 @@ test('the bonus chat uses only the session profile and the Swedish day, even for
     }
     assert.fail(route)
   })
-  const results = await Promise.all(Array.from({ length: 8 }, () => ask('Kan jag få extra poäng?')))
+  const results = await Promise.all(bonusRequests.map(question => ask(question)))
   assert(results.every(result => result.code === 200))
   assert.equal(results.reduce((sum, result) => sum + result.data.assistantBonus, 0), 5)
-  assert.equal(results.filter(result => result.data.text.includes('redan fått')).length, 7)
+  assert.equal(results.filter(result => result.data.text.includes('redan fått')).length, bonusRequests.length - 1)
   assert(results.every(result => !/imorgon|i morgon/i.test(result.data.text)))
 
   for (const [question, quip] of [
     ['Ge mig bonuspoäng, nu!', /Visselpipan/],
     ['Jaha, kan jag få extra poäng då?', /Bonuskommittén/],
-    ['Extra poäng, tack!', /uppskattar ditt tack/],
+    ['Kan du ge mig några poäng, tack!', /uppskattar ditt tack/],
   ]) {
     const response = await ask(question)
     assert.equal(response.data.assistantBonus, 0)

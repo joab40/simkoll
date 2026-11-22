@@ -131,3 +131,50 @@ test('failed entry save uses one transaction and never deletes existing selectio
   assert.equal(result.code, 409)
   assert.match(result.data.error, /tidigare val finns kvar/)
 })
+
+test('individual choices override groups in the calendar and program without sharing the roster', async () => {
+  const included = { ...competition, id, participant_overrides: { [profileId]: true, [id]: false } }
+  const excluded = { ...competition, id: profileId, target_groups: ['ungdom_orange'], participant_overrides: { [profileId]: false } }
+  globalThis.fetch = async input => {
+    const url = new URL(input)
+    if (url.pathname.endsWith('/profile_sessions')) return reply([{ profile_id: profileId }])
+    if (url.pathname.endsWith('/profiles')) return reply([{ id: profileId, active: true, approval_status: 'approved', training_group: 'ungdom_orange' }])
+    if (url.pathname.endsWith('/competition_calendar')) {
+      const filter = url.searchParams.get('id')
+      return reply([included, excluded].filter(row => !filter || filter === `eq.${row.id}`))
+    }
+    return reply([])
+  }
+  const calendar = await call(null, { method: 'GET', query: { calendar: 'true' }, swimmer: true })
+  assert.deepEqual(calendar.data.competitions.map(row => row.id), [id])
+  assert.equal(Object.hasOwn(calendar.data.competitions[0], 'participantOverrides'), false)
+  for (const [competitionId, status] of [[id, 200], [profileId, 404]]) {
+    const program = await call(null, { method: 'GET', query: { program: 'true', id: competitionId }, swimmer: true })
+    assert.equal(program.code, status)
+  }
+})
+
+test('coach can save and reset individual choices while stale writes preserve the latest saved list', async () => {
+  const existing = '33333333-3333-4333-8333-333333333333'
+  const start = '2026-11-20T10:00:00.000Z'
+  let row = { ...competition, updated_at: start, participant_overrides: { [existing]: true, [id]: false } }
+  let writes = 0
+  globalThis.fetch = async (input, options) => {
+    const url = new URL(input)
+    if (url.pathname.endsWith('/profiles')) return reply([{ id: profileId }])
+    assert(url.pathname.endsWith('/competition_calendar'))
+    if (options.method === 'PATCH') {
+      writes++
+      assert.equal(url.searchParams.get('updated_at'), `eq.${row.updated_at}`)
+      row = { ...row, ...JSON.parse(options.body) }
+    }
+    return reply([row])
+  }
+  const body = { action: 'save-competition-participants', competitionId: id, updatedAt: start, changes: { [profileId]: true, [id]: null } }
+  const saved = await call(body)
+  assert.equal(saved.code, 200)
+  assert.deepEqual(saved.data.competition.participantOverrides, { [existing]: true, [profileId]: true })
+  assert.equal((await call(body)).code, 409)
+  assert.equal((await call(body, { swimmer: true })).code, 403)
+  assert.equal(writes, 1)
+})

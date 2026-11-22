@@ -16,6 +16,7 @@ import { createRoot } from 'react-dom/client'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { redactSpeedInsightsUrl } from '../shared/speed-insights.js'
 import { apiRequest } from './api-request.js'
+import { competitionIncludesSwimmer } from '../shared/competition-participation.js'
 import { chatBackgroundUrl } from './chat-background.js'
 import { deferredPanel } from './deferred-panel.jsx'
 import { createVisibleRefresh, startVisiblePolling } from './visible-refresh.js'
@@ -2766,11 +2767,21 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
     apiRequest(`/api/workouts?date=${summaryDate}`, code).then((data) => setSummaryWorkouts(data.workouts || (data.workout ? [data.workout] : []))).catch(() => setSummaryWorkouts([]))
   }, [code, summaryDate, view])
   useEffect(() => {
-    if (!code || view !== 'today') return
-    Promise.allSettled([apiRequest('/api/workouts?planning=true', code), apiRequest('/api/workouts?calendar=true', code)]).then(([planning, calendar]) => setSummaryPlanning({
-      plans: planning.status === 'fulfilled' ? planning.value.plans || [] : [],
-      competitions: calendar.status === 'fulfilled' ? calendar.value.competitions || [] : [],
-    }))
+    if (!code || !['today', 'swimmers'].includes(view)) return
+    let active = true
+    if (view === 'swimmers') {
+      apiRequest('/api/workouts?calendar=true', code).then(({ competitions }) => {
+        if (active) setSummaryPlanning(current => ({ ...current, competitions: competitions || [] }))
+      }).catch(() => {})
+      return () => { active = false }
+    }
+    Promise.allSettled([apiRequest('/api/workouts?planning=true', code), apiRequest('/api/workouts?calendar=true', code)]).then(([planning, calendar]) => {
+      if (active) setSummaryPlanning({
+        plans: planning.status === 'fulfilled' ? planning.value.plans || [] : [],
+        competitions: calendar.status === 'fulfilled' ? calendar.value.competitions || [] : [],
+      })
+    })
+    return () => { active = false }
   }, [code, view])
 
   const applyCoachProfile = (savedAccount, groups) => { if (savedAccount) setCoachProfile(savedAccount); if (Array.isArray(groups) && groups.length) setSelectedGroups(groups); else if (groups && !groups.length) setSelectedGroups(groupOptions.map(([value]) => value)) }
@@ -2851,7 +2862,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'planning' ? (
           <CoachPlanning code={code} selectedGroups={selectedGroups} availableGroups={availableGroups} />
         ) : view === 'competition-calendar' ? (
-          <CompetitionSubmissionBoundary><CompetitionCalendar code={code} canManageCompetitionPrograms={accountRole === 'head_coach' || accountRole === 'superadmin'} onOpenSubmissions={(competitionId) => { setSubmissionCompetitionId(competitionId); setView('competition-entries') }} /></CompetitionSubmissionBoundary>
+          <CompetitionSubmissionBoundary><CompetitionCalendar code={code} profiles={profiles} availableGroups={availableGroups} canManageCompetitionPrograms={accountRole === 'head_coach' || accountRole === 'superadmin'} onOpenSubmissions={(competitionId) => { setSubmissionCompetitionId(competitionId); setView('competition-entries') }} /></CompetitionSubmissionBoundary>
         ) : view === 'competition-entries' ? (
           <CompetitionSubmissionBoundary><CompetitionSubmissionManager code={code} initialCompetitionId={submissionCompetitionId} /></CompetitionSubmissionBoundary>
         ) : view === 'push-settings' ? (
@@ -3935,13 +3946,14 @@ function CompetitionSubmissionManager({ code, initialCompetitionId = '' }) {
   const safeEvents = Array.isArray(data.events) ? data.events : []
   const safeEntries = Array.isArray(data.entries) ? data.entries : []
   const submitted = safeEntries.filter(isSubmittedCompetitionEntry)
+  const exportableEntries = submitted.filter(entry => competition?.participantOverrides?.[entry.profile_id] !== false)
   const profiles = [...new Map(submitted.map((entry) => [entry.profile_id, entry])).values()]
   const selectProfile = (profileId) => { setSelectedProfile(profileId); setChosen(submitted.filter((entry) => entry.profile_id === profileId).map((entry) => entry.event_id)) }
   useEffect(() => { document.querySelectorAll('.competition-edit-selection .competition-entry-list label').forEach((label, index) => { const event = safeEvents[index]; if (event?.selectable === false) { label.classList.add('competition-info-row'); const input = label.querySelector('input'); if (input) input.disabled = true } }) }, [safeEvents])
   const save = async () => { if (savingRef.current || waiting || error || !selectedId || !selectedProfile) return; savingRef.current = true; setSaving(true); try { await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'coach-update-competition-entry', competitionId: selectedId, profileId: selectedProfile, eventIds: chosen }) }); const result = await apiRequest(`/api/workouts?program=true&submissionRoster=true&id=${selectedId}`, code); setData(result); window.alert('Grenval sparat.') } catch (error) { window.alert(error.message); setRefresh(value => value + 1) } finally { savingRef.current = false; setSaving(false) } }
   const exportCsv = () => {
     const eventById = new Map(safeEvents.map((event, index) => [event.id, { ...event, order: Number.isFinite(Number(event.eventOrder)) ? Number(event.eventOrder) : index }]))
-    const orderedEntries = [...submitted].sort((a, b) => {
+    const orderedEntries = [...exportableEntries].sort((a, b) => {
       const nameOrder = String(a.profileName || 'Simmare').localeCompare(String(b.profileName || 'Simmare'), 'sv', { sensitivity: 'base' })
       if (nameOrder) return nameOrder
       return (eventById.get(a.event_id)?.order ?? Number.MAX_SAFE_INTEGER) - (eventById.get(b.event_id)?.order ?? Number.MAX_SAFE_INTEGER)
@@ -3960,12 +3972,12 @@ function CompetitionSubmissionManager({ code, initialCompetitionId = '' }) {
     URL.revokeObjectURL(url)
   }
   return <section className="competition-submissions">
-    <div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Se vilka som skickat in och vilka grenval som återstår.</small></div><div className="settings-actions"><button type="button" className="secondary-button competition-refresh" onClick={() => setRefresh(value => value + 1)} disabled={waiting || saving}>Uppdatera</button><button className="secondary-button" onClick={exportCsv} disabled={waiting || !!error || !!calendarError || !submitted.length}>Exportera CSV</button></div></div>
+    <div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Se vilka som skickat in och vilka grenval som återstår.</small></div><div className="settings-actions"><button type="button" className="secondary-button competition-refresh" onClick={() => setRefresh(value => value + 1)} disabled={waiting || saving}>Uppdatera</button><button className="secondary-button" onClick={exportCsv} disabled={waiting || !!error || !!calendarError || !exportableEntries.length}>Exportera CSV</button></div></div>
     {competitions.length > 0 && <label className="settings-field"><strong>Välj tävling</strong><select disabled={saving} value={selectedId} onChange={event => setSelectedId(event.target.value)}>{competitions.map(item => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label>}
     {(error || calendarError) ? <p className="form-error" role="alert">{calendarError || error}</p> : waiting ? <p className="empty" role="status">Hämtar anmälningar…</p> : !competition ? <p className="empty">Inga tävlingar är skapade ännu.</p> : <>
       <CompetitionEntryProgress key={selectedId} roster={data.roster} entries={safeEntries} available={data.rosterAvailable} entriesOpen={competition.entriesOpen} />
       <h2 className="competition-submitted-heading">Inskickade grenval</h2>
-      {profiles.length ? <div className="competition-swimmer-picker">{profiles.map(profile => <button type="button" disabled={saving} className={selectedProfile === profile.profile_id ? 'active' : ''} key={profile.profile_id} onClick={() => selectProfile(profile.profile_id)}><span className="competition-picker-name">{profile.profileEmoji || '🏊'} {profile.profileName || 'Simmare'}</span><small>{submitted.filter(entry => entry.profile_id === profile.profile_id).length} grenar</small></button>)}</div> : <p className="empty">Ingen simmare har skickat in sitt grenval ännu.</p>}
+      {profiles.length ? <div className="competition-swimmer-picker">{profiles.map(profile => <button type="button" disabled={saving} className={selectedProfile === profile.profile_id ? 'active' : ''} key={profile.profile_id} onClick={() => selectProfile(profile.profile_id)}><span className="competition-picker-name">{profile.profileEmoji || '🏊'} {profile.profileName || 'Simmare'}</span><small>{submitted.filter(entry => entry.profile_id === profile.profile_id).length} grenar{competition.participantOverrides?.[profile.profile_id] === false ? ' · Avbockad' : ''}</small></button>)}</div> : <p className="empty">Ingen simmare har skickat in sitt grenval ännu.</p>}
       {selectedProfile && <section className="competition-edit-selection"><h2>Justera grenval</h2><div className="competition-entry-list">{safeEvents.map(event => <label key={event.id}><input type="checkbox" disabled={saving || event.selectable === false} checked={event.selectable !== false && chosen.includes(event.id)} onChange={() => event.selectable !== false && setChosen(current => current.includes(event.id) ? current.filter(id => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender} · {event.ageClass}</small></span></label>)}</div><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara ändrat grenval'}</button></section>}
     </>}
   </section>
@@ -4069,8 +4081,8 @@ function CompetitionProgramPanel({ code, competition, canManage = false }) {
   </details>
 }
 
-function CompetitionCalendar({ code, onOpenSubmissions, canManageCompetitionPrograms = false }) {
-  return <CompetitionCalendarView code={code} request={apiRequest} today={todayKey()} onOpenSubmissions={onOpenSubmissions} renderProgram={(competition) => <CompetitionProgramPanel code={code} competition={competition} canManage={canManageCompetitionPrograms} />} />
+function CompetitionCalendar({ code, profiles, availableGroups, onOpenSubmissions, canManageCompetitionPrograms = false }) {
+  return <CompetitionCalendarView code={code} profiles={profiles} availableGroups={availableGroups} request={apiRequest} today={todayKey()} onOpenSubmissions={onOpenSubmissions} renderProgram={(competition) => <CompetitionProgramPanel code={code} competition={competition} canManage={canManageCompetitionPrograms} />} />
 }
 
 function PlanningEditButton({ code, plan, date, group, calendarActivities = [], calendarActivity = null, onSaved, onDetached, onOpenWorkout, label = 'Redigera' }) {
@@ -5237,7 +5249,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
             {status && <div className={`swimmer-status ${status[0]}`}>{status[1]}</div>}
             <SwimmerTrainingGoals goals={trainingGoals} sessions={profileSessions} draft={trainingGoalDrafts[profile.id]} status={trainingGoalStatus[profile.id]} onChange={(key, value) => setTrainingGoalDrafts(current => ({ ...current, [profile.id]: { ...(current[profile.id] || {}), [key]: value } }))} onSave={() => saveTrainingGoals(profile, swimGoal)} />
             <SwimmerCompactWeek training={training} profileId={profile.id} />
-            {code?.startsWith('coach.') && <FlightRecordCoachCard key={`flight-record-${profile.id}`} profileId={profile.id} swimmerName={profile.displayName} trainingGroup={profile.trainingGroup} code={code} request={apiRequest} competitions={competitions.filter(item => !item.targetGroups?.length || item.targetGroups.includes(profile.trainingGroup))} />}
+            {code?.startsWith('coach.') && <FlightRecordCoachCard key={`flight-record-${profile.id}`} profileId={profile.id} swimmerName={profile.displayName} trainingGroup={profile.trainingGroup} code={code} request={apiRequest} competitions={competitions.filter(item => competitionIncludesSwimmer(item, profile))} />}
             <SwimmerTrainingTimesCard profile={profile} code={code} request={apiRequest} />
             <button type="button" className="swimmer-trend-card" onClick={() => setSelectedProfile(profile)} aria-label={`Öppna statistik för ${profile.displayName}`}>
               <span className={`swimmer-trend-arrow ${trendState.tone}`} aria-hidden="true">{trendLoading && !trendSummary ? '…' : trendState.arrow}</span>

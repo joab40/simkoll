@@ -1,8 +1,10 @@
+import { competitionIncludesSwimmer } from './competition-participation.js'
+
 // Group membership is not a confirmed intention to compete. This is only an
 // overview of saved selections, not an attendance or eligibility assessment.
-export function competitionEntryRoster(profiles, targetGroups = []) {
+export function competitionEntryRoster(profiles, targetGroups = [], participantOverrides = {}) {
   return profiles.filter(profile => profile.active === true && profile.approval_status === 'approved' && !profile.is_test_profile
-    && (!targetGroups.length || targetGroups.includes(profile.training_group)))
+    && competitionIncludesSwimmer({ targetGroups, participantOverrides }, { id: profile.id, trainingGroup: profile.training_group }))
     .map(profile => ({ id: profile.id, name: profile.display_name || 'Simmare', emoji: profile.emoji || '🏊' }))
 }
 

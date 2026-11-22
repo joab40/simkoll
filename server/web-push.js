@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import webpush from 'web-push'
 import { waitUntil } from '@vercel/functions'
 import { supabaseRequest } from './supabase.js'
+import { canReadCompetition, competitionScope } from './competition-participation.js'
+import { competitionIncludesSwimmer } from '../shared/competition-participation.js'
 
 export const pushDefaults = { enabled: false, coachMessages: true, privateMessages: true, developmentTalks: true, competitionEntries: true, publishedWorkouts: true, checkinReminders: { missingCheckin: false, afterTraining: false } }
 export const endpointHash = (endpoint) => createHash('sha256').update(endpoint).digest('hex')
@@ -99,7 +101,7 @@ export async function deliverTrainingReminders(kind) {
   if (kind === 'missingCheckin') {
     const [workoutsResult, competitionsResult] = await Promise.all([
       supabaseRequest(`daily_workouts?workout_date=eq.${date}&select=workout_date,focus,target_groups&limit=500`),
-      supabaseRequest(`competition_calendar?start_date=lte.${date}&end_date=gte.${date}&select=start_date,end_date,target_groups&limit=500`),
+      supabaseRequest(`competition_calendar?start_date=lte.${date}&end_date=gte.${date}&select=${competitionScope}&limit=500`),
     ])
     if (!workoutsResult.ok || !competitionsResult.ok) throw new Error('Training plan lookup failed')
     const workouts = (await workoutsResult.json()).filter((row) => row.focus !== 'tavling')
@@ -108,7 +110,7 @@ export async function deliverTrainingReminders(kind) {
       const group = profile.training_group
       if (!group || (byProfile.get(profile.id) || []).length) return false
       const hasPlannedWorkout = workouts.some((workout) => targetGroupsForWorkout(workout).includes(group))
-      const hasCompetition = competitions.some((competition) => !competition.target_groups?.length || competition.target_groups.includes(group))
+      const hasCompetition = competitions.some(competition => canReadCompetition(competition, 'swimmer', profile))
       return hasPlannedWorkout && !hasCompetition
     })
   } else if (kind === 'afterTraining') {
@@ -230,6 +232,7 @@ export async function deliverCategoryPush(event, send) {
     const profile = activeProfiles.get(row.profile_id)
     if (!profile) return false
     if (event.profileId && row.profile_id !== event.profileId) return false
+    if (event.category === 'competitionEntries') return competitionIncludesSwimmer({ targetGroups, participantOverrides: event.participantOverrides }, { id: profile.id, trainingGroup: profile.training_group })
     return !targetGroups.length || targetGroups.includes(profile.training_group)
   })
   const payload = {

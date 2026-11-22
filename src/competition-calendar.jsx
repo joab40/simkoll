@@ -1,17 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react'
 import CompetitionPm, { readCompetitionPm, uploadCompetitionPm } from './competition-pm.jsx'
+import CompetitionParticipants from './competition-participants.jsx'
 import './competition-calendar.css'
 
 const groups = { ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }
 const newForm = (date) => ({ startDate: date, endDate: date, title: '', category: '', location: '', notes: '', targetGroups: Object.keys(groups) })
 
-export default function CompetitionCalendarView({ code, request, today, renderProgram, onOpenSubmissions }) {
+export default function CompetitionCalendarView({ code, request, today, renderProgram, onOpenSubmissions, profiles = [], availableGroups = [] }) {
   const [competitions, setCompetitions] = useState([]), [loading, setLoading] = useState(true), [loadError, setLoadError] = useState('')
   const [form, setForm] = useState(() => newForm(today)), [file, setFile] = useState(null), [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false), [formError, setFormError] = useState(''), [message, setMessage] = useState('')
   const [cardBusy, setCardBusy] = useState({}), [cardErrors, setCardErrors] = useState({})
   const busy = useRef(new Set()), savingRef = useRef(false), formRef = useRef(null), fileRef = useRef(null)
   const baseline = useRef(JSON.stringify(newForm(today)))
+  const groupNames = { ...groups, ...Object.fromEntries(availableGroups) }
   const dirty = Boolean(file) || JSON.stringify(form) !== baseline.current
   const replace = (competition) => setCompetitions((current) => [...current.filter((item) => item.id !== competition.id), competition].sort((a, b) => a.startDate.localeCompare(b.startDate)))
   const load = async () => {
@@ -65,7 +67,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
     finally { busy.current.delete(competition.id); setCardBusy((current) => ({ ...current, [competition.id]: '' })) }
   }
   return <section className="competition-calendar competition-calendar-v2">
-    <div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Tävlingskalender</h1><small>Spara tävlingen, bifoga PM och lägg in grenprogram. Öppna sedan grenanmälan när allt är klart.</small></div><div className="big-count"><strong>{competitions.length}</strong><span>tävlingar</span></div></div>
+    <div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>Tävlingskalender</h1><small>Spara tävlingen, välj deltagare och lägg in grenprogram.</small></div><div className="big-count"><strong>{competitions.length}</strong><span>tävlingar</span></div></div>
     {message && <p className="competition-feedback" role="status">{message}</p>}
     <details className="competition-add-card" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}><summary>{form.id ? 'Redigera tävling' : '＋ Lägg till tävling'}</summary>
       <form className="competition-form" onSubmit={save} ref={formRef}><fieldset className="competition-form-fields" disabled={saving}>
@@ -73,7 +75,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
         <label>Typ av tävling<input maxLength={80} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Ex. mästerskap eller klubbtävling" /></label>
         <fieldset><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{Object.entries(groups).map(([value, label]) => <label key={value}><input type="checkbox" checked={form.targetGroups.includes(value)} onChange={(event) => setForm({ ...form, targetGroups: event.target.checked ? [...form.targetGroups, value] : form.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset>
         <label>Kommentar<textarea maxLength={500} rows={2} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-        <label>PM (valfritt)<input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><small>PDF eller bild, högst 3 MB. Visas för tränare och simmare i berörda grupper. Du kan också bifoga eller byta PM senare.</small>
+        <label>PM (valfritt)<input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><small>PDF eller bild, högst 3 MB. Visas för tränare och simmare som är valda för tävlingen. Du kan också bifoga eller byta PM senare.</small>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <div className="settings-actions"><button className="primary-button" type="submit" aria-busy={saving}>{saving ? 'Sparar tävling…' : form.id ? 'Spara ändringar' : 'Spara tävling'}</button><button type="button" className="secondary-button" onClick={() => { if (dirty && !window.confirm('Kasta de osparade ändringarna?')) return; reset(); setOpen(false) }}>Avbryt</button></div>
       </fieldset></form>
@@ -84,6 +86,13 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
       <p className="eyebrow">{competition.startDate === competition.endDate ? competition.startDate : `${competition.startDate} – ${competition.endDate}`}</p><h2>{competition.title}</h2><p>{[competition.category, competition.location].filter(Boolean).join(' · ')}</p><small>{competition.targetGroups.map((group) => groups[group] || group).join(' · ')}</small>{competition.notes && <p>{competition.notes}</p>}
       <div className="competition-card-actions"><button type="button" className="secondary-button" disabled={saving || !!cardBusy[competition.id]} onClick={() => edit(competition)}>Redigera tävling</button><button type="button" className={`competition-publish-button${competition.entriesOpen ? ' active' : ''}`} disabled={saving || !!cardBusy[competition.id]} onClick={() => cardAction(competition, 'entries')}>{cardBusy[competition.id] === 'entries' ? 'Sparar anmälningsläge…' : competition.entriesOpen ? '✓ Anmälan öppen · stäng anmälan' : 'Öppna grenanmälan för simmare'}</button>{onOpenSubmissions && <button type="button" className="competition-submissions-button" onClick={() => onOpenSubmissions(competition.id)}>Visa tävlingsanmälningar →</button>}</div>
       {cardErrors[competition.id] && <p className="form-error" role="alert">{cardErrors[competition.id]}</p>}
+      <CompetitionParticipants competition={competition} profiles={profiles} groupNames={groupNames} code={code} request={request}
+        onSaved={replace} disabled={saving || !!cardBusy[competition.id]}
+        onBusyChange={value => {
+          if (value) busy.current.add(competition.id)
+          else busy.current.delete(competition.id)
+          setCardBusy(current => ({ ...current, [competition.id]: value ? 'participants' : '' }))
+        }} />
       <CompetitionPm competition={competition} code={code} request={request} canManage onChanged={replace} disabled={saving || !!cardBusy[competition.id]} onBusyChange={(value) => { if (value) busy.current.add(competition.id); else busy.current.delete(competition.id); setCardBusy((current) => ({ ...current, [competition.id]: value ? 'pm' : '' })) }} />
       {renderProgram(competition)}
     </div><button type="button" className="text-button" disabled={saving || !!cardBusy[competition.id]} onClick={() => cardAction(competition, 'delete')}>{cardBusy[competition.id] === 'delete' ? 'Tar bort…' : 'Ta bort tävling'}</button></article>)}{!loading && !loadError && !competitions.length && <p className="empty">Inga tävlingar inlagda ännu.</p>}</div>

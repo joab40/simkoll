@@ -4,6 +4,7 @@ import {assistantCoachMessages} from './assistant-messages.js'
 import {assistantScheduleLabels} from './assistant-schedule.js'
 import {readProgramResponse} from './competition-program.js'
 import {writeAiUsage} from './audit.js'
+import {canReadCompetition,competitionScope} from './competition-participation.js'
 
 const fail=(message,status=502)=>Object.assign(new Error(message),{status})
 const idValid=(id)=>typeof id==='string' && /^[0-9a-f-]{36}$/i.test(id)
@@ -39,17 +40,18 @@ export async function proposePrivateReply(request,body,deps={}) {
     catch {unavailable.push(label);return []}
   }
   const [plans,workouts,competitions,announcements]=await Promise.all([
-    wantsSchedule ? safeRead(`training_plans?select=plan_date,title,activity_type,time_of_day,focus,distance_meters,duration_minutes,location,target_groups&plan_date=gte.${today}&plan_date=lte.${addDays(today,14)}&order=plan_date.asc&limit=60`,'Veckoplanering') : [],
+    wantsSchedule ? safeRead(`training_plans?select=plan_date,title,activity_type,time_of_day,focus,distance_meters,duration_minutes,location,target_groups,source_competition_id,competition_calendar(${competitionScope})&plan_date=gte.${today}&plan_date=lte.${addDays(today,14)}&order=plan_date.asc&limit=60`,'Veckoplanering') : [],
     wantsSchedule ? safeRead(`daily_workouts?select=workout_date,title,time_of_day,focus,distance_meters,duration_minutes,target_groups&workout_date=gte.${today}&workout_date=lte.${addDays(today,14)}&order=workout_date.asc&limit=60`,'Publicerade pass') : [],
-    wantsCompetition ? safeRead(`competition_calendar?select=id,title,start_date,end_date,location,notes,entries_open,target_groups&end_date=gte.${today}&start_date=lte.${addDays(today,90)}&order=start_date.asc&limit=60`,'Tävlingskalender') : [],
+    wantsCompetition ? safeRead(`competition_calendar?select=id,title,start_date,end_date,location,notes,entries_open,${competitionScope}&end_date=gte.${today}&start_date=lte.${addDays(today,90)}&order=start_date.asc&limit=60`,'Tävlingskalender') : [],
     wantsAnnouncements ? assistantCoachMessages(read) : {status:'not_requested',messages:[]},
   ])
   const words=String(message.content).toLowerCase().match(/[a-zåäö]{4,}/g) || []
   const score=(row)=>words.reduce((sum,word)=>sum+(JSON.stringify(row).toLowerCase().includes(word)?1:0),0)
-  const relevant=(rows,limit)=>rows.filter(visible).map((row,index)=>({row,index,score:score(row)})).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,limit).map(({row})=>row)
-  relevant(plans,5).forEach((row,index)=>sources.push({id:`plan${index}`,label:`Veckoplanering ${row.plan_date}: ${row.title}`,data:{date:row.plan_date,...assistantScheduleLabels(row.plan_date,row.time_of_day),title:row.title,type:row.activity_type,focus:row.focus,meters:row.distance_meters,minutes:row.duration_minutes,location:row.location}}))
+  const visibleCompetition=row=>canReadCompetition(row,'swimmer',profile)
+  const relevant=(rows,limit,filter=visible)=>rows.filter(filter).map((row,index)=>({row,index,score:score(row)})).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,limit).map(({row})=>row)
+  relevant(plans,5,row=>row.source_competition_id ? visibleCompetition(row.competition_calendar) : visible(row)).forEach((row,index)=>sources.push({id:`plan${index}`,label:`Veckoplanering ${row.plan_date}: ${row.title}`,data:{date:row.plan_date,...assistantScheduleLabels(row.plan_date,row.time_of_day),title:row.title,type:row.activity_type,focus:row.focus,meters:row.distance_meters,minutes:row.duration_minutes,location:row.location}}))
   relevant(workouts,5).forEach((row,index)=>sources.push({id:`workout${index}`,label:`Publicerat pass ${row.workout_date}: ${row.title}`,data:{date:row.workout_date,...assistantScheduleLabels(row.workout_date,row.time_of_day),title:row.title,focus:row.focus,meters:row.distance_meters,minutes:row.duration_minutes}}))
-  relevant(competitions,5).forEach((row,index)=>sources.push({id:`race${index}`,label:`Tävlingskalender: ${row.title} ${row.start_date}`,data:{title:row.title,start:row.start_date,end:row.end_date,location:row.location,information:String(row.notes||'').slice(0,1200),entriesOpen:row.entries_open}}))
+  relevant(competitions,5,visibleCompetition).forEach((row,index)=>sources.push({id:`race${index}`,label:`Tävlingskalender: ${row.title} ${row.start_date}`,data:{title:row.title,start:row.start_date,end:row.end_date,location:row.location,information:String(row.notes||'').slice(0,1200),entriesOpen:row.entries_open}}))
   if(announcements.status==='available') announcements.messages.map((row,index)=>({row,index,score:score(row)})).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,3).forEach(({row},index)=>sources.push({id:`info${index}`,label:`Info från tränarna ${row.sentAt?.slice(0,10)}`,text:row.content,sentAt:row.sentAt}))
   else if(announcements.status==='unavailable') unavailable.push('Info från tränarna')
   const model=process.env.OPENAI_MODEL || 'gpt-4o-mini', log=deps.log || writeAiUsage

@@ -94,14 +94,23 @@ async function monthlyGameLeaderboard(profileId, key = gameKey) {
   const own = profileId ? [...best.values()].find((item) => item.profile_id === profileId) : null
   return { monthStart: start, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest: own?.score || 0 }
 }
+const lifetimeScoreGames = new Set(['swimgames', 'sprint100', 'longjump', 'hurdles100', 'rally', 'bottleflip', 'snowrider'])
+
 async function lifetimeGameLeaderboard(profileId, key = gameKey) {
   const scoreFilter = key === 'bottleflip' ? `&score=gt.0&score=lte.${BOTTLE_MAX_SCORE}` : key === 'swimgames' ? `&score=lte.${SWIMGAMES_MAX_SCORE}` : key === 'sprint100' ? `&score=lte.${SPRINT_BASE - SPRINT_MIN_MS}&score=gte.${SPRINT_BASE - SPRINT_MAX_MS}` : key === 'hurdles100' ? `&score=lte.${HURDLE_BASE - HURDLE_MIN_MS}&score=gte.${HURDLE_BASE - HURDLE_MAX_MS}` : key === 'longjump' ? `&score=gt.0&score=lte.${JUMP_MAX_SCORE}` : key === 'balance' ? `&score=gt.0&score=lte.${BALANCE_MAX_SCORE}` : key === 'rally' ? `&score=gte.10000&score=lte.${RALLY_MAX_SCORE}` : ''
-  const result = await supabaseRequest(`game_scores?game_key=eq.${key}${scoreFilter}${key==='snowrider'?`&score=gt.0&score=lte.${SNOW_MAX_SCORE}`:''}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10000`)
+  const snowFilter = key === 'snowrider' ? `&score=gt.0&score=lte.${SNOW_MAX_SCORE}` : ''
+  const result = await supabaseRequest(`game_scores?game_key=eq.${key}${scoreFilter}${snowFilter}&select=${gameSelect}&order=score.desc,created_at.asc&limit=10000`)
   if (!result.ok) throw new Error(`Lifetime game leaderboard lookup failed: ${result.status}`)
   const best = new Map(); (await result.json()).filter(item => (key !== 'rally' || validRallyScore(Number(item.score))) && (key !== 'bottleflip' || validBottleScore(Number(item.score))) && (key!=='snowrider'||validSnowScore(Number(item.score)))).forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) })
   const rows = [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10)
-  const own = profileId ? [...best.values()].find((item) => item.profile_id === profileId) : null
-  return { leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest: own?.score || 0 }
+  let ownBest = best.get(profileId)?.score || 0
+  if (key === 'snowrider' && profileId && !ownBest) {
+    const personal = await supabaseRequest(`game_scores?profile_id=eq.${encodeURIComponent(profileId)}&game_key=eq.${key}${snowFilter}&select=score&order=score.desc&limit=1`)
+    if (!personal.ok) throw new Error('Snow Rider personal record lookup failed')
+    const score = Number((await personal.json())[0]?.score)
+    if (validSnowScore(score)) ownBest = score
+  }
+  return { leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 
 async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
@@ -247,7 +256,8 @@ export default async function handler(request, response) {
         }
         if(key!=='snowrider') await awardPoints(profile.id, 'game_played', 1, `${key}:${stockholmDate()}`)
         const teamBonus = key==='snowrider'?{unlocked:false,participants:0}:await awardTeamGameBonus(key)
-        const board = key === 'balance'||key==='snowrider' ? await gameLeaderboard(profile.id, week, key) : (key === 'swimgames' || key === 'sprint100' || key === 'longjump' || key === 'hurdles100' || key === 'rally' || key === 'bottleflip') ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
+        const board = key === 'balance' ? await gameLeaderboard(profile.id, week, key)
+          : lifetimeScoreGames.has(key) ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
         return sendJson(response, 200, { ...board, teamBonus })
       }
       if (role === 'swimmer' && action === 'reset-game-score') {
@@ -257,7 +267,7 @@ export default async function handler(request, response) {
         if (!key) return sendJson(response, 400, { error: 'Ogiltigt spel.' })
         const deleted = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}`, { method: 'DELETE' })
         if (!deleted.ok) throw new Error(`Game score reset failed: ${deleted.status}`)
-        const board = key==='snowrider'?await gameLeaderboard(profile.id,weekStart(),key):(key === 'swimgames' || key === 'sprint100' || key === 'longjump' || key === 'hurdles100' || key === 'rally' || key === 'bottleflip') ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
+        const board = lifetimeScoreGames.has(key) ? await lifetimeGameLeaderboard(profile.id, key) : await monthlyGameLeaderboard(profile.id, key)
         return sendJson(response, 200, board)
       }
       if (action === 'sync-stars') {

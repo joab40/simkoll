@@ -31,7 +31,8 @@ import { analyticsRows } from '../server/analytics-rows.js'
 import { competitionEntryRoster } from '../shared/competition-entry-status.js'
 import { handleSwimmerAssistant } from '../server/swimmer-assistant.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
-import { canReadCompetition, competitionUuid, publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
+import { publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
+import { canReadCompetition, competitionUuid, competitionScope, saveCompetitionParticipants } from '../server/competition-participation.js'
 
 export function publicWorkout(item, { includeDetails = true } = {}) {
   if (!item) return null
@@ -44,8 +45,8 @@ function publicPlan(item) {
 function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
 }
-function publicCompetition(item) {
-  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), updatedAt: item.updated_at }
+function publicCompetition(item, includeParticipants = true) {
+  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), updatedAt: item.updated_at, ...(includeParticipants && item.participant_overrides != null ? { participantOverrides: item.participant_overrides } : {}) }
 }
 function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
@@ -122,7 +123,7 @@ async function answerAssistant(request, role) {
   const profileFilter = profile ? encodeURIComponent(profile.id) : ''
   const today = stockholmDate()
   const [plansResult, workoutsResult, competitionsResult, resultsResult, sportAdminActivities, swimGoalsResult, crossGoalsResult, sessionsResult, plannedSessionsResult, developmentGoalsResult, competitionEntriesResult, developmentTalksResult, coachMessages, coachFeatureSettings] = await Promise.all([
-    cachedAssistantRows(`training_plans?select=*&plan_date=gte.${today}&order=plan_date.asc&limit=40`),
+    cachedAssistantRows(`training_plans?select=*${profile ? `,competition_calendar(${competitionScope})` : ''}&plan_date=gte.${today}&order=plan_date.asc&limit=40`),
     cachedAssistantRows(`daily_workouts?select=*&workout_date=gte.${today}&order=workout_date.asc&limit=40`),
     cachedAssistantRows('competition_calendar?select=*&order=start_date.asc&limit=30'),
     profile ? cachedAssistantRows(`competition_results?profile_id=eq.${profileFilter}&select=event,pool,swim_time,result_date,result_year,source&order=result_time.asc&limit=60`) : Promise.resolve(null),
@@ -147,7 +148,7 @@ async function answerAssistant(request, role) {
   const myCompetitionEntries = competitionEntryRows.map((entry) => {
     const event = competitionEventById.get(entry.event_id)
     const competition = competitionById.get(entry.competition_id)
-    if (!event || !competition || (competition.target_groups?.length && !profile?.is_test_profile && profile?.training_group && !competition.target_groups.includes(profile.training_group))) return null
+    if (!event || !canReadCompetition(competition, role, profile)) return null
     return { competition: competition.title, startDate: competition.start_date, endDate: competition.end_date, location: competition.location || '', entriesOpen: competition.entries_open === true, eventNumber: event.event_number || '', event: event.label, session: event.session_label || '', gender: event.gender || 'Alla', ageClass: event.age_class || 'Alla åldrar', distanceMeters: event.distance_meters || null, stroke: event.stroke || '', status: entry.status, submittedAt: entry.submitted_at || null }
   }).filter(Boolean)
   const myDevelopmentTalks = (developmentTalksResult?.ok ? developmentTalksResult.data : []).slice(0, 5).map((item) => ({ meetingDate: item.meeting_date, status: item.status, enabled: item.enabled !== false, swimmerAnswers: Object.fromEntries(Object.entries(item.swimmer_answers || {}).filter(([key, value]) => key !== '__step' && String(value || '').trim()).slice(0, 12).map(([key, value]) => [key, String(value).slice(0, 400)])), agreement: Object.fromEntries(Object.entries(item.agreement || {}).map(([key, value]) => [key, String(value).slice(0, 500)])), followUpDate: item.follow_up_date || null, updatedAt: item.updated_at }))
@@ -173,7 +174,10 @@ async function answerAssistant(request, role) {
   const uniqueSessions = [...new Map(completedSessionRows.map((item) => [`${item.session_date}|${item.session_slot}|${item.activity_type}`, item])).values()]
   const thisWeekSessions = uniqueSessions.filter((item) => item.session_date >= weekStart && item.session_date < weekEnd)
   const thisWeekPlanned = [...new Map(plannedSessionRows.map((item) => [`${item.planned_date}|${item.session_slot}`, item])).values()].filter((item) => item.planned_date >= weekStart && item.planned_date < weekEnd)
-  const visible = (rows, dateField = 'plan_date') => (rows || []).filter((item) => role === 'coach' || !item.target_groups?.length || (profile?.training_group && item.target_groups.includes(profile.training_group))).filter((item) => isFutureDateTime(item[dateField], item.time_of_day)).slice(0, 20)
+  const upcoming = (rows, dateField) => rows.filter(item => isFutureDateTime(item[dateField], item.time_of_day)).slice(0, 20)
+  const visible = (rows, dateField = 'plan_date') => upcoming(rows.filter(item => role === 'coach'
+    || (item.source_competition_id ? canReadCompetition(item.competition_calendar, role, profile)
+      : !item.target_groups?.length || item.target_groups.includes(profile?.training_group))), dateField)
   const visibleSwimWorkouts = visible(workoutsResult.data, 'workout_date')
   const visibleSwimPlans = visible(plansResult.data).filter((item) => item.activity_type === 'swim')
   const swimmerSwimCalendar = role === 'swimmer' ? buildAssistantSwimCalendar({ workouts: visibleSwimWorkouts, plans: visibleSwimPlans, plannedSessions: plannedSessionRows }) : []
@@ -185,7 +189,7 @@ async function answerAssistant(request, role) {
     swimmerSwimCalendar,
     upcomingPlans: visible(plansResult.data).map((item) => ({ date: item.plan_date, ...assistantScheduleLabels(item.plan_date, item.time_of_day), title: item.title, type: item.activity_type, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes, groups: item.target_groups })),
     workouts: visibleSwimWorkouts.map((item) => ({ date: item.workout_date, ...assistantScheduleLabels(item.workout_date, item.time_of_day), title: item.title, focus: item.focus, meters: item.distance_meters, minutes: item.duration_minutes })),
-    competitions: visible(competitionsResult.data, 'start_date').map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
+    competitions: upcoming(competitionsResult.data.filter(item => canReadCompetition(item, role, profile)), 'start_date').map((item) => ({ startDate: item.start_date, endDate: item.end_date, title: item.title, location: item.location, groups: item.target_groups })),
     calendarActivities: sportAdminActivities.filter((item) => !item.targetGroups?.length || role === 'coach' || (profile?.training_group && item.targetGroups.includes(profile.training_group))).filter((item) => isFutureDateTime(item.date, item.time)).slice(0, 30).map((item) => ({ date: item.date, ...assistantScheduleLabels(item.date, item.time), title: item.title, location: item.location || '', groups: item.targetGroups || [] })),
     personalBestResults: resultsResult?.ok ? resultsResult.data.slice(0, 40).map((item) => ({ event: item.event, pool: item.pool, time: item.swim_time, date: item.result_date, year: item.result_year, source: item.source || 'tempus' })) : [],
     myCompetitionEntries,
@@ -534,7 +538,7 @@ async function syncPlanningFromWorkout(workout, occasionPlan = null) {
   else if (current.source_workout_id) result = await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
   if (occasionPlan && !result?.ok) throw planningLinkError('Passet har publicerats men kalenderkopplingen kunde inte bekräftas. Försök igen med samma import.')
 }
-async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
+async function backfillPlanningFromWorkouts(plans, hiddenDates, planQuery) {
   const currentPlans = Array.isArray(plans) ? plans : []
   const hidden = new Set(Array.isArray(hiddenDates) ? hiddenDates : [])
   const workoutsResult = await analyticsRows('daily_workouts?select=*&order=workout_date.asc,id.asc')
@@ -560,7 +564,7 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates = []) {
   // Calendar competitions are synchronized transactionally by migration 099.
   // Creating copies on reads would leave stale dates/groups and duplicate days.
   if (!workouts.length) return cleanPlans
-  const refreshed = await analyticsRows('training_plans?select=*&order=plan_date.asc,id.asc')
+  const refreshed = await analyticsRows(planQuery)
   return refreshed.ok && !refreshed.truncated ? await refreshed.json() : cleanPlans
 }
 
@@ -680,12 +684,16 @@ export default async function handler(request, response) {
       }
       if (request.query?.planning === 'true') {
         const hiddenCalendar = await loadHiddenCalendarActivities()
-        const result = await analyticsRows('training_plans?select=*&order=plan_date.asc,id.asc')
+        const planSelect = role === 'coach' ? '*' : `*,competition_calendar(${competitionScope})`
+        const planQuery = `training_plans?select=${planSelect}&order=plan_date.asc,id.asc`
+        const result = await analyticsRows(planQuery)
         if (!result.ok || result.truncated) throw planningLinkError('Planeringen kunde inte läsas fullständigt. Försök igen.')
         const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
-        const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [])
-        const visiblePlans = plans.filter((item) => !item.calendar_link?.detachedWorkoutId && (role === 'coach' || !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
+        const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [], planQuery)
+        const visiblePlans = plans.filter(item => !item.calendar_link?.detachedWorkoutId && (role === 'coach'
+          || (item.source_competition_id ? canReadCompetition(item.competition_calendar, role, profile)
+            : !item.target_groups?.length || item.target_groups.includes(profile.training_group))))
         const [workoutsResult, sportAdminActivities, cyclesResult] = await Promise.all([
           analyticsRows('daily_workouts?select=*&order=workout_date.asc,created_at.asc,id.asc'),
           configuredSportAdminCalendars().then(calendars => readSportAdminCalendars(calendars, { hiddenActivities: hiddenCalendar })),
@@ -705,8 +713,8 @@ export default async function handler(request, response) {
         // Kommande tävlingar används både för nedräkning och grenanmälan.
         // Själva anmälan filtreras separat på entriesOpen i simmarvyn, så en
         // stängd anmälan ska inte göra att nästa tävling försvinner helt.
-        const visible = role === 'coach' || profile?.is_test_profile || !profile?.training_group ? competitions : competitions.filter((item) => !item.target_groups?.length || item.target_groups.includes(profile.training_group))
-        return sendJson(response, 200, { competitions: visible.map(publicCompetition) })
+        const visible = competitions.filter(item => canReadCompetition(item, role, profile))
+        return sendJson(response, 200, { competitions: visible.map(item => publicCompetition(item, role === 'coach')) })
       }
       if (request.query?.competitionPm === 'true') {
         const id = String(request.query.id || '')
@@ -747,7 +755,7 @@ export default async function handler(request, response) {
           // incomplete read must not turn into a list of supposedly missing entries.
           try {
             const result = await analyticsRows('profiles?active=eq.true&approval_status=eq.approved&is_test_profile=eq.false&select=id,display_name,emoji,training_group,active,approval_status,is_test_profile&order=id.asc')
-            if (result.ok && !result.truncated) roster = competitionEntryRoster(await result.json(), calendar.target_groups || [])
+            if (result.ok && !result.truncated) roster = competitionEntryRoster(await result.json(), calendar.target_groups, calendar.participant_overrides)
           } catch { /* Keep saved entries readable, but mark the roster unavailable. */ }
         }
         const rawEvents = await eventsResult.json()
@@ -985,6 +993,11 @@ export default async function handler(request, response) {
         await removeCompetitionPm(current.pm_document)
         return sendJson(response, 200, { competition: publicCompetition(row) })
       }
+      if (request.body?.action === 'save-competition-participants') {
+        const result = await saveCompetitionParticipants(request.body)
+        if (result.error) return sendJson(response, result.status, { error: result.error })
+        return sendJson(response, 200, { competition: publicCompetition(result.row) })
+      }
       if (request.body?.action === 'save-competition') {
         const body = request.body
         const startDate = String(body.startDate || ''), endDate = String(body.endDate || startDate), title = String(body.title || '').trim()
@@ -1018,7 +1031,9 @@ export default async function handler(request, response) {
         const [savedCompetition] = await result.json()
         if (!savedCompetition) return sendJson(response, 404, { error: 'Tävlingen finns inte längre. Uppdatera listan.' })
         const competition = publicCompetition(savedCompetition)
-        if (request.body.open === true && !previous.entries_open) queueCategoryPush({ category: 'competitionEntries', id: competition.id, targetGroups: previous.target_groups || [] })
+        if (request.body.open === true && !previous.entries_open) queueCategoryPush({
+          category: 'competitionEntries', id: competition.id, targetGroups: competition.targetGroups, participantOverrides: competition.participantOverrides,
+        })
         return sendJson(response, 200, { competition })
       }
       if (request.body?.action === 'save-plan') {
