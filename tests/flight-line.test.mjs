@@ -23,14 +23,34 @@ test('priorities change the combined line in the expected direction', () => {
 })
 
 test('the selected period stays honest about missing and insufficient readings', () => {
-  assert.equal(latest(days, { speedFeeling: 25, body: 20, energy: 30, sleepQuality: 25 }).value, null)
+  const limited = latest(days, { speedFeeling: 25, body: 20, energy: 30, sleepQuality: 25 })
+  assert.equal(limited.value, 51.4)
+  assert.equal(limited.usedWeight, 45)
+  assert.equal(limited.limited, true)
   const sparse = days.map((row, index) => index >= 28 && index < 34 ? { ...row, speedFeeling: null, body: null } : row)
   assert.equal(latest(sparse).value, null)
   const partial = latest(days, { speedFeeling: 64, body: 16, energy: 20 })
   assert.equal(partial.value, 57.5)
   assert.equal(partial.usedWeight, 80)
   assert.equal(partial.totalWeight, 100)
+  assert.equal(partial.limited, false)
   assert.equal(partial.components.find(item => item.key === 'energy').score, null)
+})
+
+test('adding a measure with missing responses preserves values, even when coverage drops below half', () => {
+  const initial = { ...weights, speedFeeling: 30, body: 22, energy: 15, feeling: 20, sleepQuality: 13 }
+  const before = latest(days, initial)
+  const after = latest(days, changeFlightWeight(initial, 'motivation', 17))
+  assert.equal(before.usedWeight, 52)
+  assert.equal(before.limited, false)
+  assert.equal(after.usedWeight, 43)
+  assert.equal(after.limited, true)
+  assert(Math.abs(after.value - before.value) < .2)
+
+  const oneSignal = days.map(({ body, ...row }) => row)
+  assert.equal(latest(oneSignal, { speedFeeling: 30, body: 70 }).value, 62.5)
+  assert.equal(latest(oneSignal, { speedFeeling: 30, body: 70 }).limited, true)
+  assert.equal(latest(oneSignal, { speedFeeling: 100, body: 0 }).limited, false)
 })
 
 test('time lift uses earlier comparable days, at most one event per day', () => {

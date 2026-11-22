@@ -98,15 +98,21 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const showMidpoint = skyGoal ? historyRight - left > 380 : width > 430
   const axis = [...new Set([start, ...(showMidpoint && midpoint ? [midpoint] : []), asOf])]
   let path = ''
+  let limitedPath = ''
   let previous = null
   if (!timed && !metric.bars) for (const point of points) {
     if (!Number.isFinite(point.value)) { previous = null; continue }
-    path += `${previous ? 'L' : 'M'} ${x(point.date)} ${y(point.value)} `
+    const coordinates = `${x(point.date)} ${y(point.value)}`
+    if (previous && (point.limited || previous.limited)) {
+      limitedPath += `M ${x(previous.date)} ${y(previous.value)} L ${coordinates} `
+      path += `M ${coordinates} `
+    } else path += `${previous ? 'L' : 'M'} ${coordinates} `
     previous = point
   }
   const todayPoint = points.find(point => point.date === asOf && Number.isFinite(point.value))
   const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.subtitle ?? metric.unit}`
   const latestPoint = points.findLast(point => Number.isFinite(point.value))
+  const hasLimited = points.some(point => point.limited)
   const pilotPoint = todayPoint ?? latestPoint
   const planeWidth = Math.min(146, Math.max(58, width * .15))
   const goalWidth = right - today
@@ -118,7 +124,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
   return <figure className={`flight-plot${onSelect ? '' : ' flight-plot-static'}${sky ? ' flight-plot-sky' : ''}`} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
-    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}`}>
+    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={goalWidth} height={base - top} />}
       {skyGoal && <g aria-hidden="true">
         <rect className="flight-palace-sky" x={today + 4} y={top} width={goalWidth - 4} height={base - top} rx="12" />
@@ -136,8 +142,9 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
       {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
       {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
       {path && <path className="flight-observed-line" d={path} fill="none" />}
+      {limitedPath && <path className="flight-limited-line" d={limitedPath} fill="none" />}
       {points.filter(point => Number.isFinite(point.value)).map(point => {
-        const label = `${shortDate(point.date)} · ${pointValue(point.value)}`
+        const label = `${shortDate(point.date)} · ${pointValue(point.value)}${point.limited ? ' · Begränsat underlag' : ''}`
         const liftLabel = point.timeLift > 0 ? `${label} · Tidsboost +${number(point.timeLift)} steg` : label
         const marked = point.date === selected ? ' selected' : ''
         const onClick = onSelect ? () => onSelect(point.date) : undefined
@@ -147,7 +154,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
         }
         return metric.bars && !timed
           ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={onClick}><title>{label}</title></rect>
-          : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
+          : <circle key={point.date} className={`flight-mark${marked}${point.limited ? ' limited' : ''}`} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
       })}
       {!values.length && <text className="flight-empty-label" x={(left + historyRight) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
       {sky ? pilotPoint && <image className="flight-plane flight-plane-art" href={planeArt} aria-hidden="true"
@@ -160,6 +167,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
     </svg>
     <div className="flight-legend">
       <span><i/> {metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter'}</span>
+      {hasLimited && <span><i className="flight-legend-limited"/> Begränsat underlag</span>}
       {metric === lineMetric && <span><i className="flight-legend-lift"/> Nytt tidslyft</span>}
       {future > 0 && <span><i className="flight-legend-future"/> {onSelect ? 'Planerad tävlingsdag' : target.title}</span>}
       {status && <span role="status">{status}</span>}
@@ -381,7 +389,7 @@ function PracticeTimeBoost({ point, checks, available, tempusAvailable, weight, 
 }
 
 function FlightLineDetail({ point, practiceChecks, practiceAvailable, tempusAvailable, timeWeight, pbSettings }) {
-  const { components, value, base, taper, taperEffect, usedWeight, totalWeight } = point
+  const { components, value, base, limited, taper, taperEffect, usedWeight, totalWeight } = point
   const usable = components.filter(component => component.score != null)
   return <div className="flight-day-detail" aria-live="polite">
     <small>{shortDate(point.date)}</small>
@@ -389,10 +397,11 @@ function FlightLineDetail({ point, practiceChecks, practiceAvailable, tempusAvai
       {Boolean(taperEffect) && <span className={taperEffect < 0 ? 'flight-negative-adjustment' : ''}>{taperEffect > 0 ? '+' : ''}{number(taperEffect)} från träning</span>}
     </div>
     {value != null && <p>Grundvärde {number(base)} · {usable.length} av {components.length} valda signaler med underlag</p>}
+    {limited && <p className="flight-limited-note"><strong>Begränsat underlag</strong> · {number(usedWeight * 100 / totalWeight, 0)} % av vald vikt har underlag.</p>}
     {taper?.kind === 'rest' && <p>Registrerad vilodag.</p>}
     {taper?.kind === 'reduced' && <p>Dag {taper.duration} med lättare träning. {taper.lower.map(item => `${FLIGHT_TAPER_METRICS[item.key]} ${number((1 - item.ratio) * 100, 0)} % lägre`).join(' · ')} jämfört med perioden före sänkningen.</p>}
     {!components.length && <p>Välj minst ett mått under Vikta signaler.</p>}
-    {components.length > 0 && value == null && <p>{usable.length} av {components.length} valda signaler har underlag. Minst två behövs när flera är valda, med minst halva den valda vikten.</p>}
+    {components.length > 0 && value == null && <p>Inget av de valda måtten har tillräckligt med svar för ett värde den här dagen.</p>}
     <PracticeTimeBoost point={point} checks={practiceChecks} available={practiceAvailable} tempusAvailable={tempusAvailable} weight={timeWeight} settings={pbSettings} />
     {components.length > 0 && <details className="flight-method">
       <summary>Vad påverkade linjen?</summary>
@@ -580,7 +589,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
         points={points} selected={day.date} onSelect={setSelectedDate} asOf={data.asOf} target={target} period={period} />)}
     </div>}
     {plots.length > 0 ? <div className="flight-detail-row">
-      <p>{coverage ? `${coverage} ${weighted ? 'dagar med tillräckligt underlag' : timed ? 'jämförbara dagar' : 'dagar med rapporterade mått'} i perioden` : 'För lite underlag för att visa en graf i perioden.'}</p>
+      <p>{coverage ? `${coverage} ${weighted ? 'dagar med beräknat värde' : timed ? 'jämförbara dagar' : 'dagar med rapporterade mått'} i perioden` : 'För lite underlag för att visa en graf i perioden.'}</p>
       <label className="flight-field">Visa dag
         <select value={day.date} onChange={event => setSelectedDate(event.target.value)}>
           {[...days].reverse().map(item => <option value={item.date} key={item.date}>{item.date === data.asOf ? 'Idag · ' : ''}{shortDate(item.date)}</option>)}
@@ -595,7 +604,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
     {data.warnings.length > 0 && <details className="flight-method"><summary>Underlag som saknas</summary><ul>{data.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
     <details className="flight-method">
       <summary>Så läser du formresan</summary>
-      <p>Flight-linjen jämför simmarens snitt från sju dagar med medianen från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Vikterna styr hur mycket varje mått påverkar linjen.</p>
+      <p>Flight-linjen jämför snittet från sju dagar med medianen från de 28 föregående dagarna. Ett mått behöver två aktuella svarsdagar och tre tidigare. Streckade partier och ringar visar begränsat underlag. Det gäller när bara ett av flera valda mått har underlag eller när underlaget täcker mindre än halva den valda vikten.</p>
       <p>Testlopp och träningstider för hela distansen utan hjälpmedel jämförs med ett tidigare Tempus-PB i samma gren och bassänglängd. Tävlingsdräkt går bra. När ett sådant PB saknas kan en förbättring mot medianen från minst tre jämförbara simdagar under de senaste 56 dagarna ge ett lyft. Full effekt och avtoning varar tillsammans i högst sju dagar från passdatumet.</p>
       <p>Toppning och vila använder registrerade vilodagar och genomförda pass. En tydlig sänkning kräver underlag från minst fem dagar den senaste veckan och jämförs med simmarens tidigare träningsnivå. Simmeter kan även komma från ett kopplat pass. Justeringen läggs på dagar där Flight-linjen har ett grundvärde.</p>
       <p>Testlopp och träningstider jämförs med samma distans, simsätt, bassäng, start, hjälpmedel, tidtagning och övriga förutsättningar. Varje punkt visar dagens snabbaste tid i serien. Tävlingsresultat ligger för sig.</p>

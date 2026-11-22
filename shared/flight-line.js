@@ -192,8 +192,7 @@ function timeEffect(date, liftByDate, timeBoost, strength) {
 
 export function flightLine(days, contextDays, timeLifts, weights, customMeasures = [], taperAdjustments = [], boosts = defaultFlightBoostSettings, pbBoosts = defaultFlightPbSettings(boosts.times)) {
   const wanted = [...FLIGHT_SIGNALS, ...customMeasures].filter(signal => weights[signal.key] > 0)
-  const selectedWeights = Object.entries(weights).filter(([key, weight]) => !['times', 'taper'].includes(key) && weight > 0)
-  const totalWeight = selectedWeights.reduce((total, [, weight]) => total + weight, 0)
+  const totalWeight = wanted.reduce((total, signal) => total + weights[signal.key], 0)
   const byDate = new Map([...contextDays, ...days].map(day => [day.date, day]))
   const liftByDate = pickTimeLifts(timeLifts, boosts.times, pbBoosts, weights.times)
   const taperByDate = new Map(taperAdjustments.map(adjustment => [adjustment.date, adjustment]))
@@ -212,8 +211,8 @@ export function flightLine(days, contextDays, timeLifts, weights, customMeasures
     })
     const available = components.filter(component => component.score != null)
     const usedWeight = available.reduce((total, component) => total + component.weight, 0)
-    const enough = available.length >= Math.min(2, selectedWeights.length) && usedWeight > 0 && usedWeight * 2 >= totalWeight
-    const base = enough ? available.reduce((total, component) => total + component.score * component.weight, 0) / usedWeight : null
+    const base = usedWeight > 0 ? available.reduce((total, component) => total + component.score * component.weight, 0) / usedWeight : null
+    const limited = base != null && (available.length < Math.min(2, wanted.length) || usedWeight * 2 < totalWeight)
     const { lift, events } = liftByDate.size ? timeEffect(day.date, liftByDate, boosts.times, weights.times) : { lift: 0, events: [] }
     const timeLift = base == null ? null : Math.min(100 - base, lift)
     const taper = weights.taper > 0 ? taperByDate.get(day.date) : null
@@ -221,7 +220,7 @@ export function flightLine(days, contextDays, timeLifts, weights, customMeasures
     const taperSteps = taper ? taperBoostSteps(taper, boosts.taper) * weights.taper / 100 : 0
     const adjusted = withTimeLift == null ? null : Math.max(0, Math.min(100, withTimeLift + taperSteps))
     return {
-      date: day.date, value: adjusted == null ? null : round(adjusted), base: base == null ? null : round(base),
+      date: day.date, value: adjusted == null ? null : round(adjusted), base: base == null ? null : round(base), limited,
       timeLift: timeLift == null ? null : round(timeLift), events, components, usedWeight, totalWeight,
       taper, taperEffect: taper && adjusted != null ? round(adjusted - withTimeLift) : null,
     }

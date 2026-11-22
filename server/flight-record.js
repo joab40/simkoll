@@ -127,6 +127,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
     const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings).map(point => ({
       date: point.date, value: point.value,
       newTimeLift: point.timeLift > 0 && point.events.some(event => event.date === point.date),
+      ...(point.limited ? { limited: true } : {}),
     }))
     return { asOf: end, partial: warnings.length > 0, points }
   }

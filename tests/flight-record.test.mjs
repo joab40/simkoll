@@ -260,6 +260,12 @@ test('the opted-in swimmer receives only 28 chart points with the coach’s weig
   const details = (await call({ code: coach, mode: 'data', profileId: id })).data
   const coachLine = flightLine(details.days, details.contextDays, details.timeLifts, details.weights)
   assert.deepEqual(result.data.points.map(point => point.value), coachLine.slice(-28).map(point => point.value))
+  const sparseWeights = { ...weights, body: 25, energy: 18, sleepQuality: 57 }
+  assert.equal((await call({ code: coach, mode: 'weights', method: 'POST', profileId: id, body: { weights: sparseWeights } })).code, 200)
+  const sparse = (await call({ mode: 'chart' })).data.points.at(-1)
+  assert.equal(sparse.limited, true)
+  assert(Number.isFinite(sparse.value))
+  assert.deepEqual(Object.keys(sparse).sort(), ['date', 'limited', 'newTimeLift', 'value'])
 })
 
 test('the swimmer chart can use defaults until SQL 135 is run', async (t) => {

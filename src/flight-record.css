@@ -329,12 +329,16 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-future { fill: #ffdb82; opacity: .11; }
 .flight-selected { stroke: #a6f4e0; opacity: .58; }
 .flight-observed-line { stroke: #91f4e0; stroke-width: 2.5px; stroke-linecap: round; stroke-linejoin: round; }
+.flight-limited-line { stroke: #b7e9df; stroke-width: 2px; stroke-dasharray: 3 5; stroke-linecap: round; }
 .flight-mark { fill: #91f4e0; cursor: pointer; }
 .flight-mark.selected { fill: #fff0c2; }
+.flight-mark.limited { fill: #144b61; stroke: #b7e9df; stroke-width: 1.4px; }
+.flight-mark.limited.selected { stroke: #fff0c2; }
 .flight-plot svg .flight-plane { font-size: 22px; fill: #fff7df; }
 .flight-legend { display: flex; flex-wrap: wrap; gap: 7px 16px; padding: 0 14px 13px; font-size: 12px; }
 .flight-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .flight-legend i { width: 9px; height: 9px; border-radius: 50%; background: #91f4e0; }
+.flight-legend i.flight-legend-limited { background: transparent; border: 1px solid #b7e9df; }
 .flight-legend i.flight-legend-future { background: transparent; border: 1px dashed #ffdb82; border-radius: 2px; }
 .flight-lift-mark, .flight-legend i.flight-legend-lift { fill: #ffe59b; background: #ffe59b; }
 .flight-lift-mark { cursor: pointer; }
@@ -349,6 +353,7 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-day-detail span { color: var(--flight-teal); font-weight: 650; }
 .flight-day-detail .flight-negative-adjustment { color: #922f32; }
 .flight-day-detail p { margin: 5px 0 0; color: var(--flight-muted); }
+.flight-limited-note strong { font-size: inherit; letter-spacing: 0; }
 .flight-method { margin-top: 14px; font-size: .9rem; }
 .flight-method summary { min-height: 44px; padding-block: 9px; color: var(--flight-ink); cursor: pointer; font-weight: 650; }
 .flight-weights {
