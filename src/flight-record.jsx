@@ -14,6 +14,8 @@ const sections = [
 ]
 const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = vanlig nivå' }
 const timeMetric = { key: 'time' }
+const palaceArt = '/assets/flight-record-palace.png'
+const planeArt = '/assets/flight-record-plane.png'
 const metrics = {
   feel: [
     { key: 'speedFeeling', label: 'Fartkänsla', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning efter simpass.' },
@@ -76,9 +78,10 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   }, [])
 
   const start = days[0].date
+  const skyGoal = sky && target
   const goalOffset = target ? daysBetween(asOf, target.date) : 0
   // Distant calendar events stay in the destination header, so the history has room.
-  const future = goalOffset > 0 && goalOffset <= Math.min(14, Math.floor(period / 2)) ? goalOffset : 0
+  const future = !skyGoal && goalOffset > 0 && goalOffset <= Math.min(14, Math.floor(period / 2)) ? goalOffset : 0
   const domain = Math.max(1, days.length - 1 + future)
   const left = timed ? 62 : 50
   const right = width - 18
@@ -86,12 +89,14 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const base = height - 30
   const values = points.map(point => point.value).filter(Number.isFinite)
   const [min, max] = chartScale(values, metric, timed)
-  const x = (date) => left + daysBetween(start, date) / domain * (right - left)
+  const historyRight = skyGoal ? left + (right - left) * .62 : right
+  const x = (date) => left + daysBetween(start, date) / domain * (historyRight - left)
   const y = (value) => top + (timed ? (value - min) : (max - value)) / (max - min) * (base - top)
   const today = x(asOf)
   const ticks = timed ? [min, Math.round((min + max) / 2), max] : metric.scale?.[1] === 5 ? [1, 2, 3, 4, 5] : [min, (min + max) / 2, max]
   const midpoint = days[Math.floor((days.length - 1) / 2)]?.date
-  const axis = [...new Set([start, ...(width > 430 && midpoint ? [midpoint] : []), asOf])]
+  const showMidpoint = skyGoal ? historyRight - left > 380 : width > 430
+  const axis = [...new Set([start, ...(showMidpoint && midpoint ? [midpoint] : []), asOf])]
   let path = ''
   let previous = null
   if (!timed && !metric.bars) for (const point of points) {
@@ -102,20 +107,33 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const todayPoint = points.find(point => point.date === asOf && Number.isFinite(point.value))
   const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.subtitle ?? metric.unit}`
   const latestPoint = points.findLast(point => Number.isFinite(point.value))
+  const pilotPoint = todayPoint ?? latestPoint
+  const planeWidth = Math.min(146, Math.max(58, width * .15))
+  const goalWidth = right - today
+  const palaceSize = skyGoal
+    ? Math.min(goalWidth * (target.championship ? .9 : .67), height * (target.championship ? .65 : .47), 212) : 0
+  const palaceY = top + (base - top) * (target?.championship ? .06 : .29)
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
   return <figure className={`flight-plot${onSelect ? '' : ' flight-plot-static'}${sky ? ' flight-plot-sky' : ''}`} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
-    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}`}>
-      {future > 0 && <rect className="flight-future" x={today} y={top} width={right - today} height={base - top} />}
+    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}`}>
+      {future > 0 && <rect className="flight-future" x={today} y={top} width={goalWidth} height={base - top} />}
+      {skyGoal && <g aria-hidden="true">
+        <rect className="flight-palace-sky" x={today + 4} y={top} width={goalWidth - 4} height={base - top} rx="12" />
+        <image className={`flight-goal-palace${target.championship ? ' championship' : ''}`} href={palaceArt}
+          x={today + (goalWidth - palaceSize) / 2} y={palaceY} width={palaceSize} height={palaceSize} />
+        <foreignObject x={today + 9} y={Math.min(base - 26, palaceY + palaceSize + 4)} width={goalWidth - 14} height="30">
+          <div className={`flight-palace-name${target.championship ? ' championship' : ''}`} title={target.title}>{target.title}</div>
+        </foreignObject>
+      </g>}
       {ticks.map(tick => <g key={tick}>
-        <line className="flight-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)} />
+        <line className="flight-grid" x1={left} x2={skyGoal ? today : right} y1={y(tick)} y2={y(tick)} />
         <text x={left - 7} y={y(tick) + 4} textAnchor="end">{timed ? tickValue(tick) : number(tick)}</text>
       </g>)}
       <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />
       {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
-      {sky && future > 0 && <text className="flight-goal-flag" x={right - 4} y={top + 19} textAnchor="end" aria-hidden="true">⚑</text>}
       {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
       {path && <path className="flight-observed-line" d={path} fill="none" />}
       {points.filter(point => Number.isFinite(point.value)).map(point => {
@@ -131,10 +149,14 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
           ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={onClick}><title>{label}</title></rect>
           : <circle key={point.date} className={'flight-mark' + marked} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
       })}
-      {!values.length && <text className="flight-empty-label" x={(left + right) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
-      <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>
+      {!values.length && <text className="flight-empty-label" x={(left + historyRight) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
+      {sky ? pilotPoint && <image className="flight-plane flight-plane-art" href={planeArt} aria-hidden="true"
+        x={Math.min(right - planeWidth, Math.max(left, x(pilotPoint.date) - planeWidth * .83))}
+        y={Math.max(3, y(pilotPoint.value) - planeWidth * .5 - 6)} width={planeWidth} height={planeWidth * .5} />
+        : <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
       {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? 'Idag' : shortDate(date)}</text>)}
       {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
+      {skyGoal && <text x={today + goalWidth / 2} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
     </svg>
     <div className="flight-legend">
       <span><i/> {metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter'}</span>
@@ -582,7 +604,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
   </>
 }
 
-function CompetitionJourney({ journey, asOf, selected, next, onSelect }) {
+function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
   const viewport = useRef(null)
   const activeStop = useRef(null)
   useEffect(() => {
@@ -603,12 +625,13 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect }) {
         const label = event.status === 'past' ? 'Datum passerat' : event.status === 'current' ? 'Pågår'
           : isNext ? `Nästa · ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : isSelected ? `Om ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : 'Kommande'
         const details = <>
-          <span className="flight-journey-node" aria-hidden="true">{event.status === 'past' ? '•' : '⚑'}</span>
+          {sky ? <span className="flight-journey-palace-wrap" aria-hidden="true"><img src={palaceArt} alt="" className="flight-journey-palace" /></span>
+            : <span className="flight-journey-node" aria-hidden="true">{event.status === 'past' ? '•' : '⚑'}</span>}
           <small className="flight-journey-date">{dayLabel(event.startDate)}{event.endDate !== event.startDate && ` – ${dayLabel(event.endDate)}`}</small>
           <strong>{event.title}</strong>
           <small className="flight-journey-status">{label}</small>
         </>
-        return <li key={event.id} className={`flight-journey-event ${event.status}${isNext ? ' next' : ''}`}>
+        return <li key={event.id} className={`flight-journey-event ${event.status}${isNext ? ' next' : ''}${event.championship ? ' championship' : ''}`}>
           {event.status === 'past' ? <div className="flight-journey-stop">{details}</div>
             : <button type="button" className="flight-journey-stop" aria-pressed={isSelected}
               ref={isSelected ? activeStop : null} onClick={() => onSelect(event.id)}>{details}</button>}
@@ -623,11 +646,11 @@ function SwimmerFlightChart({ data, competitions = [], sky }) {
   const journey = useMemo(() => flightCompetitionJourney(competitions, data.asOf), [competitions, data.asOf])
   const next = journey.find(event => event.status !== 'past')
   const competition = journey.find(event => event.id === targetId && event.status !== 'past') ?? next
-  const target = competition ? { title: competition.title, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
+  const target = competition ? { title: competition.title, championship: competition.championship, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
   return <>
     {data.points.length > 0 ? <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
       status={data.partial ? 'Delar av underlaget saknas' : undefined} sky={sky} /> : <p>För lite underlag för att visa en graf.</p>}
-    <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} />
+    <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} sky={sky} />
   </>
 }
 

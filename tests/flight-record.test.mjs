@@ -33,8 +33,21 @@ test('the competition journey is chronological and multi-day dates remain curren
   ]
   const journey = flightCompetitionJourney(planned, '2026-11-22')
   assert.deepEqual(journey.map(({ id, status }) => [id, status]), [['past', 'past'], ['ongoing', 'current'], ['future', 'upcoming']])
+  assert.deepEqual(journey.map(event => event.championship), [false, false, true])
   assert.equal(journey[0].endDate, '2026-11-20')
   assert.equal(planned[0].id, 'future')
+})
+
+test('the flight journey recognizes championships from the calendar category or the event name', () => {
+  const rows = [
+    ['Höstfinalen', 'Mästerskap'],
+    ['USM-region', ''],
+    ['Svenska juniormästerskapen', ''],
+    ['Sumsim Riksfinal', ''],
+    ['Sundsvalls Swim Games', 'Klubbtävling'],
+    ['Sommarsim', ''],
+  ].map(([title, category], index) => ({ id: String(index + 1), title, category, startDate: '2026-12-02' }))
+  assert.deepEqual(flightCompetitionJourney(rows, '2026-11-22').map(event => event.championship), [true, true, true, true, false, false])
 })
 
 const json = (rows, status = 200) => new Response(JSON.stringify(rows), { status })
