@@ -1,5 +1,5 @@
 import { getRole, isDatabaseConfigured, sendJson, supabaseRequest } from '../server/supabase.js'
-import { writeAuditLog } from '../server/audit.js'
+import { logRememberedSwimmerLogin, writeAuditLog } from '../server/audit.js'
 import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken, COACH_TERMS_VERSION } from '../server/coach-auth.js'
 import { getSessionDays } from '../server/session-settings.js'
 import { clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, normalizeUsername, publicProfile, validPin, verifyPin } from '../server/profile-auth.js'
@@ -22,7 +22,16 @@ export default async function handler(request, response) {
     const restoredCode = coachToken || groupCode || ''
     const role = getRole(restoredCode)
     if (role === 'coach') { await deleteCurrentSession(request); clearSessionCookie(response); const account = readCoachToken(coachToken); return sendJson(response, 200, { role, accountRole: account?.role || 'coach', code: restoredCode, displayName: account?.name || '' }) }
-    if (role === 'swimmer' && await getSessionProfile(request)) return sendJson(response, 200, { role, code: restoredCode })
+    if (role === 'swimmer') {
+      const profile = await getSessionProfile(request)
+      if (profile) {
+        if (request.body.includeProfile === true) {
+          await logRememberedSwimmerLogin(request, profile)
+          return sendJson(response, 200, { role, code: restoredCode, profile: publicProfile(profile) })
+        }
+        return sendJson(response, 200, { role, code: restoredCode })
+      }
+    }
     return sendJson(response, 200, { role: null })
   }
   if (action === 'logout') { await deleteCurrentSession(request); response.setHeader('Set-Cookie', ['simkoll_coach_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0', 'simkoll_group_code=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0', 'simkoll_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0']); return sendJson(response, 200, { ok: true }) }

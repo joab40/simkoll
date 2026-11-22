@@ -96,7 +96,11 @@ button { cursor: pointer; }
 .swimmer-hero-carousel { min-width: 0; }
 .swimmer-hero-track { position: relative; display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 30px; }
 .swimmer-hero-track::-webkit-scrollbar { display: none; }
-.swimmer-hero-track.auto-height { align-items: flex-start; overflow-y: hidden; transition: height .2s ease; }
+.swimmer-hero-track.auto-height { align-items: flex-start; height: var(--active-slide-height, auto); overflow-y: hidden; transition: height .2s ease; }
+.home-hero-carousel .swimmer-hero-track.auto-height { transition: none; }
+@media (min-width: 641px) {
+  .home-hero-carousel .swimmer-hero-track.auto-height { height: auto; align-items: stretch; }
+}
 .swimmer-hero-track:focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; }
 .swimmer-hero-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; display: flex; }
 .swimmer-hero-slide > section { width: 100%; min-width: 0; }
@@ -116,6 +120,17 @@ button { cursor: pointer; }
 .hero-slide-indicators [aria-pressed="true"] span { width: 22px; border-radius: 8px; background: var(--teal); }
 .hero-slide-label { min-width: 130px; font-size: 11px; text-align: center; }
 @media (max-width: 640px) {
+  .home-hero-carousel .mood-context-slot { min-height: 32px; margin-top: -22px; margin-bottom: 22px; }
+  .home-hero-carousel .mood-context { margin: 0; line-height: 16px; }
+  .home-hero-carousel .emoji-cloud {
+    height: 156px;
+    align-content: center;
+    align-content: safe center;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+  }
+  .home-hero-carousel .emoji-cloud span { line-height: 1.25; }
   .swimmer-hero-track { border-radius: 23px; }
   .swimmer-hero-navigation { padding: 6px 0 8px; gap: 0; }
   .swimmer-hero-navigation .hero-slide-arrow, .swimmer-hero-navigation .hero-slide-label { display: none; }

@@ -22,6 +22,11 @@ export async function writeAuditLog(request, { eventType, role = null, profileId
   } catch (error) { console.warn('Audit log unavailable:', error.message) }
 }
 
+export function logRememberedSwimmerLogin(request, profile) {
+  return writeAuditLog(request, { eventType: 'profile_login', role: 'swimmer', profileId: profile.id,
+    details: { alias: profile.display_name || profile.username, login: 'remembered-session' } })
+}
+
 export async function writeAiUsage(request, { feature, model, role = null, profileId = null, response = null, status = 'success', error = null, usageDetails = null }) {
   const usage = response?.usage || {}
   const promptTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0)

@@ -5,7 +5,6 @@ import CoachTestEmail from './coach-test-email.jsx'
 import FeatureFaq from './feature-faq.jsx'
 import RewardLevelCard from './reward-level-card.jsx'
 import FeedbackInbox, { FeedbackBadge, FeedbackSection, FeedbackThreadButton, useFeedbackCount } from './app-feedback-dialog.jsx'
-import RewardArtStudio from './reward-art-studio.jsx'
 import { rewardProgress, rewardDistribution } from '../shared/reward-levels.js'
 import SwimmerPeriodization from './swimmer-periodization.jsx'
 import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
@@ -35,9 +34,6 @@ import './swim-workout-options.css'
 import './planning-calendar.css'
 import { COACH_NAV_ITEMS, COACH_MENU_FEATURES, COACH_OVERVIEW_FEATURES, COACH_MENU_SECTIONS } from '../shared/coach-navigation.js'
 import { TRAFFIC_LABELS } from '../shared/swimmer-traffic.js'
-import SwimmerTrafficOverview from './swimmer-traffic-overview.jsx'
-import FormKollenCard from './form-kollen.jsx'
-import TaperKollenCard from './taper-kollen.jsx'
 import SwimmerSpeed from './swimmer-speed.jsx'
 import PlanningWeekLabel from './planning-week-label.jsx'
 import CompetitionEntryChoices from './competition-entry-choices.jsx'
@@ -60,7 +56,6 @@ import WorkoutPreview from './workout-preview.jsx'
 import { WORKOUT_FOCUSES } from '../shared/workout-focuses.js'
 import { SWIM_WORKBOOK_TYPES } from '../shared/swim-workbook.js'
 import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-exercise-images.jsx'
-import CoachMetricDetails from './coach-metric-details.jsx'
 import CoachCheckinTrend from './coach-checkin-trend.jsx'
 import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import {createWeeklyTrainingSync,pendingWeeklySessions} from './weekly-training-sync.js'
@@ -87,7 +82,6 @@ import OpenChatPanel from './open-chat-panel.jsx'
 import CoachMessages from './coach-messages.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
-import DevelopmentTalkRoster from './development-talk-roster.jsx'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { GoalMediaEditor } from './goal-video.jsx'
 import { uploadGoalVideo } from './goal-video-upload.js'
@@ -111,6 +105,12 @@ const StrengthProgramBuilder = deferredPanel(() => import('./strength-program-bu
 const WorkoutWorkbookReview = deferredPanel(() => import('./workout-workbook-review.jsx'))
 const CoachControlPanel = deferredPanel(() => import('./coach-control-panel.jsx'))
 const CoachFlightRecord = deferredPanel(() => import('./coach-flight-record.jsx'), 'Öppnar Flight Record…')
+const CoachMetricDetails = deferredPanel(() => import('./coach-metric-details.jsx'))
+const DevelopmentTalkRoster = deferredPanel(() => import('./development-talk-roster.jsx'))
+const FormKollenCard = deferredPanel(() => import('./form-kollen.jsx'))
+const RewardArtStudio = deferredPanel(() => import('./reward-art-studio.jsx'))
+const SwimmerTrafficOverview = deferredPanel(() => import('./swimmer-traffic-overview.jsx'))
+const TaperKollenCard = deferredPanel(() => import('./taper-kollen.jsx'))
 const StorageAdmin = deferredPanel(() => import('./storage-admin.jsx'), 'Hämtar lagringsöversikten…')
 const DevelopmentTalkEditor = deferredPanel(() => import('./development-talk-editor.jsx'))
 const SwimmerTalkHistory = deferredPanel(() => import('./swimmer-talk-history.jsx'))
@@ -242,9 +242,16 @@ function App() {
       setCheckingSession(false)
       return
     }
-    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'restore' }) })
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'restore', includeProfile: true }) })
       .then((result) => result.json())
-      .then((data) => { if (data.role) setAuth({ role: data.role, accountRole: data.accountRole, code: data.code || '', displayName: data.displayName }) })
+      .then((data) => {
+        if (!data.role) return
+        if (data.role === 'swimmer' && data.profile) {
+          setProfile(data.profile)
+          setScreen(data.profile.termsAccepted ? 'home' : 'swimmer-terms')
+        }
+        setAuth({ role: data.role, accountRole: data.accountRole, code: data.code || '', displayName: data.displayName })
+      })
       .catch(() => {})
       .finally(() => setCheckingSession(false))
   }, [])
@@ -522,7 +529,7 @@ function App() {
       }} />}
       {screen === 'faq' && <Faq role="swimmer" onBack={() => setScreen('home')} />}
       {screen === 'legal' && <><LegalPurpose /><LegalPage onBack={() => setScreen('home')} /></>}
-      {screen !== 'coach-info' && <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>}
+      {!['coach-info', 'restoring-profile'].includes(screen) && <footer className="app-meta swimmer-app-meta"><span>Simkoll v{APP_VERSION}</span><span>Build {COMMIT_SHA}</span><span>Uppdaterad {new Date(BUILD_TIME).toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' })}</span></footer>}
     </Shell>
   )
 }
@@ -1130,7 +1137,7 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
-      <SwimmerHeroCarousel enabled={Boolean(levelVisible || profile)} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : []), ...(profile ? ['Peppflödet'] : [])]} regionLabel="Din nivå, gruppens läge, tränarinfo och peppflöde">
+      <SwimmerHeroCarousel className="home-hero-carousel" autoHeight enabled={Boolean(levelVisible || profile)} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : []), ...(profile ? ['Peppflödet'] : [])]} regionLabel="Din nivå, gruppens läge, tränarinfo och peppflöde">
       {levelVisible && <RewardCard key={`level-${profile.id}`} points={points} onCommunity={onCommunity} onEmblemTap={!profile.isTestProfile ? tapEmblem : undefined} featured />}
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
@@ -1139,8 +1146,10 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
         {profile && chatVisible && <CoachLetterBadge code={code} chat={communityPreview?.openChat} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
         <h1>Så här känns det</h1>
         {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
-        {profile && nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
-        <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`}>
+        {profile && <div className="mood-context-slot" aria-hidden={!nextCompetition || undefined}>
+          {nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
+        </div>}
+        <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`} tabIndex={todayResponses.length > 14 ? 0 : undefined}>
           {todayResponses.length ? todayResponses.map((response, index) => (
             <span className={`${response.feeling === 5 ? 'top-mood' : response.feeling === 4 ? 'good-mood' : ''}${animatedMoodIds.includes(response.id) ? ' new-response' : ''}`} key={response.id} style={{ '--delay': `${index * 40}ms` }}>
               {FEELINGS.find((item) => item.value === response.feeling)?.emoji}
@@ -1156,12 +1165,12 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
       {profile && chatVisible && <OpenChatCard key="coach-info" data={communityPreview} error={communityPreviewError} onOpen={onCommunityChat || onCommunity} />}
       {profile && <OpenChatCard key="pep-feed" data={communityPreview} error={communityPreviewError} channel="pep" onOpen={onCommunity} />}
       </SwimmerHeroCarousel>
+      {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={ownResponsesLoaded && !hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {flightRecord}
       {profile && points?.recentRewards?.length > 0 && <RewardCelebration rewards={points.recentRewards} />}
 
       {profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses.filter((item) => item.profileId === profile.id)} />}
 
-      {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={ownResponsesLoaded && !hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
       {profile && pendingDevelopmentTalk && <DevelopmentTalkCard talk={pendingDevelopmentTalk} onOpen={onTalk} />}
       {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
       {profile && newDevelopmentGoals.length > 0 && <NewDevelopmentGoalCard goals={newDevelopmentGoals} onOpen={onGoals} />}
@@ -1246,7 +1255,7 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
   }, [enabled, slides.length])
   useLayoutEffect(() => {
     if (!enabled || !autoHeight) { setHeight(null); return }
-    const slide = track.current?.children[active]
+    const slide = track.current?.children[activeRef.current]
     if (!slide) return
     const measure = () => setHeight(Math.ceil(slide.getBoundingClientRect().height))
     measure()
@@ -1255,7 +1264,7 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
     return () => observer.disconnect()
   }, [enabled, autoHeight, active, slides.length])
   return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
-    <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { height } : undefined} ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
+    <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { '--active-slide-height': `${height}px` } : undefined} ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
       const element = event.currentTarget
       const index = nearestSlideIndex(element)
       if (index !== activeRef.current) { activeRef.current = index; setActive(index) }
