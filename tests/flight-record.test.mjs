@@ -107,6 +107,12 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
         assert.equal(query.get('profile_id'), `eq.${id}`)
         return json([...scores.values()])
       }
+      if (method === 'DELETE') {
+        assert.equal(query.get('profile_id'), `eq.${id}`)
+        const measureId = query.get('metric_id').slice(3), date = query.get('activity_date').slice(3)
+        scores.delete(`${measureId}:${date}`)
+        return new Response(null, { status: 204 })
+      }
       assert.equal(body.profile_id, id)
       assert.equal(query.get('on_conflict'), 'profile_id,metric_id,activity_date')
       if (!measures.some(measure => measure.id === body.metric_id)) return json({ code: '23503' }, 409)
@@ -271,6 +277,19 @@ test('the trainer can add and correct measures and both views use the saved sett
   assert.equal(swimmerChart.code, 200)
   assert.equal(swimmerChart.data.points.at(-1).value, 71.9)
   assert.doesNotMatch(JSON.stringify(swimmerChart.data), /Teknikkänsla|sleepGoal|customMeasures/)
+  const deletion = { action: 'delete-score', measureId: customId, date: today, profileId: other }
+  assert.equal((await modify(deletion, 'swimmer')).code, 403)
+  assert.equal((await modify({ ...deletion, date: coachWeekAddDays(today, 1) })).code, 400)
+  assert.equal((await modify({ ...deletion, measureId: 'invalid' })).code, 400)
+  assert.equal(calls.filter(row => row.table === 'flight_record_scores' && row.method === 'DELETE').length, 0)
+  assert.equal((await modify(deletion)).code, 200)
+  assert.equal((await modify(deletion)).code, 200)
+  const refreshed = (await call({ code: coach, mode: 'data', profileId: id })).data
+  assert.deepEqual(refreshed.customMeasures, coachView.customMeasures)
+  assert.equal(refreshed.days.at(-1)[customId], undefined)
+  assert.equal(refreshed.days.at(-2)[customId], 4)
+  assert.notEqual((await call({ mode: 'chart' })).data.points.at(-1).value, 71.9)
+  assert(calls.some(row => row.table === 'audit_logs' && row.body?.details?.action === 'delete-score'))
   assert(calls.some(row => row.table === 'audit_logs' && row.body?.event_type === 'flight_record_measure_change'))
 })
 

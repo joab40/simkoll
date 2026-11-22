@@ -35,5 +35,13 @@ test('SQL 137 retains earlier weights, scopes dated scores and validates extende
     await assert.rejects(setWeight({ ...configured, unrecognized: 0 }), /profiles_flight_record_weights_check/)
     await assert.rejects(setWeight({ ...configured, [metric]: 36 }), /profiles_flight_record_weights_check/)
     assert.equal((await db.query("select has_table_privilege('authenticated','flight_record_scores','select') as allowed")).rows[0].allowed, false)
+    const deletionMigration = await readFile(new URL('../supabase/migrations/141_flight_record_delete_scores.sql', import.meta.url), 'utf8')
+    await db.exec(deletionMigration)
+    await db.exec(deletionMigration)
+    const mayDelete = async role => (await db.query("select has_table_privilege($1, 'flight_record_scores', 'delete') as allowed", [role])).rows[0].allowed
+    assert.equal(await mayDelete('service_role'), true)
+    assert.equal(await mayDelete('authenticated'), false)
+    assert.equal(await mayDelete('anon'), false)
+    assert.equal((await db.query("select has_table_privilege('service_role','flight_record_metrics','delete') as allowed")).rows[0].allowed, false)
   } finally { await db.close() }
 })

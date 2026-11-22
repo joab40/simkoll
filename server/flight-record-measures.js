@@ -58,15 +58,22 @@ export async function saveFlightMeasure(body, profileId, endpoint, today) {
     const row = await write('flight_record_metrics?select=id', { profile_id: profileId, name, category })
     return { action, measureId: row.id }
   }
-  if (action === 'save-score') {
+  if (action === 'save-score' || action === 'delete-score') {
     const { measureId, date, value } = body
-    if (!isTimeId(measureId) || !isTimeDate(date) || date < '0001-01-01' || date > today
-      || !Number.isInteger(value) || value < 1 || value > 5) {
-      throw failure('Välj ett mätvärde, ett datum senast idag och ett heltal från 1 till 5.', 400)
+    if (!isTimeId(measureId) || !isTimeDate(date) || date < '0001-01-01' || date > today) {
+      throw failure('Välj ett mätvärde och ett giltigt datum senast idag.', 400)
     }
-    await write('flight_record_scores?on_conflict=profile_id,metric_id,activity_date', {
-      profile_id: profileId, metric_id: measureId, activity_date: date, value,
-    }, { upsert: true })
+    if (action === 'delete-score') {
+      const result = await supabaseRequest(`flight_record_scores?profile_id=eq.${profileId}&metric_id=eq.${measureId}&activity_date=eq.${date}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw failure('Värdet kunde inte tas bort. Försök igen.', 502)
+    } else {
+      if (!Number.isInteger(value) || value < 1 || value > 5) throw failure('Välj ett heltal från 1 till 5.', 400)
+      await write('flight_record_scores?on_conflict=profile_id,metric_id,activity_date', {
+        profile_id: profileId, metric_id: measureId, activity_date: date, value,
+      }, { upsert: true })
+    }
     return { action, measureId, date }
   }
   throw failure('Okänd ändring av Flight Record.', 400)

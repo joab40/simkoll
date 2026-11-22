@@ -1,5 +1,6 @@
 import React, { useId, useRef, useState } from 'react'
 import { flightSignalGroups } from '../shared/flight-line.js'
+import { isTimeDate } from '../shared/swim-times.js'
 
 export default function FlightMeasureSettings({ data, onSave }) {
   const categoriesId = useId()
@@ -12,6 +13,8 @@ export default function FlightMeasureSettings({ data, onSave }) {
   const measure = customMeasures.find(item => item.key === measureKey) ?? customMeasures[0]
   const day = days.find(item => item.date === date) ?? contextDays.find(item => item.date === date)
   const savedScore = measure ? day?.[measure.key] : null
+  const firstLoadedDay = contextDays[0]?.date ?? days[0]?.date ?? asOf
+  const canDeleteScore = Number.isInteger(savedScore) || (isTimeDate(date) && date >= '0001-01-01' && date < firstLoadedDay)
 
   const save = async (input, success) => {
     if (writeLock.current) return null
@@ -55,6 +58,11 @@ export default function FlightMeasureSettings({ data, onSave }) {
     void save({ action: 'save-score', measureId: measure.key, date, value: Number(form.get('score')) }, 'Värdet är sparat.')
   }
 
+  const deleteScore = () => {
+    if (!canDeleteScore || writeLock.current || !window.confirm(`Ta bort värdet för ${measure.label} den ${date}?`)) return
+    void save({ action: 'delete-score', measureId: measure.key, date }, 'Värdet är borttaget.')
+  }
+
   return <details className="flight-weights flight-measure-settings">
     <summary>Sömnmål och egna mätvärden</summary>
     <form key={sleepGoalMinutes} onSubmit={submitGoal}>
@@ -96,7 +104,10 @@ export default function FlightMeasureSettings({ data, onSave }) {
           </select></label>
         </div>
         <p>Skalan går från 1 (lågt) till 5 (högt). Ett nytt värde samma dag uppdaterar registreringen.</p>
-        <div className="flight-actions"><button type="submit" className="secondary-button">Spara värde</button></div>
+        <div className="flight-actions">
+          <button type="submit" className="secondary-button">Spara värde</button>
+          {canDeleteScore && <button type="button" className="text-button danger-text" onClick={deleteScore}>Ta bort värde</button>}
+        </div>
       </fieldset>
     </form>}
     {busy && <p role="status">Sparar och uppdaterar grafen…</p>}
