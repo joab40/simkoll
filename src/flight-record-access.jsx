@@ -65,40 +65,26 @@ export function useFlightRecordAccess(profileId, code, request) {
   return { ...state, choose, refresh }
 }
 
-function ActiveFlightRecordCard({ flight, code, request, competitions, themeKey }) {
+function ActiveFlightRecordCard({ flight, code, request, competitions }) {
   const [open, setOpen] = useState(false)
-  const [sky, setSky] = useState(() => {
-    try { return localStorage.getItem(themeKey) === 'sky' } catch { return false }
-  })
-  const toggleTheme = () => {
-    const next = !sky
-    setSky(next)
-    try { localStorage.setItem(themeKey, next ? 'sky' : 'standard') } catch { /* The current view still works. */ }
-  }
-  return <details className={`flight-home-card${sky ? ' flight-home-sky' : ''}`} onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details className="flight-home-card" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary className="flight-home-summary">
       <span className="flight-home-icon" aria-hidden="true">✈︎</span>
       <span><strong>Flight Record</strong><small>Din formkurva och tävlingsresa</small></span>
       <span className="flight-home-chevron" aria-hidden="true" />
     </summary>
     {open && <div className="flight-home-content">
-      <div className="flight-home-tools">
-        <button className="flight-theme-toggle" type="button" aria-pressed={sky} onClick={toggleTheme}>
-          <span aria-hidden="true">☁</span> Flygtema
-          <span className="flight-theme-switch" aria-hidden="true" />
-        </button>
-      </div>
       <React.Suspense fallback={<p className="empty" role="status">Öppnar formgrafen…</p>}>
-        <FlightRecordChart code={code} request={request} competitions={competitions} sky={sky} onRefreshAccess={flight.refresh} />
+        <FlightRecordChart code={code} request={request} competitions={competitions} onRefreshAccess={flight.refresh} />
       </React.Suspense>
     </div>}
   </details>
 }
 
-export function FlightRecordHomeCard({ flight, code, request, competitions, profileId }) {
+export function FlightRecordHomeCard({ flight, code, request, competitions }) {
   if (!flight.access?.offered || flight.access.choice === 'later') return null
   if (flight.access.choice === 'active') return <ActiveFlightRecordCard key={flight.access.offerId}
-    flight={flight} code={code} request={request} competitions={competitions} themeKey={`simkoll-flight-theme:${profileId ?? flight.access.offerId}`} />
+    flight={flight} code={code} request={request} competitions={competitions} />
   return <section className="flight-invitation" aria-label="Flight Record">
     <span className="flight-invitation-icon" aria-hidden="true">✈︎</span>
     <div>
@@ -131,6 +117,8 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const profileQuery = '&profileId=' + encodeURIComponent(profileId)
+  const loadPreview = useCallback(signal => request('/api/training?flightRecord=preview' + profileQuery, code, { signal, retry: false }),
+    [profileQuery, code, request])
   useEffect(() => {
     const controller = new AbortController()
     setData(null)
@@ -149,6 +137,7 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
   </div>
   if (!data) return <p className="empty" role="status">Hämtar formresan…</p>
   const saveWeights = (weights, boostSettings, pbBoostSettings) => request(weightsUrl + profileQuery, code, postOptions({ weights, boostSettings, pbBoostSettings }))
+  const savePresentation = (presentation) => request('/api/training?flightRecord=presentation' + profileQuery, code, postOptions({ presentation }))
   const saveMeasure = async input => {
     const result = await request('/api/training?flightRecord=measures' + profileQuery, code, postOptions(input))
     try {
@@ -160,7 +149,8 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
     }
   }
   return <React.Suspense fallback={<p className="empty" role="status">Öppnar formresan…</p>}>
-    <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} saveMeasure={saveMeasure} />
+    <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} saveMeasure={saveMeasure}
+      loadPreview={loadPreview} savePresentation={savePresentation} />
   </React.Suspense>
 }
 

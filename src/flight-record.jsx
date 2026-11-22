@@ -6,6 +6,7 @@ import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroup
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, changePracticeBoost, defaultFlightPbSettings, pbBoostFraction, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_METRICS } from '../shared/flight-taper.js'
+import { defaultFlightPresentation, flightDirection, FLIGHT_FORWARD_LIMIT, FLIGHT_PITCH_LIMIT, readFlightPresentation } from '../shared/flight-presentation.js'
 import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
 
@@ -59,7 +60,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, sky = false }) {
+function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation }) {
   const graph = useRef(null)
   const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
@@ -78,7 +79,9 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   }, [])
 
   const start = days[0].date
+  const sky = presentation?.sky === true
   const skyGoal = sky && target
+  const direction = sky ? flightDirection(points, asOf, presentation) : null
   const goalOffset = target ? daysBetween(asOf, target.date) : 0
   // Distant calendar events stay in the destination header, so the history has room.
   const future = !skyGoal && goalOffset > 0 && goalOffset <= Math.min(14, Math.floor(period / 2)) ? goalOffset : 0
@@ -89,7 +92,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const base = height - 30
   const values = points.map(point => point.value).filter(Number.isFinite)
   const [min, max] = chartScale(values, metric, timed)
-  const historyRight = skyGoal ? left + (right - left) * .62 : right
+  const historyRight = sky ? left + (right - left) * (skyGoal ? .60 : .74) : right
   const x = (date) => left + daysBetween(start, date) / domain * (historyRight - left)
   const y = (value) => top + (timed ? (value - min) : (max - value)) / (max - min) * (base - top)
   const today = x(asOf)
@@ -114,33 +117,49 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const latestPoint = points.findLast(point => Number.isFinite(point.value))
   const hasLimited = points.some(point => point.limited)
   const pilotPoint = todayPoint ?? latestPoint
-  const planeWidth = Math.min(146, Math.max(58, width * .15))
   const goalWidth = right - today
+  const planeWidth = Math.min(76, goalWidth * (skyGoal ? .34 : .62), Math.max(34, width * .078)) * (pilotPoint?.heavy ? 1.3 : 1)
+  const pilotX = pilotPoint ? x(pilotPoint.date) : null
+  const pilotY = pilotPoint ? y(pilotPoint.value) : null
+  let course = null
+  if (direction?.days > 0) {
+    const nose = planeWidth * .82
+    const span = nose + Math.min(39, goalWidth * (skyGoal ? .56 : .97) - nose) * direction.days / FLIGHT_FORWARD_LIMIT
+    const slope = Math.tan(direction.angle * Math.PI / 180)
+    course = {
+      x: pilotX + span,
+      y: Math.max(top, Math.min(base, pilotY - span * slope)),
+      label: `Illustrerad riktning · ${direction.days} ${direction.days === 1 ? 'dag' : 'dagar'}`,
+    }
+  }
   const palaceSize = skyGoal
-    ? Math.min(goalWidth * (target.championship ? .9 : .67), height * (target.championship ? .65 : .47), 212) : 0
+    ? Math.min(goalWidth * (target.championship ? .69 : .50), height * (target.championship ? .65 : .47), 212) : 0
   const palaceY = top + (base - top) * (target?.championship ? .06 : .29)
+  const palaceCenter = today + (goalWidth - palaceSize) * .87 + palaceSize / 2
+  const palaceLabelWidth = Math.min(goalWidth - 10, (right - palaceCenter) * 2)
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
   return <figure className={`flight-plot${onSelect ? '' : ' flight-plot-static'}${sky ? ' flight-plot-sky' : ''}`} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
-    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}`}>
+    <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}${course ? ` ${course.label}.` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={goalWidth} height={base - top} />}
       {skyGoal && <g aria-hidden="true">
         <rect className="flight-palace-sky" x={today + 4} y={top} width={goalWidth - 4} height={base - top} rx="12" />
         <image className={`flight-goal-palace${target.championship ? ' championship' : ''}`} href={palaceArt}
-          x={today + (goalWidth - palaceSize) / 2} y={palaceY} width={palaceSize} height={palaceSize} />
-        <foreignObject x={today + 9} y={Math.min(base - 26, palaceY + palaceSize + 4)} width={goalWidth - 14} height="30">
+          x={palaceCenter - palaceSize / 2} y={palaceY} width={palaceSize} height={palaceSize} />
+        <foreignObject x={palaceCenter - palaceLabelWidth / 2} y={Math.min(base - 26, palaceY + palaceSize + 4)} width={palaceLabelWidth} height="30">
           <div className={`flight-palace-name${target.championship ? ' championship' : ''}`} title={target.title}>{target.title}</div>
         </foreignObject>
       </g>}
       {ticks.map(tick => <g key={tick}>
-        <line className="flight-grid" x1={left} x2={skyGoal ? today : right} y1={y(tick)} y2={y(tick)} />
+        <line className="flight-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)} />
         <text x={left - 7} y={y(tick) + 4} textAnchor="end">{timed ? tickValue(tick) : number(tick)}</text>
       </g>)}
       <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />
       {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
       {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
+      {sky && path && <path className="flight-contrail-haze" d={path} fill="none" />}
       {path && <path className="flight-observed-line" d={path} fill="none" />}
       {limitedPath && <path className="flight-limited-line" d={limitedPath} fill="none" />}
       {points.filter(point => Number.isFinite(point.value)).map(point => {
@@ -154,21 +173,25 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
         }
         return metric.bars && !timed
           ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={onClick}><title>{label}</title></rect>
-          : <circle key={point.date} className={`flight-mark${marked}${point.limited ? ' limited' : ''}`} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
+          : <circle key={point.date} className={`flight-mark${marked}${point.limited ? ' limited' : ''}`} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : sky || period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
       })}
       {!values.length && <text className="flight-empty-label" x={(left + historyRight) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
-      {sky ? pilotPoint && <image className="flight-plane flight-plane-art" href={planeArt} aria-hidden="true"
-        x={Math.min(right - planeWidth, Math.max(left, x(pilotPoint.date) - planeWidth * .83))}
-        y={Math.max(3, y(pilotPoint.value) - planeWidth * .5 - 6)} width={planeWidth} height={planeWidth * .5} />
+      {course && <path className="flight-course" aria-hidden="true" d={`M ${pilotX} ${pilotY} L ${course.x} ${course.y}`} />}
+      {/* The sprite's nose sits nine degrees above its exhaust. */}
+      {sky ? pilotPoint && <g transform={`translate(${pilotX} ${pilotY}) rotate(${9 - direction.angle})`} aria-hidden="true">
+        <image className="flight-plane flight-plane-art" href={planeArt} x={-planeWidth * .14} y={-planeWidth * .3}
+          width={planeWidth} height={planeWidth * .5} />
+      </g>
         : <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
       {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? 'Idag' : shortDate(date)}</text>)}
       {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
-      {skyGoal && <text x={today + goalWidth / 2} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
+      {skyGoal && <text x={palaceCenter} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
     </svg>
     <div className="flight-legend">
       <span><i/> {metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter'}</span>
       {hasLimited && <span><i className="flight-legend-limited"/> Begränsat underlag</span>}
       {metric === lineMetric && <span><i className="flight-legend-lift"/> Nytt tidslyft</span>}
+      {course && <span><i className="flight-legend-course"/> {course.label}</span>}
       {future > 0 && <span><i className="flight-legend-future"/> {onSelect ? 'Planerad tävlingsdag' : target.title}</span>}
       {status && <span role="status">{status}</span>}
     </div>
@@ -428,7 +451,7 @@ function timeEvidence(event) {
   return `${difference} Tempus-PB ${formatTrainingTime(event.reference)} (${shortDate(event.referenceDate)}).`
 }
 
-export function FlightRecordView({ data, competitions = [], saveWeights, saveMeasure }) {
+export function FlightRecordView({ data, competitions = [], saveWeights, saveMeasure, loadPreview, savePresentation }) {
   const [period, setPeriod] = useState(28)
   const [section, setSection] = useState('line')
   const [metricChoice, setMetricChoice] = useState({})
@@ -444,6 +467,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
   const [saving, setSaving] = useState(false)
   const [weightMessage, setWeightMessage] = useState({ text: '' })
   const saveLock = useRef(false)
+  const previewRevision = useMemo(() => [data, savedWeights, savedBoostSettings, savedPbSettings], [data, savedWeights, savedBoostSettings, savedPbSettings])
   const changedKeys = [...new Set([...Object.keys(weights), ...Object.keys(savedWeights)])]
     .filter(key => (weights[key] ?? 0) !== (savedWeights[key] ?? 0))
   const boostConfigChanged = Object.entries(boostSettings).some(([kind, config]) =>
@@ -525,6 +549,9 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
   const linePoint = weighted ? line.find(point => point.date === day.date) : null
 
   return <>
+    {loadPreview && savePresentation && <FlightPresentationSettings initial={data.presentation} available={data.presentationAvailable}
+      competitions={competitions} loadPreview={loadPreview} savePresentation={savePresentation}
+      refreshKey={previewRevision} />}
     <section className="flight-destination">
       <div><p className="eyebrow">🏁 Tävlingsmål</p><h2>{target?.title ?? 'Inget kommande tävlingsmål'}</h2>
         {target && <p>{remaining === 0 ? 'Idag' : `Om ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}`} · {shortDate(target.date)}</p>}
@@ -650,20 +677,98 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
   </section>
 }
 
-function SwimmerFlightChart({ data, competitions = [], sky }) {
+function FlightPresentationSettings({ initial, available, competitions, loadPreview, savePresentation, refreshKey }) {
+  const [saved, setSaved] = useState(() => readFlightPresentation(initial))
+  const [draft, setDraft] = useState(saved)
+  const [open, setOpen] = useState(false)
+  const [preview, setPreview] = useState(null)
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState(null)
+  const saveLock = useRef(false)
+  const dirty = Object.keys(draft).some(key => draft[key] !== saved[key])
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    setPreview(null)
+    setError('')
+    loadPreview(controller.signal).then(result => {
+      if (!controller.signal.aborted) setPreview(result)
+    }).catch(error => {
+      if (!controller.signal.aborted) setError(error.message)
+    })
+    return () => controller.abort()
+  }, [open, loadPreview, refreshKey, attempt])
+
+  const update = patch => {
+    setDraft(current => ({ ...current, ...patch }))
+    setMessage(null)
+  }
+  const save = async () => {
+    if (saveLock.current || !available || !dirty) return
+    saveLock.current = true
+    setSaving(true)
+    setMessage(null)
+    try {
+      const result = await savePresentation(draft)
+      setSaved(result.presentation)
+      setDraft(result.presentation)
+      setMessage({ text: 'Visningen är sparad för simmaren.' })
+    } catch (error) {
+      setMessage({ text: error.message, error: true })
+    } finally {
+      saveLock.current = false
+      setSaving(false)
+    }
+  }
+  return <details className="flight-presentation" onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>Simmarens visning {saved.sky && <small>Flygtema på</small>}</summary>
+    {open && <div className="flight-presentation-body">
+      <label className="flight-presentation-toggle"><input type="checkbox" checked={draft.sky} disabled={saving} onChange={event => update({ sky: event.target.checked })} /> Flygtema</label>
+      {draft.sky && <div className="flight-presentation-fields">
+        <label className="flight-field">Planets lutning
+          <select value={draft.angle == null ? 'trend' : 'manual'} disabled={saving} onChange={event => update({ angle: event.target.value === 'trend' ? null : 0 })}>
+            <option value="trend">Följ senaste trenden</option><option value="manual">Välj lutning själv</option>
+          </select>
+        </label>
+        {draft.angle != null && <label className="flight-field flight-presentation-range">
+          <span>Lutning <strong>{draft.angle > 0 ? '+' : ''}{draft.angle}°</strong></span>
+          <input type="range" min={-FLIGHT_PITCH_LIMIT} max={FLIGHT_PITCH_LIMIT} value={draft.angle} disabled={saving}
+            onChange={event => update({ angle: Number(event.target.value) })} />
+        </label>}
+        <label className="flight-field">Illustrerad riktning
+          <select value={draft.forwardDays} disabled={saving} onChange={event => update({ forwardDays: Number(event.target.value) })}>
+            <option value={0}>Av</option>
+            {Array.from({ length: FLIGHT_FORWARD_LIMIT }, (_, index) => index + 1).map(days => <option key={days} value={days}>{days} {days === 1 ? 'dag' : 'dagar'}</option>)}
+          </select>
+        </label>
+      </div>}
+      <FlightSettingActions available={available} dirty={dirty} saving={saving} onSave={save} label="Spara visning" message={message}
+        onReset={() => { setDraft(defaultFlightPresentation); setMessage(null) }} />
+      <h3>Förhandsvisning av simmarvyn</h3>
+      {preview ? <SwimmerFlightChart data={preview} competitions={competitions} presentation={draft} />
+        : error ? <div className="flight-error"><p role="alert">{error}</p><button type="button" className="secondary-button" onClick={() => setAttempt(value => value + 1)}>Försök igen</button></div>
+          : <p className="empty" role="status">Hämtar simmarens graf…</p>}
+    </div>}
+  </details>
+}
+
+function SwimmerFlightChart({ data, competitions = [], presentation = data.presentation }) {
   const [targetId, setTargetId] = useState(null)
   const journey = useMemo(() => flightCompetitionJourney(competitions, data.asOf), [competitions, data.asOf])
   const next = journey.find(event => event.status !== 'past')
   const competition = journey.find(event => event.id === targetId && event.status !== 'past') ?? next
   const target = competition ? { title: competition.title, championship: competition.championship, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
-  return <>
+  return <div className="flight-swimmer-presentation">
     {data.points.length > 0 ? <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
-      status={data.partial ? 'Delar av underlaget saknas' : undefined} sky={sky} /> : <p>För lite underlag för att visa en graf.</p>}
-    <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} sky={sky} />
-  </>
+      status={data.partial ? 'Delar av underlaget saknas' : undefined} presentation={presentation} /> : <p>För lite underlag för att visa en graf.</p>}
+    <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} sky={presentation?.sky === true} />
+  </div>
 }
 
-export default function FlightRecordChart({ code, request, competitions, onRefreshAccess, sky }) {
+export default function FlightRecordChart({ code, request, competitions, onRefreshAccess }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -681,6 +786,6 @@ export default function FlightRecordChart({ code, request, competitions, onRefre
     return () => controller.abort()
   }, [code, request, attempt, onRefreshAccess])
   if (error) return <div className="flight-error" role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={() => setAttempt(current => current + 1)}>Försök igen</button></div>
-  if (result) return <SwimmerFlightChart data={result} competitions={competitions} sky={sky} />
+  if (result) return <SwimmerFlightChart data={result} competitions={competitions} />
   return <p className="empty" role="status">Hämtar formgrafen…</p>
 }

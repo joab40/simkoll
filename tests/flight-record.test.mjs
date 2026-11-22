@@ -6,6 +6,7 @@ import { flightCompetitionJourney, flightRecordDays, flightTimeComparison, fligh
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 import { defaultFlightPbSettings } from '../shared/flight-pb.js'
+import { defaultFlightPresentation, flightChartPoints, flightDirection, validateFlightPresentation } from '../shared/flight-presentation.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
 process.env.SUPABASE_SECRET_KEY = 'fixture-only'
@@ -65,11 +66,12 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, practiceTimes, tempusHistory } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, presentation = false, practiceTimes, tempusHistory } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   if (extended) profile.flight_record_sleep_goal_minutes = null
   if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
   if (pb) profile.flight_record_pb_boost_settings = null
+  if (presentation) profile.flight_record_presentation = null
   const calls = []
   const measures = [], scores = new Map()
   t.mock.method(globalThis, 'fetch', async (input, options = {}) => {
@@ -97,6 +99,9 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       }
       if (!pb && query.get('select')?.split(',').includes('flight_record_pb_boost_settings')) {
         return json({ code: '42703', message: 'column profiles.flight_record_pb_boost_settings does not exist' }, 400)
+      }
+      if (!presentation && query.get('select')?.split(',').includes('flight_record_presentation')) {
+        return json({ code: '42703', message: 'column profiles.flight_record_presentation does not exist' }, 400)
       }
       if (scope === 'is.null' && profile.flight_record_offer_id != null) return json([])
       if (scope === 'not.is.null' && profile.flight_record_offer_id == null) return json([])
@@ -276,6 +281,64 @@ test('the swimmer chart can use defaults until SQL 135 is run', async (t) => {
   const save = await call({ mode: 'weights', method: 'POST', code: coach, profileId: id, body: { weights: defaultFlightWeights } })
   assert.equal(save.code, 503)
   assert.match(save.data.error, /135/)
+})
+
+test('the personal coach saves the swimmer presentation and previews the same chart payload', async (t) => {
+  const { profile, calls } = dbFixture(t, { state: 'active', presentation: true })
+  const configuration = { sky: true, angle: -14, forwardDays: 3 }
+  const save = (code, presentation = configuration) => call({ code, mode: 'presentation', method: 'POST', profileId: id, body: { presentation } })
+  assert.equal((await save('swimmer')).code, 403)
+  assert.equal((await save('shared-coach')).code, 403)
+  assert.equal((await save(coach, { ...configuration, forwardDays: 4 })).code, 400)
+  assert.equal(calls.filter(row => row.method === 'PATCH').length, 0)
+  assert.deepEqual((await save(coach)).data, { presentation: configuration })
+  assert.equal(profile.flight_record_choice, 'active')
+  assert.equal(profile.flight_record_weights, null)
+  const preview = await call({ code: coach, mode: 'preview', profileId: id })
+  const swimmer = await call({ mode: 'chart' })
+  assert.equal(preview.code, 200)
+  assert.deepEqual(preview.data, swimmer.data)
+  assert.deepEqual(swimmer.data.presentation, configuration)
+  assert.equal((await call({ mode: 'preview', profileId: id })).code, 403)
+  profile.flight_record_choice = 'later'
+  assert.equal((await call({ mode: 'chart' })).code, 403)
+})
+
+test('flight direction respects recent support and manual settings; plane size sends only a display flag', () => {
+  const dates = [coachWeekAddDays(today, -4), yesterday, today]
+  const line = dates.map((date, index) => ({ date, value: 40 + index * 4, timeLift: 0 }))
+  const days = dates.map((date, index) => ({ date, rpe: index === 1 ? 8 : 4, reportedMeters: 2400, estimatedMeters: index === 2 ? 2600 : 1000 }))
+  const points = flightChartPoints(line, days, true)
+  assert.deepEqual(points.map(point => point.heavy ?? false), [false, true, true])
+  assert(!flightChartPoints(line, days, false).some(point => Object.hasOwn(point, 'heavy')))
+  assert.deepEqual(flightDirection(points, today, defaultFlightPresentation), { angle: 18, days: 2 })
+  assert.deepEqual(flightDirection(points.slice(0, -1), today, defaultFlightPresentation), { angle: 0, days: 0 })
+  assert.deepEqual(flightDirection(points.slice(-1), today, { angle: -30, forwardDays: 1 }), { angle: -30, days: 1 })
+  assert.deepEqual(flightDirection(points, today, { angle: null, forwardDays: 0 }), { angle: 18, days: 0 })
+})
+
+test('SQL 142 validates exactly the presentation fields and accepts the automatic angle', { skip: !process.env.SIMKOLL_PGLITE_MODULE }, async () => {
+  const { PGlite } = await import(process.env.SIMKOLL_PGLITE_MODULE)
+  const db = new PGlite()
+  try {
+    await db.exec('create table profiles(id integer primary key); insert into profiles values (1);')
+    const migration = await readFile(new URL('../supabase/migrations/142_flight_record_presentation.sql', import.meta.url), 'utf8')
+    await db.exec(migration)
+    await db.exec(migration)
+    const save = value => db.query('update profiles set flight_record_presentation=$1::jsonb', [JSON.stringify(value)])
+    await save(defaultFlightPresentation)
+    await save({ sky: true, angle: 30, forwardDays: 0 })
+    for (const config of [
+      { ...defaultFlightPresentation, sky: 'true' },
+      { ...defaultFlightPresentation, angle: -31 },
+      { ...defaultFlightPresentation, angle: 1.5 },
+      { ...defaultFlightPresentation, forwardDays: 3.5 },
+      { ...defaultFlightPresentation, extra: 1 },
+    ]) {
+      assert.throws(() => validateFlightPresentation(config))
+      await assert.rejects(save(config), /check constraint/)
+    }
+  } finally { await db.close() }
 })
 
 test('the trainer can add and correct measures and both views use the saved settings', async (t) => {

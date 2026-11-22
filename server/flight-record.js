@@ -12,6 +12,7 @@ import { FLIGHT_HISTORY_DAYS, flightRecordDays, flightTimeSeries } from '../shar
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_CONTEXT_DAYS, flightTaperAdjustments } from '../shared/flight-taper.js'
+import { flightChartPoints, readFlightPresentation, validateFlightPresentation } from '../shared/flight-presentation.js'
 import { FLIGHT_BASELINE_DAYS, FLIGHT_RECENT_DAYS, FLIGHT_TIME_BASELINE_DAYS, FLIGHT_SIGNALS, flightLine, flightTimeComparisons, flightTimeLifts, readFlightWeights, sleepGoalScore, validateFlightWeights } from '../shared/flight-line.js'
 
 const configuredProfile = 'active=eq.true&approval_status=eq.approved'
@@ -21,6 +22,7 @@ const acceptedTerms = 'terms_accepted_at=not.is.null'
 const taperWeightField = 'flight_record_taper_weight'
 const boostSettingsField = 'flight_record_boost_settings'
 const pbSettingsField = 'flight_record_pb_boost_settings'
+const presentationField = 'flight_record_presentation'
 const swimmerChartDays = 28
 const returning = { Prefer: 'return=representation' }
 
@@ -54,10 +56,12 @@ function profileWeights(profile) {
   return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
 }
 
-async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
+async function loadFlightRecord(profile, end, { chartOnly = false, preview = false } = {}) {
   const start = coachWeekAddDays(end, 1 - (chartOnly ? swimmerChartDays : FLIGHT_HISTORY_DAYS))
   const contextStart = coachWeekAddDays(start, 1 - FLIGHT_RECENT_DAYS - FLIGHT_BASELINE_DAYS)
   const boostSettings = readFlightBoostSettings(profile[boostSettingsField])
+  const presentation = readFlightPresentation(profile[presentationField])
+  const presentationAvailable = Object.hasOwn(profile, presentationField)
   const boostSettingsAvailable = Object.hasOwn(profile, boostSettingsField)
   const pbBoostSettings = readFlightPbSettings(profile[pbSettingsField], boostSettings.times)
   const pbBoostSettingsAvailable = Object.hasOwn(profile, pbSettingsField)
@@ -124,12 +128,9 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const practiceLifts = tempus.status === 'fulfilled' ? practiceChecks.filter(time => time.pbKind || time.strength > 0) : []
   const timeLifts = [...practiceLifts, ...raceLifts]
   if (chartOnly) {
-    const points = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings).map(point => ({
-      date: point.date, value: point.value,
-      newTimeLift: point.timeLift > 0 && point.events.some(event => event.date === point.date),
-      ...(point.limited ? { limited: true } : {}),
-    }))
-    return { asOf: end, partial: warnings.length > 0, points }
+    const line = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings)
+    return { asOf: end, partial: warnings.length > 0, points: flightChartPoints(line, visibleDays, presentation.sky || preview),
+      ...(presentationAvailable ? { presentation } : {}) }
   }
   const series = history.map(group => ({ ...group, points: group.points.filter(point => point.date >= start) }))
     .filter(group => group.points.length)
@@ -137,6 +138,8 @@ async function loadFlightRecord(profile, end, { chartOnly = false } = {}) {
   const signalKeys = [...FLIGHT_SIGNALS, ...customMeasures].map(signal => signal.key)
   return {
     start, asOf: end, warnings,
+    presentation,
+    presentationAvailable,
     weights,
     taperAvailable,
     taperAdjustments,
@@ -228,7 +231,7 @@ async function saveWeights(request, response, endpoint, profile, coach) {
 
 async function loadCoachProfile(endpoint) {
   const fields = 'id,training_group,flight_record_weights'
-  let optional = [sleepGoalField, taperWeightField, boostSettingsField, pbSettingsField]
+  let optional = [sleepGoalField, taperWeightField, boostSettingsField, pbSettingsField, presentationField]
   for (;;) {
     const result = await supabaseRequest(`${endpoint}&select=${[fields, ...optional].join(',')}&limit=1`)
     if (result.ok) return (await result.json())[0]
@@ -256,6 +259,19 @@ async function coachFlight(request, response, mode) {
   const profile = await loadCoachProfile(endpoint)
   if (!profile) return sendJson(response, 404, { error: 'Simmarprofilen är inte tillgänglig.' })
   if (mode === 'weights') return saveWeights(request, response, endpoint, profile, coach)
+  if (mode === 'preview') return sendJson(response, 200, await loadFlightRecord(profile, stockholmDate(), { chartOnly: true, preview: true }))
+  if (mode === 'presentation') {
+    if (!Object.hasOwn(profile, presentationField)) return sendJson(response, 503, { error: 'Flygtemats inställningar kräver SQL 142.' })
+    let presentation
+    try { presentation = validateFlightPresentation(request.body?.presentation) }
+    catch (error) { return sendJson(response, 400, { error: error.message }) }
+    const [updated] = await checkAccessResult(await supabaseRequest(`${endpoint}&select=${presentationField}`, {
+      method: 'PATCH', headers: returning, body: JSON.stringify({ [presentationField]: presentation }),
+    }), 142)
+    if (!updated) return sendJson(response, 404, { error: 'Simmarprofilen är inte tillgänglig.' })
+    await writeAuditLog(request, { eventType: 'flight_record_presentation', role: 'coach', profileId, details: { coachAccountId: coach.sub } })
+    return sendJson(response, 200, { presentation: readFlightPresentation(updated[presentationField]) })
+  }
   if (mode === 'measures') {
     if (!Object.hasOwn(profile, sleepGoalField)) return sendJson(response, 503, { error: 'Egna mätvärden och sömnmål kräver SQL 137.' })
     const result = await saveFlightMeasure(request.body, profileId, endpoint, stockholmDate())
@@ -268,16 +284,17 @@ async function coachFlight(request, response, mode) {
 /** Called after api/training's live guardCoachSession check. */
 export async function handleFlightRecord(request, response, role) {
   const mode = request.query.flightRecord
-  const coachWrites = ['weights', 'measures']
-  if (!['status', 'data', 'chart', ...coachWrites].includes(mode)) return sendJson(response, 400, { error: 'Okänd Flight Record-vy.' })
-  if (!['GET', 'POST'].includes(request.method) || (['data', 'chart'].includes(mode) && request.method !== 'GET') || (coachWrites.includes(mode) && request.method !== 'POST')) {
+  const coachWrites = ['weights', 'measures', 'presentation']
+  const coachReads = ['data', 'preview']
+  if (!['status', 'chart', ...coachReads, ...coachWrites].includes(mode)) return sendJson(response, 400, { error: 'Okänd Flight Record-vy.' })
+  if (!['GET', 'POST'].includes(request.method) || (['chart', ...coachReads].includes(mode) && request.method !== 'GET') || (coachWrites.includes(mode) && request.method !== 'POST')) {
     return sendJson(response, 405, { error: 'Åtgärden stöds inte.' })
   }
   try {
     if (role === 'coach' && mode === 'status') return await coachAccess(request, response)
-    if (role === 'coach' && ['data', ...coachWrites].includes(mode)) return await coachFlight(request, response, mode)
-    if (coachWrites.includes(mode)) return sendJson(response, 403, { error: 'Tränarna ställer in Flight Records mätvärden och vikter.' })
-    if (mode === 'data') return sendJson(response, 403, { error: 'Detaljvyn öppnas från tränarens simmarkort.' })
+    if (role === 'coach' && [...coachReads, ...coachWrites].includes(mode)) return await coachFlight(request, response, mode)
+    if (coachWrites.includes(mode)) return sendJson(response, 403, { error: 'Tränarna hanterar Flight Records inställningar.' })
+    if (coachReads.includes(mode)) return sendJson(response, 403, { error: 'Detaljvyn öppnas från tränarens simmarkort.' })
     if (role !== 'swimmer') return sendJson(response, 403, { error: 'Formresan öppnas från simmarens egen profil.' })
     const profile = await getSessionProfile(request)
     if (!profile || !isTimeId(profile.id) || !profile.terms_accepted_at) return sendJson(response, 403, { error: 'Logga in på din simmarprofil.' })
