@@ -6,6 +6,14 @@ import { swimMeterDay } from './swim-meter-day.js'
 export const FLIGHT_HISTORY_DAYS = 90
 export const FLIGHT_PERIODS = [14, 28, 90]
 
+export function flightCompetitionJourney(competitions, asOf) {
+  return competitions.filter(item => item?.id && item.title && isTimeDate(item.startDate)).map(item => {
+    const endDate = isTimeDate(item.endDate) && item.endDate >= item.startDate ? item.endDate : item.startDate
+    const status = endDate < asOf ? 'past' : item.startDate <= asOf ? 'current' : 'upcoming'
+    return { id: item.id, title: item.title, startDate: item.startDate, endDate, status }
+  }).sort((a, b) => a.startDate.localeCompare(b.startDate))
+}
+
 function finite(value, min, max = Infinity) {
   return Number.isFinite(value) && value >= min && value <= max ? value : null
 }

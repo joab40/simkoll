@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays } from '../shared/coach-week.js'
-import { flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
+import { flightCompetitionJourney, flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 import { defaultFlightPbSettings } from '../shared/flight-pb.js'
@@ -23,6 +23,19 @@ const customId = '55555555-5555-4555-8555-555555555555'
 const coach = createCoachToken({ id: coachId, role: 'coach' })
 const today = stockholmDate(), yesterday = coachWeekAddDays(today, -1)
 const trial = { id: 'time-1', result_date: today, distance_meters: 100, stroke: 'freestyle', pool_length: 25, result_time: 6147, kind: 'test', start_type: 'push', exercise: 'full', equipment: [], timing_method: 'hand' }
+
+test('the competition journey is chronological and multi-day dates remain current until they end', () => {
+  const planned = [
+    { id: 'future', title: 'USM', startDate: '2026-12-02', endDate: '2026-12-03' },
+    { id: 'ongoing', title: 'Höstsim', startDate: '2026-11-21', endDate: '2026-11-22' },
+    { id: 'past', title: 'Kretssim', startDate: '2026-11-20' },
+    { id: 'invalid', title: 'Felaktigt datum', startDate: '2026-11-31' },
+  ]
+  const journey = flightCompetitionJourney(planned, '2026-11-22')
+  assert.deepEqual(journey.map(({ id, status }) => [id, status]), [['past', 'past'], ['ongoing', 'current'], ['future', 'upcoming']])
+  assert.equal(journey[0].endDate, '2026-11-20')
+  assert.equal(planned[0].id, 'future')
+})
 
 const json = (rows, status = 200) => new Response(JSON.stringify(rows), { status })
 async function call({ code = 'swimmer', method = 'GET', mode = 'status', profileId, body } = {}) {

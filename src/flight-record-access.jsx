@@ -65,14 +65,40 @@ export function useFlightRecordAccess(profileId, code, request) {
   return { ...state, choose, refresh }
 }
 
-export function FlightRecordHomeCard({ flight, code, request, competitions }) {
+function ActiveFlightRecordCard({ flight, code, request, competitions, themeKey }) {
+  const [open, setOpen] = useState(false)
+  const [sky, setSky] = useState(() => {
+    try { return localStorage.getItem(themeKey) === 'sky' } catch { return false }
+  })
+  const toggleTheme = () => {
+    const next = !sky
+    setSky(next)
+    try { localStorage.setItem(themeKey, next ? 'sky' : 'standard') } catch { /* The current view still works. */ }
+  }
+  return <details className={`flight-home-card${sky ? ' flight-home-sky' : ''}`} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary className="flight-home-summary">
+      <span className="flight-home-icon" aria-hidden="true">✈︎</span>
+      <span><strong>Flight Record</strong><small>Din formkurva och tävlingsresa</small></span>
+      <span className="flight-home-chevron" aria-hidden="true" />
+    </summary>
+    {open && <div className="flight-home-content">
+      <div className="flight-home-tools">
+        <button className="flight-theme-toggle" type="button" aria-pressed={sky} onClick={toggleTheme}>
+          <span aria-hidden="true">☁</span> Flygtema
+          <span className="flight-theme-switch" aria-hidden="true" />
+        </button>
+      </div>
+      <React.Suspense fallback={<p className="empty" role="status">Öppnar formgrafen…</p>}>
+        <FlightRecordChart code={code} request={request} competitions={competitions} sky={sky} onRefreshAccess={flight.refresh} />
+      </React.Suspense>
+    </div>}
+  </details>
+}
+
+export function FlightRecordHomeCard({ flight, code, request, competitions, profileId }) {
   if (!flight.access?.offered || flight.access.choice === 'later') return null
-  if (flight.access.choice === 'active') return <section className="flight-home-card" aria-label="Flight Record">
-    <h2>Flight Record <span aria-hidden="true">✈︎</span></h2>
-    <React.Suspense fallback={<p className="empty" role="status">Öppnar formgrafen…</p>}>
-      <FlightRecordChart key={flight.access.offerId} code={code} request={request} competitions={competitions} onRefreshAccess={flight.refresh} />
-    </React.Suspense>
-  </section>
+  if (flight.access.choice === 'active') return <ActiveFlightRecordCard key={flight.access.offerId}
+    flight={flight} code={code} request={request} competitions={competitions} themeKey={`simkoll-flight-theme:${profileId ?? flight.access.offerId}`} />
   return <section className="flight-invitation" aria-label="Flight Record">
     <span className="flight-invitation-icon" aria-hidden="true">✈︎</span>
     <div>

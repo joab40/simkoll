@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { coachWeekAddDays } from '../shared/coach-week.js'
-import { FLIGHT_PERIODS, flightTimeComparison } from '../shared/flight-record.js'
+import { FLIGHT_PERIODS, flightCompetitionJourney, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
@@ -57,7 +57,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status }) {
+function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, sky = false }) {
   const graph = useRef(null)
   const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
@@ -105,7 +105,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
-  return <figure className={onSelect ? 'flight-plot' : 'flight-plot flight-plot-static'} aria-label={plotLabel}>
+  return <figure className={`flight-plot${onSelect ? '' : ' flight-plot-static'}${sky ? ' flight-plot-sky' : ''}`} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
     <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till idag.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={right - today} height={base - top} />}
@@ -115,6 +115,7 @@ function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, tar
       </g>)}
       <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />
       {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
+      {sky && future > 0 && <text className="flight-goal-flag" x={right - 4} y={top + 19} textAnchor="end" aria-hidden="true">⚑</text>}
       {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
       {path && <path className="flight-observed-line" d={path} fill="none" />}
       {points.filter(point => Number.isFinite(point.value)).map(point => {
@@ -581,15 +582,56 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
   </>
 }
 
-function SwimmerFlightChart({ data, competitions }) {
-  const competition = competitions?.filter(item => isVisibleCompetition(item, data.asOf))
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
-  const target = competition ? { title: competition.title, date: competition.startDate } : null
-  return <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
-    status={data.partial ? 'Delar av underlaget saknas' : undefined} />
+function CompetitionJourney({ journey, asOf, selected, next, onSelect }) {
+  const viewport = useRef(null)
+  const activeStop = useRef(null)
+  useEffect(() => {
+    const strip = viewport.current, stop = activeStop.current
+    if (!strip || !stop) return
+    const visible = strip.getBoundingClientRect(), item = stop.getBoundingClientRect()
+    if (item.left < visible.left || item.right > visible.right) strip.scrollLeft += item.left - visible.left - 12
+  }, [selected?.id, journey.length])
+
+  const dayLabel = date => date.slice(0, 4) === asOf.slice(0, 4) ? shortDate(date) : `${shortDate(date)} ${date.slice(0, 4)}`
+  return <section className="flight-journey" aria-label="Tävlingsresan">
+    <header><h3><span aria-hidden="true">⚑</span> Tävlingsresan</h3></header>
+    {journey.length ? <div className="flight-journey-scroll" ref={viewport} tabIndex={0} aria-label="Tävlingar i datumordning">
+      <ol>{journey.map(event => {
+        const isSelected = event.id === selected?.id
+        const isNext = event.id === next?.id
+        const remaining = daysBetween(asOf, event.startDate)
+        const label = event.status === 'past' ? 'Datum passerat' : event.status === 'current' ? 'Pågår'
+          : isNext ? `Nästa · ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : isSelected ? `Om ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : 'Kommande'
+        const details = <>
+          <span className="flight-journey-node" aria-hidden="true">{event.status === 'past' ? '•' : '⚑'}</span>
+          <small className="flight-journey-date">{dayLabel(event.startDate)}{event.endDate !== event.startDate && ` – ${dayLabel(event.endDate)}`}</small>
+          <strong>{event.title}</strong>
+          <small className="flight-journey-status">{label}</small>
+        </>
+        return <li key={event.id} className={`flight-journey-event ${event.status}${isNext ? ' next' : ''}`}>
+          {event.status === 'past' ? <div className="flight-journey-stop">{details}</div>
+            : <button type="button" className="flight-journey-stop" aria-pressed={isSelected}
+              ref={isSelected ? activeStop : null} onClick={() => onSelect(event.id)}>{details}</button>}
+        </li>
+      })}</ol>
+    </div> : <p>Inga tävlingar i kalendern ännu.</p>}
+  </section>
 }
 
-export default function FlightRecordChart({ code, request, competitions, onRefreshAccess }) {
+function SwimmerFlightChart({ data, competitions = [], sky }) {
+  const [targetId, setTargetId] = useState(null)
+  const journey = useMemo(() => flightCompetitionJourney(competitions, data.asOf), [competitions, data.asOf])
+  const next = journey.find(event => event.status !== 'past')
+  const competition = journey.find(event => event.id === targetId && event.status !== 'past') ?? next
+  const target = competition ? { title: competition.title, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
+  return <>
+    {data.points.length > 0 ? <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
+      status={data.partial ? 'Delar av underlaget saknas' : undefined} sky={sky} /> : <p>För lite underlag för att visa en graf.</p>}
+    <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} />
+  </>
+}
+
+export default function FlightRecordChart({ code, request, competitions, onRefreshAccess, sky }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -607,6 +649,6 @@ export default function FlightRecordChart({ code, request, competitions, onRefre
     return () => controller.abort()
   }, [code, request, attempt, onRefreshAccess])
   if (error) return <div className="flight-error" role="alert"><p>{error}</p><button type="button" className="secondary-button" onClick={() => setAttempt(current => current + 1)}>Försök igen</button></div>
-  if (result) return <SwimmerFlightChart data={result} competitions={competitions} />
+  if (result) return <SwimmerFlightChart data={result} competitions={competitions} sky={sky} />
   return <p className="empty" role="status">Hämtar formgrafen…</p>
 }
