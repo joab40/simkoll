@@ -105,6 +105,7 @@ const StrengthProgramBuilder = deferredPanel(() => import('./strength-program-bu
 const WorkoutWorkbookReview = deferredPanel(() => import('./workout-workbook-review.jsx'))
 const CoachControlPanel = deferredPanel(() => import('./coach-control-panel.jsx'))
 const CoachFlightRecord = deferredPanel(() => import('./coach-flight-record.jsx'), 'Öppnar Flight Record…')
+const CoachFlightOverview = deferredPanel(() => import('./coach-flight-overview.jsx'), 'Öppnar Flight Record…')
 const CoachMetricDetails = deferredPanel(() => import('./coach-metric-details.jsx'))
 const DevelopmentTalkRoster = deferredPanel(() => import('./development-talk-roster.jsx'))
 const FormKollenCard = deferredPanel(() => import('./form-kollen.jsx'))
@@ -2814,12 +2815,18 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
         ) : view === 'control-panel' ? (
-          <CoachControlPanel showFlightRecord={coachVisible('flight-record')} openFlightOverview={openFlightOverview} onOpenFlightSettings={() => selectCoachView('flight-record')} profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
         ) : view === 'flight-record' ? (
           <CoachFlightRecord code={code} request={apiRequest} groups={availableGroups}
-            onOpenOverview={coachVisible('control-panel') ? () => { selectCoachView('control-panel'); setOpenFlightOverview(true) } : undefined} />
+            onOpenOverview={coachVisible('trends') ? () => { selectCoachView('trends'); setOpenFlightOverview(true) } : undefined} />
         ) : view === 'trends' ? (
-          <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
+          <>
+            {coachVisible('flight-record') && <CoachFlightOverview profiles={groupFilteredProfiles} asOf={todayKey()}
+              code={code} request={apiRequest} initialOpen={openFlightOverview}
+              onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }}
+              onOpenSettings={() => selectCoachView('flight-record')} />}
+            <AnalysisDashboard code={code} aiEnabled={aiEnabled} groupProfiles={groupFilteredProfiles} includeAnonymous={allGroupsSelected} />
+          </>
         ) : view === 'rewards' ? (
           <CoachRewards code={code} accountRole={accountRole} />
         ) : view === 'meeting' ? (

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { builtInFlightDefaults, flightGroupCurve, flightGroupId, FLIGHT_OVERVIEW_BATCH } from '../shared/flight-defaults.js'
+import { FLIGHT_HISTORY_DAYS, FLIGHT_PERIODS } from '../shared/flight-record.js'
+import { isTimeDate } from '../shared/swim-times.js'
 import { FlightPlot } from './flight-record.jsx'
 import './coach-flight-record.css'
 
@@ -26,15 +28,19 @@ function MiniFlightLine({ points }) {
   </svg>
 }
 
-export default function CoachFlightOverview({ profiles, end, isToday, request, code, onOpenSwimmer, onOpenSettings, initialOpen, refreshKey }) {
+export default function CoachFlightOverview({ profiles, asOf, request, code, onOpenSwimmer, onOpenSettings, initialOpen }) {
   const [open, setOpen] = useState(initialOpen)
+  const [period, setPeriod] = useState(FLIGHT_HISTORY_DAYS)
+  const [endDate, setEndDate] = useState(null)
   const [result, setResult] = useState(null)
   const [attempt, setAttempt] = useState(0)
   const [progress, setProgress] = useState(0)
   const [day, setDay] = useState(null)
   const roster = profiles.filter(profile => !profile.isTestProfile).sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv-SE'))
   const idKey = [...new Set(roster.map(profile => profile.id))].sort().join(',')
-  const loadKey = `${code}:${end}:${idKey}:${refreshKey}:${attempt}`
+  const end = endDate ?? asOf
+  const start = coachWeekAddDays(end, 1 - period)
+  const loadKey = `${code}:${end}:${idKey}:${attempt}`
 
   useEffect(() => {
     if (!open || !idKey || result?.key === loadKey) return
@@ -48,7 +54,7 @@ export default function CoachFlightOverview({ profiles, end, isToday, request, c
       for (let index = 0; index < ids.length; index += FLIGHT_OVERVIEW_BATCH) {
         const batch = ids.slice(index, index + FLIGHT_OVERVIEW_BATCH)
         try {
-          const data = await request(`/api/training?flightRecord=overview&end=${end}&ids=${encodeURIComponent(batch.join(','))}`, code, { signal: controller.signal, retry: false })
+          const data = await request(`/api/training?flightRecord=overview&end=${end}&days=${FLIGHT_HISTORY_DAYS}&ids=${encodeURIComponent(batch.join(','))}`, code, { signal: controller.signal, retry: false })
           if (controller.signal.aborted) return
           clubMinSwimmers = data.clubMinSwimmers
           data.profiles.forEach(profile => members.set(profile.id, profile))
@@ -69,26 +75,36 @@ export default function CoachFlightOverview({ profiles, end, isToday, request, c
   const groupMinimum = groups.size === 1 && loaded
     ? [...loaded.members.values()].find(member => groups.has(member.group))?.minSwimmers : null
   const minimum = groupMinimum ?? loaded?.clubMinSwimmers
-  const points = loaded ? flightGroupCurve(Array.from({ length: 28 }, (_, index) => coachWeekAddDays(end, index - 27)),
+  const points = loaded ? flightGroupCurve(Array.from({ length: period }, (_, index) => coachWeekAddDays(start, index)),
     roster.map(profile => loaded.members.get(profile.id) ?? {}), minimum) : []
   const selected = points.find(point => point.date === day) ?? points.at(-1)
   const someUnavailable = loaded && [...loaded.members.values()].some(member => member.unavailable || member.partial)
 
   return <details className="coach-flight-overview" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary><span className="coach-flight-icon" aria-hidden="true">✈︎</span>
-      <span><strong>Flight Record</strong><small>Grupptrend och simmarnas formkurvor</small></span>
+      <span><strong>Flight Record</strong><small>Gruppens och simmarnas formkurvor</small></span>
       <span className="coach-flight-count">{roster.length} simmare</span>
     </summary>
     <div className="coach-flight-overview-body">
-      {onOpenSettings && <div className="coach-flight-overview-tools">
-        <button type="button" className="text-button" onClick={onOpenSettings}>Standardinställningar →</button>
-      </div>}
+      <div className="coach-flight-overview-tools">
+        <div className="flight-segments" role="group" aria-label="Period för Flight Record">
+          {FLIGHT_PERIODS.map(days => <button key={days} type="button" aria-pressed={period === days}
+            onClick={() => { setPeriod(days); setDay(null) }}>{days} dagar</button>)}
+        </div>
+        <label className="flight-field">Till och med
+          <input type="date" value={end} min="1900-01-01" max={asOf} onChange={event => {
+            const date = event.currentTarget.value
+            if (isTimeDate(date) && event.currentTarget.validity.valid) setEndDate(date === asOf ? null : date)
+          }} />
+        </label>
+        {onOpenSettings && <button type="button" className="text-button" onClick={onOpenSettings}>Standardinställningar →</button>}
+      </div>
       {!roster.length ? <p>Inga simmare i de valda grupperna.</p> : !loaded ? <p role="status">Hämtar Flight Record · {progress} av {roster.length} simmare…</p> : <>
         {someUnavailable && <p role="status" className="coach-flight-note">Delar av underlaget kunde inte hämtas. <button type="button" className="text-button" onClick={() => setAttempt(value => value + 1)}>Hämta igen</button></p>}
         <FlightPlot days={points} points={points} metric={groupMetric} asOf={end} period={points.length} selected={selected.date} onSelect={setDay}
-          endLabel={isToday ? 'Idag' : dateLabel(end)} />
+          endLabel={end === asOf ? 'Idag' : dateLabel(end)} />
         <div className="coach-flight-overview-meta">
-          <p>Genomsnitt av simmarnas Flight-värden med deras respektive inställningar. Minst {minimum} simmare per dag ingår för att gruppkurvan ska visas.</p>
+          <p>Genomsnitt av simmarnas Flight-värden med deras respektive inställningar. En dag visas när minst {minimum} simmare har ett värde.</p>
           <label className="flight-field">Dag i gruppkurvan
             <select value={selected.date} onChange={event => setDay(event.target.value)}>
               {[...points].reverse().map(point => <option key={point.date} value={point.date}>{dateLabel(point.date)} · {point.value == null ? 'För lite underlag' : number(point.value)}</option>)}
@@ -98,16 +114,17 @@ export default function CoachFlightOverview({ profiles, end, isToday, request, c
         <p className="coach-flight-coverage" aria-live="polite">{dateLabel(selected.date)} · {selected.count} av {roster.length} simmare med värde</p>
         <div className="coach-flight-table-wrap">
           <table className="coach-flight-table">
-            <caption>Simmarnas Flight Record · senaste 28 dagarna till {dateLabel(end)}</caption>
+            <caption>Simmarnas Flight Record · {dateLabel(start)}–{dateLabel(end)}</caption>
             <thead><tr><th scope="col">Simmare</th><th scope="col">Senaste värde</th><th scope="col">Trend</th></tr></thead>
             <tbody>{roster.map(profile => {
               const member = loaded.members.get(profile.id)
-              const latest = member?.points.findLast(point => Number.isFinite(point.value))
+              const memberPoints = member?.points.filter(point => point.date >= start) ?? []
+              const latest = memberPoints.findLast(point => Number.isFinite(point.value))
               return <tr key={profile.id}>
                 <th scope="row"><button type="button" className="text-button" onClick={() => onOpenSwimmer(profile.id)}>{profile.emoji} {profile.displayName}</button></th>
                 <td>{latest ? <><strong>{number(latest.value)}</strong><small>{dateLabel(latest.date)}{latest.limited || member.partial ? ' · Begränsat underlag' : ''}</small></>
                   : <small>{member?.unavailable || !member ? 'Underlag ej tillgängligt' : 'För lite underlag'}</small>}</td>
-                <td>{latest && <MiniFlightLine points={member.points} />}</td>
+                <td>{latest && <MiniFlightLine points={memberPoints} />}</td>
               </tr>
             })}</tbody>
           </table>

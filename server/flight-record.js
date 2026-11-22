@@ -10,7 +10,7 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import { isTimeDate, isTimeId } from '../shared/swim-times.js'
 import { flightGroupId, FLIGHT_OVERVIEW_BATCH } from '../shared/flight-defaults.js'
 import { coachFlightDefaults, loadFlightDefaults } from './flight-defaults.js'
-import { FLIGHT_HISTORY_DAYS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
+import { FLIGHT_HISTORY_DAYS, FLIGHT_PERIODS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_CONTEXT_DAYS, flightTaperAdjustments } from '../shared/flight-taper.js'
@@ -58,10 +58,10 @@ function profileWeights(profile) {
   return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
 }
 
-async function loadFlightRecord(profile, end, { chartOnly = false, preview = false, defaults: loadedDefaults, planningCache } = {}) {
+async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = swimmerChartDays, preview = false, defaults: loadedDefaults, planningCache } = {}) {
   const defaults = loadedDefaults ?? await loadFlightDefaults([profile.training_group])
   const inherited = defaults.group(profile.training_group) ?? defaults.club
-  const start = coachWeekAddDays(end, 1 - (chartOnly ? swimmerChartDays : FLIGHT_HISTORY_DAYS))
+  const start = coachWeekAddDays(end, 1 - (chartOnly ? chartDays : FLIGHT_HISTORY_DAYS))
   const contextStart = coachWeekAddDays(start, 1 - FLIGHT_RECENT_DAYS - FLIGHT_BASELINE_DAYS)
   const boostSettings = readFlightBoostSettings(profile[boostSettingsField] ?? inherited.boosts)
   const presentation = readFlightPresentation(profile[presentationField] ?? inherited.presentation)
@@ -260,7 +260,9 @@ async function loadChartForSwimmer(response, profile) {
 }
 
 async function coachFlightOverview(request, response) {
-  const end = request.query.end
+  const { end, days } = request.query
+  const chartDays = days === undefined ? swimmerChartDays : FLIGHT_PERIODS.find(period => String(period) === days)
+  if (!chartDays) return sendJson(response, 400, { error: 'Välj 14, 28 eller 90 dagar för gruppkurvan.' })
   const ids = typeof request.query.ids === 'string' ? [...new Set(request.query.ids.split(','))] : []
   if (!isTimeDate(end) || end > stockholmDate() || end < '1900-01-01'
     || !ids.length || ids.length > FLIGHT_OVERVIEW_BATCH || !ids.every(isTimeId)) {
@@ -275,7 +277,7 @@ async function coachFlightOverview(request, response) {
       const group = flightGroupId(profile.training_group)
       const model = { id: profile.id, group, minSwimmers: (defaults.group(group) ?? defaults.club).minSwimmers }
       try {
-        const chart = await loadFlightRecord(profile, end, { chartOnly: true, defaults, planningCache })
+        const chart = await loadFlightRecord(profile, end, { chartOnly: true, chartDays, defaults, planningCache })
         return { ...model, partial: chart.partial, points: chart.points.map(({ date, value, limited }) => ({ date, value, ...(limited ? { limited } : {}) })) }
       } catch {
         return { ...model, unavailable: true, points: [] }

@@ -68,7 +68,7 @@ export default function CoachFlightRecord({ code, request, groups, onOpenOvervie
     <header className="period-heading">
       <div><h1>Flight Record</h1><p>Standardvärden för simmare och träningsgrupper.</p></div>
       {onOpenOverview && <button type="button" className="secondary-button" disabled={saving} onClick={() => {
-        if (!dirty || window.confirm('Öppna kontrollpanelen och lämna dina osparade ändringar?')) onOpenOverview()
+        if (!dirty || window.confirm('Öppna Grupptrend och lämna dina osparade ändringar?')) onOpenOverview()
       }}>Öppna gruppöversikten →</button>}
     </header>
     <div className="coach-flight-settings-card">
@@ -102,7 +102,7 @@ export default function CoachFlightRecord({ code, request, groups, onOpenOvervie
             update={patch => update(current => ({ ...current, presentation: { ...current.presentation, ...patch } }))} /></div>
         </details>
         <details className="flight-weights">
-          <summary>Gruppkurvan i kontrollpanelen</summary>
+          <summary>Gruppkurvan i Grupptrend</summary>
           <div className="flight-measure-fields">
             <label>Minsta antal simmare med värde per dag
               <input type="number" inputMode="numeric" min={FLIGHT_MIN_SWIMMERS} max={FLIGHT_MAX_MIN_SWIMMERS}

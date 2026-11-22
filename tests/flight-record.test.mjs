@@ -368,6 +368,19 @@ test('the coach roster returns only date-limited chart values for approved profi
   assert.equal(result.data.profiles[0].points.length, 28)
   assert.equal(result.data.profiles[0].points.at(-1).date, yesterday)
   assert.doesNotMatch(JSON.stringify(result.data), /PRIVATE NOTE|coachAccountId|flight_record_choice/)
+
+  const longerQuery = { ...query, days: '90' }
+  const longer = await call({ code: coach, mode: 'overview', query: longerQuery })
+  assert.equal(longer.code, 200)
+  const longerPoints = longer.data.profiles[0].points
+  assert.equal(longerPoints.length, 90)
+  assert.equal(longerPoints[0].date, coachWeekAddDays(yesterday, -89))
+  assert(longerPoints.slice(0, -28).some(point => Number.isFinite(point.value)))
+  assert.deepEqual(longerPoints.slice(-28), result.data.profiles[0].points)
+  assert.equal((await call({ mode: 'overview', query: longerQuery })).code, 403)
+  for (const days of ['0', '91', '90.0', ['28', '90']]) {
+    assert.equal((await call({ code: coach, mode: 'overview', query: { ...query, days } })).code, 400)
+  }
 })
 
 test('group curve respects coverage thresholds and never treats missing values as zero', () => {

@@ -314,7 +314,7 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-destination .flight-field { margin: 0; max-width: min(100%, 370px); }
 .flight-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 17px; margin: 16px 0 10px; }
 .flight-segments { display: flex; flex-wrap: wrap; gap: 6px; }
-.flight-segments button, .flight-field select {
+.flight-segments button, .flight-field :is(select, input[type="date"]) {
   min-height: 44px;
   border: 1px solid var(--flight-line);
   border-radius: 10px;
@@ -324,7 +324,7 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-segments button { padding: 8px 11px; font-size: .9rem; font-weight: 680; }
 .flight-segments button[aria-pressed="true"] { background: #dcefeb; border-color: #8cbbb3; color: #075760; }
 .flight-field { display: grid; gap: 5px; margin: 10px 0; font-size: .86rem; font-weight: 700; }
-.flight-field select { box-sizing: border-box; min-width: 0; max-width: 100%; width: fit-content; padding: 7px 10px; font-size: 16px; font-weight: 500; }
+.flight-field :is(select, input[type="date"]) { box-sizing: border-box; min-width: 0; max-width: 100%; width: fit-content; padding: 7px 10px; font-size: 16px; font-weight: 500; }
 .flight-coach-content > .flight-field select { width: min(100%, 630px); }
 .flight-plot {
   margin: 14px 0 0;
