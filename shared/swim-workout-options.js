@@ -44,6 +44,37 @@ export function planningAmountRange(items, field) {
   return { min, max }
 }
 
+const workoutStartTime = item => (item.calendarLink?.mode === 'linked' && item.calendarLink.time) || item.time || ''
+
+function workoutPeriod(item) {
+  if (['morning', 'afternoon'].includes(item.timeOfDay)) return item.timeOfDay
+  const time = workoutStartTime(item)
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time ?? '') || time === '00:00') return null
+  return Number(time.slice(0, 2)) < 12 ? 'morning' : 'afternoon'
+}
+
+const checkinSlots = [
+  { slot: 'morning_swim', period: 'morning', clubLabel: '🌅 Klubbens morgonpass', timeLabel: '🌅 Simning på morgonen' },
+  { slot: 'afternoon_swim', period: 'afternoon', clubLabel: '🌇 Klubbens eftermiddag / kväll', timeLabel: '🌇 Simning på eftermiddagen / kvällen' },
+]
+
+export function checkinSwimChoices(plans, { allowUnplanned = false } = {}) {
+  const ordered = [...plans].sort((a, b) => workoutStartTime(a).localeCompare(workoutStartTime(b)))
+  const untimed = ordered.filter(plan => workoutPeriod(plan) == null)
+  return checkinSlots.flatMap(({ slot, period, clubLabel, timeLabel }) => {
+    const scheduled = ordered.filter(plan => workoutPeriod(plan) === period)
+    if (!scheduled.length && !untimed.length && !allowUnplanned) return []
+    return [{
+      slot,
+      label: scheduled.length ? clubLabel : timeLabel,
+      description: scheduled.length
+        ? scheduled.map(plan => plan.title).filter(Boolean).join(' · ')
+        : untimed.length ? 'Klubbpass utan angiven starttid' : 'Pass som saknas i planeringen',
+      options: [...scheduled, ...untimed],
+    }]
+  })
+}
+
 export function validWorkoutOption(option, { date, slot, trainingGroup }) {
   const time = slot === 'morning_swim' ? 'morning' : slot === 'afternoon_swim' ? 'afternoon' : null
   return Boolean(option && option.date === date && time && (!option.timeOfDay || option.timeOfDay === time) && (!option.targetGroups?.length || (trainingGroup && option.targetGroups.includes(trainingGroup))))

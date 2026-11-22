@@ -29,7 +29,7 @@ import TrendLineChart from './trend-line-chart.jsx'
 import { activityLabel } from '../shared/checkin-activity.js'
 import { personalCheckinDetails } from '../shared/personal-training.js'
 import PersonalTrainingPlanner, { PersonalPassPicker, usePersonalTraining } from './personal-training.jsx'
-import { groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
+import { checkinSwimChoices, groupSwimOccasions, planningAmountRange, workoutReference } from '../shared/swim-workout-options.js'
 import { calendarActivityKey, calendarFormValues, calendarLinkKeys, selectPlanningCalendarActivity, explicitCalendarMatches } from '../shared/planning-calendar.js'
 import './swim-workout-options.css'
 import './planning-calendar.css'
@@ -474,7 +474,6 @@ function App() {
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
           competitionStatusLoaded={competitionsLoaded}
           plannedWorkouts={checkinActivityDate === todayKey() ? workout : []}
-          plannedSwimSlots={(training?.plannedSessions || []).filter((item) => item.date === checkinActivityDate && ['morning_swim', 'afternoon_swim'].includes(item.slot)).map((item) => item.slot)}
           onBack={() => setScreen('home')}
           onSubmit={async (response) => {
             const result = await apiRequest('/api/responses', auth.code, {
@@ -2227,7 +2226,7 @@ function MyProfile({ flightRecord, profile, points, code, onProfileChange, onBac
   )
 }
 
-export function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], plannedSwimSlots = [], onBack, onSubmit, request = apiRequest }) {
+export function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], onBack, onSubmit, request = apiRequest }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
@@ -2277,27 +2276,30 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
   const questions = [...(identified && hasProfile && (dailyPrompts?.illness ?? illnessStatus !== 'done') ? [{ key: 'dailyIllness', title: 'Känner du dig sjuk eller på väg att bli sjuk?', hint: 'Sjukdomskänsla är något annat än trötthet efter träningen.', kind: 'dailyIllness' }] : []), ...(identified && hasProfile && (dailyPrompts?.sleep ?? sleepStatus !== 'done') ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
-  const swimPlans = hasProfile ? workoutOptions : (Array.isArray(plannedWorkouts) ? plannedWorkouts : [plannedWorkouts]).filter(Boolean)
-  const personalPlans = usePersonalTraining(code, activityDate, activityDate, hasProfile && identified, request)
+  const allowPersonal = hasProfile && identified
+  const swimPlans = (hasProfile ? (optionsStatus === 'done' ? workoutOptions : []) : [plannedWorkouts].flat())
+    .filter(plan => plan?.date === activityDate)
+  const clubChoices = checkinSwimChoices(swimPlans, { allowUnplanned: !allowPersonal && optionsStatus === 'done' })
+  const personalPlans = usePersonalTraining(code, activityDate, activityDate, allowPersonal, request)
   const needsPassChoice = form.competition !== true && (form.type === 'before' || (needsActivity && form.activityType === 'swim' && !form.personalSessionId))
   const needsSwimSlot = needsPassChoice && form.activityType === 'swim' && !form.personalSessionId
   const slotStep = needsActivity ? 2 : 1
   const needsWorkoutChoice = needsActivity && form.activityType === 'swim' && !form.personalSessionId
   const workoutStep = slotStep + 1
-  const slotTime = form.trainingSlot === 'morning_swim' ? 'morning' : 'afternoon'
-  const slotOptions = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === slotTime).sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
+  const slotOptions = clubChoices.find(choice => choice.slot === form.trainingSlot)?.options ?? []
   const selectedOption = slotOptions.find((plan) => workoutReference(plan) === form.workoutReference)
   const questionOffset = (needsActivity ? 3 : 2) + (needsPassChoice ? 1 : 0) + (needsWorkoutChoice ? 1 : 0)
   const total = questionOffset + questions.length
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const next = () => setStep((current) => current + 1)
-  const chooseClub = option => {
-    const options = swimPlans.filter(plan => !plan.timeOfDay || plan.timeOfDay === option.time)
-    setForm(current => ({ ...current, activityType: 'swim', personalSessionId: null, trainingOrigin: null, activityFocus: null, activitySport: null, personalTimeOfDay: null, registeredActivity: null, trainingSlot: option.slot, workoutReference: current.type === 'after' && options.length === 1 ? workoutReference(options[0]) : null, activityDistanceMeters: null, activityMinutes: null, registerTraining: current.type === 'after', plannedCompletion: 'full' }))
+  const chooseClub = ({ slot, options }) => {
+    setForm(current => ({ ...current, activityType: 'swim', personalSessionId: null, trainingOrigin: null, activityFocus: null, activitySport: null, personalTimeOfDay: null, registeredActivity: null, trainingSlot: slot, workoutReference: current.type === 'after' && options.length === 1 ? workoutReference(options[0]) : null, activityDistanceMeters: null, activityMinutes: null, registerTraining: current.type === 'after', plannedCompletion: 'full' }))
     setStep(form.type === 'after' ? 3 : 2)
   }
-  const passPicker = <PersonalPassPicker form={form} clubs={[{ slot: 'morning_swim', time: 'morning', label: '🌅 Klubbens morgonpass' }, { slot: 'afternoon_swim', time: 'afternoon', label: '🌇 Klubbens eftermiddag / kväll' }].map(option => ({ ...option, description: swimPlans.filter(plan => !plan.timeOfDay || plan.timeOfDay === option.time).map(plan => plan.title).join(' · ') }))} onClub={chooseClub} onChange={patch => setForm(current => ({ ...current, ...patch }))} onContinue={next} personalPlans={personalPlans.sessions} registered={personalPlans.registered} plansLoading={personalPlans.loading} plansError={personalPlans.error} onReload={personalPlans.refresh} allowPersonal={hasProfile && identified}/>
+  const clubStatus = optionsStatus === 'loading' ? <p role="status">Hämtar klubbens pass…</p> : optionsStatus === 'error'
+    ? <p role="alert" className="form-error">Klubbens pass kunde inte hämtas. <button type="button" className="text-button" onClick={() => setOptionsRetry(value => value + 1)}>Försök igen</button></p> : null
+  const passPicker = <>{clubStatus}<PersonalPassPicker form={form} clubs={clubChoices} onClub={chooseClub} onChange={patch => setForm(current => ({ ...current, ...patch }))} onContinue={next} personalPlans={personalPlans.sessions} registered={personalPlans.registered} plansLoading={personalPlans.loading} plansError={personalPlans.error} onReload={personalPlans.refresh} allowPersonal={allowPersonal}/></>
   const submit = async () => {
     if (needsSwimSlot && !['morning_swim', 'afternoon_swim'].includes(form.trainingSlot)) { setSubmitError('Välj morgonpass eller eftermiddag / kväll innan du skickar.'); return }
     if (needsWorkoutChoice && (optionsStatus !== 'done' || (slotOptions.length && !selectedOption))) { setSubmitError('Gå tillbaka och välj vilket upplägg du tränade.'); return }
@@ -2337,7 +2339,8 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
     content = <Question eyebrow="Din träning" title="Vilket pass ska du träna?" hint="Välj passet du planerar. Det räknas som genomfört först när du rapporterar efteråt.">{passPicker}</Question>
   } else if (needsSwimSlot && step === slotStep) {
     content = <Question eyebrow="Vilket simpass?" title={form.type === 'before' ? 'Vilket pass ska du träna?' : 'Vilket pass tränade du?'} hint="Svaret kopplas bara till det pass du väljer. Rapportera båda separat om du tränat två simpass.">
-      <div className="choice-stack">{[{ slot: 'morning_swim', time: 'morning', label: '🌅 Morgonpass' }, { slot: 'afternoon_swim', time: 'afternoon', label: '🌇 Eftermiddag / kväll' }].map((option) => <button type="button" key={option.slot} className={`choice-card choice-card-with-description${form.trainingSlot === option.slot ? ' selected' : ''}`} onClick={() => { const options = swimPlans.filter((plan) => !plan.timeOfDay || plan.timeOfDay === option.time); setForm((current) => ({ ...current, trainingSlot: option.slot, workoutReference: current.type === 'after' && options.length === 1 ? workoutReference(options[0]) : null, activityDistanceMeters: null, activityMinutes: null })); next() }}><span>{option.label}<small>{swimPlans.filter((plan) => plan.timeOfDay === option.time).map((plan) => plan.title).join(' · ') || (plannedSwimSlots.includes(option.slot) ? 'Finns i din veckoplan' : 'Välj om detta är passet du menar')}</small></span><span>›</span></button>)}</div>
+      {clubStatus}
+      <PersonalPassPicker form={form} clubs={clubChoices} onClub={chooseClub} allowPersonal={false} />
     </Question>
   } else if (needsWorkoutChoice && step === workoutStep) {
     content = <Question eyebrow="Ditt simpass" title={slotOptions.length > 1 ? 'Vilket upplägg körde du?' : 'Stämmer passuppgifterna?'} hint="Bara det valda upplägget räknas. Justera mängden om du simmade något annat.">

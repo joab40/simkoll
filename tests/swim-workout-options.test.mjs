@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { groupSwimOccasions, planningAmountRange, swimWorkoutOptions, validWorkoutOption } from '../shared/swim-workout-options.js'
+import { checkinSwimChoices, groupSwimOccasions, planningAmountRange, swimWorkoutOptions, validWorkoutOption } from '../shared/swim-workout-options.js'
 import { buildDiaryEntries, summarizeDiary } from '../shared/training-diary.js'
 import { toDatabase, fromDatabase } from '../api/responses.js'
 import { validCheckinActivity } from '../shared/checkin-activity.js'
@@ -14,6 +14,27 @@ const workouts = [
 const session = { session_date: date, session_slot: 'morning_swim', activity_type: 'swim' }
 const response = { day_type: 'after', activity_date: date, session_slot: 'morning_swim', activity_type: 'swim', created_at: date + 'T10:00:00Z', planned_completion: 'full' }
 const diary = (responses = [], extra = {}) => buildDiaryEntries({ sessions: [session], responses, workouts, trainingGroup: 'junior', today: '2026-10-28', ...extra })
+
+test('check-in only names club slots that have a plan and keeps untimed and anonymous choices neutral', () => {
+  const afternoon = { title: 'Toppning', timeOfDay: 'afternoon', time: '16:00' }
+  const evening = { title: 'Distans', calendarLink: { mode: 'linked', time: '19:00' } }
+  const [choice, missing] = checkinSwimChoices([evening, afternoon])
+  assert.equal(missing, undefined)
+  assert.equal(choice.slot, 'afternoon_swim')
+  assert.match(choice.label, /Klubbens eftermiddag/)
+  assert.equal(choice.description, 'Toppning · Distans')
+  assert.deepEqual(checkinSwimChoices([]), [])
+
+  const untimed = { title: 'Pass utan starttid', time: '00:00' }
+  const [morning, pm] = checkinSwimChoices([afternoon, untimed])
+  assert.match(morning.description, /utan angiven starttid/)
+  assert.doesNotMatch(morning.label, /Klubbens/)
+  assert(morning.options.includes(untimed))
+  assert(pm.options.includes(afternoon))
+  const anonymous = checkinSwimChoices([], { allowUnplanned: true })
+  assert.equal(anonymous.length, 2)
+  assert(anonymous.every(option => option.options.length === 0 && !option.label.includes('Klubbens')))
+})
 
 test('a chosen alternative contributes one session and only its own planned amount', () => {
   const entries = diary([{ ...response, workout_reference: `workout:${b}` }])
