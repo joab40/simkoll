@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { coachWeekAddDays } from '../shared/coach-week.js'
+import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
+import { flightWeekAnnotations } from '../shared/planning-week-types.js'
 import { FLIGHT_PERIODS, flightCompetitionJourney, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
@@ -60,7 +61,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag' }) {
+export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag', weekTypes = [] }) {
   const graph = useRef(null)
   const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
@@ -96,6 +97,8 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   const x = (date) => left + daysBetween(start, date) / domain * (historyRight - left)
   const y = (value) => top + (timed ? (value - min) : (max - value)) / (max - min) * (base - top)
   const today = x(asOf)
+  const plannedWeeks = flightWeekAnnotations(weekTypes, start, asOf)
+  const selectedWeek = plannedWeeks.find(week => week.weekStart === coachWeekMonday(selected ?? asOf))
   const ticks = timed ? [min, Math.round((min + max) / 2), max] : metric.scale?.[1] === 5 ? [1, 2, 3, 4, 5] : [min, (min + max) / 2, max]
   const midpoint = days[Math.floor((days.length - 1) / 2)]?.date
   const showMidpoint = skyGoal ? historyRight - left > 380 : width > 430
@@ -184,6 +187,15 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
           width={planeWidth} height={planeWidth * .5} />
       </g>
         : <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
+      {plannedWeeks.map(week => {
+        const nextWeek = coachWeekAddDays(week.weekStart, 7)
+        const from = x(week.weekStart < start ? start : week.weekStart)
+        const to = nextWeek <= asOf ? x(nextWeek) : today
+        return <rect key={week.weekStart} className={`flight-week-mark week-type-${week.type}`}
+          x={Math.min(from, today - 3)} width={Math.max(3, to - from - 1)} y={base + 4} height="4" rx="2">
+          <title>{shortDate(week.weekStart)} · {week.text}</title>
+        </rect>
+      })}
       {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? endLabel : shortDate(date)}</text>)}
       {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
       {skyGoal && <text x={palaceCenter} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
@@ -196,6 +208,12 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
       {future > 0 && <span><i className="flight-legend-future"/> {onSelect ? 'Planerad tävlingsdag' : target.title}</span>}
       {status && <span role="status">{status}</span>}
     </div>
+    {plannedWeeks.length > 0 && <details className="flight-plot-weeks">
+      <summary>Planerade veckotyper{selectedWeek && ` · ${selectedWeek.text}`}</summary>
+      <ul>{plannedWeeks.map(week => <li key={week.weekStart}><span className={`flight-week-mark week-type-${week.type}`} aria-hidden="true"/>
+        <strong>{shortDate(week.weekStart)}–{shortDate(coachWeekAddDays(week.weekStart, 6))}</strong> {week.text}
+      </li>)}</ul>
+    </details>}
   </figure>
 }
 
@@ -452,7 +470,7 @@ function timeEvidence(event) {
   return `${difference} Tempus-PB ${formatTrainingTime(event.reference)} (${shortDate(event.referenceDate)}).`
 }
 
-export function FlightRecordView({ data, competitions = [], saveWeights, saveMeasure, loadPreview, savePresentation }) {
+export function FlightRecordView({ data, competitions = [], weekTypes = [], saveWeights, saveMeasure, loadPreview, savePresentation }) {
   const [period, setPeriod] = useState(28)
   const [section, setSection] = useState('line')
   const [metricChoice, setMetricChoice] = useState({})
@@ -614,7 +632,7 @@ export function FlightRecordView({ data, competitions = [], saveWeights, saveMea
     </fieldset>}
     {coverage > 0 && <div className="flight-chart-list">
       {plots.map(({ metric, points }) => <FlightPlot key={metric.key ?? 'line'} days={days} metric={metric} timed={timed}
-        points={points} selected={day.date} onSelect={setSelectedDate} asOf={data.asOf} target={target} period={period} />)}
+        points={points} selected={day.date} onSelect={setSelectedDate} asOf={data.asOf} target={target} period={period} weekTypes={weighted ? weekTypes : undefined} />)}
     </div>}
     {plots.length > 0 ? <div className="flight-detail-row">
       <p>{coverage ? `${coverage} ${weighted ? 'dagar med beräknat värde' : timed ? 'jämförbara dagar' : 'dagar med rapporterade mått'} i perioden` : 'För lite underlag för att visa en graf i perioden.'}</p>

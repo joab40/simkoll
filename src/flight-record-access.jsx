@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createVisibleRefresh } from './visible-refresh.js'
 import SwimmerCardSummary from './swimmer-card-summary.jsx'
+import { flightGroupId } from '../shared/flight-defaults.js'
+import { usePlanningWeekTypes } from './use-planning-week-types.js'
 import './flight-record.css'
 
 const statusUrl = '/api/training?flightRecord=status'
@@ -112,11 +114,14 @@ export function FlightRecordProfileSetting({ flight }) {
   </section>
 }
 
-function CoachFlightRecord({ profileId, code, request, competitions }) {
+function CoachFlightRecord({ profileId, code, request, competitions, trainingGroup }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [overrideSaved, setOverrideSaved] = useState(false)
+  const groupId = flightGroupId(trainingGroup)
+  const weekPlan = usePlanningWeekTypes({ code, request, from: groupId ? data?.start : null, to: data?.asOf })
+  const weekTypes = weekPlan.data?.weekTypes?.filter(row => row.groupId === groupId) ?? []
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState('')
   const resetLock = useRef(false)
@@ -193,7 +198,7 @@ function CoachFlightRecord({ profileId, code, request, competitions }) {
       </> : data.inheritedFromGroup ? 'Simmaren följer träningsgruppens standardinställningar.' : 'Simmaren följer klubbens standardinställningar.'}
     </p>
     {resetError && <p className="flight-error" role="alert">{resetError}</p>}
-    <FlightRecordDetails data={data} competitions={competitions} saveWeights={saveWeights} saveMeasure={saveMeasure}
+    <FlightRecordDetails data={data} competitions={competitions} weekTypes={weekTypes} saveWeights={saveWeights} saveMeasure={saveMeasure}
       loadPreview={loadPreview} savePresentation={savePresentation} />
   </React.Suspense>
 }

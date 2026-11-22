@@ -23,6 +23,7 @@ import { importDriveWorkbook } from '../server/drive-workout-import.js'
 import { loadPlanningFile, inspectPlanningFile, analyzePlanningFile, loadPlanningRows, preparePlanningImport, planningCalendarChoices } from '../server/planning-import.js'
 import { validatePlanningDraft, validatePlanningSelection } from '../shared/planning-import.js'
 import { loadPlanningGroups } from '../server/planning-groups.js'
+import { handlePlanningWeekTypes } from '../server/planning-week-types.js'
 import { loadHiddenCalendarActivities, visibleCalendarActivities, setCalendarVisibility } from '../server/calendar-visibility.js'
 import { driveApiKey, loadDriveConfig, listDriveFolder, verifyDriveFolder, saveDriveSettings } from '../server/drive-settings.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
@@ -634,6 +635,11 @@ export default async function handler(request, response) {
   const canManageCompetitionProgram = ['head_coach', 'superadmin'].includes(coachAccount?.role)
 
   try {
+    if ((request.method === 'GET' && request.query?.weekTypes === 'true' && request.body?.action !== 'logout')
+      || (request.method === 'POST' && request.body?.action === 'set-planning-week-type')) {
+      try { return await handlePlanningWeekTypes(request, response, role) }
+      catch (error) { return sendJson(response, error.status || 503, { error: error.status ? error.message : 'Veckotypen kunde inte behandlas. Försök igen.' }) }
+    }
     if (request.method === 'GET') {
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Dagens pass visas bara för inloggade profiler.' })

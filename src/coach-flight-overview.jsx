@@ -4,6 +4,7 @@ import { builtInFlightDefaults, flightGroupCurve, flightGroupId, FLIGHT_OVERVIEW
 import { FLIGHT_HISTORY_DAYS, FLIGHT_PERIODS } from '../shared/flight-record.js'
 import { isTimeDate } from '../shared/swim-times.js'
 import { FlightPlot } from './flight-record.jsx'
+import { usePlanningWeekTypes } from './use-planning-week-types.js'
 import './coach-flight-record.css'
 
 const groupMetric = { label: 'Gruppens Flight-linje', subtitle: '50 = vanlig nivå', legend: 'Gruppens genomsnitt', unit: '', scale: [0, 100] }
@@ -28,7 +29,7 @@ function MiniFlightLine({ points }) {
   </svg>
 }
 
-export default function CoachFlightOverview({ profiles, asOf, request, code, onOpenSwimmer, onOpenSettings, initialOpen }) {
+export default function CoachFlightOverview({ profiles, availableGroups = [], asOf, request, code, onOpenSwimmer, onOpenSettings, initialOpen }) {
   const [open, setOpen] = useState(initialOpen)
   const [period, setPeriod] = useState(FLIGHT_HISTORY_DAYS)
   const [endDate, setEndDate] = useState(null)
@@ -72,6 +73,10 @@ export default function CoachFlightOverview({ profiles, asOf, request, code, onO
 
   const loaded = result?.key === loadKey ? result : null
   const groups = new Set(roster.map(profile => flightGroupId(profile.trainingGroup)))
+  const weekPlan = usePlanningWeekTypes({ code, request, from: open && idKey ? coachWeekAddDays(end, 1 - FLIGHT_HISTORY_DAYS) : null, to: end })
+  const groupNames = new Map(availableGroups)
+  const weekTypes = weekPlan.data?.weekTypes?.filter(row => groups.has(row.groupId))
+    .map(row => ({ ...row, groupName: groups.size > 1 ? groupNames.get(row.groupId) ?? row.groupId : null })) ?? []
   const groupMinimum = groups.size === 1 && loaded
     ? [...loaded.members.values()].find(member => groups.has(member.group))?.minSwimmers : null
   const minimum = groupMinimum ?? loaded?.clubMinSwimmers
@@ -102,7 +107,7 @@ export default function CoachFlightOverview({ profiles, asOf, request, code, onO
       {!roster.length ? <p>Inga simmare i de valda grupperna.</p> : !loaded ? <p role="status">Hämtar Flight Record · {progress} av {roster.length} simmare…</p> : <>
         {someUnavailable && <p role="status" className="coach-flight-note">Delar av underlaget kunde inte hämtas. <button type="button" className="text-button" onClick={() => setAttempt(value => value + 1)}>Hämta igen</button></p>}
         <FlightPlot days={points} points={points} metric={groupMetric} asOf={end} period={points.length} selected={selected.date} onSelect={setDay}
-          endLabel={end === asOf ? 'Idag' : dateLabel(end)} />
+          endLabel={end === asOf ? 'Idag' : dateLabel(end)} weekTypes={weekTypes} />
         <div className="coach-flight-overview-meta">
           <p>Genomsnitt av simmarnas Flight-värden med deras respektive inställningar. En dag visas när minst {minimum} simmare har ett värde.</p>
           <label className="flight-field">Dag i gruppkurvan

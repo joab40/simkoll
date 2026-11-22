@@ -1,0 +1,40 @@
+.planning-week-types {
+  display: grid;
+  gap: 10px;
+  padding: clamp(14px, 3vw, 22px);
+  border: 1px solid #dbe8e5;
+  border-radius: 18px;
+  background: var(--paper);
+}
+.planning-week-types h2, .planning-week-types p { margin: 0; }
+.planning-week-types h2 { font-size: 1.25rem; }
+.planning-week-type-row {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) auto;
+  align-items: end;
+  justify-content: start;
+  gap: 6px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e0ece8;
+}
+.planning-week-type-row label { display: grid; min-width: 0; gap: 5px; }
+.planning-week-type-row select {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 1px solid #c8ddd8;
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+.planning-week-type-row > button { min-height: 44px; }
+.planning-week-type-row > button:disabled { opacity: .55; cursor: default; }
+.planning-week-type-row p { grid-column: 1 / -1; }
+.planning-week-type-hint, .planning-week-competitions small { color: var(--muted); font-size: .86rem; }
+.planning-week-type-hint button { color: var(--teal); padding: 5px 2px; font-weight: 700; text-decoration: underline; }
+.planning-week-competitions h3 { margin: 2px 0 7px; font-size: 1rem; }
+.planning-week-competitions ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.planning-week-competitions small { margin-inline-start: 4px; }

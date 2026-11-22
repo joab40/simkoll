@@ -361,6 +361,19 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
 .flight-lift-mark { cursor: pointer; }
 .flight-plot-static :is(.flight-mark, .flight-lift-mark) { cursor: default; }
 .flight-plot svg .flight-empty-label { font-weight: 650; }
+.flight-week-mark { fill: var(--week-color); background: var(--week-color); }
+.flight-week-mark.week-type-regular { --week-color: #b8d5dc; }
+.flight-week-mark.week-type-build { --week-color: #84c4f5; }
+.flight-week-mark.week-type-high_load { --week-color: #f7a98c; }
+.flight-week-mark.week-type-specific { --week-color: #c6b6f4; }
+.flight-week-mark.week-type-pre_taper { --week-color: #a4d698; }
+.flight-week-mark.week-type-taper { --week-color: #f7d081; }
+.flight-week-mark.week-type-recovery { --week-color: #78e1cc; }
+.flight-week-mark.week-type-mixed { --week-color: #c3c9df; }
+.flight-plot-weeks { margin: 0 13px 12px; padding: 7px 9px; border-radius: 9px; background: #eff8f7; color: #173a44; font-size: .8rem; }
+.flight-plot-weeks summary { cursor: pointer; font-weight: 680; }
+.flight-plot-weeks ul { display: grid; gap: 4px; padding: 0; margin: 7px 0 0; list-style: none; }
+.flight-plot-weeks .flight-week-mark { display: inline-block; width: 10px; height: 6px; margin-inline-end: 5px; border-radius: 3px; }
 .flight-legend i.flight-legend-lift { border-radius: 1px; transform: rotate(45deg); }
 .flight-detail-row { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 0 10px; }
 .flight-detail-row p, .flight-method { color: var(--flight-muted); }
