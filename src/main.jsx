@@ -1137,7 +1137,7 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
-      <SwimmerHeroCarousel className="home-hero-carousel" autoHeight enabled={Boolean(levelVisible || profile)} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : []), ...(profile ? ['Peppflödet'] : [])]} regionLabel="Din nivå, gruppens läge, tränarinfo och peppflöde">
+      <SwimmerHeroCarousel className="home-hero-carousel" enabled={Boolean(levelVisible || profile)} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : []), ...(profile ? ['Peppflödet'] : [])]} regionLabel="Din nivå, gruppens läge, tränarinfo och peppflöde">
       {levelVisible && <RewardCard key={`level-${profile.id}`} points={points} onCommunity={onCommunity} onEmblemTap={!profile.isTestProfile ? tapEmblem : undefined} featured />}
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
@@ -1201,19 +1201,16 @@ function StrengthProgramCard({ training, onOpen, programType = 'strength' }) {
 function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
   const track = useRef(null)
   const activeRef = useRef(0)
+  const activeKey = useRef(null)
+  const slideStep = useRef(0)
   const [active, setActive] = useState(0)
   const [height, setHeight] = useState(null)
   const slides = React.Children.toArray(children)
-  const nearestSlideIndex = (element) => {
-    if (!element?.children.length) return 0
-    const trackLeft = element.getBoundingClientRect().left
-    let nearestIndex = 0
-    let nearestDistance = Infinity
-    Array.from(element.children).forEach((slide, index) => {
-      const distance = Math.abs(slide.getBoundingClientRect().left - trackLeft)
-      if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index }
-    })
-    return nearestIndex
+  const slideKeys = JSON.stringify(slides.map(slide => slide.key))
+  const select = (index) => {
+    activeRef.current = index
+    activeKey.current = slides[index]?.key ?? null
+    setActive(index)
   }
   const goTo = (index, smooth = true) => {
     const element = track.current
@@ -1221,38 +1218,31 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
     const targetIndex = Math.max(0, Math.min(slides.length - 1, index))
     const slide = element.children[targetIndex]
     if (!slide) return
-    activeRef.current = targetIndex
-    setActive(targetIndex)
+    select(targetIndex)
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const left = element.scrollLeft + slide.getBoundingClientRect().left - element.getBoundingClientRect().left
-    element.scrollTo({ left, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
+    if (Math.abs(element.scrollLeft - slide.offsetLeft) > 1) {
+      element.scrollTo({ left: slide.offsetLeft, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' })
+    }
   }
   useLayoutEffect(() => {
-    const index = enabled ? Math.max(0, Math.min(slides.length - 1, initialIndex)) : 0
-    activeRef.current = index
-    setActive(index)
-    if (enabled) goTo(index, false)
-  }, [enabled, initialIndex])
-  useEffect(() => { if (enabled && infoRequest > 0) goTo(infoIndex) }, [infoRequest, enabled, infoIndex])
-  useEffect(() => {
-    if (!enabled || !track.current) { activeRef.current = 0; setActive(0); return }
-    const index = Math.min(activeRef.current, slides.length - 1)
-    if (index !== activeRef.current) { activeRef.current = index; setActive(index); goTo(index, false) }
-    let width = track.current.clientWidth
-    const observer = new ResizeObserver(() => {
-      const nextWidth = track.current?.clientWidth
-      if (nextWidth && nextWidth !== width) { width = nextWidth; goTo(activeRef.current, false) }
-    })
-    observer.observe(track.current)
-    return () => observer.disconnect()
-  }, [enabled, slides.length])
-  useEffect(() => {
     const element = track.current
-    if (!enabled || !element) return
-    const settleOnNearestSlide = () => goTo(nearestSlideIndex(element), false)
-    element.addEventListener('scrollend', settleOnNearestSlide)
-    return () => element.removeEventListener('scrollend', settleOnNearestSlide)
-  }, [enabled, slides.length])
+    if (!enabled || !element) { select(0); return }
+    const measureStep = () => { slideStep.current = element.children[1]?.offsetLeft ?? 0 }
+    const current = slides.findIndex(slide => slide.key === activeKey.current)
+    measureStep()
+    goTo(current >= 0 ? current : initialIndex, false)
+    let width = element.clientWidth
+    const observer = new ResizeObserver(() => {
+      const nextWidth = element.clientWidth
+      if (nextWidth === width) return
+      width = nextWidth
+      measureStep()
+      goTo(activeRef.current, false)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [enabled, initialIndex, slideKeys])
+  useEffect(() => { if (enabled && infoRequest > 0) goTo(infoIndex) }, [infoRequest, enabled, infoIndex])
   useLayoutEffect(() => {
     if (!enabled || !autoHeight) { setHeight(null); return }
     const slide = track.current?.children[activeRef.current]
@@ -1265,9 +1255,9 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
   }, [enabled, autoHeight, active, slides.length])
   return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
     <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { '--active-slide-height': `${height}px` } : undefined} ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
-      const element = event.currentTarget
-      const index = nearestSlideIndex(element)
-      if (index !== activeRef.current) { activeRef.current = index; setActive(index) }
+      if (!enabled || !slideStep.current) return
+      const index = Math.max(0, Math.min(slides.length - 1, Math.round(event.currentTarget.scrollLeft / slideStep.current)))
+      if (index !== activeRef.current) select(index)
     }} onKeyDown={(event) => {
       if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault(); goTo(activeRef.current + (event.key === 'ArrowRight' ? 1 : -1))

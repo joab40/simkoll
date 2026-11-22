@@ -61,3 +61,9 @@
 @keyframes reward-scene-drift { to { transform:scale(1.05) translate(1%,1%); } }
 @media (prefers-reduced-motion:reduce) { .reward-card *, .reward-card *::after { animation:none !important; transition:none !important; } .reward-tap-sparkles { display:none; } }
 @media (max-width:640px) { .swimmer-hero-slide .reward-card.hero-level-card { padding:78px 22px 30px; gap:22px; } .reward-card.hero-level-card > .reward-card-topline { inset:18px 16px auto; font-size:9px; letter-spacing:.06em; } .reward-card.hero-level-card > .reward-emblem { width:104px; height:104px; font-size:58px; } }
+@media (max-width:640px) {
+  .home-hero-carousel .swimmer-hero-slide .reward-card.hero-level-card { padding: 65px 20px 22px; gap: 14px; justify-content: flex-start; overflow-y: auto; }
+  .home-hero-carousel .reward-card.hero-level-card > .reward-emblem { flex: none; width: 92px; height: 92px; font-size: 51px; }
+  .home-hero-carousel .reward-card.hero-level-card .reward-total { margin-bottom: 12px; }
+  .home-hero-carousel .reward-next-preview { margin-top: 12px; padding: 10px 12px; }
+}
