@@ -103,6 +103,7 @@ import PeppChannelPanel from './pepp-channel.jsx'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
 const TrainingDiary = React.lazy(() => import('./training-diary.jsx'))
+const CheckinSwimTime = deferredPanel(() => import('./swim-times.jsx').then(module => ({ default: module.CheckinSwimTime })), 'Öppnar tidsfrågan…')
 const SwimmerAssistant = deferredPanel(() => import('./swimmer-assistant.jsx'), 'Öppnar simmarassistenten…')
 const StrengthProgramImport = deferredPanel(() => import('./strength-program-import.jsx'))
 const PlanningImport = deferredPanel(() => import('./planning-import.jsx'), 'Öppnar planeringsimporten…')
@@ -2241,6 +2242,7 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
   const [illnessSaved, setIllnessSaved] = useState(false)
   const [dailySaving, setDailySaving] = useState(false)
   const [dailyPrompts, setDailyPrompts] = useState(null)
+  const [savedSwimTimes, setSavedSwimTimes] = useState({})
   useEffect(() => {
     if (!identified || !hasProfile) { setIllnessStatus('done'); return }
     let active = true
@@ -2272,7 +2274,7 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
     request(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then((data) => { if (active) { const done = Boolean(data.records?.length); setSleepStatus(done ? 'done' : 'needed'); if (done) setSleepSaved(true) } }).catch((error) => { if (active) { setSleepError(error.name === 'AbortError' ? 'Sömnkollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setSleepStatus('error') } }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [code, activityDate, identified, hasProfile, sleepRetry, request])
-  const typeQuestions = form.type ? getQuestions(form.type, form.activityType).filter((question) => question.key !== 'sleep') : []
+  const typeQuestions = form.type ? getQuestions(form.type, form.activityType, identified && hasProfile).filter((question) => question.key !== 'sleep') : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
   const questions = [...(identified && hasProfile && (dailyPrompts?.illness ?? illnessStatus !== 'done') ? [{ key: 'dailyIllness', title: 'Känner du dig sjuk eller på väg att bli sjuk?', hint: 'Sjukdomskänsla är något annat än trötthet efter träningen.', kind: 'dailyIllness' }] : []), ...(identified && hasProfile && (dailyPrompts?.sleep ?? sleepStatus !== 'done') ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
@@ -2288,6 +2290,8 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
   const workoutStep = slotStep + 1
   const slotOptions = clubChoices.find(choice => choice.slot === form.trainingSlot)?.options ?? []
   const selectedOption = slotOptions.find((plan) => workoutReference(plan) === form.workoutReference)
+  const swimTimeKey = JSON.stringify([activityDate, form.personalSessionId ?? form.workoutReference ?? form.trainingSlot])
+  const savedSwimTime = needsActivity && form.activityType === 'swim' ? savedSwimTimes[swimTimeKey] : null
   const questionOffset = (needsActivity ? 3 : 2) + (needsPassChoice ? 1 : 0) + (needsWorkoutChoice ? 1 : 0)
   const total = questionOffset + questions.length
 
@@ -2372,6 +2376,8 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
       <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.kind === 'comment' && identified ? 'Helt frivilligt. Sparas till ditt svar och är synligt för tränarna.' : question.hint}>
         {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={request} onBusyChange={setDailySaving} onContinue={() => { setIllnessSaved(true); next() }} />)}
         {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={request} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
+        {question.kind === 'swimTime' && <CheckinSwimTime key={swimTimeKey} activityDate={activityDate} code={code} request={request} saved={savedSwimTime}
+          onContinue={next} onBusyChange={setDailySaving} onSaved={time => setSavedSwimTimes(current => ({ ...current, [swimTimeKey]: time }))} />}
         {question.kind === 'scale' && (
           <Scale
             count={question.count}
@@ -2394,6 +2400,7 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
         {question.kind === 'concern' && <div className="concern-choice"><button type="button" onClick={() => { update('raceConcern', 'sick_or_pain'); next() }}>⚠️ Jag känner mig sjuk eller har ont</button><button type="button" onClick={() => { update('raceConcern', 'none'); next() }}>Nej, inget särskilt</button></div>}
         {question.kind === 'comment' && (
           <div className="comment-box">
+            {savedSwimTime && <p className="swim-times-status" role="status">Tiden är sparad under Mina egna tider och testlopp.</p>}
             <textarea autoFocus maxLength="300" placeholder="Skriv här…" value={form.comment || ''} onChange={(event) => update('comment', event.target.value)} />
             {!form.personalSessionId && hasProfile && (form.type === 'after' || (competitionToday && ['before', 'after'].includes(form.type) && form.competition === true)) && <div className="training-register"><label className="training-toggle"><input type="checkbox" checked={form.registerTraining === true} disabled={competitionToday && form.competition === true} onChange={(event) => update('registerTraining', event.target.checked)} /><span><strong>{competitionToday && form.competition === true ? 'Tävlingscheck-in räknas som närvaro' : `Registrera ${activityLabel(form.activityType).toLowerCase()} i träningsloggen`}</strong><small>{competitionToday && form.competition === true ? 'Ditt tävlingsdeltagande läggs i veckans simnärvaro.' : 'Läggs i din personliga träningslogg med vald aktivitet. Feedbacken kan fortfarande vara anonym.'}</small></span></label>{form.registerTraining && form.activityType === 'swim' && !(competitionToday && form.competition === true) && <p className="checkin-selection-note">Valt pass: {form.trainingSlot === 'morning_swim' ? '🌅 Morgon' : '🌇 Eftermiddag / kväll'}. Ändra via Tillbaka om det blev fel.</p>}</div>}
             {form.personalSessionId && <p className="checkin-selection-note">Valt eget pass: <strong>{personalCheckinDetails(form).title}</strong>{form.personalTimeOfDay ? ` · ${form.personalTimeOfDay === 'morning' ? 'Morgon' : 'Eftermiddag / kväll'}` : ''}{form.activityDistanceMeters ? ` · ${form.activityDistanceMeters.toLocaleString('sv-SE')} m` : ''}{form.activityMinutes ? ` · ${form.activityMinutes} min` : ''}. {form.type === 'after' ? 'Sparas i träningsloggen och dagboken, inte som närvaro på klubbens pass.' : 'Sparas som planering, inte genomförd träning.'}</p>}
@@ -2419,7 +2426,7 @@ function Question({ eyebrow = 'Snabbkoll', title, hint, children }) {
   return <section className="question"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{hint}</p>{children}</section>
 }
 
-function getQuestions(type, activityType = null) {
+function getQuestions(type, activityType = null, canSaveSwimTime = false) {
   const comment = { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt. Tränaren ser inte vem som har skrivit.', kind: 'comment' }
   if (type === 'after') {
     const activityFeel = activityType === 'strength'
@@ -2432,6 +2439,10 @@ function getQuestions(type, activityType = null) {
       { key: 'pass', title: 'Hur var passet?', hint: 'Din upplevelse – det finns inget rätt svar.', kind: 'rating' },
       { key: 'setup', title: 'Funkade upplägget för dig?', hint: 'Tänk på passet som helhet.', kind: 'rating' },
       ...(activityType === 'strength' ? [] : [{ key: 'body', title: 'Hur känns kroppen nu?', hint: '1 är tung eller öm. 5 är pigg och fräsch.', kind: 'scale', count: 5, left: 'Tung', right: 'Pigg' }]),
+      ...(activityType === 'swim' && canSaveSwimTime ? [{
+        key: 'swimTime', kind: 'swimTime', title: 'Vill du registrera en tid från passet?',
+        hint: 'Frivilligt. Spara en träningstid eller ett testlopp bland dina egna tider. Tränarna kan också se tiden.',
+      }] : []),
       comment,
     ]
   }

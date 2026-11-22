@@ -7,6 +7,96 @@ const dateLabel = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('sv
 const defaults = (date) => ({ date, distance: '100', stroke: 'freestyle', poolLength: '25', time: '', kind: 'training', startType: 'push', exercise: 'full', equipment: [], timingMethod: 'hand', conditions: '', note: '', entryKey: '' })
 const fromRow = (row) => ({ id: row.id, date: row.result_date, distance: String(row.distance_meters), stroke: row.stroke, poolLength: String(row.pool_length), time: formatTrainingTime(row.result_time), kind: row.kind, startType: row.start_type, exercise: row.exercise, equipment: row.equipment || [], timingMethod: row.timing_method, conditions: row.conditions || '', note: row.note || '', entryKey: row.entry_key || '' })
 
+async function saveTime({ editor, code, request, profileId }) {
+  validateSwimTime(editor, todayKey())
+  const { time } = await request('/api/training', code, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...editor, ...(profileId ? { profileId } : {}), action: 'save-swim-time' }),
+  })
+  if (!time?.id) throw new Error('Det gick inte att bekräfta att tiden sparades.')
+  return time
+}
+
+function SwimTimeEditor({ editor, editorRef, change, onSave, onCancel, busy, error, entries, coachView, inCheckin = false }) {
+  const select = (key, label, values) => <label>{label}<select value={editor[key]} onChange={(event) => change(key, event.target.value)}>{Object.entries(values).map(([value, title]) => <option value={value} key={value}>{title}</option>)}</select></label>
+  const conditions = <div className="swim-time-fields">
+    {select('startType', 'Start', TIME_STARTS)}{select('exercise', 'Utförande', TIME_EXERCISES)}{select('timingMethod', 'Tidtagning', TIME_METHODS)}
+  </div>
+  const equipment = <div className="swim-time-equipment"><strong>Hjälpmedel</strong><span>Inget markerat betyder utan hjälpmedel.</span><div>{Object.entries(TIME_EQUIPMENT).map(([value, title]) => <label key={value}><input type="checkbox" checked={editor.equipment.includes(value)} onChange={(event) => change('equipment', event.target.checked ? [...editor.equipment, value].sort() : editor.equipment.filter((item) => item !== value))} />{title}</label>)}</div></div>
+  const notes = <>
+    <label>Extra förutsättningar (valfritt)<input type="text" maxLength={200} value={editor.conditions} onChange={(event) => change('conditions', event.target.value)} placeholder="t.ex. motstånd eller tid från en serie" /></label>
+    <label>Kommentar (valfritt)<textarea rows={2} maxLength={1000} value={editor.note} onChange={(event) => change('note', event.target.value)} placeholder="Det här vill jag komma ihåg om genomförandet…" /></label>
+    <p className="swim-times-help">Håll kommentaren till träningen och genomförandet.</p>
+  </>
+  return <form className={`swim-time-editor${inCheckin ? ' swim-time-editor-checkin' : ''}`} ref={editorRef} onSubmit={onSave}>
+    {inCheckin ? <p className="swim-times-help">Passdatum · {dateLabel(editor.date)}</p> : <h3>{editor.id ? 'Ändra träningstid' : 'Registrera en tid'}</h3>}
+    <fieldset disabled={busy}>
+      <div className="swim-time-fields">
+        {!inCheckin && <label>Datum<input type="date" required max={todayKey()} value={editor.date} onChange={(event) => change('date', event.target.value)} /></label>}
+        <label>Distans (meter)<input type="number" min="1" max="10000" step="1" required value={editor.distance} onChange={(event) => change('distance', event.target.value)} /></label>
+        {select('stroke', 'Simsätt', TIME_STROKES)}{select('poolLength', 'Bassäng', { 25: '25 meter', 50: '50 meter' })}
+        <label>Tid<input name="time" type="text" inputMode="text" required maxLength={12} value={editor.time} placeholder="t.ex. 1:08,42" onChange={(event) => change('time', event.target.value)} /></label>
+        {select('kind', 'Typ av tid', { training: 'Träningstid', test: 'Testlopp' })}
+      </div>
+      {inCheckin ? <details className="swim-time-conditions">
+        <summary>Förutsättningar och hjälpmedel
+          <small>{[TIME_STARTS[editor.startType], TIME_EXERCISES[editor.exercise], TIME_METHODS[editor.timingMethod], ...editor.equipment.map(item => TIME_EQUIPMENT[item])].join(' · ')}</small>
+        </summary>
+        <div>{conditions}{equipment}{notes}</div>
+      </details> : <>
+        {conditions}{equipment}
+        {!coachView && <label>Koppla till ett genomfört simpass (valfritt)<select value={editor.entryKey} onChange={(event) => change('entryKey', event.target.value)}><option value="">Fristående tidsregistrering</option>{entries.filter((entry) => entry.date === editor.date && entry.type === 'swim' && entry.state === 'completed').map((entry) => <option key={entry.key} value={entry.key}>{entry.title || 'Simpass'} · {entry.slot === 'morning_swim' ? 'Morgon' : entry.slot === 'afternoon_swim' ? 'Eftermiddag / kväll' : 'Tid ej angiven'}</option>)}</select></label>}
+        {coachView && editor.entryKey && <p className="swim-times-help">Kopplingen till simmarens genomförda pass behålls. <button type="button" className="text-button" onClick={() => change('entryKey', '')}>Koppla loss från passet</button></p>}
+        {notes}
+      </>}
+      {error && <p role="alert" className="form-error">{error}</p>}
+      <div className="swim-time-actions">
+        <button type="submit" className="primary-button">{busy ? 'Sparar…' : inCheckin ? 'Spara tid och fortsätt' : 'Spara tid'}</button>
+        <button type="button" className="secondary-button" onClick={onCancel}>{inCheckin ? 'Fortsätt utan tid' : 'Avbryt'}</button>
+      </div>
+    </fieldset>
+  </form>
+}
+
+export function CheckinSwimTime({ activityDate, code, request, saved, onSaved, onContinue, onBusyChange }) {
+  const [editor, setEditor] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const saving = useRef(false)
+  const change = (key, value) => {
+    setEditor(current => ({ ...current, [key]: value }))
+    setError('')
+  }
+  const save = async (event) => {
+    event.preventDefault()
+    if (saving.current) return
+    saving.current = true
+    setBusy(true)
+    onBusyChange(true)
+    setError('')
+    try {
+      const time = await saveTime({ editor, code, request })
+      onSaved(time)
+      onContinue()
+    } catch (reason) {
+      setError(reason.message)
+    } finally {
+      saving.current = false
+      setBusy(false)
+      onBusyChange(false)
+    }
+  }
+  if (saved) return <div>
+    <p role="status">{formatTrainingTime(saved.result_time)} på {saved.distance_meters} m är sparad.</p>
+    <button type="button" className="primary-button" onClick={onContinue}>Fortsätt →</button>
+  </div>
+  if (editor) return <SwimTimeEditor editor={editor} change={change} onSave={save} onCancel={onContinue} busy={busy} error={error} inCheckin />
+  return <div className="swim-time-actions">
+    <button type="button" className="primary-button" onClick={() => setEditor(defaults(activityDate))}>Registrera en tid</button>
+    <button type="button" className="secondary-button" onClick={onContinue}>Hoppa över</button>
+  </div>
+}
+
 function TimeProgress({ group }) {
   if (!group || group.items.length < 2) return <p className="swim-times-help">Registrera minst två tider med samma förutsättningar för att se utvecklingen.</p>
   const items = group.items, values = items.map((item) => item.result_time), low = Math.min(...values), high = Math.max(...values), spread = Math.max(100, high - low)
@@ -64,12 +154,11 @@ export default function SwimTimes({ code, request, range, entries = [], profileI
   const save = async (event) => {
     event.preventDefault()
     if (busyRef.current || readOnly) return
-    try { validateSwimTime(editor, today) } catch (reason) { setFormError(reason.message); return }
     busyRef.current = true; setBusy(true); setFormError('')
     try {
-      const data = await request('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editor, ...(coachView ? { profileId } : {}), action: 'save-swim-time' }) })
-      setTimes((current) => [data.time, ...current.filter((item) => item.id !== data.time.id)].sort((a, b) => b.result_date.localeCompare(a.result_date) || String(b.created_at).localeCompare(String(a.created_at))))
-      setEditor(null); setStatus(`Tiden är sparad ✓${data.time.result_date < period.start || data.time.result_date > period.end ? ' Välj en period som omfattar datumet för att se den.' : ''}`)
+      const time = await saveTime({ editor, code, request, profileId: coachView ? profileId : undefined })
+      setTimes((current) => [time, ...current.filter((item) => item.id !== time.id)].sort((a, b) => b.result_date.localeCompare(a.result_date) || String(b.created_at).localeCompare(String(a.created_at))))
+      setEditor(null); setStatus(`Tiden är sparad ✓${time.result_date < period.start || time.result_date > period.end ? ' Välj en period som omfattar datumet för att se den.' : ''}`)
     } catch (reason) { setFormError(reason.message) } finally { busyRef.current = false; setBusy(false) }
   }
   const remove = async (row) => {
@@ -77,23 +166,13 @@ export default function SwimTimes({ code, request, range, entries = [], profileI
     busyRef.current = true; setBusy(true); setStatus('')
     try { await request('/api/training', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-swim-time', id: row.id }) }); setTimes((current) => current.filter((item) => item.id !== row.id)); setStatus('Tiden är borttagen.'); if (editor?.id === row.id) setEditor(null) } catch (reason) { setStatus(reason.message) } finally { busyRef.current = false; setBusy(false) }
   }
-  const selectField = (key, label, values) => <label>{label}<select value={editor[key]} onChange={(event) => change(key, event.target.value)}>{Object.entries(values).map(([value, title]) => <option value={value} key={value}>{title}</option>)}</select></label>
   return <section className="swim-times-panel" aria-label={coachView ? 'Simmarens träningstider' : 'Mina egna träningstider'}>
     <div className="swim-times-heading"><div>{!coachView && <p className="eyebrow">Träning och testlopp</p>}<h2>{coachView ? 'Tider och utveckling' : 'Mina egna tider och testlopp'}</h2></div>{!readOnly && !loading && !error && <button type="button" className="secondary-button" disabled={busy} onClick={() => openEditor()}>Registrera en tid +</button>}</div>
     <p className="swim-times-help">{coachView ? 'Följ tider med samma förutsättningar och rätta vid behov tillsammans med simmaren.' : 'Följ exempelvis 75 m arm med dolme eller 100 m frisim över tid. Tränarna kan också läsa och rätta tiderna.'} Egna tider visas separat från tävlingsresultat och officiella personbästan. De ger inga PB-poäng och skapar inga extra pass eller simmeter.</p>
     {!range && <div className="swim-times-period"><label>Från<input type="date" value={ownRange.start} max={ownRange.end} onChange={(event) => setOwnRange({ ...ownRange, start: event.target.value })} /></label><label>Till<input type="date" value={ownRange.end} min={ownRange.start} max={today} onChange={(event) => setOwnRange({ ...ownRange, end: event.target.value })} /></label></div>}
     {loading && <p role="status">Hämtar tider…</p>}{error && <p role="alert">{error} <button type="button" className="text-button" onClick={() => setReload((value) => value + 1)}>Försök igen</button></p>}{status && <p role="status" className="swim-times-status">{status}</p>}{limited && <p>Historiken är begränsad. Välj en kortare period för ett fullständigare underlag.</p>}
-    {editor && !readOnly && <form className="swim-time-editor" ref={editorRef} onSubmit={save}><h3>{editor.id ? 'Ändra träningstid' : 'Registrera en tid'}</h3><fieldset disabled={busy}><div className="swim-time-fields">
-      <label>Datum<input type="date" required max={today} value={editor.date} onChange={(event) => change('date', event.target.value)} /></label>
-      <label>Distans (meter)<input type="number" min="1" max="10000" step="1" required value={editor.distance} onChange={(event) => change('distance', event.target.value)} /></label>
-      {selectField('stroke', 'Simsätt', TIME_STROKES)}{selectField('poolLength', 'Bassäng', { 25: '25 meter', 50: '50 meter' })}
-      <label>Tid<input name="time" type="text" inputMode="text" required maxLength={12} value={editor.time} placeholder="t.ex. 1:08,42" onChange={(event) => change('time', event.target.value)} /></label>
-      {selectField('kind', 'Typ av tid', { training: 'Träningstid', test: 'Testlopp' })}{selectField('startType', 'Start', TIME_STARTS)}{selectField('exercise', 'Utförande', TIME_EXERCISES)}{selectField('timingMethod', 'Tidtagning', TIME_METHODS)}</div>
-      <div className="swim-time-equipment"><strong>Hjälpmedel</strong><span>Inget markerat betyder utan hjälpmedel.</span><div>{Object.entries(TIME_EQUIPMENT).map(([value, title]) => <label key={value}><input type="checkbox" checked={editor.equipment.includes(value)} onChange={(event) => change('equipment', event.target.checked ? [...editor.equipment, value].sort() : editor.equipment.filter((item) => item !== value))} />{title}</label>)}</div></div>
-      {!coachView && <label>Koppla till ett genomfört simpass (valfritt)<select value={editor.entryKey} onChange={(event) => change('entryKey', event.target.value)}><option value="">Fristående tidsregistrering</option>{entries.filter((entry) => entry.date === editor.date && entry.type === 'swim' && entry.state === 'completed').map((entry) => <option key={entry.key} value={entry.key}>{entry.title || 'Simpass'} · {entry.slot === 'morning_swim' ? 'Morgon' : entry.slot === 'afternoon_swim' ? 'Eftermiddag / kväll' : 'Tid ej angiven'}</option>)}</select></label>}
-      {coachView && editor.entryKey && <p className="swim-times-help">Kopplingen till simmarens genomförda pass behålls. <button type="button" className="text-button" onClick={() => change('entryKey', '')}>Koppla loss från passet</button></p>}
-      <label>Extra förutsättningar (valfritt)<input type="text" maxLength={200} value={editor.conditions} onChange={(event) => change('conditions', event.target.value)} placeholder="t.ex. motstånd eller tid från en serie" /></label><label>Kommentar (valfritt)<textarea rows={2} maxLength={1000} value={editor.note} onChange={(event) => change('note', event.target.value)} placeholder="Det här vill jag komma ihåg om genomförandet…" /></label><p className="swim-times-help">Håll kommentaren till träningen och genomförandet.</p>
-      {formError && <p role="alert" className="form-error">{formError}</p>}<div className="swim-time-actions"><button type="submit" className="primary-button" disabled={busy}>{busy ? 'Sparar…' : 'Spara tid'}</button><button type="button" className="secondary-button" onClick={closeEditor} disabled={busy}>Avbryt</button></div></fieldset></form>}
+    {editor && !readOnly && <SwimTimeEditor editor={editor} editorRef={editorRef} change={change} onSave={save}
+      onCancel={closeEditor} busy={busy} error={formError} coachView={coachView} entries={entries} />}
     {!loading && !error && <>{group ? <><label className="swim-time-series">Jämför samma förutsättningar<select value={group.key} onChange={(event) => setSelected(event.target.value)}>{groups.map((item) => <option key={item.key} value={item.key}>{item.description} · {item.items.length} tider</option>)}</select></label><p className="swim-time-best"><strong>Bästa egna tid i vald period: {formatTrainingTime(group.best)}</strong><span>{group.description}</span></p><TimeProgress group={group} /></> : <p>Inga egna tider i den valda perioden.</p>}
       <details className="swim-time-history" open={visibleTimes.length > 0 && visibleTimes.length < 6}><summary>Alla egna tider i perioden ({visibleTimes.length})</summary><ul>{visibleTimes.map((row) => <li key={row.id}><div><strong>{formatTrainingTime(row.result_time)} · {row.distance_meters} m {TIME_STROKES[row.stroke]}</strong><small>{dateLabel(row.result_date)} · {row.kind === 'test' ? 'Testlopp' : 'Träningstid'} · Manuellt registrerat</small><p>{swimTimeDescription(row)}</p>{row.entry_key && <small>Kopplad till ett simpass i dagboken</small>}{row.note && <p className="swim-time-note">{row.note}</p>}</div>{!readOnly && <div className="swim-time-actions"><button type="button" className="text-button" disabled={busy} onClick={() => openEditor(row)}>Ändra</button>{!coachView && <button type="button" className="text-button danger-text" disabled={busy} onClick={() => remove(row)}>Ta bort</button>}</div>}</li>)}</ul></details></>}
   </section>
