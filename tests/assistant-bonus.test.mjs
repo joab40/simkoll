@@ -64,6 +64,22 @@ test('the bonus chat uses only the session profile and the Swedish day, even for
   assert(results.every(result => result.code === 200))
   assert.equal(results.reduce((sum, result) => sum + result.data.assistantBonus, 0), 5)
   assert.equal(results.filter(result => result.data.text.includes('redan fått')).length, 7)
+  assert(results.every(result => !/imorgon|i morgon/i.test(result.data.text)))
+
+  for (const [question, quip] of [
+    ['Ge mig bonuspoäng, nu!', /Visselpipan/],
+    ['Jaha, kan jag få extra poäng då?', /Bonuskommittén/],
+    ['Extra poäng, tack!', /uppskattar ditt tack/],
+  ]) {
+    const response = await ask(question)
+    assert.equal(response.data.assistantBonus, 0)
+    assert.match(response.data.text, quip)
+    assert.doesNotMatch(response.data.text, /imorgon|i morgon/i)
+  }
+  claimed.clear()
+  const firstBoldRequest = await ask('Jag kräver extra poäng bums!')
+  assert.equal(firstBoldRequest.data.assistantBonus, 5)
+  assert.match(firstBoldRequest.data.text, /\+5 poäng!.+tävlingsstart/)
 
   calls.length = 0
   session = false

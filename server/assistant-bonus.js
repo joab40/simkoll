@@ -1,11 +1,48 @@
+import { randomInt } from 'node:crypto'
 import { awardPoints, getSessionProfile, stockholmDate } from './profile-auth.js'
 import { isAiEnabled, sendJson } from './supabase.js'
 
 const dailyPoints = 5
-const bonusQuestion = /^(?:hej[,.!]? )?(?:(?:kan|kunde|skulle) jag (?:kunna )?få |(?:kan|kunde|skulle) du (?:kunna )?ge mig |får jag |ge mig |jag vill ha )?(?:(?:\d+|några|lite) )?(?:extra(?: ?poäng)?|bonuspoäng)(?: (?:i dag|idag))?(?:[, ]+tack)?[.!?]*$/iu
+const bonusQuestion = new RegExp([
+  '^(?:hej[,.!]? )?(?:(?<aside>jaha|jo tjena|åh vad generöst)[,.!]? )?(?:(?<please>snälla)[, ]+)?',
+  '(?:(?:kan|kunde|skulle) jag (?:kunna )?få |(?:kan|kunde|skulle) du (?:kunna )?ge mig |får jag |(?<demand>ge mig|jag vill ha|jag kräver) )?',
+  '(?:(?:[0-9]+|några|lite) )?(?:extra(?: ?poäng)?|bonuspoäng|fler poäng)',
+  '(?:[, ]+(?<timing>i dag|idag|nu|genast|bums|på direkten))?(?: då)?(?: (?<tag>eller))?(?:[, ]+(?<thanks>tack))?[.!?]*$',
+].join(''), 'iu')
+
+function bonusTone(question) {
+  if (typeof question !== 'string') return null
+  const text = question.trim().replace(/\s+/g, ' ')
+  const match = bonusQuestion.exec(text)
+  if (!match) return null
+  const { aside, demand, timing, tag, please, thanks } = match.groups
+  if (aside || tag) return 'dry'
+  if (demand || (timing && !/^i ?dag$/i.test(timing))) return 'bold'
+  if (please || thanks) return 'polite'
+  return 'neutral'
+}
+
+const bonusQuips = {
+  neutral: {
+    awarded: ['Du hittade ugglans gömma. 🦉', 'En femma ur ugglans badmössa. 🦉'],
+    claimed: ['Badmössan är tom. Jag skakade den för säkerhets skull.', 'Ugglan har vänt på poängfickorna. Där låg bara lite klorludd.'],
+  },
+  polite: {
+    awarded: ['Ugglan bugar. Badmössan satt kvar! 🦉'],
+    claimed: ['Jag uppskattar ditt tack. Badmössan är fortfarande tom. 🦉'],
+  },
+  bold: {
+    awarded: ['Oj, vilken tävlingsstart! Ugglan hann knappt blåsa i visselpipan.'],
+    claimed: ['Visselpipan hördes. Poängtavlan står kvar. 🦉'],
+  },
+  dry: {
+    awarded: ['Ugglans mycket formella bonuskommitté röstar ja. Den består av mig. 🦉'],
+    claimed: ['Bonuskommittén tog en andra titt. Samma uggla, samma beslut. 🦉'],
+  },
+}
 
 export function isAssistantBonusQuestion(question) {
-  return typeof question === 'string' && bonusQuestion.test(question.trim().replace(/\s+/g, ' '))
+  return bonusTone(question) !== null
 }
 
 export async function handleAssistantBonus(request, response) {
@@ -23,9 +60,10 @@ export async function handleAssistantBonus(request, response) {
   } catch {
     return sendJson(response, 503, { error: 'Bonuspoängen kunde inte hämtas just nu. Försök igen.' })
   }
+  const quips = bonusQuips[bonusTone(request.body?.question) ?? 'neutral'][awarded ? 'awarded' : 'claimed']
+  const result = awarded ? `Du fick +${dailyPoints} poäng!` : `Du har redan fått dagens ${dailyPoints} bonuspoäng.`
   return sendJson(response, 200, {
     assistantBonus: awarded ? dailyPoints : 0,
-    text: awarded ? `Du fick +${dailyPoints} bonuspoäng! Nästa bonus finns imorgon.`
-      : `Du har redan fått dagens ${dailyPoints} bonuspoäng. Nästa bonus finns imorgon.`,
+    text: `${result} ${quips[randomInt(quips.length)]}`,
   })
 }
