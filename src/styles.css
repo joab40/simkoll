@@ -91,7 +91,6 @@ button { cursor: pointer; }
 .text-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .page-content { width: min(100% - 32px, 1060px); margin: 0 auto; padding: 40px 0 60px; }
 .page-content.race-day-page { position: relative; isolation: isolate; }
-.page-content.race-day-page::before { content: ''; position: fixed; z-index: -1; inset: 0; pointer-events: none; background: #eff6f4; }
 .mood-hero { background: linear-gradient(120deg, #173e58, #4d5f9c); border-radius: 30px; padding: 43px 48px 34px; color: white; position: relative; overflow: hidden; }
 .swimmer-hero-carousel { min-width: 0; }
 .swimmer-hero-track { position: relative; display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 30px; }
@@ -194,7 +193,7 @@ button { cursor: pointer; }
 .coach-info-page .open-chat-heading { display: block; line-height: 1.3; }
 .coach-info-page .open-chat-heading small { font-size: 11px; }
 .mood-hero.speed-focus { background: linear-gradient(120deg, #173f5c, #176f84 55%, #638d75); }
-.home.theme-halloween { background: radial-gradient(circle at 8% 18%, rgba(255,176,84,.12), transparent 23%), #fff8ef; }
+.app-shell:has(> .home.theme-halloween) { background: radial-gradient(circle at 8% 18%, rgba(255,176,84,.12), transparent 23%), #fff8ef; }
 .home.theme-halloween .mood-hero { background: radial-gradient(circle at 84% 16%, rgba(255,186,76,.45), transparent 25%), radial-gradient(circle at 18% 90%, rgba(161,83,192,.24), transparent 30%), linear-gradient(120deg, #21152d 0%, #542640 52%, #bd612c 100%); border: 1px solid rgba(255,183,93,.24); box-shadow: 0 16px 38px rgba(66,34,79,.22), inset 0 1px 0 rgba(255,255,255,.1); }
 .home.theme-halloween .mood-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .32; background: radial-gradient(circle at 18% 28%, rgba(255,255,255,.16) 0 1px, transparent 2px), radial-gradient(circle at 74% 72%, rgba(255,192,122,.18) 0 1px, transparent 2px); background-size: 82px 74px, 115px 98px; animation: halloween-glow 8s ease-in-out infinite alternate; }
 .home.theme-halloween .mood-hero::after { content: none; }
@@ -219,7 +218,7 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .halloween-spider, .halloween-decor .pumpkin-left, .weekly-halloween-spider, .home.theme-halloween .start-card::after { animation: none; } }
 @keyframes halloween-glow { from { opacity: .2; transform: translate3d(0, 0, 0); } to { opacity: .42; transform: translate3d(8px, -3px, 0); } }
 .home.theme-christmas .mood-hero { background: radial-gradient(circle at 82% 15%, rgba(255,230,165,.22), transparent 25%), linear-gradient(120deg, #174b43, #176b59 56%, #9a3440); }
-.home.theme-christmas { background: #f4faf5; }
+.app-shell:has(> .home.theme-christmas) { background: #f4faf5; }
 .mood-context { position: relative; z-index: 1; margin: -22px 0 22px; color: rgba(255,255,255,.82); font-size: 13px; font-weight: 700; }
 .mood-hero::after { content: '≈'; position: absolute; right: -20px; top: -115px; font-size: 300px; color: rgba(82,209,196,.06); transform: rotate(-12deg); }
 .mood-hero h1 { font-size: clamp(33px, 6vw, 52px); margin-bottom: 34px; }

@@ -6,7 +6,7 @@ import './styles.css'
 function WinterPreview() {
   const [enabled, setEnabled] = useState(true), [motion, setMotion] = useState(true), [theme, setTheme] = useState('snow'), [notice, setNotice] = useState('')
   const winter = enabled && theme === 'snow'
-  return <><header style={{ maxWidth: 1060, margin: '20px auto 0', padding: '0 16px' }}><p>Fiktiv förhandsvisning · inga riktiga svar eller databasändringar.</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', fontSize: 12 }}><label><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Säsongsteman</label><label><input type="checkbox" checked={motion} onChange={event => setMotion(event.target.checked)} /> Visuella effekter</label><label>Tema <select value={theme} onChange={event => setTheme(event.target.value)}><option value="snow">Vinter · Snö</option><option value="halloween">Halloween</option><option value="christmas">Jul</option><option value="none">Standard</option></select></label></div></header>
+  return <div className="app-shell"><div style={{ maxWidth: 1060, margin: '20px auto 0', padding: '0 16px' }}><p>Fiktiv förhandsvisning · inga riktiga svar eller databasändringar.</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', fontSize: 12 }}><label><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Säsongsteman</label><label><input type="checkbox" checked={motion} onChange={event => setMotion(event.target.checked)} /> Visuella effekter</label><label>Tema <select value={theme} onChange={event => setTheme(event.target.value)}><option value="snow">Vinter · Snö</option><option value="halloween">Halloween</option><option value="christmas">Jul</option><option value="none">Standard</option></select></label></div></div>
     <main className={`page-content home${enabled && theme !== 'none' ? ` theme-${theme}` : ''}`}>
       <section className="mood-hero">
         {winter && <WinterHeroDecor animate={motion} />}
@@ -18,7 +18,7 @@ function WinterPreview() {
       <section className="start-card"><div><p className="eyebrow">Din stund</p><h2>Hur känns det idag?</h2><p>Ta en stund och känn efter.</p></div><div className="start-card-actions"><button type="button" className="primary-button" onClick={() => setNotice('Incheckningsknappen fungerar. Det här är bara en förhandsvisning, inget sparas.')}>Checka in →</button></div></section>
       {notice && <p role="status" style={{ padding: 12 }}>{notice}</p>}
       <section className="weekly-training-card">{winter && <WinterTrainingBuddy />}<div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>2 av 4 simpass · 50 %</h3><div className="session-dots"><i className="done" /><i className="done" /><i /><i /></div><small>2 simpass kvar enligt din överenskommelse</small></div><button type="button" onClick={() => setNotice('Målknappen fungerar. Inga riktiga mål läses eller ändras i förhandsvisningen.')}>Mina mål →</button></div></section>
-    </main></>
+    </main></div>
 }
 
 createRoot(document.getElementById('root')).render(new URLSearchParams(window.location.search).get('viewport') === 'mobile'
