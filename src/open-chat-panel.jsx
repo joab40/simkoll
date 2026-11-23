@@ -6,9 +6,25 @@ import PrivateChatReply from './private-chat-reply.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { formatFeedDate } from './community-date.js'
 import { useCommunityChannel } from './use-community-channel.js'
+import { useOpenChatEngagement } from './use-open-chat-engagement.js'
+import './open-chat-engagement.css'
+
+const emptyChat = { enabled: false, messages: [] }
+
+function MessageEngagement({ item, coach, engagement }) {
+  const { seenCount, likeCount, liked } = item.engagement
+  return <span className="info-message-engagement">
+    <small className="info-seen" aria-label={`Sett av ${seenCount} simmare`}>Sett av {seenCount}</small>
+    {coach
+      ? <span className="info-like-count" aria-label={`${likeCount} tummar upp`}>👍 {likeCount}</span>
+      : <button type="button" className="info-like-button" aria-pressed={liked} disabled={engagement.likingId !== null}
+          aria-label={`${liked ? 'Ta bort gilla' : 'Gilla meddelandet'}. ${likeCount} tummar upp`}
+          onClick={() => engagement.toggleLike(item)}><span aria-hidden="true">👍</span>{likeCount > 0 && likeCount}</button>}
+  </span>
+}
 
 const mergeChat = (current, data) => {
-  const next = data.openChat || { enabled: false, messages: [] }
+  const next = data.openChat || emptyChat
   const visible = next.messages || []
   const pending = (current?.openChat?.messages || []).filter(item => item.pending && !visible.some(loaded => loaded.id === item.id))
   return { ...data, openChat: { ...next, messages: [...visible, ...pending].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) } }
@@ -23,13 +39,17 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
   const privateReplyTrigger = useRef(null)
   const closePrivateReply = () => { setPrivateReply(null); privateReplyTrigger.current?.focus() }
   const channel = useCommunityChannel({ code, channel: 'openChat=true', active, request, merge: mergeChat })
-  const chat = channel.data?.openChat || { enabled: false, messages: [] }
-  const setChat = updater => channel.setData(current => ({ ...current, openChat: updater(current?.openChat || { enabled: false, messages: [] }) }))
+  const chat = channel.data?.openChat || emptyChat
+  const setChat = updater => channel.setData(current => ({ ...current, openChat: updater(current?.openChat || emptyChat) }))
   const [content, setContent] = useState(''), [status, setStatus] = useState(''), [unread, setUnread] = useState(0)
   const deletingMessage = useRef(false)
   const [deletingMessageId, setDeletingMessageId] = useState(null)
   const chatPanelRef = useRef(null)
   const scroller = useRef(null), follow = useRef(true), seen = useRef(new Set())
+  const engagement = useOpenChatEngagement({
+    active: !coach && !!profileId && active && chat.enabled,
+    messages: chat.messages, scroller, code, request, setData: channel.setData,
+  })
   const load = () => channel.refresh({ force: true }).catch(() => {})
   const latestCoachId = chat.messages.findLast(item => item.senderRole === 'coach' && !item.pending)?.id
   useEffect(() => {
@@ -130,12 +150,16 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
       const original = <>
         <strong>{own ? 'Du' : item.sender?.displayName || 'Simmare'}</strong>
         <span className="private-question-content">{item.content}</span>
-        {coach ? timestamp : <span className="info-message-meta">{timestamp}{removeButton}</span>}
+        {coach && !item.engagement ? timestamp : <span className="info-message-meta">
+          {timestamp}
+          {item.engagement && <MessageEngagement item={item} coach={coach} engagement={engagement} />}
+          {!coach && removeButton}
+        </span>}
         {canReply && <small className="private-reply-hint">↩ Svara privat till {item.sender?.displayName || 'simmaren'}</small>}
       </>
       return <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id} data-own={own}>
         <span aria-hidden="true">{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span>
-        <div>{canReply ? <button type="button" className="private-reply-message" onClick={openReply} aria-expanded={privateReply?.id === item.id}>{original}</button> : original}
+        <div data-open-chat-view={item.engagement && !coach ? item.id : undefined}>{canReply ? <button type="button" className="private-reply-message" onClick={openReply} aria-expanded={privateReply?.id === item.id}>{original}</button> : original}
           {item.privateReplies?.map((reply) => <section className="private-thread-reply" key={reply.id}><strong>🔒 {coach ? `Privat svar till ${item.sender?.displayName || 'simmaren'}` : 'Tränarnas privata svar till dig'}</strong><p>{reply.content}</p><small>{formatFeedDate(reply.createdAt)}</small></section>)}
           {privateReply?.id === item.id && <PrivateChatReply key={item.id} message={item} code={code} request={request} onClose={closePrivateReply} onSent={(reply) => {
             if (reply) setChat((current) => ({...current,messages:current.messages.map((message) => message.id === item.id ? {...message,privateReplies:[...(message.privateReplies || []).filter((row) => row.id !== reply.id),reply]} : message)}))
@@ -148,6 +172,7 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
     {unread > 0 && <button type="button" className="info-new-messages" onClick={() => { follow.current = true; setUnread(0); if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight }}>↓ {unread} nya meddelanden</button>}
     {(!chat.coachOnly || coach) && !privateReply && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required rows={2} aria-label={coach ? 'Tränarinfo till gruppen' : 'Fråga till tränarna'} maxLength={1000} value={content} placeholder={coach ? 'Skriv tränarinfo till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={emoji => setContent(value => `${value}${emoji}`.slice(0, 1000))} /></div><button className="primary-button" disabled={!content.trim()}>Skicka ↑</button>{status && <small role="status">{status}</small>}</form>}
     {channel.error && <p className="private-replies-warning" role="status">Uppdateringen misslyckades. Senast hämtade meddelanden visas. <button type="button" onClick={load}>Försök igen</button></p>}
+    {engagement.error && <p className="private-replies-warning" role="status">{engagement.error}</p>}
     {chat.privateRepliesWarning && <p className="private-replies-warning" role="status">{chat.privateRepliesWarning}</p>}
   </section>
 }

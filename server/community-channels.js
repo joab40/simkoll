@@ -1,5 +1,6 @@
 import { supabaseRequest } from './supabase.js'
 import { loadPrivateChatReplies } from './private-chat-replies.js'
+import { loadOpenChatEngagement } from './open-chat-engagement.js'
 
 const emptyChat = settings => ({ enabled: settings.openChat?.enabled === true, coachOnly: settings.openChat?.coachOnly === true, swimmerPrivate: settings.openChat?.swimmerPrivate !== false, backgroundImage: settings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: [] })
 
@@ -15,9 +16,9 @@ export async function loadInfoChannel(settings, role, viewer, read = supabaseReq
 
   const result = await read(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profileId})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`)
   if (!result.ok) throw new Error('Information channel unavailable')
-  const messages = (await result.json())
+  const visibleRows = (await result.json())
     .filter(row => !row.deleted_at && (role === 'coach' || row.visibility !== 'coaches' || row.sender_profile_id === profileId))
-    .map(row => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: row.sender_role, senderProfileId: row.sender_profile_id || null }))
+  const messages = visibleRows.map(row => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: row.sender_role, senderProfileId: row.sender_profile_id || null }))
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
 
   const otherSenders = [...new Set(messages.map(row => row.senderProfileId).filter(id => id && id !== profileId))]
@@ -28,12 +29,17 @@ export async function loadInfoChannel(settings, role, viewer, read = supabaseReq
     if (!directory.ok) throw new Error('Information channel profiles unavailable')
     return directory.json()
   }
-  const [senders, threaded] = await Promise.all([loadSenders(), loadPrivateChatReplies(messages, role, profileId, read)])
+  const [senders, threaded, engagement] = await Promise.all([
+    loadSenders(),
+    loadPrivateChatReplies(messages, role, profileId, read),
+    loadOpenChatEngagement(visibleRows, profileId, read),
+  ])
   const profiles = new Map(senders.map(row => [row.id, displayProfile(row)]))
   if (viewer) profiles.set(profileId, displayProfile(viewer))
 
   return { openChat: { ...chat, privateRepliesWarning: threaded.warning, messages: threaded.messages.map(message => ({
     ...message,
+    ...(engagement.has(message.id) ? { engagement: engagement.get(message.id) } : {}),
     sender: message.senderProfileId ? profiles.get(message.senderProfileId) : { displayName: 'Tränare', emoji: '🧑‍🏫' },
   })).filter(message => message.sender) } }
 }

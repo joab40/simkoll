@@ -9,9 +9,9 @@ const { createCoachToken } = await import('../server/coach-auth.js')
 const code = createCoachToken({ id: 'coach-1', role: 'coach' })
 const json = data => new Response(JSON.stringify(data), { status: 200 })
 const rows = { app_settings: [{ setting_value: { openChat: { enabled: true } } }], profiles: [], open_chat_messages: [{ id: 'info', sender_role: 'coach', content: 'Public info', created_at: '2026-11-15T12:00:00Z' }], community_posts: [{ id: 'post', content: 'Club info', created_at: '2026-11-15T12:00:00Z' }], group_pep: [], community_reactions: [], private_messages: [] }
-async function call(query, requestCode = code, cookie = '') {
+async function call(query, requestCode = code, cookie = '', body) {
   const response = { headers: {}, setHeader(key, value) { this.headers[key] = value }, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await coachSessionFixture(handler)({ method: 'GET', query, headers: { 'x-simkoll-code': requestCode, cookie } }, response)
+  await coachSessionFixture(handler)({ method: body ? 'POST' : 'GET', query, body, headers: { 'x-simkoll-code': requestCode, cookie } }, response)
   return response
 }
 
@@ -100,4 +100,31 @@ test('swimmer chat fetches only its active channel and never writes activity as 
   const coachInfo = await read({ openChat: 'true' })
   assert.equal(coachInfo.code, 200)
   assert.deepEqual(calls, ['profile_sessions', 'profiles', 'app_settings', 'open_chat_messages'])
+})
+
+test('only the authenticated swimmer can record views or likes, and responses contain only totals and own state', async () => {
+  const profileId = '11111111-1111-4111-8111-111111111111'
+  const messageId = '22222222-2222-4222-8222-222222222222'
+  const writes = []
+  globalThis.fetch = async (raw, options = {}) => {
+    const table = new URL(raw).pathname.split('/').at(-1)
+    if (table === 'profile_sessions') return json([{ profile_id: profileId }])
+    if (table === 'profiles') return json([{ id: profileId }])
+    assert.equal(table, 'save_open_chat_engagement')
+    const payload = JSON.parse(options.body)
+    writes.push(payload)
+    return json([{ message_id: messageId, seen_count: 12, like_count: 1, seen: true, liked: payload.p_liked === true }])
+  }
+  const body = { action: 'record-open-chat-views', messageIds: [messageId, messageId], profileId: messageId }
+  assert.equal((await call({}, code, '', body)).code, 403)
+  assert.equal((await call({}, 'swimmer-channel-fixture', '', body)).code, 403)
+  assert.equal(writes.length, 0)
+  const swimmer = body => call({}, 'swimmer-channel-fixture', 'simkoll_session=fixture', body)
+  const seen = await swimmer(body)
+  assert.equal(seen.code, 200)
+  assert.deepEqual(writes.at(-1), { p_message_ids: [messageId], p_profile_id: profileId, p_liked: null })
+  const liked = await swimmer({ action: 'set-open-chat-like', messageId, liked: true })
+  assert.equal(liked.code, 200)
+  assert.deepEqual(liked.data.engagement, [{ messageId, seenCount: 12, likeCount: 1, seen: true, liked: true }])
+  assert.equal(writes.length, 2)
 })

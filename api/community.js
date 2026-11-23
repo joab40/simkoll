@@ -8,6 +8,7 @@ import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/privat
 import { proposePrivateReply } from '../server/private-reply-ai.js'
 import { loadCommunityPreview, loadCoachMessageCount } from '../server/community-preview.js'
 import { loadInfoChannel, loadCoachInbox } from '../server/community-channels.js'
+import { parseOpenChatEngagement, saveOpenChatEngagement } from '../server/open-chat-engagement.js'
 import { handleFeedbackDialog, isFeedbackDialogRequest } from '../server/app-feedback-dialog.js'
 
 const stockholmCalendar = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' })
@@ -410,6 +411,21 @@ export default async function handler(request, response) {
       return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: threaded.messages, privateRepliesWarning: threaded.warning } })
     }
 
+    if (request.method === 'POST' && ['record-open-chat-views', 'set-open-chat-like'].includes(request.body?.action)) {
+      const profile = role === 'swimmer' ? await getSessionProfile(request) : null
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på simmarprofilen för att reagera på tränarinfo.' })
+      const input = parseOpenChatEngagement(request.body)
+      if (!input) return sendJson(response, 400, { error: 'Välj giltiga tränarmeddelanden.' })
+      try {
+        const engagement = await saveOpenChatEngagement(profile.id, input)
+        if (input.liked !== null && !engagement.length) return sendJson(response, 404, { error: 'Meddelandet går inte längre att gilla.' })
+        return sendJson(response, 200, { engagement })
+      } catch (error) {
+        console.warn(error.message)
+        return sendJson(response, 503, { error: 'Visningar och gilla-markeringar är tillfälligt otillgängliga.' })
+      }
+    }
+
     if (request.method === 'POST' && ['coach', 'swimmer'].includes(role) && request.body?.action === 'toggle-reaction') {
       const profile = role === 'swimmer' ? await getSessionProfile(request) : null
       if (role === 'swimmer' && !profile) return sendJson(response, 403, { error: 'Logga in på din profil för att reagera.' })
@@ -506,7 +522,7 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Open chat insert failed: ${result.status} ${await result.text()}`)
         const [message] = await result.json()
         queueMessagePush({ kind: 'coach-info', id: message.id, senderCoachId: coachFromRequest(request)?.sub })
-        return sendJson(response, 201, { ok: true, message: { id: message.id, content: message.content, createdAt: message.created_at, senderRole: 'coach', senderProfileId: null, sender: { displayName: 'Tränare', emoji: '🧑‍🏫' } } })
+        return sendJson(response, 201, { ok: true, message: { id: message.id, content: message.content, createdAt: message.created_at, senderRole: 'coach', senderProfileId: null, sender: { displayName: 'Tränare', emoji: '🧑‍🏫' }, engagement: { seenCount: 0, likeCount: 0, seen: false, liked: false } } })
       }
       if (request.body?.action === 'delete-open-chat-message') {
         const id = String(request.body?.id || '')

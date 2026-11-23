@@ -1,0 +1,36 @@
+.open-chat-messages .info-message-engagement {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 8px;
+}
+.open-chat-messages .info-message-engagement .info-seen {
+  color: #45636b;
+  opacity: 1;
+  white-space: nowrap;
+}
+.info-like-button,
+.info-like-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #c8dcd8;
+  border-radius: 10px;
+  padding: 5px 8px;
+  color: var(--teal, #0f6e70);
+  background: #f7fbf9;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.info-like-button {
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+.info-like-button:disabled { cursor: wait; }
+.info-like-button:hover:not(:disabled) { background: #ecf6f2; }
+.info-like-button[aria-pressed="true"] { border-color: #6ba89c; background: #dbeee9; }
+.info-like-button:focus-visible { outline: 2px solid var(--teal, #0f6e70); outline-offset: 2px; }
+.open-chat-messages .info-message-meta:has(.info-message-engagement) { flex-wrap: wrap; gap: 4px 13px; }
+.coach-messages-workspace .info-message-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
