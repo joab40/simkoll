@@ -1,0 +1,55 @@
+.competition-logo-tile {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  box-sizing: border-box;
+  width: 116px;
+  height: 88px;
+  padding: 10px;
+  flex: none;
+  border: 1px solid #cee0dc;
+  border-radius: 15px;
+  background: #fff;
+}
+.competition-logo-tile[data-surface="dark"] { background: #173744; border-color: #48707b; }
+.competition-logo-tile img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+.competition-logo-upload {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid #d5e5df;
+  border-radius: 13px;
+  background: #edf6f2;
+}
+.competition-logo-upload label { display: grid; min-width: 0; gap: 6px; font-size: .875rem; font-weight: 700; }
+.competition-logo-upload small { color: #45636b; font-weight: 400; }
+.competition-logo-upload .form-error { margin: 0; }
+.competition-logo-upload .secondary-button { justify-self: start; }
+.mood-hero-heading { position: relative; z-index: 1; min-width: 0; }
+.mood-hero-heading.has-competition-logo { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 16px; }
+.mood-hero-heading h1, .mood-hero-heading .mood-context { overflow-wrap: anywhere; }
+.mood-competition-side {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  width: clamp(92px, 19vw, 176px);
+  min-width: 0;
+}
+.mood-competition-side .competition-logo-tile {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  padding: clamp(6px, 1.2vw, 14px);
+  border-color: #ffffff46;
+  border-radius: clamp(11px, 1.4vw, 18px);
+  box-shadow: 0 5px 18px #09243026;
+}
+.mood-competition-side .race-day-badge { position: static; gap: 3px; font-size: 10px; letter-spacing: .08em; }
+@media (max-width: 480px) {
+  .competition-logo-upload .competition-logo-tile { width: 76px; height: 65px; padding: 6px; }
+  .mood-hero-heading.has-competition-logo { gap: 10px; }
+  .mood-competition-side .race-day-badge .race-flag { display: none; }
+}

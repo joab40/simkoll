@@ -80,6 +80,7 @@ import { TodayMildIllness } from './coach-mild-illness.jsx'
 import CoachFeelingTrend from './coach-feeling-trend.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
+import { SavedCompetitionLogo } from './competition-logo.jsx'
 import { CoachInfoPage, Community } from './swimmer-community.jsx'
 import CoachMessages from './coach-messages.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
@@ -1134,7 +1135,9 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
   const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && (Array.isArray(workout) ? workout[0] : workout)?.focus === 'fart' ? 'speed-focus' : ''
   const themeClass = swimmerThemesEnabled && swimmerTheme !== 'none' ? ` theme-${swimmerTheme}` : ''
   const winterActive = swimmerThemesEnabled && swimmerTheme === 'snow'
+  const nextCompetitionLogo = profile && nextCompetition?.logo
   const raceDayActive = swimmerEffects && daysToCompetition === 0
+  const raceBadge = profile && raceDayActive && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>
   const stars = currentStarState(training)
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
@@ -1144,13 +1147,21 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         {winterActive && <WinterHeroDecor animate={swimmerEffects} />}
-        <p className="eyebrow light">Idag i gruppen</p>
         {profile && chatVisible && <CoachLetterBadge code={code} chat={communityPreview?.openChat} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
-        <h1>Så här känns det</h1>
-        {profile && swimmerEffects && daysToCompetition === 0 && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>}
-        {profile && <div className="mood-context-slot" aria-hidden={!nextCompetition || undefined}>
-          {nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
-        </div>}
+        <div className={`mood-hero-heading${nextCompetitionLogo ? ' has-competition-logo' : ''}`}>
+          <div>
+            <p className="eyebrow light">Idag i gruppen</p>
+            <h1>Så här känns det</h1>
+            {profile && <div className="mood-context-slot" aria-hidden={!nextCompetition || undefined}>
+              {nextCompetition && <p className="mood-context">Nästa tävling: {nextCompetition.title} · {daysToCompetition === 0 ? 'idag' : `${daysToCompetition} ${daysToCompetition === 1 ? 'dag' : 'dagar'} kvar`}</p>}
+            </div>}
+          </div>
+          {nextCompetitionLogo && <div className="mood-competition-side">
+            <SavedCompetitionLogo key={profile.id} competition={nextCompetition} code={code} request={apiRequest} decorative />
+            {raceBadge}
+          </div>}
+        </div>
+        {!nextCompetitionLogo && raceBadge}
         <div className="emoji-cloud" aria-label={`${todayResponses.length} svar idag`} tabIndex={todayResponses.length > 14 ? 0 : undefined}>
           {todayResponses.length ? todayResponses.map((response, index) => (
             <span className={`${response.feeling === 5 ? 'top-mood' : response.feeling === 4 ? 'good-mood' : ''}${animatedMoodIds.includes(response.id) ? ' new-response' : ''}`} key={response.id} style={{ '--delay': `${index * 40}ms` }}>

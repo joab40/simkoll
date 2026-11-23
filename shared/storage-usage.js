@@ -28,6 +28,7 @@ export const STORAGE_BUCKET_NAMES = {
   'strength-exercise-images': 'Styrka och landträning · övningsbilder',
   'reward-level-art': 'Nivåkort · bakgrunder och emblem',
   'lane-usage-evidence': 'Banfördelning · fotounderlag',
+  'competition-logos': 'Tävlingar · loggor',
   'competition-pm': 'Tävlingsbilagor · PM',
 }
 export const STORAGE_BUCKET_NOTES = {

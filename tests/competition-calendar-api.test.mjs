@@ -196,3 +196,70 @@ test('coach can save and reset individual choices while stale writes preserve th
   assert.equal((await call(body, { swimmer: true })).code, 403)
   assert.equal(writes, 1)
 })
+
+test('competition logos are scoped to visible competitions and use temporary links', async () => {
+  const version = '33333333-3333-4333-8333-333333333333'
+  const row = { ...competition, logo_document: { version, surface: 'dark', path: `${id}/${version}.png` } }
+  let group = 'ungdom_orange', signs = 0
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(input)
+    if (url.pathname.endsWith('/profile_sessions')) return reply([{ profile_id: profileId }])
+    if (url.pathname.endsWith('/profiles')) return reply([{ id: profileId, training_group: group }])
+    if (url.pathname.endsWith('/competition_calendar')) return reply([row])
+    assert(url.pathname.endsWith(`/object/sign/competition-logos/${row.logo_document.path}`))
+    signs += 1
+    assert.equal(JSON.parse(options.body).expiresIn, 3600)
+    return reply({ signedURL: '/object/sign/competition-logos/logo.png?token=fixture' })
+  }
+  const query = { competitionLogo: 'true', id }
+  const read = params => call(null, { method: 'GET', query: params, swimmer: true })
+  assert.equal((await read(query)).code, 404)
+  assert.equal(signs, 0)
+  group = 'junior'
+  assert.deepEqual((await read({ calendar: 'true' })).data.competitions[0].logo, { version, surface: 'dark' })
+  const result = await read(query)
+  assert.equal(result.code, 200)
+  assert.match(result.data.url, /^https:\/\/competition-test.invalid\/storage\/v1\/object\/sign\//)
+  assert.equal(signs, 1)
+})
+
+test('coach logo replacement validates the picture, uses a compare-and-set and cleans up the previous file', async () => {
+  const previousVersion = '33333333-3333-4333-8333-333333333333'
+  const oldPath = `${id}/${previousVersion}.png`
+  let row = { ...competition, logo_document: { version: previousVersion, path: oldPath } }
+  let uploads = 0
+  const removed = []
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(input)
+    if (url.pathname.endsWith('/bucket/competition-logos')) return reply({ public: false })
+    if (url.pathname.endsWith('/storage_usage_events')) return reply([])
+    if (url.pathname.includes('/object/competition-logos')) {
+      if (options.method === 'POST') {
+        uploads += 1
+        assert.equal(options.headers['Content-Type'], 'image/png')
+      } else removed.push(...JSON.parse(options.body).prefixes)
+      return reply({})
+    }
+    assert(url.pathname.endsWith('/competition_calendar'))
+    if (options.method === 'PATCH') {
+      assert.equal(url.searchParams.get('logo_document->>version'), `eq.${row.logo_document.version}`)
+      row = { ...row, ...JSON.parse(options.body) }
+    }
+    return reply([row])
+  }
+  const logoData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII='
+  const body = { action: 'set-competition-logo', competitionId: id, logoData, previousVersion }
+  assert.equal((await call({ ...body, logoData: pdf })).code, 422)
+  assert.equal(uploads, 0)
+  const result = await call(body)
+  assert.equal(result.code, 200)
+  assert.notEqual(result.data.competition.logo.version, previousVersion)
+  assert.equal(uploads, 1)
+  assert.deepEqual(removed, [oldPath])
+  assert.equal((await call(body)).code, 409)
+  assert.equal(uploads, 1)
+  const cleared = await call({ ...body, previousVersion: row.logo_document.version, logoData: null })
+  assert.equal(cleared.code, 200)
+  assert.equal(cleared.data.competition.logo, null)
+  assert.equal(removed.length, 2)
+})

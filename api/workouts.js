@@ -31,6 +31,7 @@ import { analyticsRows } from '../server/analytics-rows.js'
 import { competitionEntryRoster } from '../shared/competition-entry-status.js'
 import { handleSwimmerAssistant } from '../server/swimmer-assistant.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
+import { publicCompetitionLogo, decodeCompetitionLogo, storeCompetitionLogo, removeCompetitionLogo, competitionLogoUrl } from '../server/competition-logo.js'
 import { publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 import { canReadCompetition, competitionUuid, competitionScope, saveCompetitionParticipants } from '../server/competition-participation.js'
 import { isFlightBuilding } from '../shared/competition-building.js'
@@ -47,7 +48,7 @@ function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
 }
 function publicCompetition(item, includeParticipants = true) {
-  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), updatedAt: item.updated_at, flightBuilding: item.flight_building ?? null, ...(includeParticipants && item.participant_overrides != null ? { participantOverrides: item.participant_overrides } : {}) }
+  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), logo: publicCompetitionLogo(item), updatedAt: item.updated_at, flightBuilding: item.flight_building ?? null, ...(includeParticipants && item.participant_overrides != null ? { participantOverrides: item.participant_overrides } : {}) }
 }
 function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
@@ -724,6 +725,17 @@ export default async function handler(request, response) {
         const visible = competitions.filter(item => canReadCompetition(item, role, profile))
         return sendJson(response, 200, { competitions: visible.map(item => publicCompetition(item, role === 'coach')) })
       }
+      if (request.query?.competitionLogo === 'true') {
+        const id = String(request.query.id || '')
+        if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Välj en giltig tävling.' })
+        const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(id)}&select=id,logo_document,${competitionScope}&limit=1`)
+        if (!result.ok) throw new Error('Loggan kunde inte hämtas.')
+        const [competition] = await result.json()
+        if (!canReadCompetition(competition, role, profile) || !publicCompetitionLogo(competition)) {
+          return sendJson(response, 404, { error: 'Ingen logga finns tillgänglig för tävlingen.' })
+        }
+        return sendJson(response, 200, { url: await competitionLogoUrl(competition) })
+      }
       if (request.query?.competitionPm === 'true') {
         const id = String(request.query.id || '')
         if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Välj en giltig tävling.' })
@@ -999,6 +1011,37 @@ export default async function handler(request, response) {
         const row = (await result.json())[0]
         if (!row) { await removeCompetitionPm(document); return sendJson(response, 409, { error: 'Tävlingens PM ändrades av någon annan. Hämta tävlingslistan igen.' }) }
         await removeCompetitionPm(current.pm_document)
+        return sendJson(response, 200, { competition: publicCompetition(row) })
+      }
+      if (request.body?.action === 'set-competition-logo') {
+        const { competitionId: id, logoData, surface, previousVersion } = request.body
+        if (!competitionUuid.test(id) || (previousVersion !== null && !competitionUuid.test(previousVersion))) {
+          return sendJson(response, 400, { error: 'Välj en giltig tävling.' })
+        }
+        const endpoint = `competition_calendar?id=eq.${encodeURIComponent(id)}`
+        const lookup = await supabaseRequest(`${endpoint}&select=*&limit=1`)
+        if (!lookup.ok) throw new Error('Tävlingen kunde inte hämtas.')
+        const [current] = await lookup.json()
+        if (!current) return sendJson(response, 404, { error: 'Tävlingen finns inte längre.' })
+        if (!Object.hasOwn(current, 'logo_document')) return sendJson(response, 503, { error: 'Logglagringen kräver databasuppdatering 148.' })
+        const conflict = 'Loggan ändrades av någon annan. Hämta tävlingslistan igen.'
+        if ((publicCompetitionLogo(current)?.version ?? null) !== previousVersion) return sendJson(response, 409, { error: conflict })
+        let logo = null
+        if (logoData !== null) {
+          try { logo = await storeCompetitionLogo(id, decodeCompetitionLogo(logoData), surface) }
+          catch (error) { return sendJson(response, 422, { error: error.message }) }
+        }
+        const filter = previousVersion ? `logo_document->>version=eq.${encodeURIComponent(previousVersion)}` : 'logo_document=is.null'
+        const result = await supabaseRequest(`${endpoint}&${filter}`, {
+          method: 'PATCH', headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ logo_document: logo, updated_at: new Date().toISOString() }),
+        })
+        const row = result.ok ? (await result.json())[0] : null
+        if (!row) {
+          await removeCompetitionLogo(id, logo)
+          return sendJson(response, result.ok ? 409 : 422, { error: result.ok ? conflict : 'Loggan kunde inte kopplas till tävlingen.' })
+        }
+        await removeCompetitionLogo(id, current.logo_document)
         return sendJson(response, 200, { competition: publicCompetition(row) })
       }
       if (request.body?.action === 'save-competition-participants') {
@@ -1331,7 +1374,7 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Competition DELETE failed: ${result.status} ${await result.text()}`)
         const [deleted] = await result.json()
         if (!deleted) return sendJson(response, 404, { error: 'Tävlingen finns inte längre.' })
-        await removeCompetitionPm(deleted.pm_document)
+        await Promise.all([removeCompetitionPm(deleted.pm_document), removeCompetitionLogo(deleted.id, deleted.logo_document)])
         return sendJson(response, 200, { ok: true })
       }
       if (request.query?.planning === 'true') {
