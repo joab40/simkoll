@@ -26,7 +26,7 @@ const taperWeightField = 'flight_record_taper_weight'
 const boostSettingsField = 'flight_record_boost_settings'
 const pbSettingsField = 'flight_record_pb_boost_settings'
 const presentationField = 'flight_record_presentation'
-const swimmerChartDays = 28
+const defaultCoachOverviewDays = 28
 const returning = { Prefer: 'return=representation' }
 
 function access(row) {
@@ -59,7 +59,7 @@ function profileWeights(profile) {
   return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
 }
 
-async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = swimmerChartDays, preview = false, includeWeekType = false, defaults: loadedDefaults, planningCache } = {}) {
+async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = FLIGHT_HISTORY_DAYS, preview = false, includeWeekType = false, defaults: loadedDefaults, planningCache } = {}) {
   const defaults = loadedDefaults ?? await loadFlightDefaults([profile.training_group])
   const inherited = defaults.group(profile.training_group) ?? defaults.club
   const start = coachWeekAddDays(end, 1 - (chartOnly ? chartDays : FLIGHT_HISTORY_DAYS))
@@ -263,7 +263,7 @@ async function loadChartForSwimmer(response, profile) {
 
 async function coachFlightOverview(request, response) {
   const { end, days } = request.query
-  const chartDays = days === undefined ? swimmerChartDays : FLIGHT_PERIODS.find(period => String(period) === days)
+  const chartDays = days === undefined ? defaultCoachOverviewDays : FLIGHT_PERIODS.find(period => String(period) === days)
   if (!chartDays) return sendJson(response, 400, { error: 'Välj 14, 28 eller 90 dagar för gruppkurvan.' })
   const ids = typeof request.query.ids === 'string' ? [...new Set(request.query.ids.split(','))] : []
   if (!isTimeDate(end) || end > stockholmDate() || end < '1900-01-01'

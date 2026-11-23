@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
-import { flightCompetitionJourney, flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
+import { FLIGHT_TIMELINE_SPAN, flightJourneyWindow, flightTimelineBounds, flightCompetitionJourney, flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 import { defaultFlightPbSettings } from '../shared/flight-pb.js'
@@ -279,7 +279,7 @@ test('only a personal coach can save weights for an approved profile, even with 
   assert.equal(calls.find(row => row.method === 'POST' && row.table === 'audit_logs').body.details.coachAccountId, coachId)
 })
 
-test('the opted-in swimmer receives only 28 chart points with the coach’s weighting', async (t) => {
+test('the opted-in swimmer receives 90 days of chart points with the coach’s weighting', async (t) => {
   const { calls } = dbFixture(t, { state: 'active', failSleep: true })
   const weights = { ...defaultFlightWeights, speedFeeling: 0, body: 83, energy: 17, sleepQuality: 0 }
   assert.equal((await call({ code: coach, mode: 'weights', method: 'POST', profileId: id, body: { weights } })).code, 200)
@@ -288,14 +288,14 @@ test('the opted-in swimmer receives only 28 chart points with the coach’s weig
   assert.equal(result.code, 200)
   assert.deepEqual(Object.keys(result.data).sort(), ['asOf', 'partial', 'points'])
   assert.equal(result.data.partial, true)
-  assert.equal(result.data.points.length, 28)
+  assert.equal(result.data.points.length, 90)
   assert.deepEqual(result.data.points.at(-1), { date: today, value: 58.3, newTimeLift: false })
   assert(!calls.slice(offset).some(row => row.table === 'audit_logs'))
   assert.equal((await call({ mode: 'data' })).code, 403)
   assert.equal((await call({ code: coach, mode: 'chart', profileId: id })).code, 403)
   const details = (await call({ code: coach, mode: 'data', profileId: id })).data
   const coachLine = flightLine(details.days, details.contextDays, details.timeLifts, details.weights)
-  assert.deepEqual(result.data.points.map(point => point.value), coachLine.slice(-28).map(point => point.value))
+  assert.deepEqual(result.data.points.map(point => point.value), coachLine.map(point => point.value))
   const sparseWeights = { ...weights, body: 25, energy: 18, sleepQuality: 57 }
   assert.equal((await call({ code: coach, mode: 'weights', method: 'POST', profileId: id, body: { weights: sparseWeights } })).code, 200)
   const sparse = (await call({ mode: 'chart' })).data.points.at(-1)
@@ -521,7 +521,7 @@ test('taper preview and the opted-in swimmer graph use the same training history
   const swimmer = await call({ mode: 'chart' })
   assert.equal(swimmer.code, 200)
   const line = flightLine(preview.days, preview.contextDays, preview.timeLifts, weights, preview.customMeasures, preview.taperAdjustments, boostSettings)
-  assert.deepEqual(swimmer.data.points.map(point => point.value), line.slice(-28).map(point => point.value))
+  assert.deepEqual(swimmer.data.points.map(point => point.value), line.map(point => point.value))
   assert(line.at(-1).value < line.at(-1).base)
   assert.doesNotMatch(JSON.stringify(swimmer.data), /taper|load|rpe/)
 })
@@ -661,4 +661,27 @@ test('SQL 134 is idempotent and enforces a valid choice under an existing offer'
     const { rows } = await db.query("select relrowsecurity from pg_class where oid='profiles'::regclass")
     assert.equal(rows[0].relrowsecurity, true)
   } finally { await db.close() }
+})
+
+test('the swimmer timeline opens at today and spans historical data and the last meet', () => {
+  const asOf = '2026-11-23'
+  const journey = flightCompetitionJourney([
+    { id: 'older', title: 'Norrlandssim', startDate: '2026-08-07' },
+    { id: 'next', title: 'USM', startDate: '2026-11-27', endDate: '2026-11-29' },
+    { id: 'far', title: 'Vårtävling', startDate: '2027-04-03', endDate: '2027-04-05' },
+  ], asOf)
+  const bounds = flightTimelineBounds(asOf, [{ date: '2026-08-26' }], journey)
+  assert.deepEqual(bounds, { first: '2026-08-07', last: '2027-02-23', todayStart: '2026-10-27' })
+  assert.equal(FLIGHT_TIMELINE_SPAN, 41)
+  assert.deepEqual(flightTimelineBounds(asOf, [], []), { first: bounds.todayStart, last: bounds.todayStart, todayStart: bounds.todayStart })
+  const historical = flightJourneyWindow(journey, '2026-08-01', '2026-09-11', '2026-08-28', 'far')
+  assert.equal(historical.target.id, 'older')
+  const current = flightJourneyWindow(journey, bounds.todayStart, '2026-12-07', asOf)
+  assert.deepEqual(current.visible.map(event => event.id), ['next'])
+  assert.equal(current.target.id, 'next')
+  const withinMeet = flightJourneyWindow(journey, '2026-11-28', '2027-01-08', '2026-12-25')
+  assert.equal(withinMeet.target.id, 'next')
+  const gap = flightJourneyWindow(journey, '2027-01-01', '2027-02-11', '2027-01-28')
+  assert.equal(gap.target, undefined)
+  assert.equal(gap.focus.id, 'far')
 })

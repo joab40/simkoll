@@ -17,6 +17,26 @@ export function flightCompetitionJourney(competitions, asOf) {
   }).sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
+export const FLIGHT_TIMELINE_PAST_DAYS = 27
+export const FLIGHT_TIMELINE_FUTURE_DAYS = 14
+export const FLIGHT_TIMELINE_SPAN = FLIGHT_TIMELINE_PAST_DAYS + FLIGHT_TIMELINE_FUTURE_DAYS
+
+export function flightTimelineBounds(asOf, points, journey) {
+  const todayStart = coachWeekAddDays(asOf, -FLIGHT_TIMELINE_PAST_DAYS)
+  const first = [todayStart, points[0]?.date, journey[0]?.startDate].filter(Boolean).sort()[0]
+  const lastDay = journey.reduce((latest, event) => event.endDate > latest ? event.endDate : latest,
+    coachWeekAddDays(asOf, FLIGHT_TIMELINE_FUTURE_DAYS))
+  return { first, last: coachWeekAddDays(lastDay, -FLIGHT_TIMELINE_SPAN), todayStart }
+}
+
+export function flightJourneyWindow(journey, start, end, anchor, selectedId) {
+  const visible = journey.filter(event => event.startDate <= end && event.endDate >= start)
+  const target = visible.find(event => event.id === selectedId)
+    ?? visible.find(event => event.endDate >= anchor) ?? visible.at(-1)
+  const focus = target ?? journey.find(event => event.startDate > end) ?? journey.at(-1)
+  return { visible, target, focus }
+}
+
 function finite(value, min, max = Infinity) {
   return Number.isFinite(value) && value >= min && value <= max ? value : null
 }

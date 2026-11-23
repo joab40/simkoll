@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
 import { flightWeekAnnotations } from '../shared/planning-week-types.js'
 import { FLIGHT_BUILDINGS } from '../shared/competition-building.js'
-import { FLIGHT_PERIODS, flightCompetitionJourney, flightTimeComparison } from '../shared/flight-record.js'
+import { FLIGHT_PERIODS, FLIGHT_TIMELINE_PAST_DAYS, FLIGHT_TIMELINE_SPAN, flightCompetitionJourney, flightJourneyWindow, flightTimeComparison, flightTimelineBounds } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
@@ -65,7 +65,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag', weekTypes = [], weekType }) {
+export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag', weekTypes = [], weekType, timeline }) {
   const graph = useRef(null)
   const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
@@ -83,31 +83,38 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
     return () => observer.disconnect()
   }, [])
 
-  const start = days[0].date
+  const start = timeline?.start ?? days[0].date
+  const end = timeline?.end ?? asOf
+  const showToday = !timeline || (asOf >= start && asOf <= end)
   const sky = presentation?.sky === true
   const skyGoal = sky && target
-  const direction = sky ? flightDirection(points, asOf, presentation, weekType) : null
+  const direction = sky && showToday ? flightDirection(timeline?.allPoints ?? points, asOf, presentation, weekType) : null
   const building = skyGoal ? FLIGHT_BUILDINGS[target.building ?? (target.championship ? 'championship' : 'regional')] : null
   const goalOffset = target ? daysBetween(asOf, target.date) : 0
   // Distant calendar events stay in the destination header, so the history has room.
   const future = !skyGoal && goalOffset > 0 && goalOffset <= Math.min(14, Math.floor(period / 2)) ? goalOffset : 0
-  const domain = Math.max(1, days.length - 1 + future)
+  const domain = Math.max(1, timeline ? daysBetween(start, end) : days.length - 1 + future)
   const left = timed ? 62 : 50
   const right = width - 18
   const top = 22
   const base = height - 30
   const values = points.map(point => point.value).filter(Number.isFinite)
   const [min, max] = chartScale(values, metric, timed)
-  const historyRight = sky ? left + (right - left) * (skyGoal ? .60 : .74) : right
+  const historyRight = sky && !timeline ? left + (right - left) * (skyGoal ? .60 : .74) : right
   const x = (date) => left + daysBetween(start, date) / domain * (historyRight - left)
   const y = (value) => top + (timed ? (value - min) : (max - value)) / (max - min) * (base - top)
   const today = x(asOf)
+  const futureStart = Math.max(left, today)
+  const hasFuture = timeline ? end > asOf : future > 0
   const plannedWeeks = flightWeekAnnotations(weekTypes, start, asOf)
   const selectedWeek = plannedWeeks.find(week => week.weekStart === coachWeekMonday(selected ?? asOf))
   const ticks = timed ? [min, Math.round((min + max) / 2), max] : metric.scale?.[1] === 5 ? [1, 2, 3, 4, 5] : [min, (min + max) / 2, max]
   const midpoint = days[Math.floor((days.length - 1) / 2)]?.date
   const showMidpoint = skyGoal ? historyRight - left > 380 : width > 430
-  const axis = [...new Set([start, ...(showMidpoint && midpoint ? [midpoint] : []), asOf])]
+  const timelineMidpoint = showToday ? asOf : coachWeekAddDays(start, Math.floor(domain / 2))
+  const timelineHasMiddle = x(timelineMidpoint) - left > 48 && right - x(timelineMidpoint) > 48
+  const axis = timeline ? [start, ...(timelineHasMiddle ? [timelineMidpoint] : []), end]
+    : [...new Set([start, ...(showMidpoint && midpoint ? [midpoint] : []), asOf])]
   let path = ''
   let limitedPath = ''
   let previous = null
@@ -122,20 +129,23 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   }
   const todayPoint = points.find(point => point.date === asOf && Number.isFinite(point.value))
   const plotLabel = timed ? 'Lopptid · snabbare högre upp' : `${metric.label} · ${metric.subtitle ?? metric.unit}`
-  const endDescription = endLabel.toLocaleLowerCase('sv-SE').replace(/\.$/, '')
+  const endDescription = (timeline && end !== asOf ? shortDate(end) : endLabel).toLocaleLowerCase('sv-SE').replace(/\.$/, '')
   const latestPoint = points.findLast(point => Number.isFinite(point.value))
   const hasLimited = points.some(point => point.limited)
-  const pilotPoint = todayPoint ?? latestPoint
+  const pilotPoint = showToday ? todayPoint ?? latestPoint : null
   const plane = planes[flightAircraft(pilotPoint)]
-  const goalWidth = right - today
-  const planeWidth = Math.min(76, goalWidth * (skyGoal ? .38 : .62), Math.max(42, width * .078)) * plane.size
+  const goalWidth = Math.max(0, right - (timeline && pilotPoint ? x(pilotPoint.date) : today))
+  const planeWidth = (timeline
+    ? Math.min(65, goalWidth * .9, width * .12)
+    : Math.min(76, goalWidth * (skyGoal ? .38 : .62), Math.max(42, width * .078))) * plane.size
   const planeHeight = planeWidth / 3
   const pilotX = pilotPoint ? x(pilotPoint.date) : null
   const pilotY = pilotPoint ? y(pilotPoint.value) : null
   let course = null
-  if (direction?.days > 0) {
+  if (direction?.days > 0 && pilotPoint && planeWidth > 0) {
     const nose = planeWidth * .84
-    const span = nose + Math.min(39, goalWidth * (skyGoal ? .56 : .97) - nose) * direction.days / FLIGHT_FORWARD_LIMIT
+    const span = timeline ? Math.min(goalWidth, x(coachWeekAddDays(asOf, direction.days)) - pilotX)
+      : nose + Math.min(39, goalWidth * (skyGoal ? .56 : .97) - nose) * direction.days / FLIGHT_FORWARD_LIMIT
     const slope = Math.tan(direction.angle * Math.PI / 180)
     course = {
       x: pilotX + span,
@@ -146,22 +156,30 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   const palaceLayout = target?.building === 'regional-final'
     ? { width: .67, height: .65, top: .24 }
     : target?.championship ? { width: .76, height: .84, top: .15 } : { width: .54, height: .49, top: .32 }
-  const palaceWidth = skyGoal ? Math.min(goalWidth * palaceLayout.width, height * palaceLayout.height, 256) : 0
+  const palaceWidth = skyGoal
+    ? Math.min((timeline ? (right - left) * .35 : goalWidth) * palaceLayout.width, height * palaceLayout.height, 256)
+    : 0
   const palaceHeight = building ? palaceWidth / building.aspect : 0
   const palaceY = top + (base - top) * palaceLayout.top
-  const palaceCenter = today + (goalWidth - palaceWidth) * .87 + palaceWidth / 2
-  const palaceLabelWidth = Math.min(goalWidth - 8, Math.max(120, palaceWidth))
-  const palaceLabelX = Math.min(palaceCenter - palaceLabelWidth / 2, right - palaceLabelWidth)
+  const palaceCenter = timeline && skyGoal
+    ? Math.max(left + palaceWidth / 2, Math.min(x(target.date), right - palaceWidth / 2))
+    : today + (goalWidth - palaceWidth) * .87 + palaceWidth / 2
+  const palaceLabelWidth = Math.min((timeline ? right - left : goalWidth) - 8, Math.max(120, palaceWidth))
+  const palaceLabelX = Math.max(left, Math.min(palaceCenter - palaceLabelWidth / 2, right - palaceLabelWidth))
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
   return <figure className={`flight-plot${onSelect ? '' : ' flight-plot-static'}${sky ? ' flight-plot-sky' : ''}`} aria-label={plotLabel}>
     <figcaption>{plotLabel}</figcaption>
     <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till ${endDescription}.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}${course ? ` ${course.label}.` : ''}`}>
-      {future > 0 && <rect className="flight-future" x={today} y={top} width={goalWidth} height={base - top} />}
+      {hasFuture && <rect className="flight-future" x={futureStart} y={top} width={right - futureStart} height={base - top} />}
       {ticks.map(tick => <g key={tick}>
         <line className="flight-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)} />
         <text x={left - 7} y={y(tick) + 4} textAnchor="end">{timed ? tickValue(tick) : number(tick)}</text>
+      </g>)}
+      {timeline?.events.map(event => <g key={event.id}>
+        <line className="flight-goal" x1={x(event.date)} x2={x(event.date)} y1={top} y2={base} />
+        <title>{shortDate(event.date)} · {event.title}</title>
       </g>)}
       {skyGoal && <g aria-hidden="true">
         <image className="flight-goal-palace" href={building.image}
@@ -170,8 +188,8 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
           <div className={`flight-palace-name${target.championship ? ' championship' : ''}`} title={target.title}>{target.title}</div>
         </foreignObject>
       </g>}
-      <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />
-      {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
+      {showToday && <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />}
+      {!timeline && future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
       {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
       {sky && path && <path className="flight-contrail-haze" d={path} fill="none" />}
       {path && <path className="flight-observed-line" d={path} fill="none" />}
@@ -189,13 +207,13 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
           ? <rect key={point.date} className={'flight-mark' + marked} x={x(point.date) - barWidth / 2} y={y(point.value)} width={barWidth} height={Math.max(2, base - y(point.value))} rx="1.5" onClick={onClick}><title>{label}</title></rect>
           : <circle key={point.date} className={`flight-mark${marked}${point.limited ? ' limited' : ''}`} cx={x(point.date)} cy={y(point.value)} r={marked ? 6 : timed ? 4.5 : sky || period === 90 ? 2 : 3} onClick={onClick}><title>{liftLabel}</title></circle>
       })}
-      {!values.length && <text className="flight-empty-label" x={(left + historyRight) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
+      {!values.length && <text className="flight-empty-label" x={(left + historyRight) / 2} y={(top + base) / 2} textAnchor="middle">{timeline ? 'Inga formvärden i perioden' : 'För lite underlag ännu'}</text>}
       {course && <path className="flight-course" aria-hidden="true" d={`M ${pilotX} ${pilotY} L ${course.x} ${course.y}`} />}
-      {sky ? pilotPoint && <g transform={`translate(${pilotX} ${pilotY}) rotate(${-direction.angle})`} aria-hidden="true">
+      {sky ? pilotPoint && planeWidth > 0 && <g transform={`translate(${pilotX} ${pilotY}) rotate(${-(direction?.angle ?? 0)})`} aria-hidden="true">
         <image className="flight-plane flight-plane-art" href={plane.src} x={-planeWidth * .14} y={-planeHeight * plane.baseline}
           width={planeWidth} height={planeHeight} />
       </g>
-        : <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
+        : showToday && <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
       {plannedWeeks.map(week => {
         const nextWeek = coachWeekAddDays(week.weekStart, 7)
         const from = x(week.weekStart < start ? start : week.weekStart)
@@ -205,16 +223,20 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
           <title>{shortDate(week.weekStart)} · {week.text}</title>
         </rect>
       })}
-      {axis.map(date => <text key={date} x={date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={date === asOf ? 'end' : date === start ? 'start' : 'middle'}>{date === asOf ? endLabel : shortDate(date)}</text>)}
-      {future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
-      {skyGoal && <text x={palaceCenter} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
+      {axis.map(date => {
+        const anchor = date === start ? 'start' : date === end ? 'end' : 'middle'
+        return <text key={date} x={!timeline && date === asOf ? today - 3 : x(date)} y={height - 9} textAnchor={anchor}>{date === asOf ? endLabel : shortDate(date)}</text>
+      })}
+      {!timeline && future > 0 && right - today >= 34 && <text x={right} y={height - 9} textAnchor="end">Mål</text>}
+      {!timeline && skyGoal && <text x={palaceCenter} y={height - 9} textAnchor="middle">Tävlingsmål</text>}
     </svg>
     <div className="flight-legend">
       <span><i/> {metric.legend ?? (metric === lineMetric ? 'Sammanvägda signaler' : 'Registrerade uppgifter')}</span>
       {hasLimited && <span><i className="flight-legend-limited"/> Begränsat underlag</span>}
       {metric === lineMetric && <span><i className="flight-legend-lift"/> Nytt tidslyft</span>}
       {course && <span><i className="flight-legend-course"/> {course.label}</span>}
-      {future > 0 && <span><i className="flight-legend-future"/> {onSelect ? 'Planerad tävlingsdag' : target.title}</span>}
+      {hasFuture && <span><i className="flight-legend-future"/> {timeline ? 'Planerad period' : onSelect ? 'Planerad tävlingsdag' : target.title}</span>}
+      {timeline && target && !sky && <span>⚑ {target.title}</span>}
       {status && <span role="status">{status}</span>}
     </div>
     {plannedWeeks.length > 0 && <details className="flight-plot-weeks">
@@ -668,15 +690,17 @@ export function FlightRecordView({ data, competitions = [], weekTypes = [], save
   </>
 }
 
-function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
+function CompetitionJourney({ journey, asOf, selected, focus, next, onSelect, sky }) {
   const viewport = useRef(null)
   const activeStop = useRef(null)
   useEffect(() => {
     const strip = viewport.current, stop = activeStop.current
     if (!strip || !stop) return
     const visible = strip.getBoundingClientRect(), item = stop.getBoundingClientRect()
-    if (item.left < visible.left || item.right > visible.right) strip.scrollLeft += item.left - visible.left - 12
-  }, [selected?.id, journey.length])
+    if (item.left < visible.left || item.right > visible.right) {
+      strip.scrollLeft += (item.left + item.right - visible.left - visible.right) / 2
+    }
+  }, [focus?.id, journey.length])
 
   const dayLabel = date => date.slice(0, 4) === asOf.slice(0, 4) ? shortDate(date) : `${shortDate(date)} ${date.slice(0, 4)}`
   return <section className="flight-journey" aria-label="Tävlingsresan">
@@ -696,9 +720,8 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
           <small className="flight-journey-status">{label}</small>
         </>
         return <li key={event.id} data-building={event.building} className={`flight-journey-event ${event.status}${isNext ? ' next' : ''}${event.championship ? ' championship' : ''}`}>
-          {event.status === 'past' ? <div className="flight-journey-stop">{details}</div>
-            : <button type="button" className="flight-journey-stop" aria-pressed={isSelected}
-              ref={isSelected ? activeStop : null} onClick={() => onSelect(event.id)}>{details}</button>}
+          <button type="button" className="flight-journey-stop" aria-pressed={isSelected}
+            ref={event.id === focus?.id ? activeStop : null} onClick={() => onSelect(event)}>{details}</button>
         </li>
       })}</ol>
     </div> : <p>Inga tävlingar i kalendern ännu.</p>}
@@ -789,16 +812,85 @@ function FlightPresentationSettings({ initial, available, competitions, loadPrev
   </details>
 }
 
+const timelinePixelsPerDay = 18
+const periodLabel = (start, end) => {
+  const startLabel = start.slice(0, 4) === end.slice(0, 4) ? shortDate(start) : `${shortDate(start)} ${start.slice(0, 4)}`
+  return `${startLabel} – ${shortDate(end)} ${end.slice(0, 4)}`
+}
+
 function SwimmerFlightChart({ data, competitions = [], presentation = data.presentation }) {
-  const [targetId, setTargetId] = useState(null)
-  const journey = useMemo(() => flightCompetitionJourney(competitions, data.asOf), [competitions, data.asOf])
+  const { asOf, points } = data
+  const journey = useMemo(() => flightCompetitionJourney(competitions, asOf), [competitions, asOf])
   const next = journey.find(event => event.status !== 'past')
-  const competition = journey.find(event => event.id === targetId && event.status !== 'past') ?? next
-  const target = competition ? { title: competition.title, championship: competition.championship, building: competition.building, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
+  const { first, last, todayStart } = flightTimelineBounds(asOf, points, journey)
+  const [date, setDate] = useState(todayStart)
+  const [chosen, setChosen] = useState(null)
+  const viewport = useRef(null)
+  const drag = useRef(null)
+  const clamp = value => value < first ? first : value > last ? last : value
+  const start = clamp(date)
+  const end = coachWeekAddDays(start, FLIGHT_TIMELINE_SPAN)
+  const maxScroll = daysBetween(first, last) * timelinePixelsPerDay
+  const anchor = coachWeekAddDays(start, FLIGHT_TIMELINE_PAST_DAYS)
+  const { visible, target: competition, focus } = flightJourneyWindow(journey, start, end, anchor, chosen?.start === start ? chosen.id : null)
+  const events = visible.map(event => ({ ...event, date: event.startDate < start ? start : event.startDate }))
+  const visiblePoints = points.filter(point => point.date >= start && point.date <= end)
+
+  // Keep the same dates in view when newly loaded competitions extend the rail.
+  useLayoutEffect(() => {
+    viewport.current.scrollLeft = daysBetween(first, start) * timelinePixelsPerDay
+  }, [first, last])
+
+  const jumpTo = value => {
+    const day = clamp(value)
+    viewport.current.scrollLeft = daysBetween(first, day) * timelinePixelsPerDay
+    setDate(day)
+    return day
+  }
+  const shift = days => {
+    setChosen(null)
+    jumpTo(coachWeekAddDays(start, days))
+  }
+  const selectCompetition = event => {
+    const rangeStart = jumpTo(coachWeekAddDays(event.startDate, -FLIGHT_TIMELINE_PAST_DAYS))
+    setChosen({ id: event.id, start: rangeStart })
+  }
+  const target = events.find(event => event.id === competition?.id)
   return <div className="flight-swimmer-presentation">
-    {data.points.length > 0 ? <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
-      status={data.partial ? 'Delar av underlaget saknas' : undefined} presentation={presentation} weekType={data.weekType} /> : <p>För lite underlag för att visa en graf.</p>}
-    <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} sky={presentation?.sky === true} />
+    <div className="flight-timeline-toolbar">
+      <span>{periodLabel(start, end)}</span>
+      <div className="flight-timeline-actions">
+        <button type="button" className="secondary-button" aria-label="Flytta grafen en vecka bakåt" disabled={start === first} onClick={() => shift(-7)}>←</button>
+        <button type="button" className="secondary-button" onClick={() => { setChosen(null); jumpTo(todayStart) }}>Idag</button>
+        <button type="button" className="secondary-button" aria-label="Flytta grafen en vecka framåt" disabled={start === last} onClick={() => shift(7)}>→</button>
+      </div>
+    </div>
+    <div ref={viewport} className="flight-timeline-scroll" tabIndex={0} role="region" aria-label="Flight Record, bläddra i tid"
+      onScroll={event => setDate(clamp(coachWeekAddDays(first, Math.round(event.currentTarget.scrollLeft / timelinePixelsPerDay))))}
+      onKeyDown={event => {
+        if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+        event.preventDefault()
+        shift(event.key === 'ArrowLeft' ? -7 : 7)
+      }}
+      onPointerDown={event => {
+        if (event.pointerType !== 'mouse' || event.button !== 0 || !maxScroll || !event.target.closest('svg')) return
+        const element = event.currentTarget
+        drag.current = { x: event.clientX, scrollLeft: element.scrollLeft }
+        element.setPointerCapture(event.pointerId)
+      }}
+      onPointerMove={event => {
+        if (drag.current) event.currentTarget.scrollLeft = drag.current.scrollLeft + drag.current.x - event.clientX
+      }}
+      onLostPointerCapture={() => { drag.current = null }}>
+      <div className="flight-timeline-rail" style={{ '--flight-timeline-overflow': `${maxScroll}px` }}>
+        <div className="flight-timeline-window">
+          <FlightPlot days={visiblePoints} points={visiblePoints} metric={lineMetric} asOf={asOf} target={target} period={FLIGHT_TIMELINE_SPAN + 1}
+            timeline={{ start, end, events, allPoints: points }} status={data.partial ? 'Delar av underlaget saknas' : undefined}
+            presentation={presentation} weekType={data.weekType} />
+        </div>
+      </div>
+    </div>
+    <CompetitionJourney journey={journey} selected={competition} focus={focus} next={next} asOf={asOf} onSelect={selectCompetition} sky={presentation?.sky === true} />
   </div>
 }
 

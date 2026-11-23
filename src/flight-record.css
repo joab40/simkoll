@@ -101,7 +101,37 @@
 .flight-home-summary:focus-visible,
 .flight-presentation > summary:focus-visible,
 .flight-journey-scroll:focus-visible,
+.flight-timeline-scroll:focus-visible,
 .flight-journey-stop:focus-visible { outline: 2px solid #2469a6; outline-offset: 2px; }
+.flight-timeline-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 10px;
+  margin-block: 4px;
+  color: var(--flight-muted);
+  font-size: .86rem;
+  font-weight: 650;
+}
+.flight-timeline-actions { display: flex; gap: 6px; margin-inline-start: auto; }
+.flight-timeline-actions button { min-width: 44px; min-height: 44px; padding: 5px 10px; }
+.flight-timeline-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 4px;
+  border-radius: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: #88aabb transparent;
+}
+.flight-timeline-rail { width: calc(100% + var(--flight-timeline-overflow)); }
+.flight-timeline-window {
+  position: sticky;
+  left: 0;
+  width: calc(100% - var(--flight-timeline-overflow));
+}
+.flight-timeline-window svg { cursor: grab; user-select: none; }
+.flight-timeline-window svg:active { cursor: grabbing; }
 .flight-swimmer-presentation .flight-plot { margin-top: 9px; }
 .flight-swimmer-presentation .flight-plot svg,
 .flight-coach-content:modal .flight-swimmer-presentation .flight-plot svg { height: clamp(212px, 31vw, 325px); }
