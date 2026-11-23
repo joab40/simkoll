@@ -67,7 +67,7 @@ import DriveSettings from './drive-settings.jsx'
 import { CalendarVisibilityButton, HiddenCalendarActivities } from './calendar-visibility.jsx'
 import SwimmerHeader from './swimmer-header.jsx'
 import WinterHeroDecor, { WinterTrainingBuddy } from './winter-theme.jsx'
-import { planningMonday } from '../shared/weekly-planning.js'
+import { planningAddDays, planningMonday } from '../shared/weekly-planning.js'
 import { isoWeek } from '../shared/planning-import.js'
 import SwimmerTrainingTimesCard from './swimmer-training-times-card.jsx'
 import SwimmerAgreementCard from './swimmer-agreement-card.jsx'
@@ -1811,6 +1811,7 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
   const planDesiredRef = useRef(new Map())
   const planWorkersRef = useRef(new Set())
   const [cheer, setCheer] = useState('')
+  const [planWeek, setPlanWeek] = useState(0)
   const [sessionEdits,setSessionEdits]=useState(()=>new Map())
   const localSessions=pendingWeeklySessions(training?.sessions,sessionEdits)
   const [localPlans, setLocalPlans] = useState(null)
@@ -1818,6 +1819,7 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
   const goal = currentSeasonGoal(training)
   const completed = currentWeekSwims({ sessions: localSessions || training?.sessions || [] })
   const start = weekStart(), today = todayKey()
+  const personalStart = planningAddDays(planningMonday(today), planWeek * 7)
   const weeklySessions = (localSessions || []).filter((item) => item.date >= dateKey(start) && item.date <= today)
   const plannedSessions = (localPlans || []).filter((item) => item.weekStart === dateKey(start))
   const plannedDays = new Set(plannedSessions.map((item) => item.date)).size
@@ -1890,8 +1892,8 @@ function WeeklySwimCard({ code, training, showStars, halloween, winter, onOpen, 
     <div className="weekly-summary"><div><p className="eyebrow">Min träning den här veckan</p><h3>{goal ? `${completed} av ${goal.target} simpass · ${percentage} %` : `${completed} simpass`}</h3><WeeklyTrainingVolume sessions={weeklySessions}/>{goal ? <><div className="session-dots">{Array.from({ length: goal.target }, (_, index) => <i className={index < completed ? 'done' : ''} key={index} />)}</div><small>{completed >= goal.target ? 'Veckomålet är uppnått!' : `${goal.target - completed} simpass kvar enligt din överenskommelse`} · {weeklySessions.length} pass totalt</small></> : <small>{weeklySessions.length} pass totalt · <button onClick={onOpen}>sätt ett simmål</button></small>}<small>{plannedDays} planerade dagar · planera minst 3 dagar för +2 poäng</small>{showStars && <><StarProgress stars={stars} /><small className="star-status">{stars.fourWeeksExpected ? `Simmål senaste 4 veckorna: ${stars.fourWeeksCompleted} av ${stars.fourWeeksExpected} · ${stars.fourWeeksPercentage} %` : 'Sätt ett simmål för att följa simstjärnan.'}</small></>}</div><button onClick={onOpen}>Mina mål →</button>{halloween && <span className="weekly-halloween-spider" aria-hidden="true">🕷️</span>}</div>
     {crossGoal && <div className="cross-progress"><MiniGoal icon="🏋️" label="Styrka" {...typeProgress.strength} /><MiniGoal icon="🤸" label="Landträning" {...typeProgress.dryland} /></div>}
     {showStars && <details className="star-guide"><summary>Vad ger stjärnorna?</summary><small>Planera minst tre dagar · ha mål för simning, styrka och landträning · genomför simmålet under de fyra senaste avslutade veckorna.</small></details>}
-    <SwimmerWeekPlanner today={today} sessions={localSessions || []} plans={localPlans || []} saving={saving} onToggle={toggle} onPlan={togglePlan} onWeekChange={() => setCheer('')} /><div className="week-status-slot"><div className="week-save-status" role="status" aria-live="polite">{savingPlan || savingTraining ? <><span aria-hidden="true">⏳</span>{savingPlan && savingTraining ? 'Sparar planering och genomförd träning…' : savingPlan ? 'Sparar din planering…' : 'Sparar genomförd träning…'}</> : cheer ? <><span aria-hidden="true">✨</span><strong>{cheer}</strong><button type="button" aria-label="Dölj bekräftelsen" onClick={() => setCheer('')}>×</button></> : null}</div></div>
-    <PersonalTrainingPlanner code={code} start={dateKey(start)} end={dateKey(new Date(start.getTime() + 6 * 86400000))} />
+    <SwimmerWeekPlanner today={today} sessions={localSessions || []} plans={localPlans || []} saving={saving} onToggle={toggle} onPlan={togglePlan} onWeekChange={offset => { setPlanWeek(offset); setCheer('') }} /><div className="week-status-slot"><div className="week-save-status" role="status" aria-live="polite">{savingPlan || savingTraining ? <><span aria-hidden="true">⏳</span>{savingPlan && savingTraining ? 'Sparar planering och genomförd träning…' : savingPlan ? 'Sparar din planering…' : 'Sparar genomförd träning…'}</> : cheer ? <><span aria-hidden="true">✨</span><strong>{cheer}</strong><button type="button" aria-label="Dölj bekräftelsen" onClick={() => setCheer('')}>×</button></> : null}</div></div>
+    <PersonalTrainingPlanner code={code} start={personalStart} end={planningAddDays(personalStart, 6)} />
   </section>
 }
 

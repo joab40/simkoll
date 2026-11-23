@@ -48,3 +48,26 @@ export function personalCheckinDetails(body) {
 export function mapPersonalPlan(row, completed = false) {
   return { id: row.id, date: row.planned_date, slot: row.session_slot, weekStart: row.week_start, ...row.personal_details, completed }
 }
+
+export function personalTrainingWeekSlots(plans, sessions, start, end) {
+  const inWeek = item => item.personalSession && item.date >= start && item.date <= end
+  const slotId = item => `${item.date}|${item.slot}`
+  const completed = new Map(sessions.filter(inWeek).map(item => [slotId(item), item]))
+  const byCell = new Map()
+  const add = (item, done) => {
+    const type = item.activityType ?? item.type
+    const slot = type === 'swim' && ['morning', 'afternoon'].includes(item.timeOfDay) ? `${item.timeOfDay}_swim`
+      : ['strength', 'dryland'].includes(type) ? type : 'personal'
+    const key = `${item.date}|${slot}`
+    const details = { ...item, activityType: type }
+    const entries = byCell.get(key) ?? []
+    entries.push({ title: item.title || personalTitle(details), icon: personalEmoji(details), origin: item.origin, done })
+    byCell.set(key, entries)
+  }
+  for (const plan of plans.filter(inWeek)) {
+    const done = completed.delete(slotId(plan))
+    add(plan, done)
+  }
+  for (const session of completed.values()) add(session, true)
+  return byCell
+}

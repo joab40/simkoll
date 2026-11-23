@@ -9,3 +9,27 @@
 .swimmer-next-week-help { margin: 10px 0 0; }
 .weekly-training-card .weekly-summary small { display: block; }
 @media (max-width: 550px) { .swimmer-week-options { width: 100%; } .swimmer-week-options button { flex: 1; } .swimmer-week-picker p { grid-template-columns: auto auto; gap: 10px; } }
+
+.week-log-row:not(.week-log-personal-row):has(.week-personal-marker) .week-cell { grid-template-rows: minmax(32px, auto) minmax(22px, auto); }
+.week-personal-marker {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 3px;
+  min-width: 0;
+  padding: 2px 3px;
+  border-radius: 6px;
+  background: #d9eeed;
+  color: #245b63;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.week-personal-marker.done { background: #e1efd8; color: #465f30; }
+.week-personal-label { font-weight: 700; }
+.week-log-personal-row .week-cell { align-items: center; }
+@media (max-width: 700px) {
+  .week-personal-label { display: none; }
+  .week-personal-marker { padding-inline: 0; gap: 0 1px; font-size: 10px; }
+}

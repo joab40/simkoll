@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { normalizePersonalDetails, personalCheckinDetails, personalSlot, isPersonalSlot, METER_PRESETS, MINUTE_PRESETS } from '../shared/personal-training.js'
+import { personalTrainingWeekSlots, normalizePersonalDetails, personalCheckinDetails, personalSlot, isPersonalSlot, METER_PRESETS, MINUTE_PRESETS } from '../shared/personal-training.js'
 import { validCheckinActivity, checkinTraining } from '../shared/checkin-activity.js'
 import { buildDiaryEntries, summarizeDiary } from '../shared/training-diary.js'
 import { buildSwimmerPasses } from '../server/individual-analysis.js'
@@ -73,4 +73,22 @@ test('personal and club plans share one weekly planning reward; unplanned comple
   assert.deepEqual(planningGoalWeeks(plans),[])
   plans.push({profileId:'p',date:'2026-11-19',personalSession:true})
   assert.deepEqual(planningGoalWeeks(plans),[{profileId:'p',sourceKey:'planning:p:2026-11-16'}])
+})
+
+test('weekly personal markers use the planned time and keep club slots separate', () => {
+  const date = '2026-11-26'
+  const own = { personalSession: true, slot: 'extra_own', origin: 'self', activityType: 'swim', timeOfDay: 'morning', date }
+  const niu = { ...own, slot: 'extra_niu', origin: 'niu' }
+  const club = { slot: 'morning_swim', date }
+  const noTime = { ...own, slot: 'extra_no_time', timeOfDay: null }
+  const nextWeek = { ...own, date: '2026-12-03' }
+  const cells = personalTrainingWeekSlots([club, own, niu, noTime, nextWeek], [
+    club,
+    { ...own, timeOfDay: 'afternoon' },
+    { ...own, slot: 'extra_strength', origin: 'self', activityType: 'strength' },
+  ], '2026-11-23', '2026-11-29')
+  assert.deepEqual([...cells.keys()], [`${date}|morning_swim`, `${date}|personal`, `${date}|strength`])
+  assert.deepEqual(cells.get(`${date}|morning_swim`).map(item => [item.title, item.done]), [['Eget simpass', true], ['NIU-simning', false]])
+  assert.equal(cells.get(`${date}|personal`)[0].done, false)
+  assert.equal(cells.get(`${date}|strength`)[0].done, true)
 })
