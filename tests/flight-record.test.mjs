@@ -6,7 +6,7 @@ import { flightCompetitionJourney, flightRecordDays, flightTimeComparison, fligh
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
 import { defaultFlightPbSettings } from '../shared/flight-pb.js'
-import { defaultFlightPresentation, flightChartPoints, flightDirection, validateFlightPresentation } from '../shared/flight-presentation.js'
+import { defaultFlightPresentation, flightAircraft, flightChartPoints, flightDirection, validateFlightPresentation } from '../shared/flight-presentation.js'
 import { builtInFlightDefaults, flightGroupCurve } from '../shared/flight-defaults.js'
 
 process.env.SUPABASE_URL = 'https://flight-fixture.invalid'
@@ -40,16 +40,26 @@ test('the competition journey is chronological and multi-day dates remain curren
   assert.equal(planned[0].id, 'future')
 })
 
-test('the flight journey recognizes championships from the calendar category or the event name', () => {
+test('the flight journey distinguishes regional qualifiers from championship finals', () => {
   const rows = [
     ['Höstfinalen', 'Mästerskap'],
     ['USM-region', ''],
+    ['USM Region', 'Mästerskap'],
     ['Svenska juniormästerskapen', ''],
     ['Sumsim Riksfinal', ''],
     ['Sundsvalls Swim Games', 'Klubbtävling'],
     ['Sommarsim', ''],
   ].map(([title, category], index) => ({ id: String(index + 1), title, category, startDate: '2026-12-02' }))
-  assert.deepEqual(flightCompetitionJourney(rows, '2026-11-22').map(event => event.championship), [true, true, true, true, false, false])
+  assert.deepEqual(flightCompetitionJourney(rows, '2026-11-22').map(event => event.championship), [true, false, false, true, true, false, false])
+})
+
+test('aircraft reflects the form curve and verified heavy training', () => {
+  assert.equal(flightAircraft({ value: 45 }), 'passenger')
+  assert.equal(flightAircraft({ value: 58, heavy: true }), 'passenger')
+  assert.equal(flightAircraft({ value: 46 }), 'sport')
+  assert.equal(flightAircraft({ value: 70, limited: true }), 'sport')
+  assert.equal(flightAircraft({ value: 70, heavy: true }), 'jet')
+  assert.equal(flightAircraft(null), 'sport')
 })
 
 const json = (rows, status = 200) => new Response(JSON.stringify(rows), { status })

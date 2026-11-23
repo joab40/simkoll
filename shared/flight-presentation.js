@@ -30,6 +30,13 @@ export function flightChartPoints(line, days, sky) {
   })
 }
 
+export function flightAircraft(point) {
+  if (!Number.isFinite(point?.value)) return 'sport'
+  if (!point.limited && point.value >= 70) return 'jet'
+  if (point.heavy || (!point.limited && point.value <= 45)) return 'passenger'
+  return 'sport'
+}
+
 const dateOffset = (start, end) => (Date.parse(end) - Date.parse(start)) / 86400000
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 

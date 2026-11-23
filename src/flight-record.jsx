@@ -7,7 +7,7 @@ import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroup
 import { FLIGHT_BOOST_MAX_DAYS, defaultFlightBoostSettings, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PB_DISTANCES, FLIGHT_PRACTICE_BOOST_DAYS, changePracticeBoost, defaultFlightPbSettings, pbBoostFraction, readFlightPbSettings, validateFlightPbSettings } from '../shared/flight-pb.js'
 import { FLIGHT_TAPER_METRICS } from '../shared/flight-taper.js'
-import { defaultFlightPresentation, flightDirection, FLIGHT_FORWARD_LIMIT, FLIGHT_PITCH_LIMIT, readFlightPresentation } from '../shared/flight-presentation.js'
+import { defaultFlightPresentation, flightAircraft, flightDirection, FLIGHT_FORWARD_LIMIT, FLIGHT_PITCH_LIMIT, readFlightPresentation } from '../shared/flight-presentation.js'
 import FlightMeasureSettings from './flight-measure-settings.jsx'
 import './flight-record.css'
 
@@ -16,8 +16,12 @@ const sections = [
 ]
 const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = vanlig nivå' }
 const timeMetric = { key: 'time' }
-const palaceArt = '/assets/flight-record-palace.png'
-const planeArt = '/assets/flight-record-plane.png'
+const palaceArt = (championship) => championship ? '/assets/flight-record-palace-championship.png' : '/assets/flight-record-palace.png'
+const planes = {
+  passenger: { src: '/assets/flight-record-plane.png', size: 1.25, baseline: .54 },
+  sport: { src: '/assets/flight-record-plane-sport.png', size: 1, baseline: .53 },
+  jet: { src: '/assets/flight-record-plane-jet.png', size: 1.12, baseline: .58 },
+}
 const metrics = {
   feel: [
     { key: 'speedFeeling', label: 'Fartkänsla', unit: '/ 5', scale: [1, 5], note: 'Simmarens skattning efter simpass.' },
@@ -121,13 +125,15 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   const latestPoint = points.findLast(point => Number.isFinite(point.value))
   const hasLimited = points.some(point => point.limited)
   const pilotPoint = todayPoint ?? latestPoint
+  const plane = planes[flightAircraft(pilotPoint)]
   const goalWidth = right - today
-  const planeWidth = Math.min(76, goalWidth * (skyGoal ? .34 : .62), Math.max(34, width * .078)) * (pilotPoint?.heavy ? 1.3 : 1)
+  const planeWidth = Math.min(76, goalWidth * (skyGoal ? .38 : .62), Math.max(42, width * .078)) * plane.size
+  const planeHeight = planeWidth / 3
   const pilotX = pilotPoint ? x(pilotPoint.date) : null
   const pilotY = pilotPoint ? y(pilotPoint.value) : null
   let course = null
   if (direction?.days > 0) {
-    const nose = planeWidth * .82
+    const nose = planeWidth * .84
     const span = nose + Math.min(39, goalWidth * (skyGoal ? .56 : .97) - nose) * direction.days / FLIGHT_FORWARD_LIMIT
     const slope = Math.tan(direction.angle * Math.PI / 180)
     course = {
@@ -136,11 +142,13 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
       label: `Illustrerad riktning · ${direction.days} ${direction.days === 1 ? 'dag' : 'dagar'}`,
     }
   }
-  const palaceSize = skyGoal
-    ? Math.min(goalWidth * (target.championship ? .69 : .50), height * (target.championship ? .65 : .47), 212) : 0
-  const palaceY = top + (base - top) * (target?.championship ? .06 : .29)
-  const palaceCenter = today + (goalWidth - palaceSize) * .87 + palaceSize / 2
-  const palaceLabelWidth = Math.min(goalWidth - 10, (right - palaceCenter) * 2)
+  const palaceWidth = skyGoal
+    ? Math.min(goalWidth * (target.championship ? .76 : .54), height * (target.championship ? .84 : .49), 256) : 0
+  const palaceHeight = target?.championship ? palaceWidth / 2 : palaceWidth
+  const palaceY = top + (base - top) * (target?.championship ? .15 : .32)
+  const palaceCenter = today + (goalWidth - palaceWidth) * .87 + palaceWidth / 2
+  const palaceLabelWidth = Math.min(goalWidth - 8, Math.max(120, palaceWidth))
+  const palaceLabelX = Math.min(palaceCenter - palaceLabelWidth / 2, right - palaceLabelWidth)
   const barWidth = Math.min(20, Math.max(2, (right - left) / (domain + 2) * .64))
   const tickValue = (value) => formatTrainingTime(value)
   const pointValue = (value) => timed ? formatTrainingTime(value) : [number(value), metric.unit].filter(Boolean).join(' ')
@@ -148,18 +156,17 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
     <figcaption>{plotLabel}</figcaption>
     <svg ref={graph} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${plotLabel} från ${shortDate(start)} till ${endDescription}.${latestPoint ? ` Senaste värde ${pointValue(latestPoint.value)} (${shortDate(latestPoint.date)}).` : ''}${latestPoint?.limited ? ' Det senaste värdet har begränsat underlag.' : ''}${skyGoal ? ` Tävlingsmål ${target.title}.` : ''}${course ? ` ${course.label}.` : ''}`}>
       {future > 0 && <rect className="flight-future" x={today} y={top} width={goalWidth} height={base - top} />}
-      {skyGoal && <g aria-hidden="true">
-        <rect className="flight-palace-sky" x={today + 4} y={top} width={goalWidth - 4} height={base - top} rx="12" />
-        <image className={`flight-goal-palace${target.championship ? ' championship' : ''}`} href={palaceArt}
-          x={palaceCenter - palaceSize / 2} y={palaceY} width={palaceSize} height={palaceSize} />
-        <foreignObject x={palaceCenter - palaceLabelWidth / 2} y={Math.min(base - 26, palaceY + palaceSize + 4)} width={palaceLabelWidth} height="30">
-          <div className={`flight-palace-name${target.championship ? ' championship' : ''}`} title={target.title}>{target.title}</div>
-        </foreignObject>
-      </g>}
       {ticks.map(tick => <g key={tick}>
         <line className="flight-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)} />
         <text x={left - 7} y={y(tick) + 4} textAnchor="end">{timed ? tickValue(tick) : number(tick)}</text>
       </g>)}
+      {skyGoal && <g aria-hidden="true">
+        <image className="flight-goal-palace" href={palaceArt(target.championship)}
+          x={palaceCenter - palaceWidth / 2} y={palaceY} width={palaceWidth} height={palaceHeight} />
+        <foreignObject x={palaceLabelX} y={Math.min(base - 26, palaceY + palaceHeight + 4)} width={palaceLabelWidth} height="30">
+          <div className={`flight-palace-name${target.championship ? ' championship' : ''}`} title={target.title}>{target.title}</div>
+        </foreignObject>
+      </g>}
       <line className="flight-today" x1={today} x2={today} y1={top - 6} y2={base} />
       {future > 0 && <line className="flight-goal" x1={right} x2={right} y1={top - 6} y2={base} />}
       {selected && selected !== asOf && <line className="flight-selected" x1={x(selected)} x2={x(selected)} y1={top} y2={base} />}
@@ -181,10 +188,9 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
       })}
       {!values.length && <text className="flight-empty-label" x={(left + historyRight) / 2} y={(top + base) / 2} textAnchor="middle">För lite underlag ännu</text>}
       {course && <path className="flight-course" aria-hidden="true" d={`M ${pilotX} ${pilotY} L ${course.x} ${course.y}`} />}
-      {/* The sprite's nose sits nine degrees above its exhaust. */}
-      {sky ? pilotPoint && <g transform={`translate(${pilotX} ${pilotY}) rotate(${9 - direction.angle})`} aria-hidden="true">
-        <image className="flight-plane flight-plane-art" href={planeArt} x={-planeWidth * .14} y={-planeWidth * .3}
-          width={planeWidth} height={planeWidth * .5} />
+      {sky ? pilotPoint && <g transform={`translate(${pilotX} ${pilotY}) rotate(${-direction.angle})`} aria-hidden="true">
+        <image className="flight-plane flight-plane-art" href={plane.src} x={-planeWidth * .14} y={-planeHeight * plane.baseline}
+          width={planeWidth} height={planeHeight} />
       </g>
         : <text className="flight-plane" x={today - 7} y={todayPoint && !timed && !metric.bars ? Math.max(19, y(todayPoint.value) - 9) : 19} textAnchor="end" aria-hidden="true">✈︎</text>}
       {plannedWeeks.map(week => {
@@ -680,7 +686,7 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
         const label = event.status === 'past' ? 'Datum passerat' : event.status === 'current' ? 'Pågår'
           : isNext ? `Nästa · ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : isSelected ? `Om ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : 'Kommande'
         const details = <>
-          {sky ? <span className="flight-journey-palace-wrap" aria-hidden="true"><img src={palaceArt} alt="" className="flight-journey-palace" /></span>
+          {sky ? <span className="flight-journey-palace-wrap" aria-hidden="true"><img src={palaceArt(event.championship)} alt="" className="flight-journey-palace" /></span>
             : <span className="flight-journey-node" aria-hidden="true">{event.status === 'past' ? '•' : '⚑'}</span>}
           <small className="flight-journey-date">{dayLabel(event.startDate)}{event.endDate !== event.startDate && ` – ${dayLabel(event.endDate)}`}</small>
           <strong>{event.title}</strong>

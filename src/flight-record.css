@@ -138,27 +138,25 @@
 .flight-plot-sky .flight-legend i.flight-legend-lift { background: #e8b44b; }
 .flight-plot-sky .flight-legend i.flight-legend-course { width: 15px; height: 0; background: transparent; border-top: 2px dashed #386584; border-radius: 0; }
 .flight-course { fill: none; stroke: #386584; stroke-width: 2px; stroke-dasharray: 5 5; stroke-linecap: round; }
-.flight-plane-art { filter: drop-shadow(0 2px 4px #41688b73); }
-.flight-palace-sky { fill: #f8fcff; opacity: .64; }
-.flight-goal-palace { filter: drop-shadow(0 5px 6px #456b8938); }
-.flight-goal-palace.championship { filter: drop-shadow(0 0 14px #f6ce6c91) drop-shadow(0 5px 6px #456b8938); }
+.flight-plane-art { filter: drop-shadow(0 1px 1px #194f6433); }
+.flight-goal-palace { filter: drop-shadow(0 3px 4px #194f6429); }
 .flight-palace-name {
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
   padding: 4px 10px;
   overflow: hidden;
-  border: 1px solid #c8e6ec85;
+  border: 1px solid #b0cfd0;
   border-radius: 999px;
-  background: #153f58ed;
-  color: #edfafe;
+  background: #e9f5f4;
+  color: #17424e;
   font-size: .76rem;
   font-weight: 750;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.flight-palace-name.championship { border-color: #ffe4a180; color: #ffe8ae; }
+.flight-palace-name.championship { border-color: #dfc58a; background: #fff5dc; color: #654a18; }
 @media (max-width: 480px) {
   .flight-palace-name { padding-inline: 5px; font-size: .7rem; }
 }
@@ -255,10 +253,10 @@ button.flight-journey-stop:hover { background: #fff9; }
   background: #438697;
 }
 .flight-journey-palace { display: block; width: 43px; height: 43px; margin-bottom: 5px; object-fit: contain; }
-.flight-journey-event.championship .flight-journey-palace { width: 59px; height: 55px; margin-bottom: 8px; }
+.flight-journey-event.championship .flight-journey-palace { width: 78px; height: 54px; object-position: center bottom; margin-bottom: 9px; }
 .flight-journey-event.past .flight-journey-palace { opacity: .62; filter: saturate(.48); }
 .flight-journey-event.next .flight-journey-palace-wrap::after { background: #c58c2e; border-color: #fff1c0; }
-.flight-home-sky .flight-journey-stop[aria-pressed="true"] { background: #fff6d9; }
+.flight-home-sky .flight-journey-stop[aria-pressed="true"] { border-color: #9ac4c1; background: #e1f1ed; }
 .flight-coach-card { margin-block: 14px; min-width: 0; border: 1px solid var(--flight-line); border-radius: 16px; background: var(--flight-paper); }
 .flight-coach-content {
   position: static;
