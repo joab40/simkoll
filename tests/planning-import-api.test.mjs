@@ -109,3 +109,31 @@ test('planning view loads beyond the former 200-row limit without treating later
     assert.ok(reads.some(read => read.table === 'daily_workouts' && read.offset === 500))
   } finally { globalThis.fetch = original }
 })
+
+test('a coach can remove one planned or published pass without deleting by day', async t => {
+  const deletes = []
+  t.mock.method(globalThis, 'fetch', async (input, options) => {
+    const url = new URL(input)
+    assert.equal(options.method, 'DELETE')
+    deletes.push(url)
+    return json([{ id: importId }])
+  })
+  async function remove(query, token = code) {
+    const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
+    await coachSessionFixture(handler)({ method: 'DELETE', headers: { 'x-simkoll-code': token }, query }, response)
+    return response
+  }
+  assert.equal((await remove({ planning: 'true', id: importId }, '')).code, 403)
+  assert.equal((await remove({ planning: 'true', id: 'invalid', date: '2026-11-23' })).code, 400)
+  assert.equal(deletes.length, 0)
+  assert.equal((await remove({ planning: 'true', id: importId })).code, 200)
+  assert.equal(deletes[0].searchParams.get('id'), `eq.${importId}`)
+  assert.equal(deletes[0].searchParams.get('source_workout_id'), 'is.null')
+  assert.equal(deletes[0].searchParams.get('activity_type'), 'neq.competition')
+  assert.equal(deletes[0].searchParams.has('plan_date'), false)
+  assert.equal((await remove({ id: importId })).code, 200)
+  assert(deletes[1].pathname.endsWith('/daily_workouts'))
+  assert.equal(deletes[1].searchParams.get('id'), `eq.${importId}`)
+  assert.equal(deletes[2].searchParams.get('source_workout_id'), `eq.${importId}`)
+  assert.equal(deletes[2].searchParams.has('plan_date'), false)
+})

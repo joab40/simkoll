@@ -2,20 +2,17 @@ import { coachWeekAddDays } from './coach-week.js'
 import { comparableSwimTimes, isTimeDate, parseTrainingTime } from './swim-times.js'
 import { diaryEntryLoad } from './training-load.js'
 import { swimMeterDay } from './swim-meter-day.js'
+import { competitionBuilding } from './competition-building.js'
 
 export const FLIGHT_HISTORY_DAYS = 90
 export const FLIGHT_PERIODS = [14, 28, 90]
-
-const championshipName = /mästerskap|(?<![\p{L}\p{N}])(?:usm|jsm|sum[- ]?sim|sm|jdm|dm|nm|em|vm|os)(?![\p{L}\p{N}])/iu
-const regionalName = /(?<![\p{L}\p{N}])region(?:en|al[at]?|s?(?:tävling|kval|mästerskap)(?:en|et)?)?(?![\p{L}\p{N}])/iu
 
 export function flightCompetitionJourney(competitions, asOf) {
   return competitions.filter(item => item?.id && item.title && isTimeDate(item.startDate)).map(item => {
     const endDate = isTimeDate(item.endDate) && item.endDate >= item.startDate ? item.endDate : item.startDate
     const status = endDate < asOf ? 'past' : item.startDate <= asOf ? 'current' : 'upcoming'
-    const label = `${item.category ?? ''} ${item.title}`.normalize('NFC')
-    const championship = championshipName.test(label) && !regionalName.test(label)
-    return { id: item.id, title: item.title, startDate: item.startDate, endDate, status, championship }
+    const building = competitionBuilding(item)
+    return { id: item.id, title: item.title, startDate: item.startDate, endDate, status, building, championship: building !== 'regional' }
   }).sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 

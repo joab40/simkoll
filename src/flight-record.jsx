@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
 import { flightWeekAnnotations } from '../shared/planning-week-types.js'
+import { FLIGHT_BUILDINGS } from '../shared/competition-building.js'
 import { FLIGHT_PERIODS, flightCompetitionJourney, flightTimeComparison } from '../shared/flight-record.js'
 import { formatTrainingTime, isTimeDate } from '../shared/swim-times.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine, flightSignalGroups, readFlightWeights } from '../shared/flight-line.js'
@@ -16,7 +17,6 @@ const sections = [
 ]
 const lineMetric = { label: 'Flight-linje', unit: '', scale: [0, 100], subtitle: '50 = vanlig nivå' }
 const timeMetric = { key: 'time' }
-const palaceArt = (championship) => championship ? '/assets/flight-record-palace-championship.png' : '/assets/flight-record-palace.png'
 const planes = {
   passenger: { src: '/assets/flight-record-plane.png', size: 1.25, baseline: .54 },
   sport: { src: '/assets/flight-record-plane-sport.png', size: 1, baseline: .53 },
@@ -65,7 +65,7 @@ function chartScale(values, metric, timed) {
   return [0, Math.ceil(max / rounding) * rounding]
 }
 
-export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag', weekTypes = [] }) {
+export function FlightPlot({ days, metric, timed, points, selected, onSelect, asOf, target, period, status, presentation, endLabel = 'Idag', weekTypes = [], weekType }) {
   const graph = useRef(null)
   const [{ width, height }, setSize] = useState({ width: 640, height: 220 })
   useEffect(() => {
@@ -86,7 +86,8 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   const start = days[0].date
   const sky = presentation?.sky === true
   const skyGoal = sky && target
-  const direction = sky ? flightDirection(points, asOf, presentation) : null
+  const direction = sky ? flightDirection(points, asOf, presentation, weekType) : null
+  const building = skyGoal ? FLIGHT_BUILDINGS[target.building ?? (target.championship ? 'championship' : 'regional')] : null
   const goalOffset = target ? daysBetween(asOf, target.date) : 0
   // Distant calendar events stay in the destination header, so the history has room.
   const future = !skyGoal && goalOffset > 0 && goalOffset <= Math.min(14, Math.floor(period / 2)) ? goalOffset : 0
@@ -144,7 +145,7 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   }
   const palaceWidth = skyGoal
     ? Math.min(goalWidth * (target.championship ? .76 : .54), height * (target.championship ? .84 : .49), 256) : 0
-  const palaceHeight = target?.championship ? palaceWidth / 2 : palaceWidth
+  const palaceHeight = building ? palaceWidth / building.aspect : 0
   const palaceY = top + (base - top) * (target?.championship ? .15 : .32)
   const palaceCenter = today + (goalWidth - palaceWidth) * .87 + palaceWidth / 2
   const palaceLabelWidth = Math.min(goalWidth - 8, Math.max(120, palaceWidth))
@@ -161,7 +162,7 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
         <text x={left - 7} y={y(tick) + 4} textAnchor="end">{timed ? tickValue(tick) : number(tick)}</text>
       </g>)}
       {skyGoal && <g aria-hidden="true">
-        <image className="flight-goal-palace" href={palaceArt(target.championship)}
+        <image className="flight-goal-palace" href={building.image}
           x={palaceCenter - palaceWidth / 2} y={palaceY} width={palaceWidth} height={palaceHeight} />
         <foreignObject x={palaceLabelX} y={Math.min(base - 26, palaceY + palaceHeight + 4)} width={palaceLabelWidth} height="30">
           <div className={`flight-palace-name${target.championship ? ' championship' : ''}`} title={target.title}>{target.title}</div>
@@ -686,7 +687,7 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
         const label = event.status === 'past' ? 'Datum passerat' : event.status === 'current' ? 'Pågår'
           : isNext ? `Nästa · ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : isSelected ? `Om ${remaining} ${remaining === 1 ? 'dag' : 'dagar'}` : 'Kommande'
         const details = <>
-          {sky ? <span className="flight-journey-palace-wrap" aria-hidden="true"><img src={palaceArt(event.championship)} alt="" className="flight-journey-palace" /></span>
+          {sky ? <span className="flight-journey-palace-wrap" aria-hidden="true"><img src={FLIGHT_BUILDINGS[event.building].image} alt="" className="flight-journey-palace" /></span>
             : <span className="flight-journey-node" aria-hidden="true">{event.status === 'past' ? '•' : '⚑'}</span>}
           <small className="flight-journey-date">{dayLabel(event.startDate)}{event.endDate !== event.startDate && ` – ${dayLabel(event.endDate)}`}</small>
           <strong>{event.title}</strong>
@@ -708,7 +709,7 @@ export function FlightPresentationFields({ draft, saving, update }) {
     {draft.sky && <div className="flight-presentation-fields">
       <label className="flight-field">Planets lutning
         <select value={draft.angle == null ? 'trend' : 'manual'} disabled={saving} onChange={event => update({ angle: event.target.value === 'trend' ? null : 0 })}>
-          <option value="trend">Följ senaste trenden</option><option value="manual">Välj lutning själv</option>
+          <option value="trend">Automatiskt · veckotyp eller trend</option><option value="manual">Välj lutning själv</option>
         </select>
       </label>
       {draft.angle != null && <label className="flight-field flight-presentation-range">
@@ -791,10 +792,10 @@ function SwimmerFlightChart({ data, competitions = [], presentation = data.prese
   const journey = useMemo(() => flightCompetitionJourney(competitions, data.asOf), [competitions, data.asOf])
   const next = journey.find(event => event.status !== 'past')
   const competition = journey.find(event => event.id === targetId && event.status !== 'past') ?? next
-  const target = competition ? { title: competition.title, championship: competition.championship, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
+  const target = competition ? { title: competition.title, championship: competition.championship, building: competition.building, date: competition.startDate < data.asOf ? data.asOf : competition.startDate } : null
   return <div className="flight-swimmer-presentation">
     {data.points.length > 0 ? <FlightPlot days={data.points} points={data.points} metric={lineMetric} asOf={data.asOf} target={target} period={data.points.length}
-      status={data.partial ? 'Delar av underlaget saknas' : undefined} presentation={presentation} /> : <p>För lite underlag för att visa en graf.</p>}
+      status={data.partial ? 'Delar av underlaget saknas' : undefined} presentation={presentation} weekType={data.weekType} /> : <p>För lite underlag för att visa en graf.</p>}
     <CompetitionJourney journey={journey} selected={competition} next={next} asOf={data.asOf} onSelect={setTargetId} sky={presentation?.sky === true} />
   </div>
 }

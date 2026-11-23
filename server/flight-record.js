@@ -10,6 +10,7 @@ import { coachWeekAddDays } from '../shared/coach-week.js'
 import { isTimeDate, isTimeId } from '../shared/swim-times.js'
 import { flightGroupId, FLIGHT_OVERVIEW_BATCH } from '../shared/flight-defaults.js'
 import { coachFlightDefaults, loadFlightDefaults } from './flight-defaults.js'
+import { loadPlanningWeekType } from './planning-week-types.js'
 import { FLIGHT_HISTORY_DAYS, FLIGHT_PERIODS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
@@ -58,7 +59,7 @@ function profileWeights(profile) {
   return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
 }
 
-async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = swimmerChartDays, preview = false, defaults: loadedDefaults, planningCache } = {}) {
+async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = swimmerChartDays, preview = false, includeWeekType = false, defaults: loadedDefaults, planningCache } = {}) {
   const defaults = loadedDefaults ?? await loadFlightDefaults([profile.training_group])
   const inherited = defaults.group(profile.training_group) ?? defaults.club
   const start = coachWeekAddDays(end, 1 - (chartOnly ? chartDays : FLIGHT_HISTORY_DAYS))
@@ -86,7 +87,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = s
   const raceStart = needTaper && historyStart < timeStart ? historyStart : timeStart
   const extended = Object.hasOwn(profile, sleepGoalField)
   const needCustom = extended && (!chartOnly || Object.keys(weights).some(key => isTimeId(key) && weights[key] > 0))
-  const [diary, practice, races, sleep, audit, measures, scores, tempus] = await Promise.allSettled([
+  const [diary, practice, races, sleep, audit, measures, scores, tempus, weekType] = await Promise.allSettled([
     loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false,
       includeGoals: false, includeCheckinSignals: true, planningCache }),
     readRows(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`),
@@ -96,6 +97,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = s
     needCustom ? readFlightMeasures(profile.id) : [],
     needCustom ? readFlightScores(profile.id, contextStart, end) : new Map(),
     needPb ? readRows(`competition_results?${owner}&source=eq.tempus&result_date=lte.${end}&select=source,result_date,event,pool,result_time,swim_time&order=result_date.asc,id.asc`) : [],
+    preview || (includeWeekType && presentation.sky) ? loadPlanningWeekType(profile.training_group, end) : null,
   ])
   if ([diary, practice, races, sleep].every(result => result.status === 'rejected') && !scores.value?.size) {
     throw Object.assign(new Error('Formresans underlag kunde inte hämtas. Försök igen.'), { status: 502 })
@@ -137,7 +139,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = s
   if (chartOnly) {
     const line = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings)
     return { asOf: end, partial: warnings.length > 0, points: flightChartPoints(line, visibleDays, presentation.sky || preview),
-      ...(presentationAvailable ? { presentation } : {}) }
+      ...(presentationAvailable ? { presentation } : {}), ...(weekType.value ? { weekType: weekType.value } : {}) }
   }
   const series = history.map(group => ({ ...group, points: group.points.filter(point => point.date >= start) }))
     .filter(group => group.points.length)
@@ -252,7 +254,7 @@ async function loadCoachProfile(endpoint) {
 }
 
 async function loadChartForSwimmer(response, profile) {
-  const data = await loadFlightRecord(profile, stockholmDate(), { chartOnly: true })
+  const data = await loadFlightRecord(profile, stockholmDate(), { chartOnly: true, includeWeekType: true })
   const live = await supabaseRequest(`${profileEndpoint(profile.id)}&flight_record_offer_id=eq.${profile.flight_record_offer_id}&${activeOffer}&select=id&limit=1`)
   if (!live.ok) return sendJson(response, 502, { error: 'Flight Records åtkomst kunde inte kontrolleras. Försök igen.' })
   if (!(await live.json()).length) return sendJson(response, 403, { error: 'Flight Record har stängts av.' })

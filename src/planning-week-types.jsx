@@ -55,22 +55,41 @@ export default function PlanningWeekTypes({ weekStart, groups, cycles, request, 
   const competitions = (data?.competitions ?? []).filter(item => !item.targetGroups?.length
     || item.targetGroups.some(group => groupNames.has(flightGroupId(group))))
 
-  return <section className="planning-week-types" aria-label="Veckotyp">
-    <h2>Veckotyp</h2>
-    {!groups.length ? <p>Välj en träningsgrupp för att sätta veckotyp.</p> : error ? <p role="alert" className="form-error">{error} <button type="button" className="text-button" onClick={retry}>Försök igen</button></p>
-      : !data ? <p role="status">Hämtar veckotyper…</p> : <>
-        {groups.map(([id, name]) => <WeekTypeRow key={id} name={name} groupId={id} weekStart={weekStart} request={request} code={code}
-          saved={savedTypes[id] ?? data.weekTypes?.find(row => row.groupId === id)?.type ?? ''}
-          suggestion={suggestPlanningWeekType(cycles, weekStart, id)} onSaved={type => setSavedTypes(current => ({ ...current, [id]: type }))} />)}
-        {data.competitions === null && <p role="status">Tävlingskalendern kunde inte hämtas just nu.</p>}
-        {competitions.length > 0 && <div className="planning-week-competitions"><h3>Tävlingar i veckan</h3><ul>
-          {competitions.map(item => {
-            const targetNames = (item.targetGroups ?? []).map(id => groupNames.get(flightGroupId(id))).filter(Boolean)
-            return <li key={item.id}><span aria-hidden="true">🏁</span> <strong>{item.title}</strong> <small>
-              {shortDate(item.startDate)}{item.endDate !== item.startDate && `–${shortDate(item.endDate)}`}{targetNames.length ? ` · ${targetNames.join(', ')}` : ''}
-            </small></li>
-          })}
-        </ul></div>}
-      </>}
-  </section>
+  const groupRows = groups.map(([id, name]) => ({ id, name,
+    saved: savedTypes[id] ?? data?.weekTypes?.find(row => row.groupId === id)?.type ?? '',
+  }))
+  const summaryText = !groups.length ? 'Ingen grupp vald' : error ? 'Kunde inte hämta veckotyper' : !data ? 'Hämtar veckotyper…' : ''
+
+  return <details className="planning-week-types">
+    <summary className="planning-week-types-summary">
+      <span className="planning-week-types-title">Veckotyp</span>
+      <span className="planning-week-types-status">
+        {summaryText || groupRows.map(({ id, name, saved }) => <span key={id} className="planning-week-type-status">
+          <strong>{name}</strong> · {PLANNING_WEEK_TYPES[saved] ?? 'Ej fastställd'}
+          {saved && <small>Fastställd</small>}
+        </span>)}
+        {competitions.slice(0, 2).map(item => <span key={item.id} className="planning-week-type-status planning-week-event-status">
+          <span aria-hidden="true">🏁</span> {item.title} · {shortDate(item.startDate)}{item.endDate !== item.startDate && `–${shortDate(item.endDate)}`}
+        </span>)}
+        {competitions.length > 2 && <span className="planning-week-type-status">+{competitions.length - 2} tävlingar</span>}
+      </span>
+      <span className="planning-week-types-chevron" aria-hidden="true" />
+    </summary>
+    <div className="planning-week-types-body">
+      {!groups.length ? <p>Välj en träningsgrupp för att sätta veckotyp.</p> : error ? <p role="alert" className="form-error">{error} <button type="button" className="text-button" onClick={retry}>Försök igen</button></p>
+        : !data ? <p role="status">Hämtar veckotyper…</p> : <>
+          {groupRows.map(({ id, name, saved }) => <WeekTypeRow key={id} name={name} groupId={id} weekStart={weekStart} request={request} code={code}
+            saved={saved} suggestion={suggestPlanningWeekType(cycles, weekStart, id)} onSaved={type => setSavedTypes(current => ({ ...current, [id]: type }))} />)}
+          {data.competitions === null && <p role="status">Tävlingskalendern kunde inte hämtas just nu.</p>}
+          {competitions.length > 0 && <div className="planning-week-competitions"><h3>Tävlingar i veckan</h3><ul>
+            {competitions.map(item => {
+              const targetNames = (item.targetGroups ?? []).map(id => groupNames.get(flightGroupId(id))).filter(Boolean)
+              return <li key={item.id}><span aria-hidden="true">🏁</span> <strong>{item.title}</strong> <small>
+                {shortDate(item.startDate)}{item.endDate !== item.startDate && `–${shortDate(item.endDate)}`}{targetNames.length ? ` · ${targetNames.join(', ')}` : ''}
+              </small></li>
+            })}
+          </ul></div>}
+        </>}
+    </div>
+  </details>
 }

@@ -33,6 +33,7 @@ import { handleSwimmerAssistant } from '../server/swimmer-assistant.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
 import { publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 import { canReadCompetition, competitionUuid, competitionScope, saveCompetitionParticipants } from '../server/competition-participation.js'
+import { isFlightBuilding } from '../shared/competition-building.js'
 
 export function publicWorkout(item, { includeDetails = true } = {}) {
   if (!item) return null
@@ -46,7 +47,7 @@ function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
 }
 function publicCompetition(item, includeParticipants = true) {
-  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), updatedAt: item.updated_at, ...(includeParticipants && item.participant_overrides != null ? { participantOverrides: item.participant_overrides } : {}) }
+  return { id: item.id, startDate: item.start_date, endDate: item.end_date, title: item.title, category: item.category || '', location: item.location || '', targetGroups: item.target_groups || [], notes: item.notes || '', entriesOpen: item.entries_open === true, pmDocument: publicPm(item), updatedAt: item.updated_at, flightBuilding: item.flight_building ?? null, ...(includeParticipants && item.participant_overrides != null ? { participantOverrides: item.participant_overrides } : {}) }
 }
 function publicCoachNote(item) {
   return { id: item.id, noteDate: item.note_date, activityType: item.activity_type, activityId: item.activity_id || null, scopeKey: item.scope_key, content: item.content, createdAt: item.created_at, updatedAt: item.updated_at }
@@ -1000,15 +1001,26 @@ export default async function handler(request, response) {
       }
       if (request.body?.action === 'save-competition') {
         const body = request.body
+        const { flightBuilding } = body
+        if (flightBuilding !== undefined && flightBuilding !== null && !isFlightBuilding(flightBuilding)) {
+          return sendJson(response, 400, { error: 'Välj en giltig byggnad för Flight Record.' })
+        }
         const startDate = String(body.startDate || ''), endDate = String(body.endDate || startDate), title = String(body.title || '').trim()
         const targetGroups = Array.isArray(body.targetGroups) ? body.targetGroups.map((group) => String(group).trim()).filter((group, index, groups) => group && groups.indexOf(group) === index).slice(0, 20) : []
         const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
         if (!validDate(startDate) || !validDate(endDate) || endDate < startDate || !title || !targetGroups.length || (body.id && !competitionUuid.test(String(body.id)))) return sendJson(response, 400, { error: 'Fyll i giltiga datum, namn och minst en grupp. Slutdatum får inte vara före startdatum.' })
         if (Date.parse(endDate) - Date.parse(startDate) > 366 * 86400000) return sendJson(response, 400, { error: 'Kontrollera tävlingsdatumen. En tävling får sträcka sig över högst ett år.' })
         const payload = { start_date: startDate, end_date: endDate, title: title.slice(0, 120), category: String(body.category || '').slice(0, 80) || null, location: String(body.location || '').slice(0, 120) || null, target_groups: targetGroups, notes: String(body.notes || '').slice(0, 500) || null, updated_at: new Date().toISOString() }
+        if (flightBuilding !== undefined) payload.flight_building = flightBuilding
         const endpoint = body.id ? `competition_calendar?id=eq.${encodeURIComponent(body.id)}` : 'competition_calendar'
         const result = await supabaseRequest(endpoint, { method: body.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
-        if (!result.ok) throw new Error(`Competition save failed: ${result.status} ${await result.text()}`)
+        if (!result.ok) {
+          const detail = await result.json().catch(() => null)
+          if (flightBuilding !== undefined && ['42703', 'PGRST204'].includes(detail?.code)) {
+            return sendJson(response, 503, { error: 'Byggnadsvalet kräver databasuppdatering 145.' })
+          }
+          throw new Error(`Competition save failed: ${result.status}`)
+        }
         const row = (await result.json())[0]
         if (!row) return sendJson(response, 404, { error: 'Tävlingen finns inte längre. Uppdatera listan.' })
         return sendJson(response, 200, { competition: publicCompetition(row) })
@@ -1303,8 +1315,8 @@ export default async function handler(request, response) {
     }
 
     if (request.method === 'DELETE') {
+      if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ta bort planerade pass eller tävlingar.' })
       if (request.query?.calendar === 'true') {
-        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan ta bort tävlingar.' })
         const id = String(request.query?.id || '')
         if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Tävling saknas.' })
         const result = await supabaseRequest(`competition_calendar?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } })
@@ -1317,22 +1329,31 @@ export default async function handler(request, response) {
       if (request.query?.planning === 'true') {
         const id = String(request.query?.id || '')
         const date = String(request.query?.date || '')
-        if (!id && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Välj en planeringsaktivitet eller dag.' })
-        if (!id) await updatePlanningHiddenDate(date, true)
-        const result = await supabaseRequest(id ? `training_plans?id=eq.${encodeURIComponent(id)}` : `training_plans?plan_date=eq.${encodeURIComponent(date)}`, { method: 'DELETE' })
+        if (id ? !competitionUuid.test(id) : !/^\d{4}-\d{2}-\d{2}$/.test(date)) return sendJson(response, 400, { error: 'Välj en planeringsaktivitet eller dag.' })
+        if (id) {
+          const result = await supabaseRequest(`training_plans?id=eq.${encodeURIComponent(id)}&source_workout_id=is.null&activity_type=neq.competition`, {
+            method: 'DELETE', headers: { Prefer: 'return=representation' },
+          })
+          if (!result.ok) return sendJson(response, 503, { error: 'Passet kunde inte tas bort. Försök igen.' })
+          if (!(await result.json()).length) return sendJson(response, 409, { error: 'Passet har ändrats eller tagits bort. Hämta planeringen igen.' })
+          return sendJson(response, 200, { ok: true })
+        }
+        await updatePlanningHiddenDate(date, true)
+        const result = await supabaseRequest(`training_plans?plan_date=eq.${encodeURIComponent(date)}`, { method: 'DELETE' })
         if (!result.ok) throw new Error(`Training plan DELETE failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { ok: true })
       }
       const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query?.date || '') ? request.query.date : stockholmDate()
       const workoutId = String(request.query?.id || '')
+      if (workoutId && !competitionUuid.test(workoutId)) return sendJson(response, 400, { error: 'Välj ett giltigt pass.' })
       // Ta även bort den automatiskt synkade planeringsraden. Manuellt skapade
       // planeringar lämnas orörda så att en raderad dag inte tar bort annat.
       const linkedPlanQuery = workoutId
         ? `training_plans?source_workout_id=eq.${encodeURIComponent(workoutId)}`
         : `training_plans?plan_date=eq.${encodeURIComponent(date)}&source_workout_id=not.is.null`
-      await supabaseRequest(linkedPlanQuery, { method: 'DELETE' })
       const result = await supabaseRequest(workoutId ? `daily_workouts?id=eq.${encodeURIComponent(workoutId)}` : `daily_workouts?workout_date=eq.${date}`, { method: 'DELETE' })
       if (!result.ok) throw new Error(`Workout DELETE failed: ${result.status} ${await result.text()}`)
+      await supabaseRequest(linkedPlanQuery, { method: 'DELETE' })
       return sendJson(response, 200, { ok: true })
     }
 

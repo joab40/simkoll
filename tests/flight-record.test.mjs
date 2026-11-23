@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { coachWeekAddDays } from '../shared/coach-week.js'
+import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
 import { flightCompetitionJourney, flightRecordDays, flightTimeComparison, flightTimeSeries } from '../shared/flight-record.js'
 import { changeFlightWeight, defaultFlightWeights, flightLine } from '../shared/flight-line.js'
 import { defaultFlightBoostSettings } from '../shared/flight-boosts.js'
@@ -49,8 +49,11 @@ test('the flight journey distinguishes regional qualifiers from championship fin
     ['Sumsim Riksfinal', ''],
     ['Sundsvalls Swim Games', 'Klubbtävling'],
     ['Sommarsim', ''],
+    ['Norrlandsmästerskapen', ''],
   ].map(([title, category], index) => ({ id: String(index + 1), title, category, startDate: '2026-12-02' }))
-  assert.deepEqual(flightCompetitionJourney(rows, '2026-11-22').map(event => event.championship), [true, false, false, true, true, false, false])
+  assert.deepEqual(flightCompetitionJourney(rows, '2026-11-22').map(event => event.building),
+    ['championship', 'regional', 'regional', 'championship', 'championship', 'regional', 'regional', 'norrland'])
+  assert.equal(flightCompetitionJourney([{ ...rows[7], flightBuilding: 'regional' }], '2026-11-22')[0].building, 'regional')
 })
 
 test('aircraft reflects the form curve and verified heavy training', () => {
@@ -77,7 +80,7 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, presentation = false, practiceTimes, tempusHistory } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, presentation = false, weekType, practiceTimes, tempusHistory } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   if (extended) profile.flight_record_sleep_goal_minutes = null
   if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
@@ -102,6 +105,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       return json(keys.filter(key => appSettings.has(key)).map(key => ({ setting_key: key, setting_value: appSettings.get(key) })))
     }
     if (table === 'training_groups') return json(query.get('id') === 'eq.junior' && query.get('active') === 'eq.true' ? [{ id: 'junior' }] : [])
+    if (table === 'planning_week_types') return json(weekType ? [{ week_type: weekType }] : [])
     if (table === 'profile_sessions') return json([{ profile_id: id }])
     if (table === 'profiles') {
       assert([`eq.${id}`, `in.(${id})`].includes(query.get('id')))
@@ -306,7 +310,8 @@ test('the swimmer chart can use defaults until SQL 135 is run', async (t) => {
 })
 
 test('the personal coach saves the swimmer presentation and previews the same chart payload', async (t) => {
-  const { profile, calls } = dbFixture(t, { state: 'active', presentation: true })
+  const { profile, calls } = dbFixture(t, { state: 'active', presentation: true, weekType: 'taper' })
+  profile.training_group = 'Ungdom Svart'
   const configuration = { sky: true, angle: -14, forwardDays: 3 }
   const save = (code, presentation = configuration) => call({ code, mode: 'presentation', method: 'POST', profileId: id, body: { presentation } })
   assert.equal((await save('swimmer')).code, 403)
@@ -321,6 +326,11 @@ test('the personal coach saves the swimmer presentation and previews the same ch
   assert.equal(preview.code, 200)
   assert.deepEqual(preview.data, swimmer.data)
   assert.deepEqual(swimmer.data.presentation, configuration)
+  assert.equal(swimmer.data.weekType, 'taper')
+  const weekReads = calls.filter(row => row.table === 'planning_week_types')
+  assert.equal(weekReads.length, 2)
+  assert(weekReads.every(row => row.query.get('group_id') === 'eq.ungdom_svart'
+    && row.query.get('week_start') === `eq.${coachWeekMonday(today)}`))
   assert.equal((await call({ mode: 'preview', profileId: id })).code, 403)
   profile.flight_record_choice = 'later'
   assert.equal((await call({ mode: 'chart' })).code, 403)
@@ -337,6 +347,15 @@ test('flight direction respects recent support and manual settings; plane size s
   assert.deepEqual(flightDirection(points.slice(0, -1), today, defaultFlightPresentation), { angle: 0, days: 0 })
   assert.deepEqual(flightDirection(points.slice(-1), today, { angle: -30, forwardDays: 1 }), { angle: -30, days: 1 })
   assert.deepEqual(flightDirection(points, today, { angle: null, forwardDays: 0 }), { angle: 18, days: 0 })
+})
+
+test('automatic pitch follows the planned week before the recent trend', () => {
+  const points = [64, 59, 55].map((value, index) => ({ date: coachWeekAddDays(today, index - 2), value }))
+  for (const [type, angle] of Object.entries({ regular: 0, high_load: -10, pre_taper: 10, taper: 15, recovery: 12 })) {
+    assert.deepEqual(flightDirection(points, today, defaultFlightPresentation, type), { angle, days: 2 })
+  }
+  assert.equal(flightDirection(points, today, defaultFlightPresentation).angle, -30)
+  assert.equal(flightDirection(points, today, { ...defaultFlightPresentation, angle: -4 }, 'taper').angle, -4)
 })
 
 test('Flight Record supports club defaults and separate group overrides without replacing personal settings', async t => {

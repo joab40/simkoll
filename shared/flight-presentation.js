@@ -40,14 +40,18 @@ export function flightAircraft(point) {
 const dateOffset = (start, end) => (Date.parse(end) - Date.parse(start)) / 86400000
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
-export function flightDirection(points, asOf, presentation) {
+const weekPitch = { regular: 0, build: 0, specific: 0, high_load: -10, pre_taper: 10, taper: 15, recovery: 12 }
+
+export function flightDirection(points, asOf, presentation, weekType) {
   const latest = points.findLast(point => Number.isFinite(point.value))
   const recent = points.filter(point => Number.isFinite(point.value) && !point.limited && dateOffset(point.date, asOf) >= 0 && dateOffset(point.date, asOf) < 7)
   const fresh = latest && latest.date === asOf
   const measured = fresh && !latest.limited && recent.length >= 3
   const first = recent[0]
   const stepsPerDay = measured ? (latest.value - first.value) / dateOffset(first.date, latest.date) : 0
-  const angle = presentation.angle ?? clamp(stepsPerDay * 9, -FLIGHT_PITCH_LIMIT, FLIGHT_PITCH_LIMIT)
-  const days = fresh && presentation.forwardDays > 0 && (measured || presentation.angle != null) ? presentation.forwardDays : 0
+  const plannedAngle = Object.hasOwn(weekPitch, weekType) ? weekPitch[weekType] : null
+  const configuredAngle = presentation.angle ?? plannedAngle
+  const angle = configuredAngle ?? clamp(stepsPerDay * 9, -FLIGHT_PITCH_LIMIT, FLIGHT_PITCH_LIMIT)
+  const days = fresh && presentation.forwardDays > 0 && (measured || configuredAngle != null) ? presentation.forwardDays : 0
   return { angle, days }
 }

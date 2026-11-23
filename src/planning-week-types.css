@@ -1,13 +1,42 @@
 .planning-week-types {
-  display: grid;
-  gap: 10px;
-  padding: clamp(14px, 3vw, 22px);
+  min-width: 0;
   border: 1px solid #dbe8e5;
   border-radius: 18px;
   background: var(--paper);
 }
-.planning-week-types h2, .planning-week-types p { margin: 0; }
-.planning-week-types h2 { font-size: 1.25rem; }
+.planning-week-types-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 14px;
+  padding: 11px clamp(14px, 3vw, 22px);
+  border-radius: inherit;
+  cursor: pointer;
+  list-style: none;
+}
+.planning-week-types-summary::-webkit-details-marker { display: none; }
+.planning-week-types-summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.planning-week-types-title { font-weight: 750; }
+.planning-week-types-status { display: flex; flex: 1; flex-wrap: wrap; gap: 5px; min-width: 0; color: var(--muted); font-size: .85rem; }
+.planning-week-type-status { padding: 3px 8px; border-radius: 9px; background: #eaf4f0; color: var(--ink); overflow-wrap: anywhere; }
+.planning-week-type-status small { margin-inline-start: 5px; color: var(--flight-teal, #0a6a70); }
+.planning-week-event-status { background: #fcf3db; color: #654a18; }
+.planning-week-types-chevron {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: -4px 3px 0 auto;
+  border: solid var(--teal);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.planning-week-types[open] .planning-week-types-chevron { margin-top: 3px; transform: rotate(225deg); }
+.planning-week-types-body { padding: 0 clamp(14px, 3vw, 22px) 14px; }
+.planning-week-types p { margin: 0; }
+.planning-week-competitions { margin-top: 10px; }
+@media (max-width: 640px) {
+  .planning-week-types-status { order: 1; flex-basis: 100%; }
+}
 .planning-week-type-row {
   display: grid;
   grid-template-columns: minmax(0, 360px) auto;

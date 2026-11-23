@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import CompetitionPm, { readCompetitionPm, uploadCompetitionPm } from './competition-pm.jsx'
 import CompetitionParticipants from './competition-participants.jsx'
+import { competitionBuilding, FLIGHT_BUILDINGS } from '../shared/competition-building.js'
 import './competition-calendar.css'
 
 const groups = { ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }
@@ -14,6 +15,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
   const busy = useRef(new Set()), savingRef = useRef(false), formRef = useRef(null), fileRef = useRef(null)
   const baseline = useRef(JSON.stringify(newForm(today)))
   const groupNames = { ...groups, ...Object.fromEntries(availableGroups) }
+  const buildingPreview = FLIGHT_BUILDINGS[competitionBuilding(form)]
   const dirty = Boolean(file) || JSON.stringify(form) !== baseline.current
   const replace = (competition) => setCompetitions((current) => [...current.filter((item) => item.id !== competition.id), competition].sort((a, b) => a.startDate.localeCompare(b.startDate)))
   const load = async () => {
@@ -40,7 +42,10 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
     let saved = null
     try {
       if (file) await readCompetitionPm(file)
-      const result = await request('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-competition', ...form }) })
+      const { flightBuilding = null, ...fields } = form
+      const previousBuilding = JSON.parse(baseline.current).flightBuilding ?? null
+      const buildingChange = previousBuilding === flightBuilding ? {} : { flightBuilding }
+      const result = await request('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-competition', ...fields, ...buildingChange }) })
       saved = result.competition; replace(saved)
       if (file) { const uploaded = await uploadCompetitionPm(file, saved.id, code, request); replace(uploaded.competition) }
       setMessage(`✓ ${saved.title} är ${form.id ? 'uppdaterad' : 'sparad'}${file ? ' med bifogat PM' : ''}.`)
@@ -72,10 +77,23 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
     <details className="competition-add-card" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}><summary>{form.id ? 'Redigera tävling' : '＋ Lägg till tävling'}</summary>
       <form className="competition-form" onSubmit={save} ref={formRef}><fieldset className="competition-form-fields" disabled={saving}>
         <div className="competition-form-grid"><label>Från<input required type="date" value={form.startDate} onChange={(event) => { const startDate = event.target.value; setForm({ ...form, startDate, endDate: form.endDate < startDate ? startDate : form.endDate }) }} /></label><label>Till<input required type="date" min={form.startDate} value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label><label>Tävlingsnamn<input required maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Ex. Sundsvall Swim" /></label><label>Plats<input maxLength={120} value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label></div>
-        <label>Typ av tävling<input maxLength={80} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Ex. mästerskap eller klubbtävling" /></label>
+        <div className="competition-form-grid">
+          <label>Typ av tävling<input maxLength={80} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Ex. mästerskap eller klubbtävling" /></label>
+          <div className="competition-building-field">
+            <label>Byggnad i Flight Record
+              <select value={form.flightBuilding ?? ''} onChange={event => setForm({ ...form, flightBuilding: event.target.value || null })}>
+                <option value="">Automatiskt</option>
+                {Object.entries(FLIGHT_BUILDINGS).map(([key, building]) => <option key={key} value={key}>{building.label}</option>)}
+              </select>
+            </label>
+            <img src={buildingPreview.image} alt={buildingPreview.label} width="86" height="48" loading="lazy" />
+          </div>
+        </div>
         <fieldset><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{Object.entries(groups).map(([value, label]) => <label key={value}><input type="checkbox" checked={form.targetGroups.includes(value)} onChange={(event) => setForm({ ...form, targetGroups: event.target.checked ? [...form.targetGroups, value] : form.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset>
         <label>Kommentar<textarea maxLength={500} rows={2} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-        <label>PM (valfritt)<input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><small>PDF eller bild, högst 3 MB. Visas för tränare och simmare som är valda för tävlingen. Du kan också bifoga eller byta PM senare.</small>
+        <label>PM (valfritt)<input ref={fileRef} type="file" aria-describedby="competition-form-pm-help" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+          <small id="competition-form-pm-help">PDF eller bild, högst 3 MB. Visas för tränare och simmare som är valda för tävlingen. Du kan också bifoga eller byta PM senare.</small>
+        </label>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <div className="settings-actions"><button className="primary-button" type="submit" aria-busy={saving}>{saving ? 'Sparar tävling…' : form.id ? 'Spara ändringar' : 'Spara tävling'}</button><button type="button" className="secondary-button" onClick={() => { if (dirty && !window.confirm('Kasta de osparade ändringarna?')) return; reset(); setOpen(false) }}>Avbryt</button></div>
       </fieldset></form>

@@ -39,6 +39,23 @@ test('creating and editing competition details preserves attached PM and entry s
   }
 })
 
+test('the coach can choose, preserve or clear the Flight Record building', async () => {
+  let saved = { ...competition, flight_building: null }
+  const writes = []
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body)
+    writes.push(payload.flight_building)
+    saved = { ...saved, ...payload }
+    return reply([saved])
+  }
+  const body = { action: 'save-competition', id, title: 'Norrlandsmästerskapen', startDate: '2026-11-01', targetGroups: ['junior'] }
+  assert.equal((await call({ ...body, flightBuilding: 'championship' })).data.competition.flightBuilding, 'championship')
+  assert.equal((await call(body)).data.competition.flightBuilding, 'championship')
+  assert.equal((await call({ ...body, flightBuilding: null })).data.competition.flightBuilding, null)
+  assert.equal((await call({ ...body, flightBuilding: 'custom.png' })).code, 400)
+  assert.deepEqual(writes, ['championship', undefined, null])
+})
+
 test('opening entries with no selectable program reports an actionable error', async () => {
   const writes = []
   globalThis.fetch = async (url, options = {}) => { if (options.method) writes.push(options.method); return reply(String(url).includes('competition_calendar') ? [competition] : []) }

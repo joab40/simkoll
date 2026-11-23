@@ -3,9 +3,19 @@ import { sendJson, supabaseRequest } from './supabase.js'
 import { coachWeekAddDays, coachWeekMonday, validCoachWeek } from '../shared/coach-week.js'
 import { FLIGHT_HISTORY_DAYS } from '../shared/flight-record.js'
 import { isPlanningWeekType } from '../shared/planning-week-types.js'
+import { flightGroupId } from '../shared/flight-defaults.js'
 import { isTimeDate } from '../shared/swim-times.js'
 
 const publicWeekType = ({ week_start, group_id, week_type }) => ({ weekStart: week_start, groupId: group_id, type: week_type })
+
+export async function loadPlanningWeekType(trainingGroup, date) {
+  const group = flightGroupId(trainingGroup)
+  if (!group) return null
+  const result = await supabaseRequest(`planning_week_types?week_start=eq.${coachWeekMonday(date)}&group_id=eq.${group}&select=week_type&limit=1`)
+  if (!result.ok) return null
+  const [row] = await result.json()
+  return isPlanningWeekType(row?.week_type) ? row.week_type : null
+}
 
 async function readWeekTypes(query) {
   const result = await analyticsRows(query)
