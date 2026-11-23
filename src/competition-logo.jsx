@@ -4,6 +4,72 @@ import './competition-logo.css'
 export const competitionLogoAccept = 'image/png,image/jpeg,image/webp'
 const supportedTypes = competitionLogoAccept.split(',')
 
+function removeWhiteBorderBackground({ data, width, height }) {
+  const isWhite = pixel => {
+    const offset = pixel * 4
+    const red = data[offset], green = data[offset + 1], blue = data[offset + 2]
+    const low = Math.min(red, green, blue)
+    return data[offset + 3] === 255 && low >= 235 && Math.max(red, green, blue) - low <= 16
+  }
+  const size = width * height
+  // A white matte should reach all four corners. Leave existing alpha and
+  // ambiguous edge colors alone, and let the editor compare before saving.
+  if (![0, width - 1, size - width, size - 1].every(isWhite)) return false
+
+  const background = new Uint8Array(size)
+  const queue = new Uint32Array(size)
+  let end = 0
+  const add = pixel => {
+    if (background[pixel] || !isWhite(pixel)) return
+    background[pixel] = 1
+    queue[end++] = pixel
+  }
+  for (let x = 0; x < width; x += 1) {
+    add(x)
+    add(size - width + x)
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    add(y * width)
+    add((y + 1) * width - 1)
+  }
+  for (let start = 0; start < end; start += 1) {
+    const pixel = queue[start]
+    const x = pixel % width
+    if (x > 0) add(pixel - 1)
+    if (x < width - 1) add(pixel + 1)
+    if (pixel >= width) add(pixel - width)
+    if (pixel < size - width) add(pixel + width)
+  }
+  if (end === size) return false
+  for (let index = 0; index < end; index += 1) data[queue[index] * 4 + 3] = 0
+  return true
+}
+
+function encodeLogo(canvas, pixels) {
+  const { data, width, height } = pixels
+  let left = width, top = height, right = -1, bottom = -1
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (data[(y * width + x) * 4 + 3] < 4) continue
+      left = Math.min(left, x)
+      right = Math.max(right, x)
+      top = Math.min(top, y)
+      bottom = Math.max(bottom, y)
+    }
+  }
+  if (right < left) return null
+
+  const output = document.createElement('canvas')
+  const croppedWidth = right - left + 1, croppedHeight = bottom - top + 1
+  const scale = Math.min(1, 320 / Math.max(croppedWidth, croppedHeight))
+  output.width = Math.max(1, Math.round(croppedWidth * scale))
+  output.height = Math.max(1, Math.round(croppedHeight * scale))
+  const context = output.getContext('2d')
+  context.imageSmoothingQuality = 'high'
+  context.drawImage(canvas, left, top, croppedWidth, croppedHeight, 0, 0, output.width, output.height)
+  return output.toDataURL('image/png')
+}
+
 export async function prepareCompetitionLogo(file) {
   if (!supportedTypes.includes(file.type) && !(file.type === '' && /\.(png|jpe?g|webp)$/i.test(file.name))) {
     throw new Error('Välj en logga i PNG, JPG eller WebP.')
@@ -24,37 +90,21 @@ export async function prepareCompetitionLogo(file) {
     ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
 
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    let left = canvas.width, top = canvas.height, right = -1, bottom = -1
-    let visible = 0, lights = 0
-    for (let y = 0; y < canvas.height; y += 1) {
-      for (let x = 0; x < canvas.width; x += 1) {
-        const pixel = (y * canvas.width + x) * 4
-        if (!data[pixel + 3]) continue
-        left = Math.min(left, x); right = Math.max(right, x)
-        top = Math.min(top, y); bottom = Math.max(bottom, y)
-        if (data[pixel + 3] < 32) continue
-        visible += 1
-        if (data[pixel] >= 215 && data[pixel + 1] >= 215 && data[pixel + 2] >= 215) lights += 1
-      }
-    }
-    if (!visible) throw new Error('Bilden är genomskinlig. Välj en synlig logga.')
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const data = encodeLogo(canvas, pixels)
+    if (!data) throw new Error('Bilden är genomskinlig. Välj en synlig logga.')
 
-    const output = document.createElement('canvas')
-    const croppedWidth = right - left + 1, croppedHeight = bottom - top + 1
-    const finalScale = Math.min(1, 320 / Math.max(croppedWidth, croppedHeight))
-    output.width = Math.max(1, Math.round(croppedWidth * finalScale))
-    output.height = Math.max(1, Math.round(croppedHeight * finalScale))
-    const outputContext = output.getContext('2d')
-    outputContext.imageSmoothingQuality = 'high'
-    outputContext.drawImage(canvas, left, top, croppedWidth, croppedHeight, 0, 0, output.width, output.height)
-    const hasTransparency = visible < canvas.width * canvas.height * 0.92
-    return { data: output.toDataURL('image/png'), surface: hasTransparency && lights / visible > 0.8 ? 'dark' : 'light' }
+    let cutoutData = null
+    if (removeWhiteBorderBackground(pixels)) {
+      ctx.putImageData(pixels, 0, 0)
+      cutoutData = encodeLogo(canvas, pixels)
+    }
+    return { data, cutoutData }
   } finally { URL.revokeObjectURL(url) }
 }
 
-export function CompetitionLogoTile({ src, surface, alt, onError }) {
-  return <span className="competition-logo-tile" data-surface={surface}>
+export function CompetitionLogoTile({ src, alt, onError }) {
+  return <span className="competition-logo-tile">
     <img src={src} alt={alt} decoding="async" onError={onError} />
   </span>
 }
@@ -94,7 +144,7 @@ function CompetitionLogoPreview({ competition, code, request, decorative, showSt
     return () => { controller.abort(); observer?.disconnect() }
   }, [id, code, request, lazy, attempt])
 
-  const tile = url && !failed && <CompetitionLogoTile src={url} surface={competition.logo.surface}
+  const tile = url && !failed && <CompetitionLogoTile src={url}
     alt={decorative ? '' : `Logga för ${competition.title}`} onError={() => setFailed(true)} />
   if (lazy) return <div ref={slot} className="competition-card-logo">{tile}</div>
   if (tile || !showStatus) return tile || null

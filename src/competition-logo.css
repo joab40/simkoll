@@ -7,12 +7,8 @@
   height: 88px;
   padding: 10px;
   flex: none;
-  border: 1px solid #cee0dc;
-  border-radius: 15px;
-  background: #fff;
 }
-.competition-logo-tile[data-surface="dark"] { background: #173744; border-color: #48707b; }
-.competition-logo-tile img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+.competition-logo-tile img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; filter: drop-shadow(0 2px 3px #09243033); }
 .competition-logo-upload {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -26,6 +22,7 @@
 }
 .competition-logo-fields { display: grid; min-width: 0; gap: 6px; overflow-wrap: anywhere; }
 .competition-logo-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.competition-logo-cutout { display: flex; align-items: center; gap: 8px; width: fit-content; cursor: pointer; }
 .competition-logo-upload .competition-logo-saved { color: #28623a; font-weight: 700; }
 .competition-logo-preview-error { display: grid; justify-items: start; gap: 4px; max-width: 160px; }
 .competition-logo-upload small { color: #45636b; font-weight: 400; }
@@ -47,10 +44,7 @@
   width: 100%;
   height: auto;
   aspect-ratio: 4 / 3;
-  padding: clamp(6px, 1.2vw, 14px);
-  border-color: #ffffff46;
-  border-radius: clamp(11px, 1.4vw, 18px);
-  box-shadow: 0 5px 18px #09243026;
+  padding: 0;
 }
 .mood-competition-side .race-day-badge { position: static; gap: 3px; font-size: 10px; letter-spacing: .08em; }
 @media (max-width: 480px) {

@@ -17,6 +17,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
   const [logoChange, setLogoChange] = useState(undefined)
   const [preparingLogo, setPreparingLogo] = useState(false)
   const [logoError, setLogoError] = useState('')
+  const logoData = logoChange?.removeWhite ? logoChange.cutoutData : logoChange?.data
   const logoAttempt = useRef(0)
   const logoFileRef = useRef(null)
   const baseline = useRef(JSON.stringify(newForm(today)))
@@ -89,7 +90,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'set-competition-logo', competitionId: saved.id, previousVersion: form.logo?.version ?? null,
-            logoData: logoChange?.data ?? null, surface: logoChange?.surface,
+            logoData: logoData ?? null,
           }),
         })
         saved = updated.competition; replace(saved)
@@ -153,10 +154,15 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
               : logoChange ? <small role="status">{logoChange.name} · sparas när du sparar tävlingen</small>
               : logoChange === null ? <small role="status">Loggan tas bort när du sparar tävlingen.</small>
               : form.logo && <small className="competition-logo-saved" role="status">✓ Loggan är sparad</small>}
+            {logoChange?.cutoutData && <label className="competition-logo-cutout">
+              <input type="checkbox" checked={Boolean(logoChange.removeWhite)} disabled={preparingLogo}
+                onChange={event => setLogoChange({ ...logoChange, removeWhite: event.target.checked })} />
+              Ta bort vit bakgrund
+            </label>}
             {logoError && <p className="form-error" role="alert">{logoError}</p>}
           </div>
           {logoChange
-            ? <CompetitionLogoTile src={logoChange.data} surface={logoChange.surface} alt="Förhandsvisning av vald tävlingslogga" />
+            ? <CompetitionLogoTile src={logoData} alt="Förhandsvisning av vald tävlingslogga" />
             : logoChange === undefined && open && <SavedCompetitionLogo competition={form} code={code} request={request} showStatus />}
         </div>
         <label>PM (valfritt)<input ref={fileRef} type="file" aria-describedby="competition-form-pm-help" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} />
