@@ -5,6 +5,7 @@ import PeppChannelPanel from './pepp-channel.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { useCommunityChannel } from './use-community-channel.js'
 import { formatFeedDate } from './community-date.js'
+import { applyPepReaction } from './pep-chat.js'
 import './coach-messages.css'
 
 const TABS = [['info', 'Tränarinfo', 'Information & frågor'], ['club', 'Klubbflödet', 'Alla i klubben'], ['private', 'Privat', 'Tränare & simmare']]
@@ -16,19 +17,24 @@ export function ChannelLoading({ title, channel }) {
 }
 function ClubChannel({ code, active, request }) {
   const channel = useCommunityChannel({ code, channel: 'channel=club', active, request })
-  const [reactionBusy, setReactionBusy] = useState(''), [status, setStatus] = useState('')
-  const removing = useRef(false)
+  const [reactionBusy, setReactionBusy] = useState(false), [status, setStatus] = useState('')
+  const removing = useRef(false), reacting = useRef(false)
   const send = async body => {
     const content = body.content || TEMPLATES.find(([key]) => key === body.templateKey)?.[1]
     const result = await post(request, code, { content })
     if (result.message) channel.setData(current => ({ ...current, items: [...(current?.items || []).filter(item => item.id !== result.message.id || item.type !== 'coach'), result.message] }))
-    void channel.refresh({ force: true }).catch(() => {})
     return result
   }
   const react = async body => {
-    setReactionBusy(`${body.messageType === 'group_pep' ? 'group' : 'coach'}-${body.messageId}-${body.emoji}`)
-    try { await post(request, code, { action: 'toggle-reaction', ...body }); await channel.refresh({ force: true }) }
-    catch (error) { setStatus(error.message) } finally { setReactionBusy('') }
+    if (reacting.current) return
+    reacting.current = true
+    setReactionBusy(true)
+    setStatus('')
+    try {
+      const result = await post(request, code, { action: 'toggle-reaction', ...body })
+      channel.setData(current => ({ ...current, items: applyPepReaction(current.items, body, result.reacted) }))
+    } catch (error) { setStatus(error.message) }
+    finally { reacting.current = false; setReactionBusy(false) }
   }
   const remove = async item => {
     if (removing.current || window.prompt('Meddelandet tas bort från alla simmares flöde.\n\nSkriv RADERA för att bekräfta.') !== 'RADERA') return
@@ -36,7 +42,6 @@ function ClubChannel({ code, active, request }) {
     try {
       await request(`/api/community?id=${encodeURIComponent(item.id)}`, code, { method: 'DELETE' })
       channel.setData(current => ({ ...current, items: current.items.filter(row => row.type !== 'coach' || row.id !== item.id) }))
-      void channel.refresh({ force: true }).catch(() => {})
     } catch (error) { setStatus(error.message) } finally { removing.current = false }
   }
   if (!channel.data) return <ChannelLoading title="Klubbflödet" channel={channel} />

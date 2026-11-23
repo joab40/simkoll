@@ -21,8 +21,8 @@ test('information channel reads no public feed, reactions, kudos or unlinked pri
 })
 
 test('swimmer chat keeps recipient SQL filters and defensive visibility checks, including private replies', async () => {
-  const result = await loadInfoChannel(settings, 'swimmer', id, async query => {
-    if (query.startsWith('profiles?')) return json(directory)
+  const result = await loadInfoChannel(settings, 'swimmer', directory[0], async query => {
+    assert(!query.startsWith('profiles?'), 'the viewer is already available through their authenticated session')
     if (query.startsWith('open_chat_messages?')) {
       assert(query.includes(`sender_profile_id.eq.${id}`))
       return json([

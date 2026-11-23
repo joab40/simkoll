@@ -475,14 +475,21 @@ async function updatePlanningHiddenDate(date, hidden) {
   await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, planningHiddenDates: [...dates].slice(-120) }, updated_at: new Date().toISOString() }) })
 }
 
-async function readSportAdminCalendars(calendars, { strict = false, from = '', to = '', includeHidden = false, hiddenActivities = null } = {}) {
+async function readSportAdminCalendars(calendars, { strict = false, from = '', to = '', includeHidden = false, hiddenActivities = null, onFailure } = {}) {
   const safe = Array.isArray(calendars) ? calendars : []
   const results = await Promise.all(safe.filter((calendar) => calendar.enabled !== false && calendar.url).map(async (calendar) => {
     try {
       const source = await fetch(calendar.url, { signal: AbortSignal.timeout(10000) })
-      if (!source.ok) { if (strict) throw new Error('Kalendern kunde inte hämtas.'); return [] }
-      return parseSportAdminIcs(await source.text(), { strict, from, to }).map((item) => ({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: inferSportAdminGroups(item, calendar.groups) }))
-    } catch (error) { if (strict) throw planningLinkError('Dagens kalenderträningar kunde inte hämtas. Försök igen.'); console.warn('SportAdmin calendar fetch failed:', error.message); return [] }
+      if (!source.ok) throw new Error(`SportAdmin svarade med HTTP ${source.status}.`)
+      const body = await source.text()
+      if (!/(?:^|\n)BEGIN:VCALENDAR\r?(?:\n|$)/.test(body)) throw new Error('SportAdmin returnerade ingen kalenderdata.')
+      return parseSportAdminIcs(body, { strict, from, to }).map((item) => ({ ...item, calendarId: calendar.id, calendarName: calendar.name || 'SportAdmin', targetGroups: inferSportAdminGroups(item, calendar.groups) }))
+    } catch (error) {
+      if (strict) throw planningLinkError('Dagens kalenderträningar kunde inte hämtas. Försök igen.')
+      onFailure?.(calendar.id)
+      console.warn('SportAdmin calendar fetch failed:', error.message)
+      return []
+    }
   }))
   const activities = results.flat()
   if (strict && activities.length > 1000) throw planningLinkError('För många kalenderträningar för säker import. Välj färre veckor.')
@@ -1265,8 +1272,9 @@ export default async function handler(request, response) {
         const settings = current.ok ? ((await current.json())[0]?.setting_value || {}) : {}
         const save = await supabaseRequest('app_settings?on_conflict=setting_key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ setting_key: 'webapp', setting_value: { ...settings, sportAdminCalendars: calendars }, updated_at: new Date().toISOString() }) })
         if (!save.ok) throw new Error(`SportAdmin settings save failed: ${save.status} ${await save.text()}`)
-        const activities = await readSportAdminCalendars(calendars)
-        return sendJson(response, 200, { calendars, activities, fetchedAt: new Date().toISOString() })
+        const calendarFailures = []
+        const activities = await readSportAdminCalendars(calendars, { onFailure: id => calendarFailures.push(id) })
+        return sendJson(response, 200, { calendars, activities, calendarFailures, fetchedAt: new Date().toISOString() })
       }
       const date = String(request.body?.date || stockholmDate())
       const title = String(request.body?.title || '').trim()

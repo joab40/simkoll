@@ -80,9 +80,8 @@ import { TodayMildIllness } from './coach-mild-illness.jsx'
 import CoachFeelingTrend from './coach-feeling-trend.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
-import OpenChatPanel from './open-chat-panel.jsx'
+import { CoachInfoPage, Community } from './swimmer-community.jsx'
 import CoachMessages from './coach-messages.jsx'
-import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { GoalMediaEditor } from './goal-video.jsx'
@@ -90,12 +89,12 @@ import { uploadGoalVideo } from './goal-video-upload.js'
 import { coachMetricDetails } from './coach-metric-details.js'
 import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
 import './styles.css'
+import './swimmer-community.css'
 import './planning-editor.css'
 import CompetitionPm from './competition-pm.jsx'
 import CompetitionEntryProgress from './competition-entry-progress.jsx'
 import { isSubmittedCompetitionEntry } from '../shared/competition-entry-status.js'
 import { canUseSwimmerAssistant } from '../shared/swimmer-assistant.js'
-import PeppChannelPanel from './pepp-channel.jsx'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
 const TrainingDiary = React.lazy(() => import('./training-diary.jsx'))
@@ -517,7 +516,7 @@ function App() {
         />
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={checkinActivityDate !== todayKey()} workout={workout} onDone={() => setScreen('home')} />}
-      {['community', 'private-messages'].includes(screen) && <Community profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} onPointsChange={setPoints} />}
+      {['community', 'private-messages'].includes(screen) && <Community key={profile.id} profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} />}
       {screen === 'coach-info' && <CoachInfoPage code={auth.code} profile={profile} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
@@ -999,7 +998,7 @@ function Faq({ role, onBack }) {
         <details open><summary>Kom igång och logga in<span>−</span></summary><p>Logga in med klubbkoden och välj sedan din profil. Om profilen väntar på vårdnadshavares medgivande visas ett meddelande och tränaren aktiverar åtkomsten. En sparad profil gör att du snabbare kommer tillbaka till rätt vy.</p></details>
         <details><summary>Simmarens riktning i statistiken<span>+</span></summary><p>Tränaren hittar kortet överst under <strong>Simmare → Visa statistik</strong>. Vald period jämförs med föregående lika långa period. Känsla och kropp bygger på dagsgenomsnitt, så många svar samma dag inte väger tyngre. Minst tre dagar med giltiga värden behövs för varje skattning i båda perioderna. Pilarna visar förbättring, stabilt, minskning eller blandad utveckling; gränsen är 0,2 på skalan 1–5. Kontinuitet jämför registrerade simpass per vecka. Mer träning är inte automatiskt bättre. Kortet beräknas utan AI och visar inte bevisad prestationsutveckling.</p></details>
         <details><summary>Poäng, stjärnor och artefakter<span>+</span></summary><p>Poäng ges för positiva appvanor, till exempel planering, pepp, spel, mål och träningsreflektion. Föreincheckning ger 1 poäng högst en gång per dag. Återkoppling efter ett pass ger 3 poäng per separat pass eller vald aktivitet, utan dubbelpoäng för samma registrering. Den vanliga dagliga aktivitetspoängen kan också tjänas in en gång per dag genom att använda en profilfunktion.</p><p>Träningsstjärnorna visar fyra vanor: planerad vecka, aktiva styrke- och landmål, simmål och att följa simplanen över de senaste fyra avslutade veckorna. En stjärna ger 1 poäng när den låses upp. Artefakter tilldelas av tränaren och ger normalt 5 poäng.</p></details>
-        <details><summary>Meddelanden och pepp<span>+</span></summary><p>Svep mellan korten på startsidan till <strong>Peppflödet</strong>, som ligger bredvid Info från tränarna. Kortet visar de senaste inläggen. Tryck <strong>Öppna peppflödet</strong> för att läsa den öppna kanalen i ett chattfönster. Här kan alla i klubben läsa hälsningarna. Välj <strong>Färdig pepp</strong> eller skriv en egen pepp eller fråga om tränarna har tillåtit egna meddelanden. Du kan också lägga till emojis. Dina inlägg visas till höger och andras till vänster. Bakgrunden följer det chattema tränarna valt för Info från tränarna.</p><p>Egna texter kontrolleras innan de skickas och tydliga svordomar eller personangrepp stoppas. De första fyra peppen per dag ger 1 poäng vardera, inklusive privat pepp. I den öppna kanalen kan du fortsätta prata utan fler poäng. Frågor där läses av hela klubben. Tryck Svara på ett inlägg för att citera det. Datumavdelare och Nya meddelanden-knappen hjälper dig hitta rätt. Under <strong>Min privata pepp</strong> kan du fortfarande skicka en hälsning direkt till en simmare. <strong>Info från tränarna</strong> är en separat kanal för tränarnas information och frågor till tränarna.</p></details>
+        <details><summary>Meddelanden och pepp<span>+</span></summary><p>Svep mellan korten på startsidan till <strong>Peppflödet</strong>, som ligger bredvid Info från tränarna. Kortet visar de senaste inläggen. Tryck <strong>Öppna peppflödet</strong> för att läsa den öppna kanalen i ett chattfönster. Här kan alla i klubben läsa hälsningarna. Välj <strong>Färdig pepp</strong> eller skriv en egen pepp eller fråga om tränarna har tillåtit egna meddelanden. Du kan också lägga till emojis. Dina inlägg visas till höger och andras till vänster.</p><p>Egna texter kontrolleras innan de skickas och tydliga svordomar eller personangrepp stoppas. De första fyra peppen per dag ger 1 poäng vardera, inklusive privat pepp. I den öppna kanalen kan du fortsätta prata utan fler poäng. Frågor där läses av hela klubben. Tryck Svara på ett inlägg för att citera det. Datumavdelare och Nya meddelanden-knappen hjälper dig hitta rätt. Under <strong>Min privata pepp</strong> kan du fortfarande skicka en hälsning direkt till en simmare. <strong>Info från tränarna</strong> är en separat kanal för tränarnas information och frågor till tränarna.</p></details>
         <details><summary>Simkoll-assistenten, data och AI<span>+</span></summary><p>Assistenten svarar på dina frågor med Simkolls hjälpinformation och, när det behövs, uppgifter kopplade till din egen profil. Det kan till exempel vara ditt namn och din grupp, planerade och genomförda pass, mål, tävlingsval och resultat, dina egna utvecklingssamtal samt de senaste gruppmeddelandena från tränarna. Den får inte läsa andra simmares profiler eller tränarnas interna anteckningar. Den kan ändå svara fel, så kontrollera viktig information med tränaren. Den kan inte ändra dina uppgifter eller fatta beslut om träning eller tävling och ger inte medicinska råd.</p><p>Frågan och relevant underlag skickas till en språkmodell via OpenAI API. Assistentens chatt sparas lokalt på enheten; högst 40 meddelanden behålls och de senaste 10 kan följa med som sammanhang när du frågar igen. Simkolls AI-logg sparar modell, roll/profil, tokenantal och status – inte fråge- eller svarstexten. OpenAI uppger att API-data inte används för modellträning som standard. Standardloggar för missbruksövervakning kan däremot innehålla innehåll och sparas i upp till 30 dagar. Klubbens exakta inställning kan inte läsas i appen. Läs mer i <a href="https://platform.openai.com/docs/guides/your-data" target="_blank" rel="noreferrer">OpenAI:s dokumentation om API-data</a>. Skriv inte känsliga uppgifter i chatten.</p><p><strong>Personlig AI-analys är en annan funktion:</strong> den skapas av tränaren för en vald simmare och period. Den kan använda simmarens egna check-in-svar och kommentarer, pass kopplade till simmarens registrerade träning, styrkeprogram och loggade vikter/noteringar, tävlingsresultat och personliga rekord, mål samt tränaranteckningar som är kopplade till simmaren. Äldre upplevelse- och träningsdata sammanfattas som jämförelse. Privata meddelanden och andra simmares profiler ingår inte. Fritext behandlas som innehåll, inte som instruktioner. Underlaget skickas till den språkmodell klubben har konfigurerat; större underlag kan påverka kostnaden. Analysen kräver klubbens godkännandeflöde.</p><p>Du hittar mer information i menyn under <strong>Info & villkor</strong>.</p></details>
         <details><summary>Hur fungerar den personliga AI-analysen?<span>+</span></summary><p>Tränaren aktiverar analysen efter inhämtat godkännande under <strong>Profilinställningar → AI-stöd</strong> på simmarkortet. Under Visa statistik väljer tränaren period och skapar eller uppdaterar analysen. Simmaren kan läsa den sparade analysen för samma period men inte starta egna analyser. Att aktivera eller läsa en analys gör inget nytt AI-anrop.</p><p>Nya analyser visar en sammanfattning och en utfällbar fördjupning med daterade belägg, möjliga förklaringar och konkret uppföljning. Ett återkommande mönster behöver minst tre olika datum; en enskild stark prestation kan ändå lyftas. Analysen skiljer mellan observation och tolkning, och osäkra kopplingar till morgon-/eftermiddagspass redovisas. Passens meter och minuter är kopplade planeringsvärden, inte uppmätt faktisk träning. Detaljer om en prestation måste finnas i en kommentar eller tränaranteckning för att analysen ska kunna använda dem.</p><p>En ny analys ersätter den sparade analysen för samma period. Äldre analyser uppdateras när tränaren skapar en ny. Tränaranteckningarnas råa källtext visas bara för tränare; simmaren kan läsa analysens resonemang. AI är ett samtalsstöd och ska inte användas för medicinska slutsatser.</p></details>
         {Object.entries(HELP_TEXT).map(([term, description]) => <details key={term}><summary>{term}<span>+</span></summary><p>{description}</p>{FAQ_SCALES[term] && <div className={`rpe-guide scale-${FAQ_SCALES[term].length}`}>{FAQ_SCALES[term].map(([value, label]) => <span key={value}><b>{value}</b>{label}</span>)}</div>}</details>)}
@@ -1991,116 +1990,6 @@ function PrivacyChoice({ profile, lateEntry = false, onBack, onChoose }) {
       </section>
     </div>
   )
-}
-
-const KUDOS_OPTIONS = [
-  ['great_job', 'Grymt jobbat idag! 💪'], ['great_energy', 'Bra energi! ⚡'],
-  ['nice_technique', 'Snygg teknik! 🌊'], ['thanks', 'Tack för peppen! 🙌'],
-  ['fun_together', 'Kul att träna med dig! 😊'], ['strong_effort', 'Stark insats! 🔥'], ['custom', 'Skriv eget peppmeddelande…'],
-]
-const GROUP_PEP_OPTIONS = [
-  ['group_start', 'Nu kör vi! 🔥'], ['group_energy', 'Bra energi i gruppen idag ⚡'],
-  ['group_great_job', 'Det blir ett grymt pass idag 💪'], ['group_build', 'Idag bygger vi vidare 🌊'],
-  ['group_focus', 'Håll ihop hela vägen 🎯'], ['group_next', 'Ser fram emot nästa pass 🙌'],
-  ['group_fun', 'Kul att simma med er! 😊'], ['custom', 'Skriv eget gruppmeddelande…'],
-]
-
-function CoachInfoPage({ code, profile, onBack }) {
-  return <main className="page-content coach-info-page"><header className="coach-info-header"><button type="button" className="back-button" onClick={onBack} aria-label="Tillbaka">←</button><h1>Info från tränarna</h1></header><OpenChatPanel code={code} profileId={profile?.id} fitViewport /></main>
-}
-
-
-function Community({ profile, code, points, customPepEnabled = true, openChatEnabled = false, initialView = 'group', onBack, onPointsChange }) {
-  const [items, setItems] = useState([])
-  const [privateKudos, setPrivateKudos] = useState([])
-  const [messages, setMessages] = useState([])
-  const [profiles, setProfiles] = useState([])
-  const [feedView, setFeedView] = useState(initialView)
-  useEffect(() => { setFeedView(initialView) }, [initialView])
-  const [openChat, setOpenChat] = useState({ enabled: openChatEnabled, backgroundImage: '', messages: [] })
-  const [recipientId, setRecipientId] = useState('')
-  const [content, setContent] = useState('')
-  const [templateKey, setTemplateKey] = useState('great_job')
-  const [status, setStatus] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
-  const [reactionBusy, setReactionBusy] = useState('')
-  useEffect(() => { if (!customPepEnabled && templateKey === 'custom') setTemplateKey('great_job') }, [customPepEnabled, templateKey])
-
-  const load = async () => {
-    const cacheBust = `?feed=${Date.now()}`
-    const [feed, directory] = await Promise.all([apiRequest(`/api/community${cacheBust}`, code), apiRequest('/api/profiles?directory=true', code)])
-    setItems(feed.items || []); setPrivateKudos(feed.privateKudos || []); setMessages(feed.messages || []); setProfiles(directory.profiles || []); setOpenChat(feed.openChat || { enabled: false, messages: [] }); setLoading(false); setLoadError('')
-  }
-  useEffect(() => {
-    const refresh = () => load().catch((error) => { setLoadError(error.message); setLoading(false) })
-    refresh()
-    window.addEventListener('focus', refresh)
-    const interval = window.setInterval(() => { if (!document.hidden) refresh() }, 15000)
-    return () => { window.removeEventListener('focus', refresh); window.clearInterval(interval) }
-  }, [code])
-
-  const sendKudos = async (event) => {
-    event.preventDefault(); setStatus('Skickar…')
-    try {
-      const body = { mode: 'private', recipientId, templateKey, content: templateKey === 'custom' ? content : undefined }
-      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      const nextPoints = await apiRequest('/api/points', code)
-      onPointsChange(nextPoints); setStatus('Peppen är skickad! +1 poäng'); setRecipientId(''); setContent(''); await load()
-    } catch (error) { setStatus(error.message) }
-  }
-  const sendGroupMessage = async (body) => {
-    const result = await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (result.message) setItems((current) => [...current.filter((item) => item.id !== result.message.id), result.message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
-    // Uppdatera hela flödet efter att avsändaren redan fått kvitto.
-    window.setTimeout(() => { load().catch(() => {}) }, 1200)
-    if (result.moderationPending && result.message?.id) {
-      const messageId = result.message.id
-      const refreshModeration = async (attempt = 0) => {
-        try {
-          const state = await apiRequest(`/api/community?pepStatus=${encodeURIComponent(messageId)}`, code)
-          const stillProcessing = state.status === 'pending' || (state.status === 'approved' && state.pointEligible)
-          if (stillProcessing && attempt < 20) {
-            window.setTimeout(() => refreshModeration(attempt + 1), 900)
-            return
-          }
-          setItems((current) => current.map((item) => item.id !== messageId ? item : {
-            ...item,
-            moderationStatus: state.status,
-            content: state.status === 'rejected' ? '' : item.content,
-            moderationMessage: state.status === 'rejected' ? state.message : null,
-          }))
-          if (state.status === 'approved' && result.pointEligible && !state.pointEligible) onPointsChange(await apiRequest('/api/points', code))
-        } catch { /* Feedens ordinarie uppdatering hämtar slutstatusen senare. */ }
-      }
-      window.setTimeout(() => refreshModeration(), 900)
-    } else if (result.awardedPoints) {
-      window.setTimeout(() => { apiRequest('/api/points', code).then(onPointsChange).catch(() => {}) }, 800)
-    }
-    return result
-  }
-  const toggleReaction = async ({ messageType, messageId, emoji }) => {
-    const busyKey = `${messageType === 'group_pep' ? 'group' : 'coach'}-${messageId}-${emoji}`
-    setReactionBusy(busyKey)
-    try {
-      await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-reaction', messageType, messageId, emoji }) })
-      await load()
-    } catch (error) { setLoadError(error.message) } finally { setReactionBusy('') }
-  }
-  const removePrivateMessage = async (id) => { if (!window.confirm('Ta bort ditt privata meddelande?')) return; try { await apiRequest('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-private-message', id }) }); await load() } catch (error) { setStatus(error.message) } }
-
-  return <div className="community-page pep-channel-page"><header className="coach-info-header"><button type="button" className="back-button" onClick={onBack} aria-label="Tillbaka">←</button><h1>Peppflödet</h1>{points?.current && <small className="pep-points">{points.current.emoji} {points.total} p</small>}</header>
-    <nav className="feed-tabs"><button className={feedView === 'group' ? 'active' : ''} onClick={() => setFeedView('group')}>Öppen kanal</button><button className={feedView === 'private' ? 'active' : ''} onClick={() => setFeedView('private')}>Min privata pepp</button></nav><div className={`community-layout${feedView === 'group' ? ' pep-channel-layout' : ''}`}>
-    <section className="feed-column">
-      {loadError && <p className="form-error" role="status">{loadError}</p>}
-      {loading ? <p className="empty" role="status">{status || 'Hämtar flödet…'}</p> : feedView === 'group' ? <PeppChannelPanel items={items} profileId={profile.id} backgroundImage={openChat.backgroundImage} customPepEnabled={customPepEnabled} templates={GROUP_PEP_OPTIONS} EmojiPicker={ChatEmojiPicker} onSend={sendGroupMessage} onReact={toggleReaction} reactionBusy={reactionBusy} /> : (privateKudos.length ? <div className="feed-list">{privateKudos.map((item) => <article className="feed-item private-post" key={`private-${item.id}`}><span>{item.sender.emoji}</span><div><strong>{item.sender.id === profile.id ? `Du → ${item.recipient.emoji} ${item.recipient.displayName}` : `${item.sender.displayName} → dig`}</strong><p>{item.content}</p><small>🔒 Privat · {formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="empty">Du har ingen privat pepp ännu.</p>)}
-      {feedView === 'private' && messages.length > 0 && <section className="private-messages"><p className="eyebrow">Privata meddelanden</p>{messages.map((item) => <article key={item.id}><span>✉️</span><div><strong>{item.fromCoach ? 'Tränarna → dig' : 'Du → tränarna'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div>{item.toCoach && !item.fromCoach && <button type="button" className="text-button danger-text" onClick={() => removePrivateMessage(item.id)}>Ta bort</button>}</article>)}</section>}
-    </section>
-    {feedView === 'private' && <aside className="kudos-panel"><p className="eyebrow">Sprid bra energi</p><h2>Skicka privat pepp</h2><p>En hälsning till en simmarkompis.</p><small className="kudos-limit">4 poänggivande pepp per dag, inklusive öppna kanalen.</small>
-      <p className="settings-help">Frågor till tränarna ställer du i Info från tränarna. Här skickar du privat pepp till en simmare.</p>
-      <form onSubmit={sendKudos}><label>Till<select required value={recipientId} onChange={(event) => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.displayName}</option>)}</select></label><label>Hälsning<select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>{KUDOS_OPTIONS.filter(([key]) => customPepEnabled || key !== 'custom').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>{customPepEnabled && templateKey === 'custom' && <label>Eget peppmeddelande<textarea required maxLength="300" placeholder="Skriv något schysst till din kompis…" value={content} onChange={(event) => setContent(event.target.value)} /><small>Texten kontrolleras innan den skickas.</small></label>}<button className="primary-button">Skicka pepp →</button>{status && <small className="kudos-status">{status}</small>}</form>
-    </aside>}
-  </div></div>
 }
 
 function formatFeedDate(value) {
@@ -3873,7 +3762,7 @@ function OpenChatSettings({ code }) {
   const [saved, setSaved] = useState(false)
   useEffect(() => { apiRequest('/api/goals?settings=true', code).then((data) => { const savedBackground = chatBackgroundUrl(data.settings?.openChat?.backgroundImage); const backgroundImage = presets.some(([path]) => path === savedBackground) ? savedBackground : presets[0][0]; setSettings({ enabled: data.settings?.openChat?.enabled === true, coachOnly: data.settings?.openChat?.coachOnly === true, swimmerPrivate: data.settings?.openChat?.swimmerPrivate !== false, backgroundImage }) }).catch(() => {}) }, [code])
   const save = async () => { const current = await apiRequest('/api/goals?settings=true', code); const next = { ...(current.settings || {}), openChat: settings }; await apiRequest('/api/goals', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-settings', settings: next }) }); window.dispatchEvent(new CustomEvent('simkoll-settings-updated', { detail: next })); setSaved(true); setTimeout(() => setSaved(false), 1800) }
-  return <section className="settings-card open-chat-settings"><h2>Info från tränarna</h2><p className="settings-help">En gemensam informationskanal för tränare och simmare. Den öppnas via kuvertet i “Idag i gruppen”.</p><label className="settings-toggle-row"><span><strong>Aktivera info från tränarna</strong><small>{settings.enabled ? (settings.coachOnly ? 'Endast tränare kan skriva' : 'Simmare och tränare kan skriva') : 'Avstängd för alla'}</small></span><input type="checkbox" checked={settings.enabled} onChange={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} /></label>{settings.enabled && <label className="settings-toggle-row"><span><strong>Endast tränare kan skriva</strong><small>Simmare kan läsa kanalen men kan inte skicka nya meddelanden.</small></span><input type="checkbox" checked={settings.coachOnly} onChange={() => setSettings((current) => ({ ...current, coachOnly: !current.coachOnly }))} /></label>}<label className="settings-field"><span><strong>Chattema</strong><small>Välj en färdig, responsiv Simkoll-bakgrund. Egna bilder stöds inte för att hålla chatten snabb och säker.</small></span><select value={settings.backgroundImage} onChange={(event) => setSettings((current) => ({ ...current, backgroundImage: event.target.value }))}>{presets.map(([path, label]) => <option value={path} key={path}>{label}</option>)}</select></label><div className="chat-background-swatches">{presets.map(([path, label]) => <button type="button" key={path} aria-label={label} className={settings.backgroundImage === path ? 'selected' : ''} style={{ backgroundImage: `url(${path})` }} onClick={() => setSettings((current) => ({ ...current, backgroundImage: path }))} />)}</div><div className="settings-actions"><button type="button" className="primary-button" onClick={save}>Spara inställning</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div></section>
+  return <section className="settings-card open-chat-settings"><h2>Info från tränarna</h2><p className="settings-help">En gemensam informationskanal för tränare och simmare. Den öppnas via kuvertet i “Idag i gruppen”.</p><label className="settings-toggle-row"><span><strong>Aktivera info från tränarna</strong><small>{settings.enabled ? (settings.coachOnly ? 'Endast tränare kan skriva' : 'Simmare och tränare kan skriva') : 'Avstängd för alla'}</small></span><input type="checkbox" checked={settings.enabled} onChange={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} /></label>{settings.enabled && <label className="settings-toggle-row"><span><strong>Endast tränare kan skriva</strong><small>Simmare kan läsa kanalen men kan inte skicka nya meddelanden.</small></span><input type="checkbox" checked={settings.coachOnly} onChange={() => setSettings((current) => ({ ...current, coachOnly: !current.coachOnly }))} /></label>}<label className="settings-field"><span><strong>Chattema</strong><small>Välj bakgrund för startkortet och chatten i tränarvyn.</small></span><select value={settings.backgroundImage} onChange={(event) => setSettings((current) => ({ ...current, backgroundImage: event.target.value }))}>{presets.map(([path, label]) => <option value={path} key={path}>{label}</option>)}</select></label><div className="chat-background-swatches">{presets.map(([path, label]) => <button type="button" key={path} aria-label={label} className={settings.backgroundImage === path ? 'selected' : ''} style={{ backgroundImage: `url(${path})` }} onClick={() => setSettings((current) => ({ ...current, backgroundImage: path }))} />)}</div><div className="settings-actions"><button type="button" className="primary-button" onClick={save}>Spara inställning</button>{saved && <span className="settings-saved">Sparat ✓</span>}</div></section>
 }
 
 function ChatBackgroundSettings({ code }) {
@@ -3899,7 +3788,19 @@ function SportAdminCalendarSettings({ code }) {
     setUrl(''); setName(''); setMessage('Kalendern är tillagd – spara inställningarna.')
   }
   const save = async () => {
-    setLoading(true); setMessage(''); try { const result = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-sportadmin-calendars', calendars }) }); setCalendars(result.calendars || calendars); setMessage(`${result.activities?.length || 0} kalenderaktiviteter lästes in.`) } catch (error) { setMessage(error.message || 'Kunde inte spara kalendern.') } finally { setLoading(false) }
+    setLoading(true)
+    setMessage('')
+    try {
+      const result = await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'save-sportadmin-calendars', calendars }) })
+      setCalendars(result.calendars || calendars)
+      const count = result.activities?.length || 0
+      const failed = result.calendarFailures?.length || 0
+      const imported = count === 1 ? '1 kalenderaktivitet lästes in.' : `${count} kalenderaktiviteter lästes in.`
+      setMessage(failed
+        ? `Inställningarna sparades. SportAdmin svarade inte med kalenderdata för ${failed === 1 ? 'en kalender' : `${failed} kalendrar`}. ${count ? imported + ' ' : ''}Försök synka igen senare.`
+        : imported)
+    } catch (error) { setMessage(error.message || 'Kunde inte spara kalendern.') }
+    finally { setLoading(false) }
   }
   const remove = (id) => setCalendars((current) => current.filter((item) => item.id !== id))
   const toggleGroup = (value) => setSelectedGroups((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])

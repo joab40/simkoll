@@ -10,7 +10,7 @@ import { loadCommunityPreview, loadCoachMessageCount } from '../server/community
 import { loadInfoChannel, loadCoachInbox } from '../server/community-channels.js'
 import { handleFeedbackDialog, isFeedbackDialogRequest } from '../server/app-feedback-dialog.js'
 
-const stockholmDay = (value = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
+const stockholmCalendar = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' })
 const isSuperadminRequest = (request) => coachFromRequest(request)?.role === 'superadmin'
 
 // Modereringsmodellen är ett viktigt extra skydd, men ska inte vara enda
@@ -161,18 +161,63 @@ async function loadProfiles() {
   return Object.fromEntries((await result.json()).map((profile) => [profile.id, { id: profile.id, displayName: profile.display_name, emoji: profile.emoji }]))
 }
 
+const belongsToSwimmer = (row, profileId) => row.sender_profile_id === profileId || row.recipient_profile_id === profileId
+const swimmerMessages = profileId => supabaseRequest(
+  `private_messages?or=(sender_profile_id.eq.${profileId},recipient_profile_id.eq.${profileId})&select=id,content,created_at,sender_role,recipient_role,sender_profile_id,recipient_profile_id,read_at&order=created_at.desc&limit=200`,
+)
+const privateKudosRows = profileId => supabaseRequest(
+  `kudos?or=(sender_profile_id.eq.${profileId},recipient_profile_id.eq.${profileId})&select=id,sender_profile_id,recipient_profile_id,template_key,content,created_at&order=created_at.desc&limit=100`,
+)
+const presentMessages = (rows, profiles) => rows.map(row => ({
+  id: row.id, content: row.content, createdAt: row.created_at, fromCoach: row.sender_role === 'coach',
+  toCoach: row.recipient_role === 'coach', sender: profiles[row.sender_profile_id],
+  recipient: profiles[row.recipient_profile_id], readAt: row.read_at,
+}))
+const presentPrivateKudos = (rows, profiles, profileId) => rows.filter(row => belongsToSwimmer(row, profileId)).map(row => ({
+  id: row.id, type: 'kudos', content: row.content || KUDOS_TEMPLATES[row.template_key], createdAt: row.created_at,
+  sender: profiles[row.sender_profile_id], recipient: profiles[row.recipient_profile_id],
+})).filter(item => item.sender && item.recipient && item.content)
+
+async function loadSwimmerPepHistory(profileId) {
+  const [profiles, inbox, kudos] = await Promise.all([
+    loadProfiles(), swimmerMessages(profileId), privateKudosRows(profileId),
+  ])
+  if (!inbox.ok || !kudos.ok) throw new Error('Private pep history unavailable')
+  return {
+    messages: presentMessages((await inbox.json()).filter(row => belongsToSwimmer(row, profileId)), profiles),
+    privateKudos: presentPrivateKudos(await kudos.json(), profiles, profileId),
+    recipients: Object.values(profiles).filter(item => item.id !== profileId)
+      .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'sv-SE')),
+  }
+}
+
+async function readReactions(messageType, messages) {
+  if (!messages.length) return []
+  const ids = messages.map(row => encodeURIComponent(row.id)).join(',')
+  const rows = []
+  const size = 1000
+  for (let offset = 0; ; offset += size) {
+    const result = await supabaseRequest(
+      `community_reactions?message_type=eq.${messageType}&message_id=in.(${ids})&emoji=eq.${encodeURIComponent('👍')}&select=message_type,message_id,actor_key,emoji&order=id.asc&limit=${size}&offset=${offset}`,
+    )
+    if (!result.ok) throw new Error('Community reactions unavailable')
+    const page = await result.json()
+    rows.push(...page)
+    if (page.length < size) return rows
+  }
+}
+
 async function pointsToday(profileId, eventType) {
   const result = await supabaseRequest(`point_events?profile_id=eq.${profileId}&event_type=eq.${eventType}&source_key=like.${stockholmDate()}:*&select=id`)
   if (!result.ok) throw new Error(`Point count failed: ${result.status}`)
   return (await result.json()).length
 }
 
-async function messagesSentToday(table, profileId) {
-  const column = table === 'kudos' ? 'sender_profile_id' : 'sender_profile_id'
+async function messagesSentToday(table, profileId, today) {
   const moderationFilter = table === 'group_pep' ? '&moderation_status=neq.rejected' : ''
-  const result = await supabaseRequest(`${table}?${column}=eq.${profileId}${moderationFilter}&select=created_at&order=created_at.desc&limit=100`)
+  const result = await supabaseRequest(`${table}?sender_profile_id=eq.${profileId}${moderationFilter}&select=created_at&order=created_at.desc&limit=100`)
   if (!result.ok) throw new Error(`Daily ${table} count failed: ${result.status}`)
-  return (await result.json()).filter((item) => stockholmDay(item.created_at) === stockholmDay()).length
+  return (await result.json()).filter((item) => stockholmCalendar.format(new Date(item.created_at)) === today).length
 }
 
 const coachFeedEventLabels = { personal_best: ['personal_best', '🏆 Nytt personbästa'], goal_complete: ['achievement', '🎯 Mål uppnått'], weekly_goal: ['achievement', '✅ Veckomål uppnått'], strength_weekly_goal: ['strength', '🏋️ Styrkemål uppnått'], dryland_weekly_goal: ['strength', '🤸 Landträningsmål uppnått'], strength_progress: ['strength', '🏋️ Styrkeförbättring'] }
@@ -249,13 +294,18 @@ export default async function handler(request, response) {
       if (request.query?.channel === 'private') {
         return sendJson(response, 200, await loadCoachInbox())
       }
-      if (profile) await touchProfileActivity(profile.id)
-      const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
-      const webappSettings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
+      if (request.query?.channel === 'swimmer-private') {
+        if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in som simmare för att läsa din privata pepp.' })
+        return sendJson(response, 200, await loadSwimmerPepHistory(profile.id))
+      }
+      const publicOnly = request.query?.channel === 'club'
+      const settingsResult = publicOnly && role === 'swimmer' ? null
+        : await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
+      const webappSettings = settingsResult?.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
       const openChatEnabled = webappSettings.openChat?.enabled === true
       const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
       const openChatSwimmerPrivate = webappSettings.openChat?.swimmerPrivate !== false
-      if (request.query?.openChat) return sendJson(response, 200, await loadInfoChannel(webappSettings, role, profile?.id))
+      if (request.query?.openChat) return sendJson(response, 200, await loadInfoChannel(webappSettings, role, profile))
       if (request.query?.messageCount === 'true') {
         const since = Number(request.query.since || 0)
         if (!Number.isFinite(since) || since < 0 || Number.isNaN(new Date(since).getTime())) return sendJson(response, 400, { error: 'Ogiltig lästid.' })
@@ -284,34 +334,36 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { total: rows.length, averageRating: rows.length ? (rows.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rows.length).toFixed(1) : null, counts, comments: comments.slice(0, 100), ...(superadmin ? { feedback } : {}) })
       }
       const actorKey = role === 'coach' ? `coach:${coachFromRequest(request)?.sub || 'legacy'}` : `swimmer:${profile.id}`
-      const publicOnly = request.query?.channel === 'club'
       const emptyResult = () => Promise.resolve({ ok: true, json: async () => [] })
-      const [postsResult, groupResult, profiles, messagesResult, openChatResult, reactionsResult] = await Promise.all([
+      const [postsResult, groupResult, profiles, messagesResult, openChatResult] = await Promise.all([
         supabaseRequest('community_posts?deleted_at=is.null&select=id,content,created_at,deleted_at&order=created_at.desc&limit=100'),
         supabaseRequest('group_pep?select=*&order=created_at.desc&limit=100'),
         loadProfiles(),
         publicOnly ? emptyResult() : role === 'coach'
           ? supabaseRequest('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=*&order=created_at.desc&limit=200')
-          : supabaseRequest(`private_messages?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=*&order=created_at.desc&limit=200`),
+          : swimmerMessages(profile.id),
         openChatEnabled && !publicOnly ? supabaseRequest(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profile.id})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`) : emptyResult(),
-        supabaseRequest('community_reactions?select=message_type,message_id,actor_key,emoji&limit=20000'),
       ])
-      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok || !openChatResult.ok || !reactionsResult.ok) throw new Error('Community feed failed')
-      const reactionRows = await reactionsResult.json()
+      if (!postsResult.ok || !groupResult.ok || !messagesResult.ok || !openChatResult.ok) throw new Error('Community feed failed')
+      const postRows = (await postsResult.json()).filter(item => !item.deleted_at)
+      const groupRows = await groupResult.json()
+      const visibleGroupRows = groupRows.filter(item => (item.moderation_status || 'approved') === 'approved' || (profile && item.sender_profile_id === profile.id))
+      const [postReactions, groupReactions] = await Promise.all([
+        readReactions('coach_post', postRows),
+        readReactions('group_pep', visibleGroupRows.filter(item => (item.moderation_status || 'approved') === 'approved')),
+      ])
       const reactionsByMessage = new Map()
-      reactionRows.forEach((reaction) => {
+      for (const reaction of [...postReactions, ...groupReactions]) {
         const key = `${reaction.message_type}|${reaction.message_id}`
         if (!reactionsByMessage.has(key)) reactionsByMessage.set(key, [])
         reactionsByMessage.get(key).push(reaction)
-      })
+      }
       const reactionsFor = (messageType, messageId) => REACTION_EMOJIS.map((emoji) => {
         const matches = (reactionsByMessage.get(`${messageType}|${messageId}`) || []).filter((reaction) => reaction.emoji === emoji)
         return { emoji, count: matches.length, reacted: matches.some((reaction) => reaction.actor_key === actorKey) }
       }).filter((reaction) => reaction.count > 0)
-      const posts = (await postsResult.json()).filter((item) => !item.deleted_at).map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at, reactions: reactionsFor('coach_post', item.id) }))
-      const groupRows = await groupResult.json()
-      const groupPep = groupRows
-        .filter((item) => (item.moderation_status || 'approved') === 'approved' || (role === 'swimmer' && item.sender_profile_id === profile?.id))
+      const posts = postRows.map((item) => ({ id: item.id, type: 'coach', content: item.content, createdAt: item.created_at, reactions: reactionsFor('coach_post', item.id) }))
+      const groupPep = visibleGroupRows
         .map((item) => {
           const moderationStatus = item.moderation_status || 'approved'
           return {
@@ -319,6 +371,7 @@ export default async function handler(request, response) {
             type: 'group',
             content: moderationStatus === 'rejected' ? '' : item.content || GROUP_TEMPLATES[item.template_key],
             moderationStatus,
+            ...(profile && item.sender_profile_id === profile.id ? { pointEligible: item.point_eligible === true } : {}),
             moderationMessage: moderationStatus === 'rejected' ? item.moderation_note || 'Meddelandet kunde inte publiceras. Skriv om texten och försök igen.' : null,
             createdAt: item.created_at,
             sender: profiles[item.sender_profile_id],
@@ -337,8 +390,9 @@ export default async function handler(request, response) {
           quoteTargets.set(`${type}-${row.id}`, { content: row.content || GROUP_TEMPLATES[row.template_key], sender: type === 'group' ? profiles[row.sender_profile_id] : null })
         }
       }
+      const groupRowsById = new Map(visibleGroupRows.map(row => [row.id, row]))
       for (const item of groupPep) {
-        const row = groupRows.find((row) => row.id === item.id)
+        const row = groupRowsById.get(item.id)
         if (row.reply_id && ['group', 'coach'].includes(row.reply_type)) {
           const target = quoteTargets.get(`${row.reply_type}-${row.reply_id}`)
           item.reply = { id: row.reply_id, type: row.reply_type, senderName: target ? (target.sender?.displayName || 'Tränarna') : null, content: target?.content?.slice(0, 160) || null }
@@ -346,12 +400,12 @@ export default async function handler(request, response) {
       }
       let privateKudos = []
       if (profile && !publicOnly) {
-        const privateResult = await supabaseRequest(`kudos?or=(sender_profile_id.eq.${profile.id},recipient_profile_id.eq.${profile.id})&select=id,sender_profile_id,recipient_profile_id,template_key,content,created_at&order=created_at.desc&limit=100`)
+        const privateResult = await privateKudosRows(profile.id)
         if (!privateResult.ok) throw new Error(`Private kudos failed: ${privateResult.status}`)
-        privateKudos = (await privateResult.json()).map((item) => ({ id: item.id, type: 'kudos', content: item.content || KUDOS_TEMPLATES[item.template_key], createdAt: item.created_at, sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id] })).filter((item) => item.sender && item.recipient && item.content)
+        privateKudos = presentPrivateKudos(await privateResult.json(), profiles, profile.id)
       }
-      const messages = (await messagesResult.json()).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, fromCoach: item.sender_role === 'coach', toCoach: item.recipient_role === 'coach', sender: profiles[item.sender_profile_id], recipient: profiles[item.recipient_profile_id], readAt: item.read_at }))
-const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches' || item.sender_profile_id === profile?.id).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, senderProfileId: item.sender_profile_id || null, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🧑‍🏫' } })).filter((item) => item.sender).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : []
+      const messages = presentMessages(await messagesResult.json(), profiles)
+      const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter((item) => role === 'coach' || item.visibility !== 'coaches' || (profile && item.sender_profile_id === profile.id)).map((item) => ({ id: item.id, content: item.content, createdAt: item.created_at, senderRole: item.sender_role, senderProfileId: item.sender_profile_id || null, sender: item.sender_profile_id ? profiles[item.sender_profile_id] : { displayName: 'Tränare', emoji: '🧑‍🏫' } })).filter((item) => item.sender).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : []
       const threaded = await loadPrivateChatReplies(openChatMessages,role,profile?.id)
       return sendJson(response, 200, { items: [...posts, ...groupPep].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), privateKudos, messages, openChat: { enabled: openChatEnabled, coachOnly: openChatCoachOnly, swimmerPrivate: openChatSwimmerPrivate, backgroundImage: webappSettings.openChat?.backgroundImage || '/assets/open-chat-bg.png', messages: threaded.messages, privateRepliesWarning: threaded.warning } })
     }
@@ -568,8 +622,11 @@ const openChatMessages = openChatEnabled ? (await openChatResult.json()).filter(
         return sendJson(response, 201, { ok: true })
       }
       const mode = request.body?.mode === 'group' ? 'group' : 'private'
-      const privateSent = await messagesSentToday('kudos', profile.id)
-      const groupSent = await messagesSentToday('group_pep', profile.id)
+      const today = stockholmDate()
+      const [privateSent, groupSent] = await Promise.all([
+        messagesSentToday('kudos', profile.id, today),
+        messagesSentToday('group_pep', profile.id, today),
+      ])
       const earnsPoint = privateSent + groupSent < 4
       if (mode === 'private' && !earnsPoint) return sendJson(response, 429, { error: 'Du har skickat fyra peppmeddelanden idag. Fortsätt gärna prata i den öppna kanalen utan fler poäng.' })
       const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')

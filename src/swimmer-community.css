@@ -1,0 +1,176 @@
+.swimmer-chat-page {
+  --chat-edge: #c8dcd8;
+  --chat-wash: #edf5f2;
+  --chat-own: #dbeee9;
+  --chat-pad: clamp(12px, 2.4vw, 22px);
+  --chat-height: clamp(360px, calc(100svh - 160px), 46rem);
+}
+.swimmer-chat-page.pep-channel-page { --chat-height: clamp(360px, calc(100svh - 215px), 46rem); }
+.swimmer-chat-page .coach-info-header .back-button { width: 44px; height: 44px; }
+.swimmer-chat-page .feed-tabs { margin-top: 16px; border: 1px solid var(--chat-edge); border-radius: 14px; }
+.swimmer-chat-page .feed-tabs button { min-height: 42px; padding: 7px 6px; font-size: 13px; color: #45636b; }
+.swimmer-chat-page .feed-tabs button.active { color: var(--teal); }
+.swimmer-chat-page .swimmer-message-channel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: var(--chat-height);
+  min-height: 0;
+  padding: 0;
+  margin: 14px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--chat-edge);
+  border-radius: 22px;
+  color: var(--ink);
+  background: var(--chat-wash);
+  box-shadow: none;
+}
+.swimmer-chat-page .channel-placeholder { align-items: center; justify-content: center; gap: 12px; }
+.channel-placeholder p { margin: 0; padding: 0 16px; text-align: center; color: #45636b; }
+.channel-placeholder button { min-height: 44px; }
+
+.swimmer-message-channel .open-chat-heading,
+.swimmer-message-channel .pep-modern-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex: none;
+  padding: 12px var(--chat-pad);
+  border-bottom: 1px solid var(--chat-edge);
+  background: var(--paper);
+}
+.swimmer-message-channel .channel-heading-icon,
+.swimmer-message-channel .pep-modern-heading > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--chat-own);
+  font-size: 18px;
+}
+.swimmer-message-channel .open-chat-heading small,
+.swimmer-message-channel .pep-modern-heading small { color: #45636b; font-size: 13px; opacity: 1; }
+
+.swimmer-message-channel .open-chat-messages,
+.swimmer-message-channel .pep-modern-messages {
+  min-height: 0;
+  padding: var(--chat-pad);
+  scrollbar-width: thin;
+  scrollbar-color: #a3c8c2 transparent;
+  overscroll-behavior-y: contain;
+}
+.swimmer-message-channel .open-chat-messages article { width: 100%; min-width: 0; align-items: flex-end; }
+.swimmer-message-channel .open-chat-messages article[data-own="false"] { align-self: flex-start; flex-direction: row; }
+.swimmer-message-channel .open-chat-messages article > span,
+.swimmer-message-channel .pep-avatar { background: #e0eeea; width: 32px; height: 32px; border-radius: 11px; font-size: 17px; }
+.swimmer-message-channel .pep-bubble-row.grouped .pep-avatar { background: transparent; }
+
+.swimmer-message-channel .open-chat-messages article[data-own] > div,
+.swimmer-message-channel .pep-bubble {
+  min-width: 0;
+  max-width: min(38rem, calc(100% - 44px));
+  padding: 11px 14px;
+  border: 1px solid #d1e0db;
+  border-radius: 16px 16px 16px 5px;
+  background: white;
+  color: var(--ink);
+  box-shadow: none;
+}
+.swimmer-message-channel .open-chat-messages article[data-own="true"] > div,
+.swimmer-message-channel .own .pep-bubble {
+  background: var(--chat-own);
+  border-color: #bbd9d1;
+  border-radius: 16px 16px 5px 16px;
+}
+.swimmer-message-channel .pep-bubble-row { margin-top: 8px; }
+.swimmer-message-channel .pep-bubble-row.grouped { margin-top: 4px; }
+.swimmer-message-channel .pep-bubble p { margin-bottom: 3px; }
+.swimmer-message-channel .open-chat-messages article strong,
+.swimmer-message-channel .pep-author { color: var(--teal); font-size: 13px; font-weight: 700; }
+.swimmer-message-channel .open-chat-messages article small,
+.swimmer-message-channel .pep-bubble time { color: #45636b; font-size: 11px; opacity: 1; }
+.swimmer-message-channel .info-message-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.swimmer-message-channel .info-message-meta > .danger-text { color: #8f4148; font-size: 12px; min-height: 32px; margin: 0; padding: 4px; }
+.swimmer-message-channel .private-thread-reply { background: #f5faf8; border-color: #86bdb1; }
+.swimmer-message-channel .private-question-content { line-height: 1.45; }
+
+.swimmer-message-channel .open-chat-compose,
+.swimmer-message-channel .pep-modern-compose {
+  flex: none;
+  padding: 12px var(--chat-pad) max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--chat-edge);
+  background: var(--paper);
+}
+.swimmer-message-channel .open-chat-compose { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+.swimmer-message-channel .chat-compose-input,
+.swimmer-message-channel .pep-input {
+  min-width: 0;
+  align-items: flex-end;
+  border: 1px solid var(--chat-edge);
+  border-radius: 13px;
+  background: white;
+}
+.swimmer-message-channel .chat-compose-input:focus-within,
+.swimmer-message-channel .pep-input:focus-within { border-color: var(--teal); }
+.swimmer-message-channel .open-chat-compose textarea,
+.swimmer-message-channel .pep-input textarea {
+  display: block;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px;
+  resize: none;
+  border: 0;
+  border-radius: inherit;
+  color: var(--ink);
+  background: transparent;
+  font-size: 16px;
+  line-height: 1.45;
+  outline: none;
+}
+.swimmer-message-channel .open-chat-compose textarea::placeholder,
+.swimmer-message-channel .pep-input textarea::placeholder { color: #536d71; }
+.swimmer-message-channel .chat-emoji-trigger,
+.swimmer-message-channel .pep-template-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--chat-wash);
+}
+.swimmer-message-channel .chat-emoji-picker { margin: 3px; }
+.swimmer-message-channel .chat-emoji-menu { background: white; border-color: var(--chat-edge); box-shadow: 0 8px 24px #102d3720; }
+.swimmer-message-channel .chat-emoji-menu button:hover { background: var(--chat-own); }
+.swimmer-message-channel .open-chat-compose > .primary-button,
+.swimmer-message-channel .pep-send {
+  flex: none;
+  width: auto;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 13px;
+  background: var(--lime);
+  color: var(--ink);
+  box-shadow: none;
+  font-weight: 700;
+}
+.swimmer-message-channel .open-chat-compose > .primary-button:disabled,
+.swimmer-message-channel .pep-send:disabled { opacity: 1; background: #e4eeeb; color: #536d71; cursor: default; }
+.swimmer-message-channel .open-chat-compose > small { flex-basis: 100%; color: #45636b; }
+.swimmer-message-channel .pep-compose-caption { color: #45636b; font-size: 11px; }
+.swimmer-message-channel .private-replies-warning { background: #fff5dc; color: #704e1e; margin: 0; padding: 8px var(--chat-pad); font-size: 13px; }
+
+.swimmer-chat-page .private-messages h2 { font-size: 17px; margin: 14px 0 10px; }
+.swimmer-chat-page .kudos-panel select,
+.swimmer-chat-page .kudos-panel textarea { min-height: 44px; font-size: 16px; }
+.swimmer-chat-page :is(button, summary):focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .swimmer-chat-page { --chat-height: clamp(320px, calc(100svh - 135px), 46rem); }
+  .swimmer-chat-page.pep-channel-page { --chat-height: clamp(320px, calc(100svh - 190px), 46rem); }
+  .swimmer-chat-page .swimmer-message-channel { border-radius: 18px; }
+}

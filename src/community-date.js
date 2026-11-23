@@ -1,5 +1,9 @@
+const stockholm = { timeZone: 'Europe/Stockholm' }
+const day = new Intl.DateTimeFormat('sv-SE', stockholm)
+const time = new Intl.DateTimeFormat('sv-SE', { ...stockholm, hour: '2-digit', minute: '2-digit' })
+const short = new Intl.DateTimeFormat('sv-SE', { ...stockholm, day: 'numeric', month: 'short' })
+
 export function formatFeedDate(value) {
   const date = new Date(value)
-  const day = input => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(input)
-  return day(date) === day(new Date()) ? `Idag ${date.toLocaleTimeString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' })}` : date.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' })
+  return day.format(date) === day.format(new Date()) ? `Idag ${time.format(date)}` : short.format(date)
 }

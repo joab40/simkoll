@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { apiRequest } from './api-request.js'
 import { chatBackgroundUrl } from './chat-background.js'
-import { latestCoachMessageId, markCoachMessageRead } from './coach-info.js'
+import { markCoachMessageRead } from './coach-info.js'
 import PrivateChatReply from './private-chat-reply.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { formatFeedDate } from './community-date.js'
@@ -31,12 +31,12 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
   const chatPanelRef = useRef(null)
   const scroller = useRef(null), follow = useRef(true), seen = useRef(new Set())
   const load = () => channel.refresh({ force: true }).catch(() => {})
+  const latestCoachId = chat.messages.findLast(item => item.senderRole === 'coach' && !item.pending)?.id
   useEffect(() => {
-    if (!coach && profileId && chat.enabled && active) {
-      const latest = latestCoachMessageId(chat.messages)
-      if (latest) markCoachMessageRead(window.localStorage, profileId, latest)
+    if (!coach && profileId && chat.enabled && active && latestCoachId) {
+      markCoachMessageRead(window.localStorage, profileId, latestCoachId)
     }
-  }, [coach, profileId, chat, active])
+  }, [coach, profileId, chat.enabled, active, latestCoachId])
   useLayoutEffect(() => {
     if (!active || channel.loading) return
     const ids = new Set(chat.messages.map(item => item.id))
@@ -45,9 +45,9 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
     seen.current = ids
   }, [chat.messages, active, channel.loading])
   useLayoutEffect(() => {
-    if (!active || !fitViewport || (!chat.enabled && !channel.loading) || !chatPanelRef.current) return
+    if (!coach || !active || !fitViewport || (!chat.enabled && !channel.loading) || !chatPanelRef.current) return
     const panel = chatPanelRef.current
-    const footer = document.querySelector(coach ? '.app-meta' : '.swimmer-app-meta')
+    const footer = document.querySelector('.app-meta')
     const viewport = window.visualViewport
     const measure = () => {
       const viewportHeight = viewport?.height || window.innerHeight
@@ -83,8 +83,6 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
       const savedMessage = result.message || { ...pendingMessage, pending: false }
       setChat((current) => ({ ...current, messages: [...(current.messages || []).filter((item) => item.id !== pendingId && item.id !== savedMessage.id), savedMessage].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }))
       setStatus('')
-      // Uppdatera övriga meddelanden i bakgrunden; sändningen väntar inte på en full omladdning.
-      load()
     } catch (error) {
       setChat((current) => ({ ...current, messages: (current.messages || []).filter((item) => item.id !== pendingId) }))
       setContent((current) => current || messageContent)
@@ -100,7 +98,7 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
     setDeletingMessageId(item.id)
     try {
       await request('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-open-chat-message', id: item.id }) })
-      await load()
+      setChat(current => ({ ...current, messages: current.messages.filter(message => message.id !== item.id) }))
     } catch (error) {
       window.alert(error.message)
     } finally {
@@ -108,35 +106,47 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
       setDeletingMessageId(null)
     }
   }
-  const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; try { await request('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); await load() } catch (error) { setStatus(error.message) } }
-  if (!channel.data) return <section ref={chatPanelRef} className="message-channel-loading" aria-busy={channel.loading}><span aria-hidden="true">💬</span><h2>Info från tränarna</h2><p role="status">{channel.error || 'Hämtar tränarinfon…'}</p>{channel.error && <button type="button" onClick={load}>Försök igen</button>}<div aria-hidden="true" className="message-loading-lines"><i /><i /><i /></div></section>
-  if (!chat.enabled) return coach ? <section className="message-channel-loading"><h2>Tränarinfo är avstängd</h2><p>Klubbflödet och privata meddelanden finns i flikarna ovan.</p></section> : null
-  const chatBackground = chatBackgroundUrl(chat.backgroundImage || '/assets/open-chat-bg-teal.png')
-  return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${fitViewport ? ' swimmer-info-chat' : ''}`} style={{ backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` }}>
+  const clear = async () => { if (!window.confirm('Rensa alla meddelanden i den öppna chatten?')) return; try { await request('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear-open-chat' }) }); setChat(current => ({ ...current, messages: [] })) } catch (error) { setStatus(error.message) } }
+  if (!channel.data) return <section ref={chatPanelRef} className={coach ? 'message-channel-loading' : 'swimmer-message-channel channel-placeholder'} aria-busy={channel.loading}>{coach && <><span aria-hidden="true">💬</span><h2>Info från tränarna</h2></>}<p role="status">{channel.error || 'Hämtar tränarinfon…'}</p>{channel.error && <button type="button" onClick={load}>Försök igen</button>}{coach && <div aria-hidden="true" className="message-loading-lines"><i /><i /><i /></div>}</section>
+  if (!chat.enabled) return coach ? <section className="message-channel-loading"><h2>Tränarinfo är avstängd</h2><p>Klubbflödet och privata meddelanden finns i flikarna ovan.</p></section> : <section className="swimmer-message-channel channel-placeholder"><p>Tränarinfo är avstängd.</p></section>
+  const chatBackground = coach ? chatBackgroundUrl(chat.backgroundImage || '/assets/open-chat-bg-teal.png') : null
+  return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${coach ? '' : ' swimmer-info-chat swimmer-message-channel'}`}
+    style={chatBackground ? { backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` } : undefined}>
+
     <div className="open-chat-heading">
-      {coach && <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div>}
-      <small>{coach ? 'Tränarinfo till gruppen · privata svar märks med 🔒' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor och privata svar syns bara för dig och tränarna' : 'Gruppchatt · svar märkta 🔒 är privata'}</small>
+      {coach ? <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div> : <span className="channel-heading-icon" aria-hidden="true">{chat.swimmerPrivate !== false && !chat.coachOnly ? '🔒' : '💬'}</span>}
+      <small>{coach ? 'Tränarinfo till gruppen · privata svar märks med 🔒' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor och svaren från tränarna är privata.' : 'Frågor i gruppchatten kan läsas av alla. Privata svar märks med 🔒.'}</small>
       {coach && <details className="chat-management"><summary>Hantera</summary><button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button></details>}
     </div>
     <div className="open-chat-messages" ref={scroller} role="log" aria-label="Tränarinfo och frågor" aria-live="polite" onScroll={event => { const el = event.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (follow.current) setUnread(0) }}>{chat.messages?.length ? chat.messages.map((item) => {
+      const own = Boolean(!coach && profileId && item.senderProfileId === profileId)
       const canReply = coach && item.senderRole === 'swimmer' && item.senderProfileId && !item.pending
-      const openReply = (event) => { privateReplyTrigger.current = event.currentTarget; setPrivateReply(item) }
-      const original = <><strong>{item.sender?.displayName || 'Simmare'}</strong><span className="private-question-content">{item.content}</span><small>{item.pending ? 'Skickar…' : formatFeedDate(item.createdAt)}</small>{canReply && <small className="private-reply-hint">↩ Svara privat till {item.sender?.displayName || 'simmaren'}</small>}</>
-      return <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id}>
-        <span>{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span>
+      const openReply = event => { privateReplyTrigger.current = event.currentTarget; setPrivateReply(item) }
+      const removeButton = !item.pending && (coach || own) && <button type="button" className="text-button danger-text"
+        disabled={deletingMessageId !== null} onClick={() => remove(item)}>
+        {deletingMessageId === item.id ? 'Tar bort…' : 'Ta bort'}
+      </button>
+      const timestamp = <small>{item.pending ? 'Skickar…' : formatFeedDate(item.createdAt)}</small>
+      const original = <>
+        <strong>{own ? 'Du' : item.sender?.displayName || 'Simmare'}</strong>
+        <span className="private-question-content">{item.content}</span>
+        {coach ? timestamp : <span className="info-message-meta">{timestamp}{removeButton}</span>}
+        {canReply && <small className="private-reply-hint">↩ Svara privat till {item.sender?.displayName || 'simmaren'}</small>}
+      </>
+      return <article className={`${item.senderRole === 'swimmer' ? 'swimmer-message' : 'coach-message'}${item.pending ? ' pending-message' : ''}`} key={item.id} data-own={own}>
+        <span aria-hidden="true">{item.senderRole === 'coach' ? '🧑‍🏫' : (item.sender?.emoji || '🏊')}</span>
         <div>{canReply ? <button type="button" className="private-reply-message" onClick={openReply} aria-expanded={privateReply?.id === item.id}>{original}</button> : original}
           {item.privateReplies?.map((reply) => <section className="private-thread-reply" key={reply.id}><strong>🔒 {coach ? `Privat svar till ${item.sender?.displayName || 'simmaren'}` : 'Tränarnas privata svar till dig'}</strong><p>{reply.content}</p><small>{formatFeedDate(reply.createdAt)}</small></section>)}
           {privateReply?.id === item.id && <PrivateChatReply key={item.id} message={item} code={code} request={request} onClose={closePrivateReply} onSent={(reply) => {
             if (reply) setChat((current) => ({...current,messages:current.messages.map((message) => message.id === item.id ? {...message,privateReplies:[...(message.privateReplies || []).filter((row) => row.id !== reply.id),reply]} : message)}))
             window.dispatchEvent(new Event('simkoll-private-message-sent'))
-            load()
           }} />}
         </div>
-        {!item.pending && (coach || item.senderProfileId === profileId) && <button type="button" className="text-button danger-text" disabled={deletingMessageId !== null} onClick={() => remove(item)}>{deletingMessageId === item.id ? 'Tar bort…' : 'Ta bort'}</button>}
+        {coach && removeButton}
       </article>
-    }) : <p className="empty">Chatten är tom – skriv den första hälsningen!</p>}</div>
+    }) : <p className="empty">Inga meddelanden ännu.</p>}</div>
     {unread > 0 && <button type="button" className="info-new-messages" onClick={() => { follow.current = true; setUnread(0); if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight }}>↓ {unread} nya meddelanden</button>}
-    {(!chat.coachOnly || coach) && !privateReply && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required aria-label={coach ? 'Tränarinfo till gruppen' : 'Fråga till tränarna'} maxLength={1000} value={content} placeholder={coach ? 'Skriv tränarinfo till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={(emoji) => setContent((value) => `${value}${emoji}`)} /></div><button className="primary-button" disabled={!content.trim()}>Skicka ↑</button>{status && <small role="status">{status}</small>}</form>}
+    {(!chat.coachOnly || coach) && !privateReply && <form className="open-chat-compose" onSubmit={send}><div className="chat-compose-input"><textarea required rows={2} aria-label={coach ? 'Tränarinfo till gruppen' : 'Fråga till tränarna'} maxLength={1000} value={content} placeholder={coach ? 'Skriv tränarinfo till gruppen…' : 'Ställ en fråga…'} onChange={(event) => setContent(event.target.value)} /><ChatEmojiPicker onPick={emoji => setContent(value => `${value}${emoji}`.slice(0, 1000))} /></div><button className="primary-button" disabled={!content.trim()}>Skicka ↑</button>{status && <small role="status">{status}</small>}</form>}
     {channel.error && <p className="private-replies-warning" role="status">Uppdateringen misslyckades. Senast hämtade meddelanden visas. <button type="button" onClick={load}>Försök igen</button></p>}
     {chat.privateRepliesWarning && <p className="private-replies-warning" role="status">{chat.privateRepliesWarning}</p>}
   </section>

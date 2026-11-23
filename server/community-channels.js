@@ -5,22 +5,37 @@ const emptyChat = settings => ({ enabled: settings.openChat?.enabled === true, c
 
 // Read only the trainer-information channel. Do not wait for the public feed,
 // reactions, private inbox or kudos to display this chat.
-export async function loadInfoChannel(settings, role, profileId, read = supabaseRequest) {
+const displayProfile = row => ({ id: row.id, displayName: row.display_name, emoji: row.emoji })
+
+export async function loadInfoChannel(settings, role, viewer, read = supabaseRequest) {
+  const profileId = viewer?.id
   if (role !== 'coach' && (role !== 'swimmer' || !/^[0-9a-f-]{36}$/i.test(profileId || ''))) throw new Error('An authenticated channel reader is required')
   const chat = emptyChat(settings)
   if (!chat.enabled) return { openChat: chat }
-  const [result, directory] = await Promise.all([
-    read(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profileId})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`),
-    read('profiles?select=id,display_name,emoji&active=eq.true'),
-  ])
-  if (!result.ok || !directory.ok) throw new Error('Information channel unavailable')
-  const profiles = Object.fromEntries((await directory.json()).map(row => [row.id, { id: row.id, displayName: row.display_name, emoji: row.emoji }]))
+
+  const result = await read(`open_chat_messages?deleted_at=is.null${role === 'coach' ? '' : `&or=(visibility.neq.coaches,sender_profile_id.eq.${profileId})`}&select=id,sender_role,sender_profile_id,content,visibility,created_at&order=created_at.desc&limit=300`)
+  if (!result.ok) throw new Error('Information channel unavailable')
   const messages = (await result.json())
     .filter(row => !row.deleted_at && (role === 'coach' || row.visibility !== 'coaches' || row.sender_profile_id === profileId))
-    .map(row => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: row.sender_role, senderProfileId: row.sender_profile_id || null, sender: row.sender_profile_id ? profiles[row.sender_profile_id] : { displayName: 'Tränare', emoji: '🧑‍🏫' } }))
-    .filter(row => row.sender).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-  const threaded = await loadPrivateChatReplies(messages, role, profileId, read)
-  return { openChat: { ...chat, messages: threaded.messages, privateRepliesWarning: threaded.warning } }
+    .map(row => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: row.sender_role, senderProfileId: row.sender_profile_id || null }))
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+
+  const otherSenders = [...new Set(messages.map(row => row.senderProfileId).filter(id => id && id !== profileId))]
+  const loadSenders = async () => {
+    if (!otherSenders.length) return []
+    const senderFilter = otherSenders.length <= 100 ? `&id=in.(${otherSenders.join(',')})` : ''
+    const directory = await read(`profiles?select=id,display_name,emoji&active=eq.true${senderFilter}`)
+    if (!directory.ok) throw new Error('Information channel profiles unavailable')
+    return directory.json()
+  }
+  const [senders, threaded] = await Promise.all([loadSenders(), loadPrivateChatReplies(messages, role, profileId, read)])
+  const profiles = new Map(senders.map(row => [row.id, displayProfile(row)]))
+  if (viewer) profiles.set(profileId, displayProfile(viewer))
+
+  return { openChat: { ...chat, privateRepliesWarning: threaded.warning, messages: threaded.messages.map(message => ({
+    ...message,
+    sender: message.senderProfileId ? profiles.get(message.senderProfileId) : { displayName: 'Tränare', emoji: '🧑‍🏫' },
+  })).filter(message => message.sender) } }
 }
 
 export async function loadCoachInbox(read = supabaseRequest) {

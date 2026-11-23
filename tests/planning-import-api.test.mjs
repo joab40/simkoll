@@ -137,3 +137,32 @@ test('a coach can remove one planned or published pass without deleting by day',
   assert.equal(deletes[2].searchParams.get('source_workout_id'), `eq.${importId}`)
   assert.equal(deletes[2].searchParams.has('plan_date'), false)
 })
+
+test('saving SportAdmin settings reports a failed feed separately from an empty calendar', async () => {
+  const admin = createCoachToken({ id: '44444444-4444-4444-8444-444444444444', role: 'superadmin' })
+  const calendars = [
+    { id: 'unavailable', url: 'https://portalweb.sportadmin.se/webcal?id=sample-unavailable' },
+    { id: 'empty', url: 'https://portalweb.sportadmin.se/webcal?id=sample-empty' },
+  ]
+  const original = globalThis.fetch
+  const saved = []
+  globalThis.fetch = async (raw, options = {}) => {
+    const url = new URL(raw)
+    if (url.hostname === 'portalweb.sportadmin.se') {
+      if (url.searchParams.get('id') === 'sample-unavailable') return json({ message: 'Planned maintenance' }, 503)
+      return new Response('BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n')
+    }
+    if (url.pathname.endsWith('/app_settings')) {
+      if (options.method === 'POST') saved.push(JSON.parse(options.body).setting_value.sportAdminCalendars)
+      return json([])
+    }
+    throw Error(`Unexpected request: ${url.pathname}`)
+  }
+  try {
+    const response = await call({ action: 'save-sportadmin-calendars', calendars }, admin)
+    assert.equal(response.code, 200)
+    assert.equal(saved[0].length, 2)
+    assert.deepEqual(response.data.activities, [])
+    assert.deepEqual(response.data.calendarFailures, ['unavailable'])
+  } finally { globalThis.fetch = original }
+})
