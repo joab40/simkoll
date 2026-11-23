@@ -50,9 +50,14 @@ test('the flight journey distinguishes regional qualifiers from championship fin
     ['Sundsvalls Swim Games', 'Klubbtävling'],
     ['Sommarsim', ''],
     ['Norrlandsmästerskapen', ''],
+    ['USM Regionsfinal', 'Mästerskap'],
+    ['Ungdomsfinalen', 'Region-final'],
   ].map(([title, category], index) => ({ id: String(index + 1), title, category, startDate: '2026-12-02' }))
-  assert.deepEqual(flightCompetitionJourney(rows, '2026-11-22').map(event => event.building),
-    ['championship', 'regional', 'regional', 'championship', 'championship', 'regional', 'regional', 'norrland'])
+  const journey = flightCompetitionJourney(rows, '2026-11-22')
+  assert.deepEqual(journey.map(event => event.building),
+    ['championship', 'regional', 'regional', 'championship', 'championship', 'regional', 'regional', 'norrland', 'regional-final', 'regional-final'])
+  assert.equal(journey[8].championship, false)
+  assert.equal(flightCompetitionJourney([{ ...rows[8], flightBuilding: 'regional' }], '2026-11-22')[0].building, 'regional')
   assert.equal(flightCompetitionJourney([{ ...rows[7], flightBuilding: 'regional' }], '2026-11-22')[0].building, 'regional')
 })
 

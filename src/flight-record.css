@@ -254,6 +254,7 @@ button.flight-journey-stop:hover { background: #fff9; }
 }
 .flight-journey-palace { display: block; width: 43px; height: 43px; margin-bottom: 5px; object-fit: contain; }
 .flight-journey-event.championship .flight-journey-palace { width: 78px; height: 54px; object-position: center bottom; margin-bottom: 9px; }
+.flight-journey-event[data-building="regional-final"] .flight-journey-palace { width: 63px; height: 48px; object-position: center bottom; margin-bottom: 7px; }
 .flight-journey-event.past .flight-journey-palace { opacity: .62; filter: saturate(.48); }
 .flight-journey-event.next .flight-journey-palace-wrap::after { background: #c58c2e; border-color: #fff1c0; }
 .flight-home-sky .flight-journey-stop[aria-pressed="true"] { border-color: #9ac4c1; background: #e1f1ed; }

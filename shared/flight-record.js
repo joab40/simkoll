@@ -12,7 +12,8 @@ export function flightCompetitionJourney(competitions, asOf) {
     const endDate = isTimeDate(item.endDate) && item.endDate >= item.startDate ? item.endDate : item.startDate
     const status = endDate < asOf ? 'past' : item.startDate <= asOf ? 'current' : 'upcoming'
     const building = competitionBuilding(item)
-    return { id: item.id, title: item.title, startDate: item.startDate, endDate, status, building, championship: building !== 'regional' }
+    const championship = building === 'championship' || building === 'norrland'
+    return { id: item.id, title: item.title, startDate: item.startDate, endDate, status, building, championship }
   }).sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 

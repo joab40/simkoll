@@ -143,10 +143,12 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
       label: `Illustrerad riktning · ${direction.days} ${direction.days === 1 ? 'dag' : 'dagar'}`,
     }
   }
-  const palaceWidth = skyGoal
-    ? Math.min(goalWidth * (target.championship ? .76 : .54), height * (target.championship ? .84 : .49), 256) : 0
+  const palaceLayout = target?.building === 'regional-final'
+    ? { width: .67, height: .65, top: .24 }
+    : target?.championship ? { width: .76, height: .84, top: .15 } : { width: .54, height: .49, top: .32 }
+  const palaceWidth = skyGoal ? Math.min(goalWidth * palaceLayout.width, height * palaceLayout.height, 256) : 0
   const palaceHeight = building ? palaceWidth / building.aspect : 0
-  const palaceY = top + (base - top) * (target?.championship ? .15 : .32)
+  const palaceY = top + (base - top) * palaceLayout.top
   const palaceCenter = today + (goalWidth - palaceWidth) * .87 + palaceWidth / 2
   const palaceLabelWidth = Math.min(goalWidth - 8, Math.max(120, palaceWidth))
   const palaceLabelX = Math.min(palaceCenter - palaceLabelWidth / 2, right - palaceLabelWidth)
@@ -693,7 +695,7 @@ function CompetitionJourney({ journey, asOf, selected, next, onSelect, sky }) {
           <strong>{event.title}</strong>
           <small className="flight-journey-status">{label}</small>
         </>
-        return <li key={event.id} className={`flight-journey-event ${event.status}${isNext ? ' next' : ''}${event.championship ? ' championship' : ''}`}>
+        return <li key={event.id} data-building={event.building} className={`flight-journey-event ${event.status}${isNext ? ' next' : ''}${event.championship ? ' championship' : ''}`}>
           {event.status === 'past' ? <div className="flight-journey-stop">{details}</div>
             : <button type="button" className="flight-journey-stop" aria-pressed={isSelected}
               ref={isSelected ? activeStop : null} onClick={() => onSelect(event.id)}>{details}</button>}

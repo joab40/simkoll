@@ -51,9 +51,10 @@ test('the coach can choose, preserve or clear the Flight Record building', async
   const body = { action: 'save-competition', id, title: 'Norrlandsmästerskapen', startDate: '2026-11-01', targetGroups: ['junior'] }
   assert.equal((await call({ ...body, flightBuilding: 'championship' })).data.competition.flightBuilding, 'championship')
   assert.equal((await call(body)).data.competition.flightBuilding, 'championship')
+  assert.equal((await call({ ...body, flightBuilding: 'regional-final' })).data.competition.flightBuilding, 'regional-final')
   assert.equal((await call({ ...body, flightBuilding: null })).data.competition.flightBuilding, null)
   assert.equal((await call({ ...body, flightBuilding: 'custom.png' })).code, 400)
-  assert.deepEqual(writes, ['championship', undefined, null])
+  assert.deepEqual(writes, ['championship', undefined, 'regional-final', null])
 })
 
 test('opening entries with no selectable program reports an actionable error', async () => {
