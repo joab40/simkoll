@@ -35,11 +35,12 @@ function useMessageViews({ active, messages, scroller, submit }) {
     const observer = new IntersectionObserver(entries => {
       for (const entry of entries) {
         const id = entry.target.dataset.openChatView
-        if (entry.isIntersecting && (entry.intersectionRatio >= 0.25 || entry.intersectionRect.height >= 40)) visible.add(id)
+        const hasVisibleWidth = entry.intersectionRect.width >= entry.boundingClientRect.width * 0.5
+        if (entry.isIntersecting && hasVisibleWidth && (entry.intersectionRatio >= 0.25 || entry.intersectionRect.height >= 40)) visible.add(id)
         else visible.delete(id)
       }
       schedule()
-    }, { threshold: [0, 0.03, 0.25] })
+    }, { threshold: [0, 0.03, 0.25, 0.5] })
     for (const bubble of log.querySelectorAll('[data-open-chat-view]')) {
       const id = bubble.dataset.openChatView
       if (trackable.has(id) && !recorded.current.has(id)) observer.observe(bubble)
@@ -76,12 +77,12 @@ export function useOpenChatEngagement({ active, messages, scroller, code, reques
       })
       if (signal?.aborted || !result.engagement?.length) return
       const totals = new Map(result.engagement.map(({ messageId, ...counts }) => [messageId, counts]))
-      setData(current => ({
+      setData(current => current?.openChat ? ({
         ...current, openChat: {
           ...current.openChat,
           messages: current.openChat.messages.map(item => totals.has(item.id) ? { ...item, engagement: totals.get(item.id) } : item),
         },
-      }))
+      }) : current)
     })
     queue.current = task.catch(() => {})
     return task

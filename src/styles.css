@@ -102,7 +102,9 @@ button { cursor: pointer; }
 .swimmer-hero-slide .hero-coach-preview { display: flex; margin: 0; padding: 32px 48px; border-radius: 30px; gap: 12px; box-shadow: none; }
 .hero-coach-preview h2 { font-size: clamp(25px, 4vw, 36px); }
 .hero-coach-preview .open-chat-preview { margin-top: 0; }
-.hero-coach-preview .open-chat-preview article > div { min-width: 0; }
+.hero-coach-preview .open-chat-preview article > div { flex: 1; min-width: 0; }
+.open-chat-preview-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; }
+.open-chat-preview article .open-chat-preview-seen { color: #315b62; background: #dcefeb; padding: 2px 8px; border-radius: 999px; white-space: nowrap; font-weight: 650; }
 .hero-coach-preview .open-chat-preview article p { overflow-wrap: anywhere; }
 .hero-coach-preview > .primary-button { align-self: flex-start; margin-top: auto; }
 .hero-coach-preview > small { color: #577679; }
@@ -1238,16 +1240,7 @@ button { cursor: pointer; }
 .coach-feeling-comparison .coach-metric-trend-arrow { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #e8f1ee; color: #476f6b; font-size: 21px; }
 .coach-feeling-comparison .coach-metric-comparison-period { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
 .coach-feeling-comparison details p { color: var(--muted); line-height: 1.5; }
-.coach-columns { display: grid; grid-template-columns: .8fr 1.2fr; gap: 12px; margin-top: 12px; align-items: start; }
-.type-list > div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid #e4ece9; }
-.type-list strong { color: var(--teal); }
-.type-list .activity-response-button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 13px 8px; border: 0; border-top: 1px solid #e4ece9; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
-.activity-response-button > span, .activity-response-button > strong { display: grid; gap: 3px; }
-.activity-response-button small { color: var(--muted); font-size: 12px; font-weight: 500; }
-.activity-response-button:hover { background: #edf7f4; }
-.activity-response-button:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
-.type-list > div > span, .type-list > div > strong { display: grid; gap: 3px; }
-.type-list > div > span small, .type-list > div > strong small { color: var(--muted); font-size: 11px; font-weight: 600; }
+.comments-card { margin-top: 12px; }
 .comments-card blockquote { margin: 0; padding: 14px 0; border-top: 1px solid #e4ece9; color: #40565b; font-size: 14px; line-height: 1.5; }
 .empty { color: var(--muted); }
 .empty-period { min-height: 430px; border: 1px dashed #c7d8d3; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
@@ -1547,7 +1540,6 @@ button { cursor: pointer; }
 .daily-progress-actions button { border: 0; background: transparent; color: var(--teal); font-weight: 800; }
 @media (max-width: 600px) { .daily-progress-card { align-items: flex-start; flex-direction: column; } .daily-progress-actions { justify-content: space-between; width: 100%; } }
 @media (max-width: 600px) { .editor-import-actions { justify-content: flex-start; } .workout-picker-criteria { grid-template-columns: 1fr; } }
-.sick-count { color: #a85f5f; }
 
 .weekly-card, .season-goal-section, .assigned-programs, .development-section { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 20px; padding: 24px; margin-top: 14px; }
 .weekly-card { display: flex; align-items: center; gap: 18px; cursor: pointer; text-align: left; width: 100%; color: var(--ink); }
@@ -2181,7 +2173,6 @@ button { cursor: pointer; }
   .week-days > div { min-height: 91px; }
   .week-days strong { font-size: 23px; }
   .week-days small { font-size: 8px; }
-  .coach-columns { grid-template-columns: 1fr; }
   .swimmer-grid { grid-template-columns: 1fr; }
   .history-row { grid-template-columns: 1fr repeat(4, .55fr); gap: 12px; padding: 16px; }
   .history-date { grid-column: 1 / -1; border-bottom: 1px solid #e2ebe8; padding-bottom: 11px; }
@@ -2733,6 +2724,9 @@ button { cursor: pointer; }
 .competition-day-group article > span { grid-row: span 2; }
 .competition-day-group article > strong { min-width: 0; overflow-wrap: anywhere; }
 .competition-day-group article > small { grid-column: 2; min-width: 0; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.competition-day-group.reported-sick { border-color: #efd1cb; background: #fff7f4; }
+.competition-day-group.reported-mild { border-color: #ebdec0; background: #fffbef; }
+.competition-day-group article > button { min-width: 0; text-align: left; overflow-wrap: anywhere; }
 .competition-day-group.done { border-color: #d4e9d7; }
 .competition-day-group.race { border-color: #f0e0b8; }
 .competition-day-group.not-reported { background: #f7f9f8; }

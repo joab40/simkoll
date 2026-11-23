@@ -1,16 +1,20 @@
 import { supabaseRequest } from './supabase.js'
+import { loadOpenChatEngagement } from './open-chat-engagement.js'
 
-export async function loadCommunityPreview(settings, templates, read = supabaseRequest) {
+export async function loadCommunityPreview(settings, templates, { profileId = null, read = supabaseRequest } = {}) {
   const chat = settings.openChat || {}
   const [postsResult, pepResult, chatResult] = await Promise.all([
     read('community_posts?deleted_at=is.null&select=id,content,created_at&order=created_at.desc,id.desc&limit=2'),
     read('group_pep?or=(moderation_status.eq.approved,moderation_status.is.null)&select=id,sender_profile_id,template_key,content,created_at,moderation_status&order=created_at.desc,id.desc&limit=2'),
-    chat.enabled === true ? read('open_chat_messages?deleted_at=is.null&sender_role=eq.coach&visibility=neq.coaches&select=id,content,created_at,sender_role&order=created_at.desc,id.desc&limit=2') : Promise.resolve({ ok: true, json: async () => [] }),
+    chat.enabled === true ? read('open_chat_messages?deleted_at=is.null&sender_role=eq.coach&visibility=neq.coaches&select=id,content,created_at,sender_role,visibility&order=created_at.desc,id.desc&limit=2') : Promise.resolve({ ok: true, json: async () => [] }),
   ])
   if (![postsResult, pepResult, chatResult].every((result) => result.ok)) throw new Error('Community preview lookup failed')
   const [posts, pep, messages] = await Promise.all([postsResult.json(), pepResult.json(), chatResult.json()])
   const ids = [...new Set(pep.map((row) => row.sender_profile_id).filter(Boolean))]
-  const profilesResult = ids.length ? await read(`profiles?id=in.(${ids.join(',')})&active=eq.true&select=id,display_name,emoji`) : null
+  const [profilesResult, engagement] = await Promise.all([
+    ids.length ? read(`profiles?id=in.(${ids.join(',')})&active=eq.true&select=id,display_name,emoji`) : null,
+    loadOpenChatEngagement(messages, profileId, read),
+  ])
   if (profilesResult && !profilesResult.ok) throw new Error('Preview senders lookup failed')
   const profiles = new Map((profilesResult ? await profilesResult.json() : []).map((row) => [row.id, { id: row.id, displayName: row.display_name, emoji: row.emoji }]))
   const items = [
@@ -19,7 +23,7 @@ export async function loadCommunityPreview(settings, templates, read = supabaseR
   ].filter((row) => row.content).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).slice(0,2)
   return {
     items,
-    openChat: { enabled: chat.enabled === true, coachOnly: chat.coachOnly === true, backgroundImage: chat.backgroundImage || '/assets/open-chat-bg.png', messages: messages.map((row) => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: 'coach', sender: { displayName: 'Tränare', emoji: '🧑‍🏫' } })).reverse() },
+    openChat: { enabled: chat.enabled === true, coachOnly: chat.coachOnly === true, backgroundImage: chat.backgroundImage || '/assets/open-chat-bg.png', messages: messages.map((row) => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: 'coach', sender: { displayName: 'Tränare', emoji: '🧑‍🏫' }, ...(engagement.has(row.id) ? { engagement: engagement.get(row.id) } : {}) })).reverse() },
   }
 }
 

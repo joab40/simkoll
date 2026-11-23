@@ -32,12 +32,13 @@ test('complete week comparison crosses year boundary without shifting weekdays',
   assert.equal(result.previousStart, '2026-12-28')
   assert.equal(result.previousEnd, '2027-01-03')
 })
-test('both overview cards receive trends; activity and comments are hidden only for control panel', () => {
+test('both overview cards receive trends; comments stay in the day overview and the activity card is removed', () => {
   const app = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const panel = readFileSync(new URL('../src/coach-control-panel.jsx', import.meta.url), 'utf8')
   assert.equal((app.match(/<CoachFeelingTrend comparison=\{feelingComparison\}/g) || []).length, 2)
-  assert.match(app, /feelingComparison=\{feelingComparison\} hideActivityComments/)
-  assert.match(app, /hideActivityComments = false/)
-  assert.match(app, /!hideActivityComments && <div className="coach-columns">/)
+  assert.match(app, /feelingComparison=\{feelingComparison\} hideComments/)
+  assert.match(app, /hideComments = false/)
+  assert.match(app, /!hideComments && <section className="coach-card comments-card">/)
+  assert.doesNotMatch(app, /Vad har gruppen gjort/)
   assert.match(panel, /buildCoachFeelingComparison\(responses.filter\(row => row.profileId \? ids.has\(row.profileId\) : includeAnonymous\)/)
 })

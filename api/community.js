@@ -312,7 +312,7 @@ export default async function handler(request, response) {
         if (!Number.isFinite(since) || since < 0 || Number.isNaN(new Date(since).getTime())) return sendJson(response, 400, { error: 'Ogiltig lästid.' })
         return sendJson(response, 200, await loadCoachMessageCount(since, openChatEnabled))
       }
-      if (request.query?.preview === 'true') return sendJson(response, 200, await loadCommunityPreview(webappSettings, GROUP_TEMPLATES))
+      if (request.query?.preview === 'true') return sendJson(response, 200, await loadCommunityPreview(webappSettings, GROUP_TEMPLATES, { profileId: profile?.id }))
       if (role === 'coach' && request.query?.appFeedback === 'true') {
         const superadmin = isSuperadminRequest(request)
         const columns = superadmin ? 'id,profile_id,submitted_by_role,rating,best_area,improve_area,feature_request,comment,created_at,workflow_status,admin_note,admin_reply,admin_reply_sent_at,archived_at,updated_at' : 'rating,best_area,improve_area,feature_request,comment,created_at'

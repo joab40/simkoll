@@ -76,7 +76,8 @@ import { programActivityDirection } from '../shared/swimmer-card-direction.js'
 import SleepHistory, { SleepQuestion } from './daily-sleep.jsx'
 import IllnessHistory, { IllnessQuestion } from './daily-illness.jsx'
 import Scale from './checkin-scale.jsx'
-import { TodayMildIllness } from './coach-mild-illness.jsx'
+import { TodayIllnessCards } from './coach-mild-illness.jsx'
+import { useOpenChatEngagement } from './use-open-chat-engagement.js'
 import CoachFeelingTrend from './coach-feeling-trend.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
@@ -1175,7 +1176,7 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
           {streak > 0 && <div className={`streak-chip streak-cycle-${Math.floor((streak - 1) / 10) % 3} ${streak % 10 === 1 ? 'streak-static' : ''}`} style={{ '--streak-size': `${Math.min(1.8, 1 + ((streak - 1) % 10) * 0.07)}rem` }} title="Dagar i rad med registrerad aktivitet på din egen simmarprofil"><span className="streak-flame" aria-hidden="true">🔥</span><strong>{streak}</strong> {streak === 1 ? 'dag' : 'dagar'} i rad</div>}
         </div>}
       </section>
-      {profile && chatVisible && <OpenChatCard key="coach-info" data={communityPreview} error={communityPreviewError} onOpen={onCommunityChat || onCommunity} />}
+      {profile && chatVisible && <OpenChatCard key={`coach-info-${profile.id}`} code={code} setData={setCommunityPreview} data={communityPreview} error={communityPreviewError} onOpen={onCommunityChat || onCommunity} />}
       {profile && <OpenChatCard key="pep-feed" data={communityPreview} error={communityPreviewError} channel="pep" onOpen={onCommunity} />}
       </SwimmerHeroCarousel>
       {profile && <StartCard profile={profile} onStart={onStart} onStartYesterday={ownResponsesLoaded && !hasYesterdayCheckin && !hasLocalYesterdayCheckin ? onStartYesterday : null} yesterdayLabel={yesterdayDate.toLocaleDateString('sv-SE', { weekday: 'long' })} followUp={followUp} raceFollowUp={raceFollowUp} />}
@@ -1286,15 +1287,20 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
   </div>
 }
 
-function OpenChatCard({ data, error = false, onOpen, channel = 'coach' }) {
+function OpenChatCard({ data, code, setData, error = false, onOpen, channel = 'coach' }) {
   const chat = data?.openChat
-  const feed = data?.items || []
   const isPep = channel === 'pep'
-  const messages = isPep ? feed.slice(0, 2) : (chat?.messages || []).filter((item) => item.senderRole === 'coach').slice(-2).reverse()
+  const messages = useMemo(() => isPep
+    ? (data?.items || []).slice(0, 2)
+    : (chat?.messages || []).filter(item => item.senderRole === 'coach').slice(-2).reverse(), [data, chat, isPep])
+  const preview = useRef(null)
+  const trackViews = !isPep && Boolean(chat?.enabled && setData)
+  useOpenChatEngagement({ active: trackViews, messages, scroller: preview, code, request: apiRequest, setData })
   const background = chatBackgroundUrl(chat?.backgroundImage || '/assets/open-chat-bg-teal.png')
   return <section className="open-chat-card hero-coach-preview" style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}>
     <div><p className="eyebrow">{isPep ? 'Tillsammans i gruppen' : 'Från tränarna'}</p><h2>{isPep ? 'Peppflödet 🙌' : 'Info från tränarna 💬'}</h2><p>{isPep ? 'Peppa varandra, fråga och snacka simning.' : 'Träningsinfo, samlingar och hälsningar.'}</p></div>
-    {messages.length > 0 ? <div className="open-chat-preview">{messages.map((item) => <article key={`${item.type || 'chat'}-${item.id}`}><span aria-hidden="true">{isPep ? (item.sender?.emoji || '🧑‍🏫') : '🧑‍🏫'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><small>{formatFeedDate(item.createdAt)}</small></div></article>)}</div> : <p className="open-chat-empty" role="status">{error ? 'Kunde inte hämta meddelanden just nu.' : !chat ? 'Laddar meddelanden…' : isPep ? 'Bli först med en hälsning till gruppen!' : 'Inga meddelanden från tränarna ännu.'}</p>}
+    {messages.length > 0 ? <div className="open-chat-preview" ref={preview}>{messages.map((item) => <article key={`${item.type || 'chat'}-${item.id}`} data-open-chat-view={trackViews && item.engagement ? item.id : undefined}><span aria-hidden="true">{isPep ? (item.sender?.emoji || '🧑‍🏫') : '🧑‍🏫'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><div className="open-chat-preview-meta"><small>{formatFeedDate(item.createdAt)}</small>
+      {!isPep && item.engagement && <small className="open-chat-preview-seen" aria-label={`Sett av ${item.engagement.seenCount} simmare`}>Sett av {item.engagement.seenCount}</small>}</div></div></article>)}</div> : <p className="open-chat-empty" role="status">{error ? 'Kunde inte hämta meddelanden just nu.' : !chat ? 'Laddar meddelanden…' : isPep ? 'Bli först med en hälsning till gruppen!' : 'Inga meddelanden från tränarna ännu.'}</p>}
     <button type="button" className="primary-button" onClick={onOpen}>{isPep ? 'Öppna peppflödet →' : 'Öppna tränarinfo →'}</button>
     <small>{isPep ? 'Öppen kanal · alla i klubben kan läsa.' : <>Läs hela meddelanden och {chat?.coachOnly ? 'följ informationen från tränarna.' : 'ställ en fråga.'}</>}</small>
   </section>
@@ -2707,9 +2713,9 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
             {legacyToolKeys.filter(coachVisible).map((key) => { const item = navItem(key); return item ? <button key={key} className={view === key ? 'active' : ''} onClick={() => openViewFromMenu(key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{key === 'goals' && goalReplyCount > 0 && <b className="tab-count">{goalReplyCount}</b>}</button> : null })}
           </div></details>
         </nav>
-        {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div>{selectedDateResponses.some((item) => item.type === 'sick') && <><b className="usage-divider">·</b><div className="usage-stat"><strong className="sick-count">{selectedDateResponses.filter((item) => item.type === 'sick').length}</strong><span>sjuka</span></div></>}</div></section>}
+        {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div></div></section>}
         {view === 'today' && <CompetitionDaySummary date={summaryDate} plans={summaryCompetitionPlans} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
-        {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} hasCompetition={hasCompetitionOnSummaryDate} date={summaryDate} responses={selectedDateResponses} profiles={groupFilteredProfiles} />}
+        {view === 'today' && <TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} hasCompetition={hasCompetitionOnSummaryDate} date={summaryDate} responses={selectedDateResponses} profiles={groupFilteredProfiles} code={code} onOpenSwimmer={profileId => { setFocusedSwimmerId(profileId); setView('swimmers') }} />}
         {view === 'talks' && <section className="global-talk-setting"><span><strong>Utvecklingssamtal för gruppen</strong><small>{talksGlobalEnabled ? 'Simmarna kan förbereda och redigera sina samtal.' : 'Samtalen är skrivskyddade och dolda som genväg.'}</small></span><button className={`talk-switch ${talksGlobalEnabled ? 'on' : ''}`} onClick={toggleAllTalks}>{talksGlobalEnabled ? 'På' : 'Av'}</button></section>}
 
         {loading ? <section className="empty-period"><span>≈</span><h2>Hämtar svar…</h2></section> : view === 'coach-profile' ? (
@@ -2727,7 +2733,7 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
         ) : view === 'coach-feed' ? (
           <CoachActivityFeed code={code} />
         ) : view === 'control-panel' ? (
-          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideActivityComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
+          <CoachControlPanel profiles={groupFilteredProfiles} asOf={todayKey()} code={code} request={apiRequest} includeAnonymous={allGroupsSelected} renderWeekOverview={({ responses: weekResponses, periodLabel, weekStart, feelingComparison, checkinComparison }) => <PeriodOverview responses={weekResponses} profiles={groupFilteredProfiles} title="Veckans incheckningar" periodLabel={periodLabel} showDays weekStart={weekStart} checkinComparison={checkinComparison} feelingComparison={feelingComparison} hideComments />} onOpenSwimmer={(profileId) => { setFocusedSwimmerId(profileId); setView('swimmers') }} onMessage={(profileId) => { setFocusedSwimmerId(profileId); setView('community') }} />
         ) : view === 'flight-record' ? (
           <CoachFlightRecord code={code} request={apiRequest} groups={availableGroups}
             onOpenOverview={coachVisible('trends') ? () => { selectCoachView('trends'); setOpenFlightOverview(true) } : undefined} />
@@ -2786,8 +2792,6 @@ function Coach({ accountRole = 'coach', responses, profiles, pendingProfiles, on
             responses={selectedDateResponses}
             title={summaryDate === todayKey() ? 'Idag' : 'Vald dag'}
             profiles={groupFilteredProfiles}
-            hasPlannedCompetition={view === 'today' && summaryCompetitionPlans.length > 0}
-            overviewExtra={view === 'today' && <TodayMildIllness code={code} profiles={groupFilteredProfiles} date={summaryDate} asOf={todayKey()} onOpenSwimmer={profileId => { setFocusedSwimmerId(profileId); setView('swimmers') }} />}
             periodLabel={summaryDateLabel}
           />{view === 'today' && <CoachActivitySummary code={code} selectedDate={summaryDate} onDateChange={setSummaryDate} aiEnabled={aiEnabled} />}</>
         )}
@@ -3092,7 +3096,7 @@ function LaneAssignmentAssistantNewDraft({ code, profiles, onClose }) {
   return <div className="lane-planner-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={plannerRef} className={`lane-planner-modal${fullScreen ? ' lane-planner-fullscreen' : ''}`} role="dialog" aria-modal="true" aria-labelledby="lane-planner-title"><div className="lane-planner-heading"><div><p className="eyebrow">Närvarande idag · {profiles.length} simmare</p><h2 id="lane-planner-title">Banindelning</h2></div><div className="lane-planner-heading-actions"><button type="button" className="secondary-button" onClick={toggleFullscreen}>{fullScreen || document.fullscreenElement ? '↙ Lämna fullskärm' : '⛶ Fullskärm'}</button><button type="button" className="text-button" onClick={onClose}>Stäng ×</button></div></div><div className="lane-planner-form"><label>Antal ordinarie banor<input type="number" min="1" max="20" value={lanes} onChange={(event) => { setLanes(event.target.value); setGenerated(false) }} /></label><label>Relevant distans<select value={distance} onChange={(event) => { setDistance(Number(event.target.value)); setGenerated(false) }}><option value="50">50 m · fart</option><option value="100">100 m</option><option value="200">200 m · längre serie</option><option value="400">400 m+</option></select></label><label>Snabb bana<select value={fastLane} onChange={(event) => { setFastLane(event.target.value); setGenerated(false) }}><option value="none">Ingen – jämna heat</option>{Array.from({ length: count }, (_, index) => <option key={index + 1} value={index + 1}>Bana {index + 1} – snabbaste gruppen</option>)}</select></label><label className="lane-extra-toggle"><span>Extra bana</span><input type="checkbox" checked={extraLane} onChange={(event) => { setExtraLane(event.target.checked); setGenerated(false); setPublished(false) }} /> Visa Bana X</label></div><p className="lane-planner-help">{loading ? 'Hämtar sparade tider…' : 'Snabbaste simmarna placeras först på bana 1, 2, 3 osv. Välj snabb bana om de ska samlas på samma bana.'}</p><button type="button" className="primary-button" onClick={create}>Skapa banfördelning →</button>{generated && <><div className="lane-planner-results">{assignments.map((lane, index) => <article key={index}><strong>{index === count ? 'Bana X' : `Bana ${index + 1}`}</strong>{lane.length ? lane.map((profile) => <span key={profile.id}><span>{profile.emoji} {profile.displayName}</span><small>{timeLabel(profile)}</small><select aria-label={`Flytta ${profile.displayName}`} value={laneMap[profile.id]} onChange={(event) => moveProfile(profile.id, event.target.value)}>{Array.from({ length: totalLanes }, (_, laneIndex) => <option key={laneIndex + 1} value={laneIndex + 1}>{laneIndex === count ? 'Bana X' : `Bana ${laneIndex + 1}`}</option>)}</select></span>) : <small>Tom</small>}</article>)}</div><div className="lane-planner-publish-actions"><button type="button" className="secondary-button" onClick={() => setPublished(true)}>Publicera banfördelning</button>{published && <span>Publicerad för närvarande grupp</span>}</div>{published && <section className="lane-published-view"><p className="eyebrow">Publicerad banfördelning</p><h3>Så här ser dagens upplägg ut</h3><div>{assignments.map((lane, index) => <article key={index}><strong>{index === count ? 'Bana X' : `Bana ${index + 1}`}</strong><small>{index === count ? 'Extra simmare' : 'Jämnt heat'}</small>{lane.length ? lane.map((profile) => <span key={profile.id}>{profile.emoji} {profile.displayName}</span>) : <em>Tom bana</em>}</article>)}</div></section>}</>}</section></div>
 }
 
-function TodayWorkoutSummary({ workouts = [], selectedGroups = [], hasCompetition = false, date = todayKey(), responses = [], profiles = [] }) {
+function TodayWorkoutSummary({ workouts = [], selectedGroups = [], hasCompetition = false, date = todayKey(), responses = [], profiles = [], code, onOpenSwimmer }) {
   const [selected, setSelected] = useState(null)
   const visible = workouts.filter((workout) => !workout.targetGroups?.length || selectedGroups.length === 0 || workout.targetGroups.some((group) => selectedGroups.includes(group)))
   const focusLabel = (workout) => WORKOUT_FOCUSES.find(([value]) => value === workout.focus)?.[1] || workout.focus || 'Träningspass'
@@ -3104,19 +3108,22 @@ function TodayWorkoutSummary({ workouts = [], selectedGroups = [], hasCompetitio
   const participants = [...latestByProfile.entries()].map(([profileId, item]) => ({ profile: profileById.get(profileId), item }))
   const intending = participants.filter(({ item }) => item.type === 'before' && item.competition !== true)
   const completed = participants.filter(({ item }) => item.type === 'after' && item.competition !== true && (!item.activityType || item.activityType === 'swim'))
-  const otherResponses = participants.filter(({ item }) => !intending.some((entry) => entry.profile.id === item.profileId) && !completed.some((entry) => entry.profile.id === item.profileId))
+  const otherResponses = participants.filter(({ item }) => item.type !== 'sick' && !intending.some((entry) => entry.profile.id === item.profileId) && !completed.some((entry) => entry.profile.id === item.profileId))
   const answeredIds = new Set(latestByProfile.keys())
   const notReported = profiles.filter((profile) => !answeredIds.has(profile.id))
   const rows = [
     { title: 'Ska träna idag', items: intending, icon: '→', tone: 'planned', detail: ({ item }) => item.activityType === 'strength' ? 'Planerad styrketräning' : 'Planerat simpass' },
     { title: 'Har tränat idag', items: completed, icon: '✓', tone: 'done', detail: ({ item }) => item.lateEntry ? 'Efterregistrerat' : item.activityType === 'swim' ? 'Simträning rapporterad' : 'Träning rapporterad' },
-    { title: 'Tävling, vila eller annan aktivitet', items: otherResponses, icon: 'ℹ', tone: 'other', detail: ({ item }) => item.competition ? (item.type === 'after' ? 'Har tävlat idag' : 'Ska tävla idag') : item.type === 'sick' ? 'Har anmält sjukdom' : item.type === 'rest' ? 'Har anmält vila' : item.activityType ? `${activityLabel(item.activityType)} · räknas inte som simpass` : item.type === 'before' ? 'Ska träna · simpass ej bekräftat' : 'Aktivitet ej angiven' },
+    { title: 'Tävling, vila eller annan aktivitet', items: otherResponses, icon: 'ℹ', tone: 'other', detail: ({ item }) => item.competition ? (item.type === 'after' ? 'Har tävlat idag' : 'Ska tävla idag') : item.type === 'rest' ? 'Har anmält vila' : item.activityType ? `${activityLabel(item.activityType)} · räknas inte som simpass` : item.type === 'before' ? 'Ska träna · simpass ej bekräftat' : 'Aktivitet ej angiven' },
     { title: 'Ingen incheckning idag', items: notReported.map((profile) => ({ profile, item: null })), icon: '…', tone: 'not-reported', detail: () => 'Ej rapporterat' },
   ]
   const dayLabel = new Date(`${date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
   return <section className="today-workout-summary coach-card">
     <div className="competition-day-heading"><div><p className="eyebrow">🏊 Dagens träning · {dayLabel}</p><h2>Pass och inriktning</h2><small>{visible.length ? 'Dagens pass och simmarnas check-in-status' : hasCompetition ? 'Inget simpass upplagt · tävlingsläget visas ovan' : 'Ingen träningsplanering upplagd för dagen'}</small></div><span className="competition-day-total"><strong>{latestByProfile.size}</strong><small>svar från<br />profiler</small></span></div>
-    <div className="competition-day-groups">{rows.map((row) => <details className={`competition-day-group ${row.tone}`} key={row.title}><summary><span aria-hidden="true">{row.icon}</span><strong>{row.title}</strong><b>{row.items.length}</b><small>{row.items.length ? 'Visa namn' : 'Inga'}</small></summary><div>{row.items.map((entry) => <article key={entry.profile.id}><span>{entry.profile.emoji || '🏊'}</span><strong>{entry.profile.displayName}</strong><small>{row.detail(entry)}</small></article>)}</div></details>)}</div>
+    <div className="competition-day-groups">
+      {rows.map((row) => <details className={`competition-day-group ${row.tone}`} key={row.title}><summary><span aria-hidden="true">{row.icon}</span><strong>{row.title}</strong><b>{row.items.length}</b><small>{row.items.length ? 'Visa namn' : 'Inga'}</small></summary><div>{row.items.map((entry) => <article key={entry.profile.id}><span>{entry.profile.emoji || '🏊'}</span><strong>{entry.profile.displayName}</strong><small>{row.detail(entry)}</small></article>)}</div></details>)}
+      <TodayIllnessCards code={code} profiles={profiles} dayResponses={responses} date={date} asOf={todayKey()} onOpenSwimmer={onOpenSwimmer} />
+    </div>
     {visible.length ? <><p className="today-workout-status-note">Planerade pass för dagen</p><div className="today-workout-summary-list">{visible.map((workout) => <button type="button" className="today-workout-summary-item" key={workout.id} onClick={() => setSelected(workout)}><span className="today-workout-focus">{focusLabel(workout)}</span><strong>{workout.title || 'Träningspass'}</strong><small>{[workout.distanceMeters ? `${Number(workout.distanceMeters).toLocaleString('sv-SE')} m` : '', workout.durationMinutes ? `${workout.durationMinutes} min` : '', workout.timeOfDay === 'morning' ? 'Morgon' : workout.timeOfDay === 'afternoon' ? 'Eftermiddag / kväll' : 'Tid ej angiven'].filter(Boolean).join(' · ') || 'Öppna passet'}</small><b>→</b></button>)}</div></> : <small className="competition-day-note">Svarslistan visar bara simmare i valda grupper. Tävling, vila, sjukdom och annan aktivitet hålls isär från rapporterad simträning.</small>}
     {selected && <div className="workout-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><section className="workout-preview-modal" role="dialog" aria-modal="true" aria-labelledby="today-workout-title"><button type="button" className="workout-preview-close" onClick={() => setSelected(null)} aria-label="Stäng">×</button><p className="eyebrow">{focusLabel(selected)}</p><h2 id="today-workout-title">{selected.title || 'Träningspass'}</h2><WorkoutMeta workout={selected} /><WorkoutContent content={selected.content} />{selected.note && <aside><strong>Kommentar från tränaren</strong>{selected.note}</aside>}</section></div>}
   </section>
@@ -5232,7 +5239,7 @@ function Swimmers({ profiles, pendingProfiles, onProfilesChange, responses, code
   )
 }
 
-function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, hasPlannedCompetition = false, overviewExtra, feelingComparison, checkinComparison, hideActivityComments = false }) {
+function PeriodOverview({ responses, profiles, title, periodLabel, showDays, weekStart, feelingComparison, checkinComparison, hideComments = false }) {
   const [selectedFeeling, setSelectedFeeling] = useState(null)
   const [selectedMetric, setSelectedMetric] = useState(null)
   useEffect(() => { setSelectedMetric(null); setSelectedFeeling(null) }, [periodLabel])
@@ -5245,13 +5252,6 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
   const selectedItems = selectedFeeling ? responses.filter((item) => item.feeling === selectedFeeling) : []
   const identifiedItems = selectedItems.filter((item) => item.profileId && profileById.has(item.profileId))
   const anonymousCount = responses.filter((item) => !item.profileId || !profileById.has(item.profileId)).length
-  const normalActivityCounts = DAY_TYPES.map((type) => {
-      const matching = responses.filter((item) => item.type === type.value && !(type.value === 'before' && item.competition === true))
-      return { ...type, profiles: new Set(matching.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: matching.length }
-  })
-  const raceResponses = responses.filter((item) => item.type === 'before' && item.competition === true)
-  const raceActivity = { value: 'race', title: 'Ska tävla idag', profiles: new Set(raceResponses.map((item) => item.profileId).filter((id) => id && profileById.has(id))).size, answers: raceResponses.length, planned: hasPlannedCompetition }
-  const activityCounts = raceActivity.answers || hasPlannedCompetition ? [raceActivity, ...normalActivityCounts] : normalActivityCounts
   const latestByProfile = [...identifiedItems].sort(compareCheckinsNewest).reduce((result, item) => {
     if (!result.some((entry) => entry.profileId === item.profileId)) result.push(item)
     return result
@@ -5259,7 +5259,7 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
   const signalFor = (item) => item.raceConcern === 'sick_or_pain' ? '⚠️ Sjuk eller ont inför tävling' : item.type === 'sick' ? '🤒 Känner sig sjuk' : item.type === 'rest' ? '⏸️ Tränar inte idag' : item.body <= 2 ? `Kroppen ${item.body}/5` : item.feeling <= 2 ? `Känsla ${item.feeling}/5` : ''
 
   if (!responses.length && !feelingComparison) {
-    return <><EmptyPeriod title={title} periodLabel={periodLabel} />{overviewExtra}</>
+    return <EmptyPeriod title={title} periodLabel={periodLabel} />
   }
 
   return (
@@ -5285,20 +5285,10 @@ function PeriodOverview({ responses, profiles, title, periodLabel, showDays, wee
         </div>
         {selectedFeeling && <section className="feeling-followup"><div><p className="eyebrow">Profilerade svar · {FEELINGS[selectedFeeling - 1].label}</p><h3>Vilka valde detta?</h3></div><button type="button" onClick={() => setSelectedFeeling(null)}>Stäng</button>{latestByProfile.length ? <div className="feeling-profile-list">{latestByProfile.map((item) => { const owner = profileById.get(item.profileId); return <article key={item.profileId}><span>{owner.emoji}</span><div><strong>{owner.displayName}</strong><small>{signalFor(item) || 'Svarade på känslan'} · {new Date(item.createdAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></div></article> })}</div> : <p className="empty">Inga profilerade svar på denna nivå.</p>}<small className="feeling-anonymous">{selectedItems.length - identifiedItems.length} anonyma svar visas inte individuellt.</small></section>}
       </section>
-      {overviewExtra}
-
-      {!hideActivityComments && <div className="coach-columns">
-        <section className="coach-card">
-          <p className="eyebrow">Aktivitet</p><h2>Vad har gruppen gjort?</h2>
-          <div className="type-list">
-            {activityCounts.map((item) => <button type="button" className="activity-response-button" key={item.value} onClick={() => setSelectedMetric(`activity:${item.value}`)} aria-haspopup="dialog" aria-label={`${item.title}: visa ${item.answers} svar från ${item.profiles} profiler`}><span>{item.title}<small>{item.planned && !item.answers ? 'Planerad tävling · Ingen har checkat in ännu' : `${item.answers} svar · Visa vilka →`}</small></span><strong>{item.profiles}<small>{item.profiles === 1 ? 'profil' : 'profiler'}</small></strong></button>)}
-          </div>
-        </section>
-        <section className="coach-card comments-card">
-          <p className="eyebrow">Anonymt</p><h2>Kommentarer</h2>
-          {(() => { const comments = [...new Map(responses.filter((item) => item.comment?.trim()).map((item) => [item.comment.trim().toLocaleLowerCase('sv-SE'), item.comment.trim()])).values()]; return comments.length ? comments.map((comment) => <blockquote key={comment}>“{comment}”</blockquote>) : <p className="empty">Inga kommentarer under perioden.</p> })()}
-        </section>
-      </div>}
+      {!hideComments && <section className="coach-card comments-card">
+        <p className="eyebrow">Anonymt</p><h2>Kommentarer</h2>
+        {(() => { const comments = [...new Map(responses.filter((item) => item.comment?.trim()).map((item) => [item.comment.trim().toLocaleLowerCase('sv-SE'), item.comment.trim()])).values()]; return comments.length ? comments.map((comment) => <blockquote key={comment}>“{comment}”</blockquote>) : <p className="empty">Inga kommentarer under perioden.</p> })()}
+      </section>}
     </>
   )
 }

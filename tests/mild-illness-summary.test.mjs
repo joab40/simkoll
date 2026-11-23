@@ -1,17 +1,31 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { buildMildIllnessSummary } from '../shared/mild-illness-summary.js'
+import { buildDayIllnessSummary, buildMildIllnessSummary } from '../shared/mild-illness-summary.js'
 import { buildCoachControlPanel } from '../shared/coach-control-panel.js'
 
 const profiles = [{ id: 'a', displayName: 'Anna' }, { id: 'b', displayName: 'Bo' }, { id: 'test', displayName: 'Test', isTestProfile: true }]
 const answer = (profile_id, activity_date, status = 'mild', extra = {}) => ({ profile_id, activity_date, status, ...extra })
 
-test('standalone mild illness card has the same 12px separation as the following overview cards', () => {
-  const css = readFileSync(new URL('../src/coach-mild-illness.css', import.meta.url), 'utf8')
-  const layout = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
-  assert.match(css, /\.coach-mild-illness \{[^}]*margin-top: 12px/)
-  assert.match(layout, /\.coach-columns \{[^}]*margin-top: 12px/)
+test('day cards count each scoped swimmer once and preserve independent training check-ins', () => {
+  const date = '2026-11-23'
+  const scoped = [...profiles, { id: 'c', displayName: 'Cecilia' }, { id: 'd', displayName: 'David' }]
+  const responses = [
+    { profileId: 'a', type: 'sick' }, { profileId: 'a', type: 'sick' },
+    { profileId: 'b', type: 'after' }, { profileId: 'test', type: 'sick' },
+  ]
+  const records = [
+    answer('a', date), answer('b', date), answer('c', date, 'sick'),
+    answer('d', date, 'sick', { updated_at: '2026-11-23T07:00:00Z' }),
+    answer('d', date, 'none', { updated_at: '2026-11-23T08:00:00Z' }),
+    answer('d', '2026-11-22', 'sick'), answer('outside', date, 'sick'),
+  ]
+  const ids = rows => rows.map(row => row.id)
+  const report = buildDayIllnessSummary(scoped, responses, records, date)
+  assert.deepEqual(ids(report.sick), ['a', 'c'])
+  assert.deepEqual(ids(report.mild), ['b'])
+  assert.deepEqual(ids(buildDayIllnessSummary(scoped, responses, [], date).sick), ['a'])
+  assert.deepEqual(buildDayIllnessSummary([], responses, records, date), { sick: [], mild: [] })
 })
 
 test('mild card counts unique swimmers/days in selected groups and dates, not number of checkins', () => {
@@ -36,19 +50,19 @@ test('actual Idag and Kontrollpanel pages both mount mild reports with scoped pr
   const app = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const panel = readFileSync(new URL('../src/coach-control-panel.jsx', import.meta.url), 'utf8')
   const card = readFileSync(new URL('../src/coach-mild-illness.jsx', import.meta.url), 'utf8')
-  assert.match(app, /view === 'today' && <TodayMildIllness code=\{code\} profiles=\{groupFilteredProfiles\} date=\{summaryDate\}/)
-  assert.match(app, /overviewExtra=\{view === 'today' && <TodayMildIllness/)
-  assert.equal((app.match(/<TodayMildIllness/g) || []).length, 1)
-  assert.match(app, /<\/section>\s*\{overviewExtra\}\s*\{!hideActivityComments && <div className="coach-columns">/)
-  assert.match(app, /<EmptyPeriod title=\{title\} periodLabel=\{periodLabel\} \/>\{overviewExtra\}<\/>/)
-  assert.match(panel, /<CoachMildIllnessCard summary=\{report.mild\} period="week"/)
+  assert.match(app, /<TodayWorkoutSummary [^\n]*date=\{summaryDate\} responses=\{selectedDateResponses\} profiles=\{groupFilteredProfiles\}/)
+  const workout = app.slice(app.indexOf('function TodayWorkoutSummary('), app.indexOf('function CompetitionDaySummary('))
+  assert.match(workout, /<div className="competition-day-groups">[\s\S]+<TodayIllnessCards code=\{code\} profiles=\{profiles\} dayResponses=\{responses\} date=\{date\}/)
+  assert.equal((app.match(/<TodayIllnessCards/g) || []).length, 1)
+  assert.match(card, /title="Rapporterad sjukdom"/)
+  assert.match(card, /title="Lite känningar"/)
+  assert.match(panel, /<CoachMildIllnessCard summary=\{report.mild\} trend=/)
   assert.equal((panel.match(/<CoachMildIllnessCard/g) || []).length, 1)
   assert.ok(panel.indexOf('Rapporterad sjukdom') < panel.indexOf('<CoachMildIllnessCard'))
   assert.ok(panel.indexOf('<CoachMildIllnessCard') < panel.indexOf('<small>Sömnkoll'))
-  assert.match(panel, /metric trend=\{trend\('mild', 'simmare'/)
-  assert.match(card, /if \(metric\) return <article>/)
+  assert.match(panel, /trend=\{trend\('mild', 'simmare'/)
   assert.match(card, /illness=true&start=\$\{date\}&end=\$\{date\}/)
   assert.match(card, /startVisiblePolling/)
   assert.match(card, /loading \|\| error \? '–' : summary.count/)
-  assert.match(card, /onOpenSwimmer\(swimmer.profileId\)/)
+  assert.match(card, /onOpenSwimmer\(profile.id\)/)
 })
