@@ -82,6 +82,7 @@ import CoachFeelingTrend from './coach-feeling-trend.jsx'
 import { CHECKIN_FEELINGS as FEELINGS, checkinScaleIcons } from '../shared/checkin-scale-icons.js'
 import { illnessLabel } from '../shared/illness.js'
 import { SavedCompetitionLogo } from './competition-logo.jsx'
+import { showCompetitionLogoThisWeek } from '../shared/competition-logo-presets.js'
 import { CoachInfoPage, Community } from './swimmer-community.jsx'
 import CoachMessages from './coach-messages.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
@@ -1131,12 +1132,13 @@ function Home({ flightRecord, code, feedbackJumpRequest = 0, responses, response
   const streak = activityDates == null ? 0 : personalActivityStreak(activityDates, responses, profile?.id, stockholmActivityDay())
   const groupFeeling = todayResponses.length ? todayResponses.reduce((sum, response) => sum + response.feeling, 0) / todayResponses.length : 0
   const energized = todayResponses.length >= 3 && groupFeeling >= 4
-  const nextCompetition = (competitions || []).filter((item) => (item.endDate || item.startDate) >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
-  const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000)) : null
+  const today = todayKey()
+  const nextCompetition = (competitions || []).filter((item) => (item.endDate || item.startDate) >= today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+  const daysToCompetition = nextCompetition ? Math.max(0, Math.ceil((new Date(`${nextCompetition.startDate}T12:00:00`) - new Date(`${today}T12:00:00`)) / 86400000)) : null
   const contextClass = swimmerEffects && daysToCompetition != null ? (daysToCompetition === 0 ? 'race-day' : daysToCompetition <= 3 ? 'race-near' : 'race-coming') : swimmerEffects && (Array.isArray(workout) ? workout[0] : workout)?.focus === 'fart' ? 'speed-focus' : ''
   const themeClass = swimmerThemesEnabled && swimmerTheme !== 'none' ? ` theme-${swimmerTheme}` : ''
   const winterActive = swimmerThemesEnabled && swimmerTheme === 'snow'
-  const nextCompetitionLogo = profile && nextCompetition?.logo
+  const nextCompetitionLogo = profile && showCompetitionLogoThisWeek(nextCompetition, today)
   const raceDayActive = swimmerEffects && daysToCompetition === 0
   const raceBadge = profile && raceDayActive && <div className="race-day-badge"><span className="race-flag race-flag-left" aria-hidden="true">🏁</span> RACE DAY <span className="race-flag race-flag-right" aria-hidden="true">🏁</span></div>
   const stars = currentStarState(training)

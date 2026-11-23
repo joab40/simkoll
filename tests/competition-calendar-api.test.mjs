@@ -226,16 +226,38 @@ test('competition logos are scoped to visible competitions and use temporary lin
   assert.equal(signs, 2)
 })
 
-test('coach logo replacement validates the picture, uses a compare-and-set and cleans up the previous file', async () => {
+test('a coach can reuse an uploaded logo, clear an association and choose a standard logo', async () => {
   const previousVersion = '33333333-3333-4333-8333-333333333333'
+  const uploadId = '44444444-4444-4444-8444-444444444444'
+  const otherId = '55555555-5555-4555-8555-555555555555'
   const oldPath = `${id}/${previousVersion}.png`
-  let row = { ...competition, logo_document: { version: previousVersion, path: oldPath } }
+  const rows = {
+    [id]: { ...competition, logo_document: { version: previousVersion, path: oldPath } },
+    [otherId]: { ...competition, id: otherId, logo_document: null },
+  }
+  const assets = new Map()
   let uploads = 0
   const removed = []
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(input)
+    if (url.pathname.endsWith('/profile_sessions')) return reply([{ profile_id: profileId }])
+    if (url.pathname.endsWith('/profiles')) return reply([{ id: profileId, training_group: 'junior' }])
+    if (url.pathname.endsWith('/competition_logo_library')) {
+      if (options.method === 'POST') {
+        const asset = JSON.parse(options.body)
+        assets.set(asset.id, asset)
+        return reply([])
+      }
+      const assetId = url.searchParams.get('id')?.slice(3)
+      if (assetId) return reply(assets.has(assetId) ? [assets.get(assetId)] : [])
+      return reply([...assets.values()].map(({ id, name }) => ({ id, name })))
+    }
     if (url.pathname.endsWith('/bucket/competition-logos')) return reply({ public: false })
     if (url.pathname.endsWith('/storage_usage_events')) return reply([])
+    if (url.pathname.includes('/object/sign/competition-logos/')) {
+      assert.equal(url.pathname.split('/competition-logos/')[1], `library/${uploadId}.png`)
+      return reply({ signedURL: '/object/sign/competition-logos/logo.png?token=fixture' })
+    }
     if (url.pathname.includes('/object/competition-logos')) {
       if (options.method === 'POST') {
         uploads += 1
@@ -247,15 +269,19 @@ test('coach logo replacement validates the picture, uses a compare-and-set and c
       return reply({})
     }
     assert(url.pathname.endsWith('/competition_calendar'))
+    const competitionId = url.searchParams.get('id').slice(3)
+    const row = rows[competitionId]
     if (options.method === 'PATCH') {
-      assert.equal(url.searchParams.get('logo_document->>version'), `eq.${row.logo_document.version}`)
-      row = { ...row, ...JSON.parse(options.body) }
+      if (row.logo_document) assert.equal(url.searchParams.get('logo_document->>version'), `eq.${row.logo_document.version}`)
+      else assert.equal(url.searchParams.get('logo_document'), 'is.null')
+      rows[competitionId] = { ...row, ...JSON.parse(options.body) }
     }
-    return reply([row])
+    return reply([rows[competitionId]])
   }
   const logoData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII='
-  const body = { action: 'set-competition-logo', competitionId: id, logoData, previousVersion }
+  const body = { action: 'set-competition-logo', competitionId: id, logoData, logoName: 'Min tävlingslogga', logoUploadId: uploadId, previousVersion }
   assert.equal((await call({ ...body, logoData: pdf })).code, 422)
+  assert.equal((await call({ ...body, presetId: 'club' })).code, 400)
   assert.equal(uploads, 0)
   const result = await call(body)
   assert.equal(result.code, 200)
@@ -264,8 +290,64 @@ test('coach logo replacement validates the picture, uses a compare-and-set and c
   assert.deepEqual(removed, [oldPath])
   assert.equal((await call(body)).code, 409)
   assert.equal(uploads, 1)
-  const cleared = await call({ ...body, previousVersion: row.logo_document.version, logoData: null })
+
+  const catalog = { method: 'GET', query: { competitionLogoLibrary: 'true' } }
+  assert.deepEqual((await call(null, catalog)).data.logos, [{ id: uploadId, name: 'Min tävlingslogga' }])
+  assert.equal((await call(null, { ...catalog, swimmer: true })).code, 403)
+  const preview = { method: 'GET', query: { competitionLogoAsset: uploadId } }
+  assert.equal((await call(null, preview)).code, 200)
+  assert.equal((await call(null, { ...preview, swimmer: true })).code, 403)
+
+  const shared = await call({ action: body.action, competitionId: otherId, previousVersion: null, libraryId: uploadId })
+  assert.equal(shared.code, 200)
+  assert.equal(rows[otherId].logo_document.path, rows[id].logo_document.path)
+  assert.notEqual(rows[otherId].logo_document.version, rows[id].logo_document.version)
+  const cleared = await call({ action: body.action, competitionId: id, previousVersion: rows[id].logo_document.version, logoData: null })
   assert.equal(cleared.code, 200)
   assert.equal(cleared.data.competition.logo, null)
-  assert.equal(removed.length, 2)
+  assert.equal((await call(null, { method: 'GET', query: { competitionLogo: 'true', id: otherId }, swimmer: true })).code, 200)
+  assert.equal(uploads, 1)
+  assert.deepEqual(removed, [oldPath])
+
+  const preset = await call({ action: body.action, competitionId: id, previousVersion: null, presetId: 'regional' })
+  assert.equal(preset.code, 200)
+  assert.equal(preset.data.competition.logo.presetId, 'regional')
+  assert.equal((await call(null, { method: 'GET', query: { competitionLogo: 'true', id }, swimmer: true })).data.url, '/competition-logos/regional.png')
+  assert.equal(uploads, 1)
+})
+
+test('the swimmer home logo starts on the Monday of competition week', async () => {
+  const { showCompetitionLogoThisWeek } = await import('../shared/competition-logo-presets.js')
+  const meet = { startDate: '2026-11-27', endDate: '2026-11-29', logo: { presetId: 'club' } }
+  assert.equal(showCompetitionLogoThisWeek(meet, '2026-11-22'), false)
+  assert.equal(showCompetitionLogoThisWeek(meet, '2026-11-23'), true)
+  assert.equal(showCompetitionLogoThisWeek(meet, '2026-11-29'), true)
+  assert.equal(showCompetitionLogoThisWeek(meet, '2026-11-30'), false)
+  assert.equal(showCompetitionLogoThisWeek({ ...meet, endDate: '2026-11-30' }, '2026-11-30'), true)
+  assert.equal(showCompetitionLogoThisWeek({ ...meet, logo: null }, '2026-11-26'), false)
+})
+
+test('competition uploads still attach to a meet while the library migration is pending', async () => {
+  let row = { ...competition, logo_document: null }
+  let uploadedPath = ''
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(input)
+    if (url.pathname.endsWith('/competition_logo_library')) return reply({ code: 'PGRST205' }, false)
+    if (url.pathname.endsWith('/bucket/competition-logos')) return reply({ public: false })
+    if (url.pathname.endsWith('/storage_usage_events')) return reply([])
+    if (url.pathname.includes('/object/competition-logos/')) {
+      assert.equal(options.method, 'POST')
+      uploadedPath = url.pathname.split('/competition-logos/')[1]
+      return reply({})
+    }
+    assert(url.pathname.endsWith('/competition_calendar'))
+    if (options.method === 'PATCH') row = { ...row, ...JSON.parse(options.body) }
+    return reply([row])
+  }
+  const logoData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII='
+  const saved = await call({ action: 'set-competition-logo', competitionId: id, previousVersion: null, logoData })
+  assert.equal(saved.code, 200)
+  assert.equal(uploadedPath, `${id}/${saved.data.competition.logo.version}.png`)
+  assert.equal(row.logo_document.path, uploadedPath)
+  assert.equal(row.logo_document.libraryId, undefined)
 })

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { COMPETITION_LOGO_PRESETS, competitionLogoPreset } from '../shared/competition-logo-presets.js'
 import './competition-logo.css'
 
 export const competitionLogoAccept = 'image/png,image/jpeg,image/webp'
@@ -103,29 +104,76 @@ export async function prepareCompetitionLogo(file) {
   } finally { URL.revokeObjectURL(url) }
 }
 
-export function CompetitionLogoTile({ src, alt, onError }) {
+export function CompetitionLogoTile({ src, alt, onError, lazy = false }) {
   return <span className="competition-logo-tile">
-    <img src={src} alt={alt} decoding="async" onError={onError} />
+    <img src={src} alt={alt} decoding="async" loading={lazy ? 'lazy' : undefined} onError={onError} />
   </span>
+}
+
+export function CompetitionLogoLibrary({ code, request, value, onChange }) {
+  const [logos, setLogos] = useState(null)
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    request('/api/workouts?competitionLogoLibrary=true', code, { retry: false, signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) setLogos(result.logos ?? []) })
+      .catch(error => { if (!controller.signal.aborted) setError(error.message) })
+    return () => controller.abort()
+  }, [code, request, attempt])
+  return <div className="competition-logo-library">
+    <span className="competition-logo-library-title">Standardloggor</span>
+    <div className="competition-logo-presets">
+      {Object.entries(COMPETITION_LOGO_PRESETS).map(([presetId, preset]) => <button key={presetId}
+        type="button" className="competition-logo-choice" aria-pressed={value?.presetId === presetId}
+        onClick={() => onChange({ presetId, name: preset.label })}>
+        <CompetitionLogoTile src={preset.src} alt="" />
+        <span>{preset.label}</span>
+      </button>)}
+    </div>
+    {logos?.length > 0 && <label>Uppladdade loggor
+      <select value={value?.libraryId ?? ''} onChange={event => {
+        const chosen = logos.find(logo => logo.id === event.target.value)
+        if (chosen) onChange({ libraryId: chosen.id, name: chosen.name })
+      }}>
+        <option value="" disabled>Välj en sparad logga</option>
+        {logos.map(logo => <option key={logo.id} value={logo.id}>{logo.name}</option>)}
+      </select>
+    </label>}
+    {logos?.length === 0 && <small>Loggor du laddar upp blir valbara här.</small>}
+    {error && <div className="competition-logo-actions">
+      <small role="status">{error}</small>
+      <button type="button" className="text-button" onClick={() => { setError(''); setAttempt(value => value + 1) }}>Försök igen</button>
+    </div>}
+    {!logos && !error && <small role="status">Hämtar sparade loggor…</small>}
+  </div>
+}
+
+export function LibraryCompetitionLogo({ id, code, request }) {
+  return <CompetitionLogoPreview key={id} endpoint={`/api/workouts?competitionLogoAsset=${encodeURIComponent(id)}`}
+    code={code} request={request} alt="Förhandsvisning av vald tävlingslogga" showStatus />
 }
 
 export function SavedCompetitionLogo({ competition, code, request, decorative = false, showStatus = false, lazy = false }) {
   if (!competition?.id || !competition.logo?.version) return null
+  const alt = decorative ? '' : `Logga för ${competition.title}`
+  const preset = competitionLogoPreset(competition.logo.presetId)
+  if (preset) return <CompetitionLogoTile src={preset.src} alt={alt} lazy={lazy} />
   return <CompetitionLogoPreview key={`${competition.id}:${competition.logo.version}`}
-    competition={competition} code={code} request={request} decorative={decorative} showStatus={showStatus} lazy={lazy} />
+    endpoint={`/api/workouts?competitionLogo=true&id=${encodeURIComponent(competition.id)}`}
+    code={code} request={request} alt={alt} showStatus={showStatus} lazy={lazy} />
 }
 
-function CompetitionLogoPreview({ competition, code, request, decorative, showStatus, lazy }) {
+function CompetitionLogoPreview({ endpoint, code, request, alt, showStatus, lazy }) {
   const [url, setUrl] = useState('')
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const slot = useRef(null)
-  const id = competition.id
   useEffect(() => {
     const controller = new AbortController()
     const load = async () => {
       try {
-        const result = await request(`/api/workouts?competitionLogo=true&id=${encodeURIComponent(id)}`, code, { retry: false, signal: controller.signal })
+        const result = await request(endpoint, code, { retry: false, signal: controller.signal })
         if (!result.url) throw new Error('Logo URL missing')
         if (!controller.signal.aborted) setUrl(result.url)
       } catch {
@@ -142,10 +190,9 @@ function CompetitionLogoPreview({ competition, code, request, decorative, showSt
       observer.observe(slot.current)
     } else void load()
     return () => { controller.abort(); observer?.disconnect() }
-  }, [id, code, request, lazy, attempt])
+  }, [endpoint, code, request, lazy, attempt])
 
-  const tile = url && !failed && <CompetitionLogoTile src={url}
-    alt={decorative ? '' : `Logga för ${competition.title}`} onError={() => setFailed(true)} />
+  const tile = url && !failed && <CompetitionLogoTile src={url} alt={alt} onError={() => setFailed(true)} />
   if (lazy) return <div ref={slot} className="competition-card-logo">{tile}</div>
   if (tile || !showStatus) return tile || null
   return failed

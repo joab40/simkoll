@@ -31,7 +31,8 @@ import { analyticsRows } from '../server/analytics-rows.js'
 import { competitionEntryRoster } from '../shared/competition-entry-status.js'
 import { handleSwimmerAssistant } from '../server/swimmer-assistant.js'
 import { SWIM_WORKBOOK_MAX_SHEETS } from '../shared/swim-workbook.js'
-import { publicCompetitionLogo, decodeCompetitionLogo, storeCompetitionLogo, removeCompetitionLogo, competitionLogoUrl } from '../server/competition-logo.js'
+import { publicCompetitionLogo, decodeCompetitionLogo, storeCompetitionLogo, removeCompetitionLogo, competitionLogoUrl, competitionLogoDocument, readCompetitionLogoAsset } from '../server/competition-logo.js'
+import { competitionLogoPreset } from '../shared/competition-logo-presets.js'
 import { publicPm, decodeCompetitionPm, storeCompetitionPm, removeCompetitionPm, competitionPmUrl } from '../server/competition-pm.js'
 import { canReadCompetition, competitionUuid, competitionScope, saveCompetitionParticipants } from '../server/competition-participation.js'
 import { isFlightBuilding } from '../shared/competition-building.js'
@@ -725,6 +726,22 @@ export default async function handler(request, response) {
         const visible = competitions.filter(item => canReadCompetition(item, role, profile))
         return sendJson(response, 200, { competitions: visible.map(item => publicCompetition(item, role === 'coach')) })
       }
+      if (request.query?.competitionLogoLibrary === 'true' || request.query?.competitionLogoAsset !== undefined) {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Loggbiblioteket är till för tränare.' })
+        response.setHeader('Cache-Control', 'private, no-store')
+        if (request.query.competitionLogoLibrary === 'true') {
+          const result = await analyticsRows('competition_logo_library?select=id,name&order=created_at.desc,id.desc')
+          if (!result.ok || result.truncated) return sendJson(response, 503, { error: 'Loggbiblioteket kunde inte hämtas. Kontrollera att databasuppdatering 149 är körd.' })
+          return sendJson(response, 200, { logos: await result.json() })
+        }
+        const id = request.query.competitionLogoAsset
+        if (typeof id !== 'string' || !competitionUuid.test(id)) return sendJson(response, 400, { error: 'Välj en logga i biblioteket.' })
+        try {
+          const asset = await readCompetitionLogoAsset(id)
+          if (!asset) return sendJson(response, 404, { error: 'Loggan finns inte längre i biblioteket.' })
+          return sendJson(response, 200, { url: await competitionLogoUrl(asset) })
+        } catch { return sendJson(response, 502, { error: 'Loggan kunde inte öppnas. Försök igen.' }) }
+      }
       if (request.query?.competitionLogo === 'true') {
         const id = String(request.query.id || '')
         if (!competitionUuid.test(id)) return sendJson(response, 400, { error: 'Välj en giltig tävling.' })
@@ -734,7 +751,7 @@ export default async function handler(request, response) {
         if (!canReadCompetition(competition, role, profile) || !publicCompetitionLogo(competition)) {
           return sendJson(response, 404, { error: 'Ingen logga finns tillgänglig för tävlingen.' })
         }
-        try { return sendJson(response, 200, { url: await competitionLogoUrl(competition) }) }
+        try { return sendJson(response, 200, { url: await competitionLogoUrl(competition.logo_document) }) }
         catch { return sendJson(response, 502, { error: 'Loggan kunde inte öppnas. Försök igen.' }) }
       }
       if (request.query?.competitionPm === 'true') {
@@ -1015,7 +1032,14 @@ export default async function handler(request, response) {
         return sendJson(response, 200, { competition: publicCompetition(row) })
       }
       if (request.body?.action === 'set-competition-logo') {
-        const { competitionId: id, logoData, surface, previousVersion } = request.body
+        const { competitionId: id, logoData = null, surface, previousVersion,
+          presetId = null, libraryId = null, logoName, logoUploadId } = request.body
+        const sourceCount = [logoData, libraryId, presetId].filter(value => value !== null).length
+        if (sourceCount > 1 || (presetId !== null && !competitionLogoPreset(presetId))
+          || (libraryId !== null && (typeof libraryId !== 'string' || !competitionUuid.test(libraryId)))
+          || (logoUploadId !== undefined && (typeof logoUploadId !== 'string' || !competitionUuid.test(logoUploadId)))) {
+          return sendJson(response, 400, { error: 'Välj en giltig tävlingslogga.' })
+        }
         if (!competitionUuid.test(id) || (previousVersion !== null && !competitionUuid.test(previousVersion))) {
           return sendJson(response, 400, { error: 'Välj en giltig tävling.' })
         }
@@ -1028,10 +1052,18 @@ export default async function handler(request, response) {
         const conflict = 'Loggan ändrades av någon annan. Hämta tävlingslistan igen.'
         if ((publicCompetitionLogo(current)?.version ?? null) !== previousVersion) return sendJson(response, 409, { error: conflict })
         let logo = null
-        if (logoData !== null) {
-          try { logo = await storeCompetitionLogo(id, decodeCompetitionLogo(logoData), surface) }
-          catch (error) { return sendJson(response, 422, { error: error.message }) }
-        }
+        try {
+          if (presetId) logo = competitionLogoDocument({ presetId })
+          if (libraryId) {
+            const asset = await readCompetitionLogoAsset(libraryId)
+            if (!asset) return sendJson(response, 404, { error: 'Loggan finns inte längre i biblioteket.' })
+            logo = competitionLogoDocument({ asset })
+          }
+          if (logoData !== null) {
+            const name = (typeof logoName === 'string' && logoName.trim() || current.title || 'Tävlingslogga').slice(0, 120).trim()
+            logo = await storeCompetitionLogo(id, decodeCompetitionLogo(logoData), name, surface, logoUploadId)
+          }
+        } catch (error) { return sendJson(response, 422, { error: error.message }) }
         const filter = previousVersion ? `logo_document->>version=eq.${encodeURIComponent(previousVersion)}` : 'logo_document=is.null'
         const result = await supabaseRequest(`${endpoint}&${filter}`, {
           method: 'PATCH', headers: { Prefer: 'return=representation' },

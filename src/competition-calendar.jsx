@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import CompetitionPm, { readCompetitionPm, uploadCompetitionPm } from './competition-pm.jsx'
-import { CompetitionLogoTile, SavedCompetitionLogo, competitionLogoAccept, prepareCompetitionLogo } from './competition-logo.jsx'
+import { CompetitionLogoLibrary, CompetitionLogoTile, LibraryCompetitionLogo, SavedCompetitionLogo, competitionLogoAccept, prepareCompetitionLogo } from './competition-logo.jsx'
 import CompetitionParticipants from './competition-participants.jsx'
 import { competitionBuilding, FLIGHT_BUILDINGS } from '../shared/competition-building.js'
+import { competitionLogoPreset } from '../shared/competition-logo-presets.js'
 import './competition-calendar.css'
 
 const groups = { ungdom_orange: 'Ungdom Orange', ungdom_svart: 'Ungdom Svart', junior: 'Junior' }
@@ -17,7 +18,10 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
   const [logoChange, setLogoChange] = useState(undefined)
   const [preparingLogo, setPreparingLogo] = useState(false)
   const [logoError, setLogoError] = useState('')
+  const [logoLibraryOpen, setLogoLibraryOpen] = useState(false)
+  const logoLibraryId = React.useId()
   const logoData = logoChange?.removeWhite ? logoChange.cutoutData : logoChange?.data
+  const logoPreview = competitionLogoPreset(logoChange?.presetId)?.src || logoData
   const logoAttempt = useRef(0)
   const logoFileRef = useRef(null)
   const baseline = useRef(JSON.stringify(newForm(today)))
@@ -35,6 +39,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
   const resetLogo = () => {
     logoAttempt.current += 1
     setLogoChange(undefined)
+    setLogoLibraryOpen(false)
     setPreparingLogo(false)
     setLogoError('')
   }
@@ -47,7 +52,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
     setLogoError('')
     try {
       const prepared = await prepareCompetitionLogo(selected)
-      if (attempt === logoAttempt.current) setLogoChange({ ...prepared, name: selected.name })
+      if (attempt === logoAttempt.current) setLogoChange({ ...prepared, name: selected.name.replace(/\.[^.]+$/, '').slice(0, 120), uploadId: crypto.randomUUID() })
     } catch (error) {
       if (attempt === logoAttempt.current) setLogoError(error.message)
     } finally {
@@ -90,7 +95,8 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'set-competition-logo', competitionId: saved.id, previousVersion: form.logo?.version ?? null,
-            logoData: logoData ?? null,
+            logoData: logoData ?? null, logoName: logoChange?.name, logoUploadId: logoChange?.uploadId,
+            presetId: logoChange?.presetId, libraryId: logoChange?.libraryId,
           }),
         })
         saved = updated.competition; replace(saved)
@@ -105,7 +111,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
   }
   const cardAction = async (competition, action) => {
     if (busy.current.has(competition.id)) return
-    if (action === 'delete' && !window.confirm(`Ta bort ${competition.title}? Tävlingen, grenprogrammet, PM, loggan och anmälningarna tas bort permanent.`)) return
+    if (action === 'delete' && !window.confirm(`Ta bort ${competition.title}? Tävlingen, grenprogrammet, PM och anmälningarna tas bort permanent.`)) return
     busy.current.add(competition.id); setCardBusy((current) => ({ ...current, [competition.id]: action })); setCardErrors((current) => ({ ...current, [competition.id]: '' })); setMessage('')
     try {
       if (action === 'delete') {
@@ -144,26 +150,33 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
             <strong>Tävlingslogga (valfritt)</strong>
             <input ref={logoFileRef} type="file" accept={competitionLogoAccept} hidden onChange={chooseLogo} />
             <div className="competition-logo-actions">
-              <button type="button" className="secondary-button" aria-describedby="competition-logo-help"
-                onClick={() => logoFileRef.current?.click()}>{form.logo || logoChange ? 'Byt logga' : 'Välj logga'}</button>
+              <button type="button" className="secondary-button" aria-expanded={logoLibraryOpen} aria-controls={logoLibraryId}
+                disabled={preparingLogo} onClick={() => setLogoLibraryOpen(value => !value)}>Välj från bibliotek</button>
+              <button type="button" className="secondary-button" aria-describedby="competition-logo-help" disabled={preparingLogo}
+                onClick={() => logoFileRef.current?.click()}>Ladda upp egen</button>
               {(logoChange || (form.logo && logoChange === undefined)) && <button type="button" className="text-button" onClick={() => { resetLogo(); setLogoChange(form.logo ? null : undefined) }}>Ta bort logga</button>}
               {logoChange === null && <button type="button" className="text-button" onClick={resetLogo}>Ångra borttagning</button>}
             </div>
-            <small id="competition-logo-help">PNG, JPG eller WebP, högst 8 MB.</small>
+            <small id="competition-logo-help">PNG, JPG eller WebP, högst 8 MB. Egna loggor sparas i biblioteket.</small>
+            <div id={logoLibraryId} hidden={!logoLibraryOpen}>
+              {logoLibraryOpen && open && <CompetitionLogoLibrary code={code} request={request}
+                value={logoChange === undefined ? form.logo : logoChange}
+                onChange={selection => { setLogoChange(selection); setLogoError('') }} />}
+            </div>
             {preparingLogo ? <small role="status">Förbereder loggan…</small>
               : logoChange ? <small role="status">{logoChange.name} · sparas när du sparar tävlingen</small>
               : logoChange === null ? <small role="status">Loggan tas bort när du sparar tävlingen.</small>
               : form.logo && <small className="competition-logo-saved" role="status">✓ Loggan är sparad</small>}
             {logoChange?.cutoutData && <label className="competition-logo-cutout">
               <input type="checkbox" checked={Boolean(logoChange.removeWhite)} disabled={preparingLogo}
-                onChange={event => setLogoChange({ ...logoChange, removeWhite: event.target.checked })} />
+                onChange={event => setLogoChange({ ...logoChange, removeWhite: event.target.checked, uploadId: crypto.randomUUID() })} />
               Ta bort vit bakgrund
             </label>}
             {logoError && <p className="form-error" role="alert">{logoError}</p>}
           </div>
-          {logoChange
-            ? <CompetitionLogoTile src={logoData} alt="Förhandsvisning av vald tävlingslogga" />
-            : logoChange === undefined && open && <SavedCompetitionLogo competition={form} code={code} request={request} showStatus />}
+          {logoPreview && <CompetitionLogoTile src={logoPreview} alt="Förhandsvisning av vald tävlingslogga" />}
+          {logoChange?.libraryId && <LibraryCompetitionLogo id={logoChange.libraryId} code={code} request={request} />}
+          {logoChange === undefined && open && <SavedCompetitionLogo competition={form} code={code} request={request} showStatus />}
         </div>
         <label>PM (valfritt)<input ref={fileRef} type="file" aria-describedby="competition-form-pm-help" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} />
           <small id="competition-form-pm-help">PDF eller bild, högst 3 MB. Visas för tränare och simmare som är valda för tävlingen. Du kan också bifoga eller byta PM senare.</small>
