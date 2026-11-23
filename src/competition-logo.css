@@ -24,10 +24,15 @@
   border-radius: 13px;
   background: #edf6f2;
 }
-.competition-logo-upload label { display: grid; min-width: 0; gap: 6px; font-size: .875rem; font-weight: 700; }
+.competition-logo-fields { display: grid; min-width: 0; gap: 6px; overflow-wrap: anywhere; }
+.competition-logo-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.competition-logo-upload .competition-logo-saved { color: #28623a; font-weight: 700; }
+.competition-logo-preview-error { display: grid; justify-items: start; gap: 4px; max-width: 160px; }
 .competition-logo-upload small { color: #45636b; font-weight: 400; }
 .competition-logo-upload .form-error { margin: 0; }
-.competition-logo-upload .secondary-button { justify-self: start; }
+.competition-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.competition-card-heading > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.competition-card-logo { flex: none; min-width: 1px; min-height: 1px; }
 .mood-hero-heading { position: relative; z-index: 1; min-width: 0; }
 .mood-hero-heading.has-competition-logo { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 16px; }
 .mood-hero-heading h1, .mood-hero-heading .mood-context { overflow-wrap: anywhere; }
@@ -49,7 +54,9 @@
 }
 .mood-competition-side .race-day-badge { position: static; gap: 3px; font-size: 10px; letter-spacing: .08em; }
 @media (max-width: 480px) {
-  .competition-logo-upload .competition-logo-tile { width: 76px; height: 65px; padding: 6px; }
+  .competition-logo-upload .competition-logo-tile,
+  .competition-card-logo .competition-logo-tile { width: 84px; height: 65px; padding: 6px; }
+  .competition-logo-preview-error { grid-column: 1 / -1; max-width: none; }
   .mood-hero-heading.has-competition-logo { gap: 10px; }
   .mood-competition-side .race-day-badge .race-flag { display: none; }
 }

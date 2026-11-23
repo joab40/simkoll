@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import './competition-logo.css'
 
 export const competitionLogoAccept = 'image/png,image/jpeg,image/webp'
@@ -53,26 +53,58 @@ export async function prepareCompetitionLogo(file) {
   } finally { URL.revokeObjectURL(url) }
 }
 
-export function CompetitionLogoTile({ src, surface, alt, className = '' }) {
-  return <span className={`competition-logo-tile${className ? ` ${className}` : ''}`} data-surface={surface}>
-    {src && <img src={src} alt={alt} decoding="async" />}
+export function CompetitionLogoTile({ src, surface, alt, onError }) {
+  return <span className="competition-logo-tile" data-surface={surface}>
+    <img src={src} alt={alt} decoding="async" onError={onError} />
   </span>
 }
 
-export function SavedCompetitionLogo({ competition, code, request, className, decorative = false }) {
-  const [loaded, setLoaded] = useState(null)
-  const id = competition?.id
-  const version = competition?.logo?.version
-  const key = `${id}:${version}`
+export function SavedCompetitionLogo({ competition, code, request, decorative = false, showStatus = false, lazy = false }) {
+  if (!competition?.id || !competition.logo?.version) return null
+  return <CompetitionLogoPreview key={`${competition.id}:${competition.logo.version}`}
+    competition={competition} code={code} request={request} decorative={decorative} showStatus={showStatus} lazy={lazy} />
+}
+
+function CompetitionLogoPreview({ competition, code, request, decorative, showStatus, lazy }) {
+  const [url, setUrl] = useState('')
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const slot = useRef(null)
+  const id = competition.id
   useEffect(() => {
-    if (!id || !version) return
     const controller = new AbortController()
-    request(`/api/workouts?competitionLogo=true&id=${encodeURIComponent(id)}`, code, { retry: false, signal: controller.signal })
-      .then(({ url }) => { if (!controller.signal.aborted && url) setLoaded({ key, url }) })
-      .catch(() => {})
-    return () => controller.abort()
-  }, [key, id, version, code, request])
-  if (!version || loaded?.key !== key) return null
-  return <CompetitionLogoTile className={className} src={loaded.url} surface={competition.logo.surface}
-    alt={decorative ? '' : `Logga för ${competition.title}`} />
+    const load = async () => {
+      try {
+        const result = await request(`/api/workouts?competitionLogo=true&id=${encodeURIComponent(id)}`, code, { retry: false, signal: controller.signal })
+        if (!result.url) throw new Error('Logo URL missing')
+        if (!controller.signal.aborted) setUrl(result.url)
+      } catch {
+        if (!controller.signal.aborted) setFailed(true)
+      }
+    }
+    let observer
+    if (lazy && slot.current && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(([entry]) => {
+        if (!entry.isIntersecting) return
+        observer.disconnect()
+        void load()
+      }, { rootMargin: '160px' })
+      observer.observe(slot.current)
+    } else void load()
+    return () => { controller.abort(); observer?.disconnect() }
+  }, [id, code, request, lazy, attempt])
+
+  const tile = url && !failed && <CompetitionLogoTile src={url} surface={competition.logo.surface}
+    alt={decorative ? '' : `Logga för ${competition.title}`} onError={() => setFailed(true)} />
+  if (lazy) return <div ref={slot} className="competition-card-logo">{tile}</div>
+  if (tile || !showStatus) return tile || null
+  return failed
+    ? <div className="competition-logo-preview-error"><small role="status">Förhandsvisningen kunde inte laddas.</small>
+      <button type="button" className="text-button" onClick={() => {
+        setUrl('')
+        setFailed(false)
+        setAttempt(value => value + 1)
+      }}>Försök igen</button>
+    </div>
+    : <small role="status">Hämtar förhandsvisning…</small>
 }

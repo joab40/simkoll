@@ -734,7 +734,8 @@ export default async function handler(request, response) {
         if (!canReadCompetition(competition, role, profile) || !publicCompetitionLogo(competition)) {
           return sendJson(response, 404, { error: 'Ingen logga finns tillgänglig för tävlingen.' })
         }
-        return sendJson(response, 200, { url: await competitionLogoUrl(competition) })
+        try { return sendJson(response, 200, { url: await competitionLogoUrl(competition) }) }
+        catch { return sendJson(response, 502, { error: 'Loggan kunde inte öppnas. Försök igen.' }) }
       }
       if (request.query?.competitionPm === 'true') {
         const id = String(request.query.id || '')

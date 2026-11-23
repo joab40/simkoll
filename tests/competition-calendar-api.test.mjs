@@ -208,6 +208,7 @@ test('competition logos are scoped to visible competitions and use temporary lin
     if (url.pathname.endsWith('/competition_calendar')) return reply([row])
     assert(url.pathname.endsWith(`/object/sign/competition-logos/${row.logo_document.path}`))
     signs += 1
+    if (options.headers['Content-Type'] !== 'application/json') return reply({ message: 'expiresIn is required' }, false)
     assert.equal(JSON.parse(options.body).expiresIn, 3600)
     return reply({ signedURL: '/object/sign/competition-logos/logo.png?token=fixture' })
   }
@@ -221,6 +222,8 @@ test('competition logos are scoped to visible competitions and use temporary lin
   assert.equal(result.code, 200)
   assert.match(result.data.url, /^https:\/\/competition-test.invalid\/storage\/v1\/object\/sign\//)
   assert.equal(signs, 1)
+  assert.equal((await call(null, { method: 'GET', query })).code, 200)
+  assert.equal(signs, 2)
 })
 
 test('coach logo replacement validates the picture, uses a compare-and-set and cleans up the previous file', async () => {
@@ -237,7 +240,10 @@ test('coach logo replacement validates the picture, uses a compare-and-set and c
       if (options.method === 'POST') {
         uploads += 1
         assert.equal(options.headers['Content-Type'], 'image/png')
-      } else removed.push(...JSON.parse(options.body).prefixes)
+      } else {
+        assert.equal(options.headers['Content-Type'], 'application/json')
+        removed.push(...JSON.parse(options.body).prefixes)
+      }
       return reply({})
     }
     assert(url.pathname.endsWith('/competition_calendar'))

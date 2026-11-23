@@ -18,6 +18,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
   const [preparingLogo, setPreparingLogo] = useState(false)
   const [logoError, setLogoError] = useState('')
   const logoAttempt = useRef(0)
+  const logoFileRef = useRef(null)
   const baseline = useRef(JSON.stringify(newForm(today)))
   const groupNames = { ...groups, ...Object.fromEntries(availableGroups) }
   const buildingPreview = FLIGHT_BUILDINGS[competitionBuilding(form)]
@@ -45,7 +46,7 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
     setLogoError('')
     try {
       const prepared = await prepareCompetitionLogo(selected)
-      if (attempt === logoAttempt.current) setLogoChange(prepared)
+      if (attempt === logoAttempt.current) setLogoChange({ ...prepared, name: selected.name })
     } catch (error) {
       if (attempt === logoAttempt.current) setLogoError(error.message)
     } finally {
@@ -93,7 +94,8 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
         })
         saved = updated.competition; replace(saved)
       }
-      setMessage(`✓ ${saved.title} är ${form.id ? 'uppdaterad' : 'sparad'}${file ? ' med bifogat PM' : ''}.`)
+      const logoMessage = logoChange === null ? ' Tävlingsloggan är borttagen.' : logoChange ? ' Tävlingsloggan är sparad.' : ''
+      setMessage(`✓ ${saved.title} är ${form.id ? 'uppdaterad' : 'sparad'}${file ? ' med bifogat PM' : ''}.${logoMessage}`)
       reset(); setOpen(false)
     } catch (error) {
       if (saved) { baseline.current = JSON.stringify(saved); setForm({ ...saved }); setFormError(`Tävlingen är sparad, men ${remaining} kunde inte sparas. ${error.message} Du kan försöka spara igen utan att en ny tävling skapas.`) }
@@ -137,17 +139,25 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
         <fieldset><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{Object.entries(groups).map(([value, label]) => <label key={value}><input type="checkbox" checked={form.targetGroups.includes(value)} onChange={(event) => setForm({ ...form, targetGroups: event.target.checked ? [...form.targetGroups, value] : form.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset>
         <label>Kommentar<textarea maxLength={500} rows={2} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
         <div className="competition-logo-upload">
-          <label>Tävlingslogga (valfritt)
-            <input type="file" accept={competitionLogoAccept} aria-describedby="competition-logo-help" onChange={chooseLogo} />
-            <small id="competition-logo-help">PNG, JPG eller WebP, högst 8 MB. Förhandsvisningen visar hur loggan visas i Idag i gruppen.</small>
-          </label>
+          <div className="competition-logo-fields">
+            <strong>Tävlingslogga (valfritt)</strong>
+            <input ref={logoFileRef} type="file" accept={competitionLogoAccept} hidden onChange={chooseLogo} />
+            <div className="competition-logo-actions">
+              <button type="button" className="secondary-button" aria-describedby="competition-logo-help"
+                onClick={() => logoFileRef.current?.click()}>{form.logo || logoChange ? 'Byt logga' : 'Välj logga'}</button>
+              {(logoChange || (form.logo && logoChange === undefined)) && <button type="button" className="text-button" onClick={() => { resetLogo(); setLogoChange(form.logo ? null : undefined) }}>Ta bort logga</button>}
+              {logoChange === null && <button type="button" className="text-button" onClick={resetLogo}>Ångra borttagning</button>}
+            </div>
+            <small id="competition-logo-help">PNG, JPG eller WebP, högst 8 MB.</small>
+            {preparingLogo ? <small role="status">Förbereder loggan…</small>
+              : logoChange ? <small role="status">{logoChange.name} · sparas när du sparar tävlingen</small>
+              : logoChange === null ? <small role="status">Loggan tas bort när du sparar tävlingen.</small>
+              : form.logo && <small className="competition-logo-saved" role="status">✓ Loggan är sparad</small>}
+            {logoError && <p className="form-error" role="alert">{logoError}</p>}
+          </div>
           {logoChange
             ? <CompetitionLogoTile src={logoChange.data} surface={logoChange.surface} alt="Förhandsvisning av vald tävlingslogga" />
-            : logoChange === undefined && open && <SavedCompetitionLogo competition={form} code={code} request={request} />}
-          {(logoChange || (form.logo && logoChange === undefined)) && <button type="button" className="secondary-button" onClick={() => { resetLogo(); setLogoChange(form.logo ? null : undefined) }}>Ta bort logga</button>}
-          {logoChange === null && <button type="button" className="secondary-button" onClick={resetLogo}>Ångra borttagning</button>}
-          {preparingLogo && <small role="status">Förbereder loggan…</small>}
-          {logoError && <p className="form-error" role="alert">{logoError}</p>}
+            : logoChange === undefined && open && <SavedCompetitionLogo competition={form} code={code} request={request} showStatus />}
         </div>
         <label>PM (valfritt)<input ref={fileRef} type="file" aria-describedby="competition-form-pm-help" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} />
           <small id="competition-form-pm-help">PDF eller bild, högst 3 MB. Visas för tränare och simmare som är valda för tävlingen. Du kan också bifoga eller byta PM senare.</small>
@@ -159,7 +169,16 @@ export default function CompetitionCalendarView({ code, request, today, renderPr
     {loading && <p role="status">Hämtar tävlingar…</p>}
     {loadError && <div role="alert"><p className="form-error">{loadError}</p><button type="button" className="secondary-button" onClick={load}>Försök hämta igen</button></div>}
     <div className="competition-calendar-list">{competitions.map((competition) => <article key={competition.id} className={competition.endDate < today ? 'competition-is-past' : ''}><div>
-      <p className="eyebrow">{competition.startDate === competition.endDate ? competition.startDate : `${competition.startDate} – ${competition.endDate}`}</p><h2>{competition.title}</h2><p>{[competition.category, competition.location].filter(Boolean).join(' · ')}</p><small>{competition.targetGroups.map((group) => groups[group] || group).join(' · ')}</small>{competition.notes && <p>{competition.notes}</p>}
+      <div className="competition-card-heading">
+        <div>
+          <p className="eyebrow">{competition.startDate === competition.endDate ? competition.startDate : `${competition.startDate} – ${competition.endDate}`}</p>
+          <h2>{competition.title}</h2>
+          {competition.endDate >= today && <><p>{[competition.category, competition.location].filter(Boolean).join(' · ')}</p>
+            <small>{competition.targetGroups.map((group) => groups[group] || group).join(' · ')}</small></>}
+        </div>
+        <SavedCompetitionLogo competition={competition} code={code} request={request} lazy />
+      </div>
+      {competition.notes && <p>{competition.notes}</p>}
       <div className="competition-card-actions"><button type="button" className="secondary-button" disabled={saving || !!cardBusy[competition.id]} onClick={() => edit(competition)}>Redigera tävling</button><button type="button" className={`competition-publish-button${competition.entriesOpen ? ' active' : ''}`} disabled={saving || !!cardBusy[competition.id]} onClick={() => cardAction(competition, 'entries')}>{cardBusy[competition.id] === 'entries' ? 'Sparar anmälningsläge…' : competition.entriesOpen ? '✓ Anmälan öppen · stäng anmälan' : 'Öppna grenanmälan för simmare'}</button>{onOpenSubmissions && <button type="button" className="competition-submissions-button" onClick={() => onOpenSubmissions(competition.id)}>Visa tävlingsanmälningar →</button>}</div>
       {cardErrors[competition.id] && <p className="form-error" role="alert">{cardErrors[competition.id]}</p>}
       <CompetitionParticipants competition={competition} profiles={profiles} groupNames={groupNames} code={code} request={request}

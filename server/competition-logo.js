@@ -54,14 +54,14 @@ export async function storeCompetitionLogo(id, bytes, preferredSurface, storage 
 export async function removeCompetitionLogo(id, logo, storage = supabaseStorageRequest) {
   if (!validDocument(id, logo)) return
   try {
-    const result = await storage(`object/${bucket}`, { method: 'DELETE', body: JSON.stringify({ prefixes: [logo.path] }) })
+    const result = await storage(`object/${bucket}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefixes: [logo.path] }) })
     if (!result.ok) console.warn('Competition logo cleanup failed:', result.status)
   } catch (error) { console.warn('Competition logo cleanup unavailable:', error.name) }
 }
 
 export async function competitionLogoUrl(competition, storage = supabaseStorageRequest) {
   const logo = competition.logo_document
-  const result = await storage(`object/sign/${bucket}/${logo.path}`, { method: 'POST', body: JSON.stringify({ expiresIn: 3600 }) })
+  const result = await storage(`object/sign/${bucket}/${logo.path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 3600 }) })
   if (!result.ok) throw new Error('Loggan kunde inte öppnas.')
   const data = await result.json()
   const signedPath = data.signedURL || data.signedUrl
