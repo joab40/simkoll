@@ -1,0 +1,74 @@
+.downhill-stage {
+  background: radial-gradient(ellipse at 75% 20%, #ffebc8, transparent 45%), linear-gradient(#8ebad2, #d5edf5 67%, #e4f2f3);
+}
+.downhill-hud strong { font-variant-numeric: tabular-nums; }
+.downhill-countdown, .downhill-feedback, .downhill-next, .downhill-progress {
+  position: absolute;
+  pointer-events: none;
+}
+.downhill-countdown {
+  top: 48%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-width: 133px;
+  padding: 14px 18px;
+  border: 1px solid #e7f8f473;
+  border-radius: 17px;
+  background: #113746eb;
+  color: #fff0d7;
+  box-shadow: 0 8px 26px #12374736;
+}
+.downhill-countdown strong { font-size: clamp(2.1rem, 9vw, 4rem); line-height: 1; letter-spacing: -.04em; }
+.downhill-countdown span { font-size: .82rem; font-weight: 700; }
+.downhill-countdown.is-green { background: #d2f08b; color: #173a30; }
+.downhill-controls button.downhill-go { outline: 2px solid #d8ff9c; outline-offset: 2px; }
+.downhill-feedback {
+  top: 82px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 22px);
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #133c4aee;
+  color: #f2fbf8;
+  font-size: .77rem;
+  font-weight: 780;
+  text-align: center;
+}
+.downhill-feedback.is-boost { background: #d6f39b; color: #214739; }
+.downhill-feedback.is-miss { background: #963f39; color: #fff; }
+.downhill-next {
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 9px;
+  background: #113947ef;
+  color: #f2faf9;
+  border-left: 4px solid var(--gate-color);
+  border-radius: 7px;
+  font-size: .8rem;
+  font-weight: 800;
+}
+.downhill-progress {
+  inset: auto 11px 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 10px;
+  max-width: 420px;
+  margin-inline: auto;
+  padding: 7px 10px;
+  background: #143645ee;
+  border: 1px solid #edfafd65;
+  border-radius: 10px;
+  color: #eaf8f9;
+  font-size: .72rem;
+  font-weight: 750;
+}
+.downhill-progress div { grid-column: 1 / -1; height: 5px; border-radius: 7px; background: #72949d; overflow: hidden; }
+.downhill-progress i { display: block; height: 100%; border-radius: 7px; background: #cdef83; }
+@media (max-height: 500px) and (orientation: landscape) {
+  .ski-fullscreen .downhill-feedback { top: 59px; left: auto; right: 9px; transform: none; max-width: 36%; }
+}

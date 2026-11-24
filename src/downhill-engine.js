@@ -1,0 +1,167 @@
+import { winterSteer } from './winter-steering.js'
+
+export const DOWNHILL_LENGTH = 1480
+export const DOWNHILL_HALF_WIDTH = 6.6
+export const DOWNHILL_GREEN_AT = 3
+export const DOWNHILL_START_WINDOW = .19
+export const DOWNHILL_SCORE_BASE = 100000
+export const DOWNHILL_MAX_MS = 90000
+
+const maxSpeed = 51.5
+const step = 1 / 120
+const missedGatePenalty = 1.25
+const falseStartPenalty = .8
+export const DOWNHILL_MIN_MS = Math.floor(DOWNHILL_LENGTH * 1000 / maxSpeed)
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
+const mix = (a, b, amount) => a + (b - a) * amount
+
+export const DOWNHILL_SECTORS = [
+  { name: 'Iskammen', start: 0 },
+  { name: 'Gransvängen', start: 494 },
+  { name: 'Slutbranten', start: 1030 },
+]
+
+export const DOWNHILL_GATES = [
+  [114, -2.7], [187, 3.8], [257, -3.4], [337, -2.7], [419, 3.4], [486, -3.5],
+  [568, 3.8], [633, -4], [709, 3.6], [787, -3.3], [863, 3.9], [929, -4],
+  [998, 3.8], [1082, -3.3], [1163, 3.5], [1236, -4], [1303, 3.8], [1386, -3.6],
+].map(([distance, x], index) => ({
+  id: index + 1, distance, x, halfWidth: index < 3 ? 2.05 : 1.78,
+  color: index % 2 ? '#1d86ba' : '#f46f59',
+}))
+
+export function downhillCentre(distance) {
+  const s = clamp(distance, 0, DOWNHILL_LENGTH)
+  const start = Math.min(1, s / 51)
+  const bend = start ** 2 * (3 - 2 * start)
+  return bend * (17 * Math.sin(s * .024) + 13 * Math.sin(s * .041) + 22 * Math.sin(s * .009))
+}
+
+export function downhillGrade(distance) {
+  const s = clamp(distance, 0, DOWNHILL_LENGTH)
+  const grade = -.236 + .138 * Math.cos(s * .016) + .098 * Math.cos(s * .033) - .038 * Math.cos(s * .006)
+  return distance > DOWNHILL_LENGTH ? grade * Math.max(0, 1 - (distance - DOWNHILL_LENGTH) / 52) : grade
+}
+
+export function downhillHeight(distance) {
+  const s = clamp(distance, 0, DOWNHILL_LENGTH)
+  const slope = -.236 * s + 8.625 * Math.sin(s * .016) + (.098 / .033) * Math.sin(s * .033)
+    - (.038 / .006) * Math.sin(s * .006)
+  const outrun = clamp(distance - DOWNHILL_LENGTH, 0, 52)
+  if (distance < 0) return distance * downhillGrade(0)
+  return slope + downhillGrade(s) * outrun * (1 - outrun / 104)
+}
+
+export function downhillBank(distance) {
+  const s = clamp(distance, 0, DOWNHILL_LENGTH)
+  return .12 * Math.sin(s * .024) + .15 * Math.sin(s * .041)
+}
+
+export function downhillSurface(distance, x) {
+  return downhillHeight(distance) + clamp(x, -DOWNHILL_HALF_WIDTH, DOWNHILL_HALF_WIDTH) * downhillBank(distance)
+}
+
+export function createDownhillRace() {
+  return {
+    phase: 'ready', countdown: 0, early: false, launch: '', track: 0, elapsed: 0,
+    speed: 0, x: 0, vx: 0, accumulator: 0, penalty: 0, gateIndex: 0,
+    cleared: 0, streak: 0, boost: 0, boostUntil: 0, feedback: null, result: null,
+  }
+}
+
+function launchDownhill(race, precision) {
+  race.launch = race.early ? 'early' : precision ? 'perfect' : 'normal'
+  race.speed = precision && !race.early ? 27 : 16
+  race.penalty = race.early ? falseStartPenalty : 0
+  race.phase = 'racing'
+}
+
+export function downhillStartAction(race) {
+  if (race.phase === 'ready') race.phase = 'countdown'
+  else if (race.phase === 'countdown') {
+    if (race.countdown < DOWNHILL_GREEN_AT) race.early = true
+    else launchDownhill(race, race.countdown <= DOWNHILL_GREEN_AT + DOWNHILL_START_WINDOW)
+  }
+}
+
+function passGate(race, gate, x) {
+  const offset = Math.abs(x - gate.x)
+  if (offset > gate.halfWidth) {
+    race.penalty += missedGatePenalty
+    race.streak = 0
+    race.boostUntil = race.elapsed
+    race.speed *= .94
+    race.feedback = { text: 'Missad port · +1,25 s', tone: 'miss', at: race.elapsed }
+    return
+  }
+  race.cleared++
+  const clean = offset <= gate.halfWidth * .68
+  race.streak = clean ? race.streak + 1 : 0
+  if (clean) {
+    const boost = race.streak % 3 === 0
+    race.boost = boost ? 4.4 : 1.65
+    race.boostUntil = race.elapsed + (boost ? 1.65 : .68)
+    race.feedback = {
+      text: boost ? 'Tre rena portar · fartboost' : 'Ren sväng · bättre glid',
+      tone: boost ? 'boost' : 'clear',
+      at: race.elapsed,
+    }
+  } else race.feedback = { text: 'Port klar', tone: 'clear', at: race.elapsed }
+}
+
+function racingStep(race, direction) {
+  const oldTrack = race.track
+  const oldX = race.x
+  const banking = downhillBank(oldTrack)
+  const edge = clamp((Math.abs(oldX) - 5.75) / 1.15, 0, 1)
+  const boost = race.elapsed < race.boostUntil ? race.boost : 0
+  const target = 41.9 + clamp(-downhillGrade(oldTrack) - .23, -.23, .25) * 21
+    + boost - edge * 7 - Math.abs(race.vx) * .19
+  race.speed = clamp(race.speed + (target - race.speed) * step * 1.15, 0, maxSpeed)
+  race.vx = winterSteer(race.vx, clamp(direction - banking * .28, -1, 1), step)
+  race.x = clamp(oldX + race.vx * step, -DOWNHILL_HALF_WIDTH, DOWNHILL_HALF_WIDTH)
+  const travel = race.speed * step
+  race.track = Math.min(DOWNHILL_LENGTH, oldTrack + travel)
+  race.elapsed += step * Math.min(1, (race.track - oldTrack) / travel)
+
+  const gate = DOWNHILL_GATES[race.gateIndex]
+  if (gate && race.track >= gate.distance) {
+    const crossing = (gate.distance - oldTrack) / travel
+    passGate(race, gate, mix(oldX, race.x, crossing))
+    race.gateIndex++
+  }
+  if (race.track === DOWNHILL_LENGTH) {
+    const raceMs = Math.round(race.elapsed * 1000)
+    const penaltyMs = Math.round(race.penalty * 1000)
+    race.result = { raceMs, penaltyMs, timeMs: raceMs + penaltyMs, gates: race.cleared }
+    race.phase = 'finished'
+  }
+}
+
+export function advanceDownhill(race, delta, steer = 0) {
+  if (!Number.isFinite(delta) || delta <= 0 || !['countdown', 'racing'].includes(race.phase)) return
+  const direction = Number.isFinite(steer) ? clamp(steer, -1, 1) : 0
+  race.accumulator += Math.min(.1, delta)
+  while (race.accumulator >= step - 1e-9) {
+    race.accumulator -= step
+    if (race.phase === 'countdown') {
+      race.countdown += step
+      if (race.countdown >= DOWNHILL_GREEN_AT + (race.early ? 0 : .64)) launchDownhill(race, false)
+    } else if (race.phase === 'racing') racingStep(race, direction)
+    else break
+  }
+}
+
+export function validDownhillScore(score) {
+  return Number.isInteger(score) && score >= DOWNHILL_SCORE_BASE - DOWNHILL_MAX_MS
+    && score <= DOWNHILL_SCORE_BASE - DOWNHILL_MIN_MS
+}
+
+export function downhillTime(ms, decimals = 2) {
+  const digits = Math.trunc(ms / 10 ** (3 - decimals))
+  const scale = 10 ** decimals
+  const seconds = Math.floor(digits / scale)
+  const fraction = String(digits % scale).padStart(decimals, '0')
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')},${fraction}`
+}

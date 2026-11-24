@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   advanceSkiJump, createSkiJump, skiAction, skiTiming, validSkiJumpScore,
-  SKI_APPROACH_TIME, SKI_K_POINT, SKI_WIND,
+  SKI_APPROACH_TIME, SKI_K_POINT, SKI_WIND, skiPushAngle,
 } from '../src/ski-jump-engine.js'
 
-function fly(wind, takeoff = .975, crosswind = 0) {
+function fly(wind, takeoff = .95, crosswind = 0) {
   const game = createSkiJump(wind, crosswind)
   skiAction(game)
   advanceSkiJump(game, SKI_APPROACH_TIME * takeoff)
@@ -60,8 +60,8 @@ test('too early, missed takeoff and mistimed landings give feedback and no ranka
 
 test('short corrections counter gusts and improve the flight and landing window', () => {
   for (const wind of [-3, 3]) {
-    const ignored = fly(0, .975, wind)
-    const corrected = fly(0, .975, wind)
+    const ignored = fly(0, .95, wind)
+    const corrected = fly(0, .95, wind)
     for (let tick = 0; tick < 200; tick++) {
       advanceSkiJump(ignored, .01)
       advanceSkiJump(corrected, .01, correct(corrected))
@@ -83,8 +83,28 @@ test('short corrections counter gusts and improve the flight and landing window'
 })
 
 test('holding a direction through the entire flight overcorrects and costs length', () => {
-  const oversteered = land(fly(0, .975, 2), .72, () => -1)
-  const timed = land(fly(0, .975, 2), .72, correct)
+  const oversteered = land(fly(0, .95, 2), .72, () => -1)
+  const timed = land(fly(0, .95, 2), .72, correct)
   assert(timed.distance > oversteered.distance)
   assert(timed.style > oversteered.style)
+})
+
+
+test('a well-timed press with the right hold produces a better takeoff and clear landing feedback', () => {
+  function jump(hold) {
+    const game = createSkiJump()
+    skiAction(game)
+    advanceSkiJump(game, SKI_APPROACH_TIME * .95)
+    skiAction(game, hold)
+    return land(game, .72)
+  }
+  const balanced = jump(.425)
+  assert.equal(skiPushAngle(.425), 18)
+  assert.equal(balanced.angle, 18)
+  assert.equal(balanced.takeoff, 100)
+  assert.equal(balanced.landingLabel, 'Telemark')
+  assert(balanced.distance > jump(0).distance)
+  assert(balanced.distance > jump(2).distance)
+  assert.equal(land(fly(0), .1).landingLabel, 'För tidig landning')
+  assert.equal(land(fly(0), .98).landingLabel, 'För sen landning')
 })

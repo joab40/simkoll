@@ -19,6 +19,7 @@ import { BALANCE_MAX_SCORE, validBalanceScore } from '../src/balance-engine.js'
 import { BOTTLE_MAX_SCORE, validBottleScore } from '../src/bottle-flip-engine.js'
 import { SNOW_MAX_SCORE, validSnowScore } from '../src/snow-rider-engine.js'
 import { SKI_MAX_SCORE, validSkiJumpScore } from '../src/ski-jump-engine.js'
+import { DOWNHILL_MAX_MS, DOWNHILL_MIN_MS, DOWNHILL_SCORE_BASE, downhillTime, validDownhillScore } from '../src/downhill-engine.js'
 import { HURDLE_BASE, HURDLE_MIN_MS, HURDLE_MAX_MS, hurdleTime, validHurdleScore } from '../src/hurdles-engine.js'
 
 const stockholmDate = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
@@ -31,7 +32,7 @@ const SWIMGAMES_BASE = 100000
 const SWIMGAMES_MIN_TIME_MS = 3000
 const SWIMGAMES_MAX_SCORE = SWIMGAMES_BASE - SWIMGAMES_MIN_TIME_MS
 const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
-const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : item.game_key === 'sprint100' ? sprintTime(SPRINT_BASE - item.score) : item.game_key === 'hurdles100' ? hurdleTime(HURDLE_BASE - item.score) : item.game_key === 'longjump' ? jumpMetres(item.score) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
+const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : item.game_key === 'sprint100' ? sprintTime(SPRINT_BASE - item.score) : item.game_key === 'hurdles100' ? hurdleTime(HURDLE_BASE - item.score) : item.game_key === 'longjump' ? jumpMetres(item.score) : item.game_key === 'downhill' ? downhillTime(DOWNHILL_SCORE_BASE - item.score, 3) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
 const TEAM_GAME_TARGET = 10
 const GAME_CATALOG = [
@@ -49,6 +50,7 @@ const GAME_CATALOG = [
   { key: 'bottleflip', title: 'Bottle Flip · Poolside', emoji: '🧴', description: 'Håll för kraft, släpp för att kasta. Landa på mitten och bygg din perfekta svit.', route: 'bottleflip' },
   { key: 'snowrider', title: 'Snow Rider 3D', emoji: '🛷', description: 'Hitta vinterflytet. Styr pulkan, hoppa över hinder och samla kristaller i Frostfjäll.', route: 'snowrider' },
   { key: 'skijump', title: 'Frostfjäll Backhoppning', emoji: '⛷️', description: 'Tajma upphoppet, flyg över dalen och sätt en telemarklandning.', route: 'skijump' },
+  { key: 'downhill', title: 'Frostfjäll Störtlopp', emoji: '🎿', description: 'Tajma starten, skär genom portarna och jaga snabbaste tid.', route: 'downhill' },
 ]
 const scheduleId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const defaultGameSchedule = () => {
@@ -56,7 +58,7 @@ const defaultGameSchedule = () => {
   const end = new Date(`${today}T12:00:00`)
   end.setDate(end.getDate() + 6)
   const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
-  return GAME_CATALOG.filter((game) => !['sprint100', 'longjump', 'hurdles100', 'balance', 'rally', 'bottleflip', 'snowrider', 'skijump'].includes(game.key)).map((game) => ({ id: scheduleId(), gameKey: game.key, startDate: today, endDate, published: true }))
+  return GAME_CATALOG.filter((game) => !['sprint100', 'longjump', 'hurdles100', 'balance', 'rally', 'bottleflip', 'snowrider', 'skijump', 'downhill'].includes(game.key)).map((game) => ({ id: scheduleId(), gameKey: game.key, startDate: today, endDate, published: true }))
 }
 async function loadGameSchedule() {
   const result = await supabaseRequest('app_settings?setting_key=eq.game_schedule&select=setting_value&limit=1')
@@ -96,15 +98,16 @@ async function monthlyGameLeaderboard(profileId, key = gameKey) {
   const own = profileId ? [...best.values()].find((item) => item.profile_id === profileId) : null
   return { monthStart: start, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest: own?.score || 0 }
 }
-const lifetimeScoreGames = new Set(['swimgames', 'sprint100', 'longjump', 'hurdles100', 'rally', 'bottleflip', 'snowrider', 'skijump'])
+const lifetimeScoreGames = new Set(['swimgames', 'sprint100', 'longjump', 'hurdles100', 'rally', 'bottleflip', 'snowrider', 'skijump', 'downhill'])
 
 function winterScoreFilter(key) {
+  if (key === 'downhill') return `&score=gte.${DOWNHILL_SCORE_BASE - DOWNHILL_MAX_MS}&score=lte.${DOWNHILL_SCORE_BASE - DOWNHILL_MIN_MS}`
   const max = key === 'skijump' ? SKI_MAX_SCORE : key === 'snowrider' ? SNOW_MAX_SCORE : 0
   return max ? `&score=gt.0&score=lte.${max}` : ''
 }
 
 const validWinterScore = (key, score) => key === 'skijump' ? validSkiJumpScore(Number(score))
-  : key !== 'snowrider' || validSnowScore(Number(score))
+  : key === 'downhill' ? validDownhillScore(Number(score)) : key !== 'snowrider' || validSnowScore(Number(score))
 
 async function lifetimeGameLeaderboard(profileId, key = gameKey) {
   const scoreFilter = key === 'bottleflip' ? `&score=gt.0&score=lte.${BOTTLE_MAX_SCORE}` : key === 'swimgames' ? `&score=lte.${SWIMGAMES_MAX_SCORE}` : key === 'sprint100' ? `&score=lte.${SPRINT_BASE - SPRINT_MIN_MS}&score=gte.${SPRINT_BASE - SPRINT_MAX_MS}` : key === 'hurdles100' ? `&score=lte.${HURDLE_BASE - HURDLE_MIN_MS}&score=gte.${HURDLE_BASE - HURDLE_MAX_MS}` : key === 'longjump' ? `&score=gt.0&score=lte.${JUMP_MAX_SCORE}` : key === 'balance' ? `&score=gt.0&score=lte.${BALANCE_MAX_SCORE}` : key === 'rally' ? `&score=gte.10000&score=lte.${RALLY_MAX_SCORE}` : ''
@@ -139,7 +142,7 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,hurdles100,bottleflip,dino,balance,snowrider,skijump)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
+  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,hurdles100,bottleflip,dino,balance,snowrider,skijump,downhill)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
   // Legacy rally points must not contribute alongside rally's time ranking.
   const rows = (await result.json()).filter((item) => item.game_key !== 'rally' && (item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE) && (item.game_key !== 'sprint100' || validSprintScore(Number(item.score))) && (item.game_key !== 'hurdles100' || validHurdleScore(Number(item.score))) && (item.game_key !== 'longjump' || validJumpScore(Number(item.score))) && (item.game_key !== 'balance' || validBalanceScore(Number(item.score))) && (item.game_key !== 'bottleflip' || validBottleScore(Number(item.score))) && validWinterScore(item.game_key, item.score))
@@ -238,7 +241,7 @@ export default async function handler(request, response) {
         const score = Number(request.body?.score)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att spara highscore.' })
         if (!Number.isInteger(score) || score < 0 || score > 100000) return sendJson(response, 400, { error: 'Ogiltig spelpoäng.' })
-        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'bottleflip', 'snowrider', 'skijump'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'bottleflip', 'snowrider', 'skijump', 'downhill'].includes(request.body?.gameKey) ? request.body.gameKey : gameKey
         if (key === 'swimgames' && score > SWIMGAMES_MAX_SCORE) return sendJson(response, 400, { error: 'Tiden är för snabb för att vara giltig.' })
         if (key === 'sprint100' && !validSprintScore(score)) return sendJson(response, 400, { error: 'Ogiltig sprinttid.' })
         if (key === 'hurdles100' && !validHurdleScore(score)) return sendJson(response, 400, { error: 'Ogiltig häcklöpningstid.' })
@@ -247,18 +250,18 @@ export default async function handler(request, response) {
         if (key === 'balance' && !validBalanceScore(score)) return sendJson(response, 400, { error: 'Ogiltig balanspoäng.' })
         if (key === 'bottleflip' && !validBottleScore(score)) return sendJson(response, 400, { error: 'Ogiltig Bottle Flip-poäng.' })
         if (key === 'snowrider' && !validSnowScore(score)) return sendJson(response, 400, { error: 'Ogiltig Snow Rider-poäng.' })
-        if (key === 'skijump') {
-          if (!validSkiJumpScore(score)) return sendJson(response, 400, { error: 'Ogiltig poäng för backhoppning.' })
+        if (key === 'skijump' || key === 'downhill') {
+          if (!validWinterScore(key, score)) return sendJson(response, 400, { error: key === 'downhill' ? 'Ogiltig störtloppstid.' : 'Ogiltig poäng för backhoppning.' })
           const week = weekStart()
           const insert = await supabaseRequest('game_scores?on_conflict=profile_id,game_key,week_start', {
             method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
             body: JSON.stringify({ profile_id: profile.id, game_key: key, week_start: week, score }),
           })
-          if (!insert.ok) throw new Error('Ski jump record insert failed')
+          if (!insert.ok) throw new Error('Winter race record insert failed')
           const update = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&score=lt.${score}`, {
             method: 'PATCH', body: JSON.stringify({ score, created_at: new Date().toISOString() }),
           })
-          if (!update.ok) throw new Error('Ski jump record update failed')
+          if (!update.ok) throw new Error('Winter race record update failed')
           return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, key))
         }
         const week = weekStart()
@@ -287,7 +290,7 @@ export default async function handler(request, response) {
       if (role === 'swimmer' && action === 'reset-game-score') {
         const profile = await getSessionProfile(request)
         if (!profile) return sendJson(response, 403, { error: 'Logga in på din profil för att nollställa tiden.' })
-        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'bottleflip', 'snowrider', 'skijump'].includes(request.body?.gameKey) ? request.body.gameKey : null
+        const key = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'bottleflip', 'snowrider', 'skijump', 'downhill'].includes(request.body?.gameKey) ? request.body.gameKey : null
         if (!key) return sendJson(response, 400, { error: 'Ogiltigt spel.' })
         const deleted = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}`, { method: 'DELETE' })
         if (!deleted.ok) throw new Error(`Game score reset failed: ${deleted.status}`)
@@ -410,7 +413,7 @@ export default async function handler(request, response) {
       if (!await requireBetaProfile(profileId)) return sendJson(response, 404, { error: 'Ingen aktiv, godkänd simmare hittades.' })
       return sendJson(response, 200, { catalog: GAME_CATALOG, ...await loadGameBeta(profileId, GAME_CATALOG) })
     }
-    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'bottleflip', 'snowrider', 'skijump', 'alltime'].includes(request.query?.game) ? request.query.game : null
+    const requestedGame = ['simpaus', 'vanda', 'swimgames', 'aljakten', 'breakout', 'bikerun', 'twenty48', 'sprint100', 'longjump', 'hurdles100', 'rally', 'dino', 'balance', 'bottleflip', 'snowrider', 'skijump', 'downhill', 'alltime'].includes(request.query?.game) ? request.query.game : null
     if (request.query?.games === 'true') {
       const schedule = await loadGameSchedule()
       if (role === 'coach') return sendJson(response, 200, { catalog: GAME_CATALOG, schedule })

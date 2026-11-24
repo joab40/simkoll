@@ -1,3 +1,5 @@
+import { winterSteer } from './winter-steering.js'
+
 // Distances are game metres. Rendering and collision use the same course profile.
 export const SNOW_SECONDS = 240
 export const SNOW_STEP = 1 / 120
@@ -140,7 +142,7 @@ export function advanceSnow(game, delta, steer = 0) {
     game.elapsed = Math.min(SNOW_SECONDS, game.elapsed + step)
     game.speed = Math.min(SNOW_MAX_SPEED, START_SPEED + game.elapsed * ACCELERATION)
     game.distance += game.speed * step
-    game.vx += (direction * 11 - game.vx) * Math.min(1, step * 13)
+    game.vx = winterSteer(game.vx, direction, step)
     game.x = Math.max(-SNOW_STEERING_LIMIT, Math.min(SNOW_STEERING_LIMIT, game.x + game.vx * step))
     if (game.y > 0 || game.vy > 0) {
       game.vy -= 23 * step

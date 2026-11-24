@@ -1,0 +1,63 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { advanceDownhill, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, validDownhillScore } from '../src/downhill-engine.js'
+
+function launch(start) {
+  const race = createDownhillRace()
+  downhillStartAction(race)
+  if (start === 'early') downhillStartAction(race)
+  for (let frame = 0; frame < DOWNHILL_GREEN_AT * 120 + 2; frame++) advanceDownhill(race, 1 / 120)
+  if (start === 'perfect') downhillStartAction(race)
+  return race
+}
+
+function finish(race, steer) {
+  let landedBoost = false
+  for (let frame = 0; race.phase !== 'finished' && frame < 6000; frame++) {
+    const gate = DOWNHILL_GATES[race.gateIndex]
+    advanceDownhill(race, 1 / 120, steer(race, gate))
+    landedBoost ||= race.feedback?.tone === 'boost'
+  }
+  assert.equal(race.phase, 'finished')
+  return { ...race.result, landedBoost }
+}
+
+test('the start clock rewards reaction at green and penalizes an early press', () => {
+  const good = launch('perfect'), early = launch('early'), automatic = launch('automatic')
+  assert.equal(good.launch, 'perfect')
+  assert.equal(early.launch, 'early')
+  assert.equal(early.penalty, .8)
+  assert(good.speed > early.speed)
+  for (let i = 0; i < 120; i++) advanceDownhill(automatic, 1 / 120)
+  assert.equal(automatic.launch, 'normal')
+  assert.equal(automatic.penalty, 0)
+})
+
+test('a clean line accelerates and finishes inside the target time', () => {
+  const normal = launch('perfect')
+  const clean = finish(normal, (race, gate) => gate ? (gate.x - race.x) * .55 - race.vx * .06 : 0)
+  const missed = finish(launch('perfect'), () => 0)
+  const snow = finish(launch('perfect'), () => 1)
+  assert.equal(clean.gates, DOWNHILL_GATES.length)
+  assert.equal(clean.penaltyMs, 0)
+  assert.equal(clean.landedBoost, true)
+  assert.equal(normal.track, DOWNHILL_LENGTH)
+  assert(clean.raceMs >= 30000 && clean.raceMs <= 40000)
+  assert(clean.timeMs < missed.timeMs)
+  assert(clean.raceMs < snow.raceMs)
+  assert.equal(missed.penaltyMs, (DOWNHILL_GATES.length - missed.gates) * 1250)
+  assert(validDownhillScore(DOWNHILL_SCORE_BASE - clean.timeMs))
+  assert.equal(downhillTime(35678, 3), '0:35,678')
+})
+
+test('race time and steering are stable across render frame rates', () => {
+  function simulate(fps) {
+    const race = launch('perfect')
+    for (let i = 0; i < 8 * fps; i++) advanceDownhill(race, 1 / fps, -.14)
+    return race
+  }
+  const slow = simulate(30), smooth = simulate(120)
+  assert(Math.abs(slow.track - smooth.track) < .01)
+  assert(Math.abs(slow.x - smooth.x) < .01)
+  assert.equal(slow.penalty, smooth.penalty)
+})

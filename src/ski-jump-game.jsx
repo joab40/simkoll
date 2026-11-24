@@ -2,18 +2,21 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { enterBalanceFullscreen, exitBalanceFullscreen } from './balance-fullscreen.js'
 import SkiJumpScene from './ski-jump-scene.jsx'
-import { advanceSkiJump, createSkiJump, formatSkiJumpScore, SKI_BALANCE_ZONE, SKI_CROSSWINDS, SKI_K_POINT, SKI_LIP, SKI_WIND, skiAction, skiTiming } from './ski-jump-engine.js'
+import { advanceSkiJump, createSkiJump, formatSkiJumpScore, SKI_ANGLE_MAX, SKI_ANGLE_MIN, SKI_ANGLE_ZONE, SKI_BALANCE_ZONE, SKI_CROSSWINDS, SKI_K_POINT, SKI_LIP, SKI_WIND, skiAction, skiPushAngle, skiTiming } from './ski-jump-engine.js'
 import './ski-jump-game.css'
 
 const isRunning = phase => ['approach', 'air', 'runout'].includes(phase)
 const snapshot = game => ({
   phase: game.phase, wind: game.wind, crosswind: game.phase === 'air' ? game.gust : game.crosswind,
-  speed: Math.round(game.speed * 3.6),
+  speed: Math.round(game.speed * 3.6), elapsed: game.elapsed, launch: game.launch,
   distance: Math.max(0, Math.round(game.distance - SKI_LIP)), landing: game.landing, result: game.result,
 })
 const windLabel = wind => `${wind < 0 ? '←' : wind > 0 ? '→' : '·'} ${Math.abs(wind).toLocaleString('sv-SE', { maximumFractionDigits: 1 })}`
 const pick = options => options[Math.floor(Math.random() * options.length)]
 const steeringKeys = { ArrowLeft: -1, ArrowRight: 1, KeyA: -1, KeyD: 1 }
+const keyOf = event => event.code && event.code !== 'Unidentified' ? event.code : event.key === ' ' ? 'Space' : event.key
+const anglePosition = angle => (angle - SKI_ANGLE_MIN) / (SKI_ANGLE_MAX - SKI_ANGLE_MIN)
+const angleZone = SKI_ANGLE_ZONE.map(anglePosition)
 const distanceLabel = distance => distance.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
 function updateGauge(element, { position, zone }) {
@@ -32,7 +35,8 @@ class GraphicsBoundary extends React.Component {
 
 export default function SkiJumpGame({ code, onBack, preview = false, request }) {
   const model = useRef(createSkiJump(0, 2))
-  const meter = useRef(null), balance = useRef(null), input = useRef(new Map())
+  const meter = useRef(null), balance = useRef(null), angleMeter = useRef(null), input = useRef(new Map())
+  const push = useRef(null), keyboard = useRef(null)
   const shell = useRef(null), actionButton = useRef(null), fullscreenButton = useRef(null)
   const fullscreenBusy = useRef(false)
   const [fullscreen, setFullscreen] = useState(null)
@@ -47,6 +51,7 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
 
   const failGraphics = useCallback(() => {
     input.current.clear()
+    push.current = null
     setGraphics(current => ({ ...current, failed: true }))
     if (isRunning(model.current.phase)) setPaused(true)
   }, [])
@@ -101,6 +106,7 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
 
   const pause = useCallback(() => {
     input.current.clear()
+    push.current = null
     if (isRunning(model.current.phase)) setPaused(true)
   }, [])
 
@@ -188,6 +194,11 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
       }
       advanceSkiJump(game, Math.min(delta, .075), Number(right) - Number(left))
       if (game.phase !== 'air' && phase === 'air') input.current.clear()
+      if (game.phase !== 'approach') push.current = null
+      if (game.phase === 'approach' && angleMeter.current) {
+        const angle = skiPushAngle(push.current ? Math.max(0, game.elapsed - push.current.at) : 0)
+        updateGauge(angleMeter.current, { position: anglePosition(angle), zone: angleZone })
+      }
       if (balance.current) {
         balance.current.style.setProperty('--cursor', `${50 + game.bank * 50}%`)
         balance.current.classList.toggle('in-zone', Math.abs(game.bank) <= SKI_BALANCE_ZONE)
@@ -207,7 +218,7 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
     return () => cancelAnimationFrame(frame)
   }, [pause, publish, running])
 
-  const act = () => {
+  const act = (heldSeconds = 0) => {
     if (!graphics.ready || graphics.failed || saveLock.current) return
     if (paused) {
       setPaused(false)
@@ -227,8 +238,23 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
       }
       actionButton.current?.focus({ preventScroll: true })
     }
-    skiAction(model.current)
+    skiAction(model.current, heldSeconds)
     publish()
+  }
+
+  const beginPush = token => {
+    if (!push.current) push.current = { token, at: model.current.elapsed }
+  }
+
+  const endPush = token => {
+    if (push.current?.token !== token) return
+    const heldSeconds = model.current.elapsed - push.current.at
+    push.current = null
+    if (model.current.phase === 'approach') act(heldSeconds)
+  }
+
+  const abortPush = token => {
+    if (push.current?.token === token) push.current = null
   }
 
   const onKeyDown = event => {
@@ -244,28 +270,65 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
       }
       return
     }
-    if (event.code === 'KeyP' && !event.repeat && isRunning(model.current.phase)) {
+    const key = keyOf(event)
+    if (key === 'KeyP' && !event.repeat && isRunning(model.current.phase)) {
       event.preventDefault()
       if (paused) act()
       else pause()
       return
     }
-    const steer = Object.hasOwn(steeringKeys, event.code) && steeringKeys[event.code]
+    const steer = Object.hasOwn(steeringKeys, key) && steeringKeys[key]
     if (steer && running && model.current.phase === 'air') {
       event.preventDefault()
-      if (!event.repeat) input.current.set(event.code, steer)
+      if (!event.repeat) input.current.set(key, steer)
       return
     }
-    if (event.code !== 'Space' || (event.target !== actionButton.current && event.target !== shell.current)) return
+    const phase = model.current.phase
+    const space = key === 'Space' && (
+      event.target === actionButton.current || event.target === shell.current || event.target === document.body
+    )
+    const arrow = key === 'ArrowUp' || (key === 'ArrowDown' && phase === 'air')
+    if (!space && !arrow) return
     event.preventDefault()
-    if (!event.repeat) act()
+    if (event.repeat) return
+    if (phase === 'approach' && running) beginPush(key)
+    else act()
   }
+
+  const onKeyUp = event => {
+    const key = keyOf(event)
+    input.current.delete(key)
+    endPush(key)
+  }
+  keyboard.current = { onKeyDown, onKeyUp }
+  useEffect(() => {
+    const down = event => {
+      if (event.target === document.body) keyboard.current.onKeyDown(event)
+    }
+    const up = event => keyboard.current.onKeyUp(event)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [])
 
   const releasePointer = event => { input.current.delete(`pointer-${event.pointerId}`) }
   const result = view.phase === 'finished' ? view.result : null
   const ready = view.phase === 'ready'
   const timing = skiTiming(model.current)
   const steering = running && view.phase === 'air'
+  const inrun = view.phase === 'approach'
+  const angle = Math.round(skiPushAngle(push.current ? Math.max(0, view.elapsed - push.current.at) : 0))
+  const takeoffStatus = view.launch && view.elapsed < 1.35 && view.phase === 'air'
+    ? view.launch.timing < .8 ? (view.launch.progress < .95 ? 'Tidigt upphopp' : 'Sent upphopp') : view.launch.angle < SKI_ANGLE_ZONE[0] ? 'Flack vinkel'
+      : view.launch.angle > SKI_ANGLE_ZONE[1] ? 'Brant vinkel' : 'Rent upphopp'
+    : ''
+  const inTimingZone = timing && timing.position >= timing.zone[0] && timing.position <= timing.zone[1]
+  const cue = inrun ? inTimingZone
+    ? push.current ? (angle < SKI_ANGLE_ZONE[0] && timing.position < .95 ? 'Håll lite till' : 'Släpp nu') : 'Tryck för att hoppa'
+    : 'Håll för att ladda vinkeln' : inTimingZone ? 'Landa nu' : 'Vänta på grönt'
   const actionLocked = !running || !graphics.ready || view.phase === 'runout' || Boolean(view.landing)
   const overlayActionLocked = !graphics.ready || saveStatus === 'saving'
   const showOverlay = graphics.failed || paused || result || ready
@@ -288,9 +351,14 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
     </header>
     <div className="ski-layout">
       <div ref={shell} className={`ski-console${fullscreen ? ` ski-fullscreen ${fullscreen}` : ''}`}
-        tabIndex={0} onKeyDown={onKeyDown} onKeyUp={event => input.current.delete(event.code)}
-        onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) input.current.clear() }}
-        aria-label="Backhoppning. Vänster och höger balanserar. Mellanslag hoppar och landar. P pausar.">
+        tabIndex={0} onKeyDown={onKeyDown}
+        onBlur={event => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            input.current.clear()
+            push.current = null
+          }
+        }}
+        aria-label="Backhoppning. Håll och släpp pil upp eller mellanslag för upphopp. Pil ner eller mellanslag landar. Vänster och höger balanserar.">
         <div className="ski-toolbar">
           <strong>SIMKOLL <span>FROSTFJÄLL</span></strong>
           <div>
@@ -334,7 +402,10 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
                 <p className="ski-kicker">{result.distance >= SKI_K_POINT && result.score ? 'Förbi K-linjen' : 'Ditt hopp'}</p>
                 <h2 className="ski-finish">{distanceLabel(result.distance)} <small>m</small></h2>
                 {result.score > 0 && <strong className="ski-finish-points">{formatSkiJumpScore(result.score)} p <span>· Stil {result.style}/100</span></strong>}
-                <p role="status">{result.reason}</p>
+                {result.landingLabel && <p className="ski-landing-result"><strong>{result.landingLabel}</strong>
+                  <span>Upphopp {result.takeoff}/100 · Vinkel {result.angle}° · Landning {result.landingQuality}/100</span>
+                </p>}
+                {result.score === 0 && <p role="status">{result.reason}</p>}
                 <button type="button" className="ski-primary" disabled={overlayActionLocked} onClick={act}>Hoppa igen</button>
                 {saveStatus && <small className="ski-save-status" role="status">{{
                   saving: 'Sparar hoppet…', failed: 'Hoppet kunde inte sparas.', saved: 'Hoppet är sparat ✓',
@@ -343,7 +414,7 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
               </> : <>
                 <p className="ski-kicker">Frostfjäll · K{SKI_K_POINT}</p>
                 <h2>Sikta mot <em>K-linjen.</em></h2>
-                <p>Tajma upphoppet, balansera i sidvinden och sätt landningen.</p>
+                <p>Håll för att ladda vinkeln och släpp i grönt. Balansera i luften och tryck i grönt för att landa.</p>
                 <button type="button" className="ski-primary" disabled={overlayActionLocked} onClick={act}>
                   {graphics.ready ? 'Starta hoppet ↗' : 'Laddar backen…'}
                 </button>
@@ -351,15 +422,27 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
             </div>
           </div>}
 
+          {!showOverlay && takeoffStatus && <div className="ski-coach-cue" data-good={takeoffStatus === 'Rent upphopp'}>
+            {takeoffStatus} · {Math.round(view.launch.angle)}°
+          </div>}
+          {!showOverlay && view.phase === 'runout' && view.result?.landingLabel && <div className="ski-coach-cue" data-good={Boolean(view.result.score)}>
+            {view.result.landingLabel}
+          </div>}
           {!showOverlay && (timing || steering) && <div className="ski-gauges">
             {steering && <div className="ski-gauge">
-              <strong>Balans</strong>
+              <strong>Balans <small>Håll mitten</small></strong>
               <div className="ski-gauge-track ski-balance-track" ref={balance} aria-hidden="true" style={{
                 '--zone-start': `${50 - SKI_BALANCE_ZONE * 50}%`, '--zone-width': `${SKI_BALANCE_ZONE * 100}%`,
               }}><span /></div>
             </div>}
-            {timing && <div className="ski-gauge">
-              <strong>{view.phase === 'approach' ? 'Upphopp' : 'Landning'}</strong>
+            {inrun && <div className="ski-gauge">
+              <strong>Vinkel <small>{angle}°</small></strong>
+              <div className="ski-gauge-track ski-angle-track" ref={angleMeter} aria-hidden="true" style={{
+                '--zone-start': `${angleZone[0] * 100}%`, '--zone-width': `${(angleZone[1] - angleZone[0]) * 100}%`,
+              }}><span /></div>
+            </div>}
+            {timing && <div className="ski-gauge ski-precision">
+              <strong>{inrun ? 'Upphopp' : 'Landning'} <small data-good={Boolean(inTimingZone)}>{cue}</small></strong>
               <div className="ski-gauge-track ski-timing-track" ref={meter} aria-hidden="true"
                 style={{ '--zone-start': `${timing.zone[0] * 100}%`, '--zone-width': `${(timing.zone[1] - timing.zone[0]) * 100}%` }}>
                 <span />
@@ -369,9 +452,23 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
         </div>
         <div className="ski-controls" role="group" aria-label="Spelkontroller" onContextMenu={event => event.preventDefault()}>
           {steerButton(-1, 'Balansera åt vänster')}
-          <button ref={actionButton} type="button" className="ski-action" aria-disabled={actionLocked} tabIndex={actionLocked ? -1 : 0} onClick={() => { if (!actionLocked) act() }}>
+          <button ref={actionButton} type="button" className={`ski-action${inTimingZone && !paused ? ' ski-action-now' : ''}`}
+            aria-disabled={actionLocked} tabIndex={actionLocked ? -1 : 0}
+            onPointerDown={event => {
+              if (actionLocked || event.button !== 0) return
+              event.currentTarget.setPointerCapture(event.pointerId)
+              if (model.current.phase === 'approach') beginPush(`action-${event.pointerId}`)
+            }}
+            onPointerUp={event => {
+              if (actionLocked || event.button !== 0) return
+              if (model.current.phase === 'approach') endPush(`action-${event.pointerId}`)
+              else if (model.current.phase === 'air') act()
+            }}
+            onPointerCancel={event => abortPush(`action-${event.pointerId}`)}
+            onLostPointerCapture={event => abortPush(`action-${event.pointerId}`)}
+            onClick={event => { if (!actionLocked && event.detail === 0) act() }}>
             <span aria-hidden="true">{view.phase === 'air' ? '↓' : '↑'}</span>
-            {view.phase === 'air' ? 'Landa' : 'Hoppa'}
+            {view.phase === 'air' ? 'Landa' : 'Håll och släpp'}
           </button>
           {steerButton(1, 'Balansera åt höger')}
         </div>
@@ -383,11 +480,11 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
           <strong>{best ? formatSkiJumpScore(best) : '–'} <small>p</small></strong>
         </div>
         <ol className="ski-instructions">
-          <li><strong>Hoppa</strong> när markören går in i det gröna fältet vid kanten.</li>
+          <li><strong>Håll</strong> hoppknappen för att ladda vinkeln. <strong>Släpp</strong> när upphoppet och vinkeln är i grönt.</li>
           <li><strong>Balansera</strong> med korta vänster- och högertryck. Håll markören i mitten.</li>
           <li><strong>Landa</strong> i nästa gröna fält. Bra balans ger mer plats och högre stilpoäng.</li>
         </ol>
-        <p className="ski-keys"><kbd>←</kbd> <kbd>→</kbd> balansera · <kbd>Mellanslag</kbd> hoppa och landa</p>
+        <p className="ski-keys"><kbd>↑</kbd> eller <kbd>Mellanslag</kbd> för upphopp · <kbd>←</kbd> <kbd>→</kbd> balansera · <kbd>↓</kbd> eller <kbd>Mellanslag</kbd> för landning</p>
         {!preview && <div className="ski-ranking">
           <h2>Genom tiderna</h2>
           {boardError ? <><p>Topplistan kunde inte hämtas.</p><button type="button" className="text-button" onClick={() => loadBoard()}>Försök igen</button></>

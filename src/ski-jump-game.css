@@ -280,3 +280,33 @@
   .ski-fullscreen .ski-controls button { min-height: 46px; }
 }
 @media (pointer: coarse) { .ski-keys { display: none; } }
+
+.ski-gauge strong { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 6px; }
+.ski-gauge strong small { color: #c7dee5; font-size: .67rem; font-weight: 650; }
+.ski-gauge strong small[data-good="true"] { color: #d2f6a3; }
+.ski-controls .ski-action-now { outline: 2px solid #d9fca4; outline-offset: 2px; }
+.ski-coach-cue {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 13px;
+  border-radius: 99px;
+  background: #153c4bee;
+  color: #e8fafa;
+  font-size: .78rem;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ski-coach-cue[data-good="true"] { background: #d4f3a4; color: #204439; }
+.ski-landing-result strong, .ski-landing-result span { display: block; }
+.ski-landing-result strong { color: #195b62; }
+.ski-landing-result span { margin-top: 3px; }
+@media (max-width: 540px) {
+  .ski-controls .ski-action { flex-wrap: wrap; column-gap: 5px; font-size: .82rem; }
+  .ski-gauge strong { display: grid; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .ski-fullscreen .ski-coach-cue { top: 59px; }
+}

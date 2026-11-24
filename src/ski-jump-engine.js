@@ -1,13 +1,19 @@
 export const SKI_LIP = 78
 export const SKI_K_POINT = 105
-export const SKI_APPROACH_TIME = 3.35
-export const SKI_LANDING_LEAD = .9
+export const SKI_APPROACH_TIME = 4.35
+export const SKI_LANDING_LEAD = 1.65
 export const SKI_MAX_SCORE = 1500
 export const SKI_WIND = [-2, -1, 0, 1, 2]
 export const SKI_CROSSWINDS = [-3, -2, 2, 3]
 export const SKI_BALANCE_ZONE = .23
-export const SKI_TAKEOFF_ZONE = [.86, 1]
-export const SKI_LANDING_ZONE = [.48, .95]
+export const SKI_TAKEOFF_ZONE = [.78, 1]
+export const SKI_LANDING_ZONE = [.45, .95]
+export const SKI_ANGLE_MIN = 10
+export const SKI_ANGLE_MAX = 26
+export const SKI_ANGLE_ZONE = [15, 21]
+const pushDuration = .85
+const idealAngle = 18
+const idealHold = (idealAngle - SKI_ANGLE_MIN) / (SKI_ANGLE_MAX - SKI_ANGLE_MIN) * pushDuration
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value))
 const gravity = 10.8
@@ -66,7 +72,7 @@ export function skiTiming(game) {
   if (game.phase === 'approach') return { position: clamp(game.elapsed / SKI_APPROACH_TIME), zone: SKI_TAKEOFF_ZONE }
   if (game.phase === 'air' && !game.landing) {
     const touchdown = findTouchdown(game.launch, game.elapsed, game.distance, game.speed)
-    const shrink = Math.abs(game.bank) * .145
+    const shrink = Math.abs(game.bank) * .11
     return {
       position: clamp(1 - (touchdown - game.elapsed) / SKI_LANDING_LEAD),
       zone: [SKI_LANDING_ZONE[0] + shrink, SKI_LANDING_ZONE[1] - shrink],
@@ -75,7 +81,11 @@ export function skiTiming(game) {
   return null
 }
 
-export function skiAction(game) {
+export function skiPushAngle(seconds) {
+  return SKI_ANGLE_MIN + (SKI_ANGLE_MAX - SKI_ANGLE_MIN) * clamp(seconds / pushDuration)
+}
+
+export function skiAction(game, hold = idealHold) {
   if (game.phase === 'ready') {
     game.phase = 'approach'
     return
@@ -87,13 +97,15 @@ export function skiAction(game) {
       game.phase = 'finished'
       return
     }
-    const timing = clamp(1 - Math.abs(progress - .975) / .22)
+    const timing = clamp(1 - Math.abs(progress - .95) / .24)
+    const angle = skiPushAngle(Number.isFinite(hold) ? hold : 0)
+    const angleQuality = clamp(1 - Math.abs(angle - idealAngle) / 14)
     const launch = {
       distance: game.distance,
       height: game.height,
-      speed: 25.5 + timing * 6 + game.wind * .65,
-      lift: -.8 + timing * 3.2,
-      timing,
+      speed: 25.5 + timing * 6 + game.wind * .65 - (1 - angleQuality) * 3.8,
+      lift: -.8 + timing * 3.2 - (1 - angleQuality) * 2.1,
+      timing, angle, angleQuality, progress,
     }
     game.phase = 'air'
     game.elapsed = 0
@@ -177,13 +189,18 @@ function advanceFlight(game, step, steer) {
 
   const jumpDistance = Math.round(10 * (game.distance - SKI_LIP)) / 10
   const stability = clamp(1 - game.instability / contact)
+  const takeoff = Math.round(100 * launch.timing)
+  const landingQuality = landing?.quality ? Math.round(100 * landing.quality * (.68 + .32 * stability)) : 0
   const style = landing?.quality
-    ? Math.round(100 * (.35 * launch.timing + .65 * landing.quality) * (.68 + .32 * stability)) : 0
+    ? Math.round(100 * (.28 * launch.timing + .07 * launch.angleQuality + .65 * landing.quality) * (.68 + .32 * stability)) : 0
   const score = landing?.quality ? Math.round(10 * (.9 * jumpDistance + .36 * style)) : 0
+  const landingLabel = landing?.quality
+    ? landingQuality >= 90 ? 'Telemark' : 'Godkänd landning'
+    : landing?.early ? 'För tidig landning' : 'För sen landning'
   const reason = landing?.quality
-    ? style >= 90 ? 'Snyggt! Du satte en telemarklandning.' : 'Stabilt! Korta styrtryck kan ge dig mer längd och stil.'
-    : landing?.early ? 'Landningen kom för tidigt. Vänta på det gröna fältet.' : 'Landningen kom för sent. Tryck innan skidorna når snön.'
-  game.result = { distance: jumpDistance, style, score, reason }
+    ? 'Längd, upphopp och landning räknas in i poängen.'
+    : landing?.early ? 'Vänta tills markören kommer in i det gröna fältet.' : 'Tryck i grönt innan skidorna når snön.'
+  game.result = { distance: jumpDistance, style, score, reason, angle: Math.round(launch.angle), takeoff, landingQuality, landingLabel }
   game.height = skiHillHeight(game.distance)
   game.phase = 'runout'
   game.elapsed = 0
