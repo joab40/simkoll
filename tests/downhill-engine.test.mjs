@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { advanceDownhill, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, validDownhillScore } from '../src/downhill-engine.js'
+import { advanceDownhill, canExtendDownhillJump, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, validDownhillScore } from '../src/downhill-engine.js'
 
 function launch(start) {
   const race = createDownhillRace()
@@ -13,7 +13,7 @@ function launch(start) {
 
 function finish(race, steer, tuck = false) {
   let landedBoost = false
-  for (let frame = 0; race.phase !== 'finished' && frame < 6000; frame++) {
+  for (let frame = 0; race.phase !== 'finished' && frame < 10800; frame++) {
     const gate = DOWNHILL_GATES[race.gateIndex]
     advanceDownhill(race, 1 / 120, steer(race, gate), tuck)
     landedBoost ||= race.feedback?.tone === 'boost'
@@ -35,7 +35,7 @@ test('the start clock rewards reaction at green and penalizes an early press', (
 
 test('a clean line accelerates and finishes inside the target time', () => {
   const normal = launch('perfect')
-  const clean = finish(normal, (race, gate) => gate ? (gate.x - race.x) * .55 - race.vx * .06 : 0)
+  const clean = finish(normal, (race, gate) => gate ? (gate.x - race.x) * .55 - race.vx * .06 : 0, true)
   const missed = finish(launch('perfect'), () => 0)
   const snow = finish(launch('perfect'), () => 1)
   assert.equal(clean.gates, DOWNHILL_GATES.length)
@@ -71,8 +71,8 @@ test('the wider gate accepts a line near the post and still penalizes a miss', (
     advanceDownhill(race, 1 / 120)
     return race
   }
-  assert.equal(cross(2.4).cleared, 1)
-  assert.equal(cross(2.8).penalty, 1.25)
+  assert.equal(cross(4.65).cleared, 1)
+  assert.equal(cross(5).penalty, 1.25)
 })
 
 test('tucking saves time and releasing lets the skier slow gradually', () => {
@@ -88,4 +88,31 @@ test('tucking saves time and releasing lets the skier slow gradually', () => {
   for (let frame = 0; frame < 30; frame++) advanceDownhill(race, 1 / 120)
   assert(race.tuck > 0 && race.tuck < .2)
   assert(race.speed < speedBeforeRelease && race.speed > speedBeforeRelease * .95)
+})
+
+test('holding into the crest and releasing in the air lengthens the jump and adds speed once', () => {
+  const race = launch('perfect')
+  while (!race.jump && race.track < 400) advanceDownhill(race, 1 / 120, 0, true)
+  assert(canExtendDownhillJump(race.jump))
+  const takeoff = race.track
+  for (let frame = 0; frame < 16; frame++) advanceDownhill(race, 1 / 120, 0, true)
+  const held = structuredClone(race)
+  const late = structuredClone(race)
+  advanceDownhill(race, 1 / 120, 0, false)
+  advanceDownhill(held, 1 / 120, 0, true)
+  assert(race.jump.extended && !canExtendDownhillJump(race.jump))
+  assert(race.speed > held.speed)
+  const boostEnd = race.jumpBoostUntil
+  for (let frame = 0; frame < 25; frame++) {
+    advanceDownhill(race, 1 / 120, 0, frame < 14)
+    advanceDownhill(late, 1 / 120, 0, true)
+  }
+  assert.equal(race.jumpBoostUntil, boostEnd)
+  advanceDownhill(late, 1 / 120, 0, false)
+  assert.equal(late.jump.extended, false)
+  for (const [attempt, tucked] of [[race, false], [held, true]]) {
+    for (let frame = 0; attempt.jump && frame < 240; frame++) advanceDownhill(attempt, 1 / 120, 0, tucked)
+    assert.equal(attempt.jump, null)
+  }
+  assert(race.track - takeoff > (held.track - takeoff) * 1.3)
 })

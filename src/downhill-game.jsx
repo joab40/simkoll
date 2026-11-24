@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { enterBalanceFullscreen, exitBalanceFullscreen } from './balance-fullscreen.js'
-import { advanceDownhill, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, DOWNHILL_SECTORS, validDownhillScore } from './downhill-engine.js'
+import { advanceDownhill, canExtendDownhillJump, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_COURSE, DOWNHILL_CRESTS, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, DOWNHILL_SECTORS, validDownhillScore } from './downhill-engine.js'
 import DownhillScene from './downhill-scene.jsx'
 import './ski-jump-game.css'
 import './downhill-game.css'
@@ -14,8 +14,15 @@ function snapshot(race) {
     phase: race.phase, countdown: race.countdown, early: race.early, track: race.track,
     speed: Math.round(race.speed * 3.6), tucked: race.tuck >= .5, cleared: race.cleared, gateIndex: race.gateIndex,
     elapsed: race.elapsed, penalty: race.penalty, launch: race.launch, result: race.result,
+    crestIndex: race.crestIndex, jumpWindow: canExtendDownhillJump(race.jump),
     feedback: race.feedback && race.elapsed - race.feedback.at < 1.25 ? race.feedback : null,
   }
+}
+
+function DownhillRanks({ rows }) {
+  return rows.length ? <ol>{rows.map(row => <li key={row.profileId}>
+    <span>{row.rank}</span><span>{row.emoji} {row.displayName}</span><strong>{downhillTime(DOWNHILL_SCORE_BASE - row.score, 3)}</strong>
+  </li>)}</ol> : <p>Inga tider ännu.</p>
 }
 
 class DownhillGraphicsBoundary extends React.Component {
@@ -35,12 +42,18 @@ export default function DownhillGame({ code, onBack, preview = false, request })
   const [graphics, setGraphics] = useState({ ready: false, error: false, key: 0 })
   const [effects, setEffects] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const [board, setBoard] = useState(null), [boardError, setBoardError] = useState(false)
+  const [previousBoard, setPreviousBoard] = useState(null)
   const [best, setBest] = useState(0), [saveStatus, setSaveStatus] = useState('')
 
-  const pause = useCallback(() => {
+  const clearInput = useCallback(() => {
     input.current.clear()
-    if (inRace(model.current.phase)) setPaused(true)
+    model.current.tucking = false
+    model.current.releasedAt = -Infinity
   }, [])
+  const pause = useCallback(() => {
+    clearInput()
+    if (inRace(model.current.phase)) setPaused(true)
+  }, [clearInput])
   const graphicsLost = useCallback(() => {
     pause()
     setGraphics(current => ({ ...current, error: true }))
@@ -51,7 +64,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     const revision = ++boardRevision.current
     setBoardError(false)
     try {
-      const data = await request('/api/points?game=downhill&lifetime=true', code, { retry: false, signal })
+      const data = await request(`/api/points?game=downhill&lifetime=true&course=${DOWNHILL_COURSE}`, code, { retry: false, signal })
       if (mounted.current && !signal?.aborted && revision === boardRevision.current) {
         setBoard(data.leaderboard || [])
         setBest(value => Math.max(value, data.ownBest || 0))
@@ -60,6 +73,16 @@ export default function DownhillGame({ code, onBack, preview = false, request })
       if (mounted.current && !signal?.aborted && revision === boardRevision.current) setBoardError(true)
     }
   }, [code, preview, request])
+
+  async function loadPreviousBoard() {
+    setPreviousBoard('loading')
+    try {
+      const data = await request('/api/points?game=downhill&lifetime=true', code, { retry: false })
+      if (mounted.current) setPreviousBoard(data.leaderboard || [])
+    } catch {
+      if (mounted.current) setPreviousBoard('failed')
+    }
+  }
 
   useEffect(() => {
     mounted.current = true
@@ -79,7 +102,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     try {
       const data = await request('/api/points', code, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, retry: false,
-        body: JSON.stringify({ action: 'submit-game-score', gameKey: 'downhill', score }),
+        body: JSON.stringify({ action: 'submit-game-score', gameKey: 'downhill', course: DOWNHILL_COURSE, score }),
       })
       if (mounted.current) {
         setBoard(data.leaderboard || [])
@@ -254,6 +277,8 @@ export default function DownhillGame({ code, onBack, preview = false, request })
   const countdown = view.phase === 'countdown'
   const green = countdown && view.countdown >= DOWNHILL_GREEN_AT
   const nextGate = DOWNHILL_GATES[view.gateIndex]
+  const crestAhead = DOWNHILL_CRESTS[view.crestIndex] - view.track <= 42
+  const jumpCue = view.jumpWindow ? 'Släpp nu!' : crestAhead ? (view.tucked ? 'Krön · håll kvar' : 'Krön · huka dig') : ''
   const sector = DOWNHILL_SECTORS.findLastIndex(item => view.track >= item.start)
   const feedback = view.feedback ?? (view.elapsed < 1.5 && {
     perfect: { text: 'Perfekt start', tone: 'boost' },
@@ -267,7 +292,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     <div className="ski-layout">
       <div ref={shell} tabIndex={0} className={`ski-console${fullscreen ? ` ski-fullscreen ${fullscreen}` : ''}`}
         onKeyDown={onKeyDown} onKeyUp={event => input.current.delete(event.code)}
-        onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) input.current.clear() }}
+        onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) clearInput() }}
         aria-label="Störtlopp. Vänster och höger styr. Pil upp startar och hålls inne för att huka. P pausar.">
         <div className="ski-toolbar"><strong>SIMKOLL <span>FROSTFJÄLL</span></strong><div>
           <button type="button" aria-pressed={effects} onClick={() => setEffects(current => !current)}>❄ Effekter</button>
@@ -297,7 +322,8 @@ export default function DownhillGame({ code, onBack, preview = false, request })
           </div>}
           {view.phase === 'racing' && !paused && <>
             {feedback && <div className={`downhill-feedback is-${feedback.tone}`}>{feedback.text}</div>}
-            {nextGate && <div className="downhill-next" aria-hidden="true"
+            {jumpCue ? <div className={`downhill-next downhill-crest${view.jumpWindow ? ' is-release' : ''}`}>{jumpCue}</div>
+            : nextGate && <div className="downhill-next" aria-hidden="true"
               style={{ '--gate-color': nextGate.color }}>
               {nextGate.x < 0 ? '←' : '→'} Port {nextGate.id}
             </div>}
@@ -327,7 +353,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
                 }[saveStatus]}</small>}
                 {saveStatus === 'failed' && <button type="button" className="ski-retry" onClick={() => save(result)}>Försök spara igen</button>}
               </> : <>
-                <p className="ski-kicker">1 480 meter · 18 portar</p>
+                <p className="ski-kicker">{DOWNHILL_LENGTH.toLocaleString('sv-SE')} meter · {DOWNHILL_GATES.length} portar</p>
                 <h2>Jaga <em>snabbaste tiden.</em></h2>
                 <p>Tajma starten och hitta en snabb linje genom portarna.</p>
                 <button type="button" className="ski-primary" disabled={startLocked} onClick={act}>{graphics.ready ? 'Till start ↗' : 'Laddar backen…'}</button>
@@ -337,7 +363,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
         </div>
         <div className="ski-controls downhill-controls" role="group" aria-label="Spelkontroller" onContextMenu={event => event.preventDefault()}>
           {steer(-1)}
-          <button type="button" ref={goButton} className={`ski-action${green ? ' downhill-go' : ''}`}
+          <button type="button" ref={goButton} className={`ski-action${green || (running && view.jumpWindow) ? ' downhill-go' : ''}`}
             aria-disabled={!running} tabIndex={running ? 0 : -1}
             aria-pressed={view.phase === 'racing' ? view.tucked : undefined}
             onPointerDown={event => {
@@ -362,6 +388,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
         <ol className="ski-instructions">
           <li>Tryck <strong>Kör</strong> när startljuset blir grönt.</li>
           <li>Håll inne <strong>↑</strong> eller <strong>Huka</strong> för att öka farten. Släpp för att resa dig och bromsa lätt.</li>
+          <li><strong>Huka före krönet</strong> och släpp när det står <strong>Släpp nu!</strong> för ett längre hopp och en kort fartboost.</li>
           <li>Sväng genom portarnas mitt för bättre glid. Tre rena portar i rad ger fartboost.</li>
           <li>Håll dig borta från lössnön i kanten. Varje missad port lägger till 1,25 s.</li>
         </ol>
@@ -369,9 +396,14 @@ export default function DownhillGame({ code, onBack, preview = false, request })
         {!preview && <div className="ski-ranking"><h2>Genom tiderna</h2>
           {boardError ? <><p>Topplistan kunde inte hämtas.</p><button type="button" className="text-button" onClick={() => loadBoard()}>Försök igen</button></>
             : board === null ? <p>Hämtar tider…</p>
-              : board.length ? <ol>{board.map(row => <li key={row.profileId}>
-                <span>{row.rank}</span><span>{row.emoji} {row.displayName}</span><strong>{downhillTime(DOWNHILL_SCORE_BASE - row.score, 3)}</strong>
-              </li>)}</ol> : <p>Inga tider ännu.</p>}
+              : <DownhillRanks rows={board} />}
+          <details className="downhill-previous" onToggle={event => {
+            if (event.currentTarget.open && previousBoard === null) void loadPreviousBoard()
+          }}>
+            <summary>Tider från den tidigare banan</summary>
+            {previousBoard === 'failed' ? <><p>Topplistan kunde inte hämtas.</p><button type="button" className="text-button" onClick={loadPreviousBoard}>Försök igen</button></>
+              : Array.isArray(previousBoard) ? <DownhillRanks rows={previousBoard} /> : <p>Hämtar tider…</p>}
+          </details>
         </div>}
       </aside>
     </div>

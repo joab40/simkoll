@@ -19,20 +19,23 @@ import { BALANCE_MAX_SCORE, validBalanceScore } from '../src/balance-engine.js'
 import { BOTTLE_MAX_SCORE, validBottleScore } from '../src/bottle-flip-engine.js'
 import { SNOW_MAX_SCORE, validSnowScore } from '../src/snow-rider-engine.js'
 import { SKI_MAX_SCORE, validSkiJumpScore } from '../src/ski-jump-engine.js'
-import { DOWNHILL_MAX_MS, DOWNHILL_MIN_MS, DOWNHILL_SCORE_BASE, downhillTime, validDownhillScore } from '../src/downhill-engine.js'
+import { DOWNHILL_COURSE, DOWNHILL_MAX_MS, DOWNHILL_MIN_MS, DOWNHILL_PREVIOUS_MIN_MS, DOWNHILL_SCORE_BASE, downhillTime, validDownhillScore } from '../src/downhill-engine.js'
 import { HURDLE_BASE, HURDLE_MIN_MS, HURDLE_MAX_MS, hurdleTime, validHurdleScore } from '../src/hurdles-engine.js'
 
 const stockholmDate = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
 const weekStart = (date = stockholmDate()) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7)); return value.toISOString().slice(0, 10) }
 const gameKey = 'simpaus'
 const gameSelect = 'score,profile_id,game_key,created_at,profiles(display_name,emoji)'
+const downhillCourseKey = `downhill-${DOWNHILL_COURSE}`
+const isDownhillScoreKey = key => key === 'downhill' || key === downhillCourseKey
+const downhillMinimumTime = key => key === 'downhill' ? DOWNHILL_PREVIOUS_MIN_MS : DOWNHILL_MIN_MS
 const SWIMGAMES_BASE = 100000
 // Keep only an anti-tampering floor. The game itself now measures the real
 // time from GO to the finish line instead of applying an artificial floor.
 const SWIMGAMES_MIN_TIME_MS = 3000
 const SWIMGAMES_MAX_SCORE = SWIMGAMES_BASE - SWIMGAMES_MIN_TIME_MS
 const formatSwimgamesTime = (score) => { const total = Math.max(0, SWIMGAMES_BASE - Number(score || 0)); const minutes = Math.floor(total / 60000); const seconds = Math.floor((total % 60000) / 1000); const millis = total % 1000; return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}` }
-const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : item.game_key === 'sprint100' ? sprintTime(SPRINT_BASE - item.score) : item.game_key === 'hurdles100' ? hurdleTime(HURDLE_BASE - item.score) : item.game_key === 'longjump' ? jumpMetres(item.score) : item.game_key === 'downhill' ? downhillTime(DOWNHILL_SCORE_BASE - item.score, 3) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
+const gameEntry = (item, index) => ({ rank: index + 1, score: item.score, displayTime: item.game_key === 'swimgames' ? formatSwimgamesTime(item.score) : item.game_key === 'sprint100' ? sprintTime(SPRINT_BASE - item.score) : item.game_key === 'hurdles100' ? hurdleTime(HURDLE_BASE - item.score) : item.game_key === 'longjump' ? jumpMetres(item.score) : isDownhillScoreKey(item.game_key) ? downhillTime(DOWNHILL_SCORE_BASE - item.score, 3) : null, profileId: item.profile_id, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' })
 const monthStart = (date = new Date()) => { const value = new Date(date); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01` }
 const TEAM_GAME_TARGET = 10
 const GAME_CATALOG = [
@@ -101,13 +104,13 @@ async function monthlyGameLeaderboard(profileId, key = gameKey) {
 const lifetimeScoreGames = new Set(['swimgames', 'sprint100', 'longjump', 'hurdles100', 'rally', 'bottleflip', 'snowrider', 'skijump', 'downhill'])
 
 function winterScoreFilter(key) {
-  if (key === 'downhill') return `&score=gte.${DOWNHILL_SCORE_BASE - DOWNHILL_MAX_MS}&score=lte.${DOWNHILL_SCORE_BASE - DOWNHILL_MIN_MS}`
+  if (isDownhillScoreKey(key)) return `&score=gte.${DOWNHILL_SCORE_BASE - DOWNHILL_MAX_MS}&score=lte.${DOWNHILL_SCORE_BASE - downhillMinimumTime(key)}`
   const max = key === 'skijump' ? SKI_MAX_SCORE : key === 'snowrider' ? SNOW_MAX_SCORE : 0
   return max ? `&score=gt.0&score=lte.${max}` : ''
 }
 
 const validWinterScore = (key, score) => key === 'skijump' ? validSkiJumpScore(Number(score))
-  : key === 'downhill' ? validDownhillScore(Number(score)) : key !== 'snowrider' || validSnowScore(Number(score))
+  : isDownhillScoreKey(key) ? validDownhillScore(Number(score), downhillMinimumTime(key)) : key !== 'snowrider' || validSnowScore(Number(score))
 
 async function lifetimeGameLeaderboard(profileId, key = gameKey) {
   const scoreFilter = key === 'bottleflip' ? `&score=gt.0&score=lte.${BOTTLE_MAX_SCORE}` : key === 'swimgames' ? `&score=lte.${SWIMGAMES_MAX_SCORE}` : key === 'sprint100' ? `&score=lte.${SPRINT_BASE - SPRINT_MIN_MS}&score=gte.${SPRINT_BASE - SPRINT_MAX_MS}` : key === 'hurdles100' ? `&score=lte.${HURDLE_BASE - HURDLE_MIN_MS}&score=gte.${HURDLE_BASE - HURDLE_MAX_MS}` : key === 'longjump' ? `&score=gt.0&score=lte.${JUMP_MAX_SCORE}` : key === 'balance' ? `&score=gt.0&score=lte.${BALANCE_MAX_SCORE}` : key === 'rally' ? `&score=gte.10000&score=lte.${RALLY_MAX_SCORE}` : ''
@@ -142,7 +145,7 @@ async function gameLeaderboard(profileId, week = weekStart(), key = gameKey) {
   return { weekStart: week, leaderboard: rows.map((item, index) => gameEntry(item, index)), ownBest }
 }
 async function allTimeGameLeaderboard() {
-  const result = await supabaseRequest('game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,hurdles100,bottleflip,dino,balance,snowrider,skijump,downhill)&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000')
+  const result = await supabaseRequest(`game_scores?game_key=in.(simpaus,vanda,swimgames,aljakten,breakout,bikerun,twenty48,sprint100,longjump,hurdles100,bottleflip,dino,balance,snowrider,skijump,downhill,${downhillCourseKey})&select=profile_id,game_key,score,created_at,profiles(display_name,emoji)&order=score.desc,created_at.asc&limit=10000`)
   if (!result.ok) throw new Error(`All-time game leaderboard lookup failed: ${result.status}`)
   // Legacy rally points must not contribute alongside rally's time ranking.
   const rows = (await result.json()).filter((item) => item.game_key !== 'rally' && (item.game_key !== 'swimgames' || Number(item.score) <= SWIMGAMES_MAX_SCORE) && (item.game_key !== 'sprint100' || validSprintScore(Number(item.score))) && (item.game_key !== 'hurdles100' || validHurdleScore(Number(item.score))) && (item.game_key !== 'longjump' || validJumpScore(Number(item.score))) && (item.game_key !== 'balance' || validBalanceScore(Number(item.score))) && (item.game_key !== 'bottleflip' || validBottleScore(Number(item.score))) && validWinterScore(item.game_key, item.score))
@@ -150,6 +153,7 @@ async function allTimeGameLeaderboard() {
   rows.push(...rally.map(row=>({profile_id:row.profileId,game_key:'rally',score:-row.durationMs,created_at:row.savedAt,profiles:{display_name:row.displayName,emoji:row.emoji}})))
   const games = new Map()
   rows.forEach((item) => { if (!games.has(item.game_key)) games.set(item.game_key, []); games.get(item.game_key).push(item) })
+  if (games.has(downhillCourseKey)) games.delete('downhill')
   const totals = new Map()
   games.forEach((items) => { const best = new Map(); items.forEach((item) => { const current = best.get(item.profile_id); if (!current || item.score > current.score) best.set(item.profile_id, item) }); [...best.values()].sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)).slice(0, 10).forEach((item, index) => { const current = totals.get(item.profile_id) || { score: 0, displayName: item.profiles?.display_name || 'Simmare', emoji: item.profiles?.emoji || '🏊' }; current.score += 10 - index; totals.set(item.profile_id, current) }) })
   return { leaderboard: [...totals.values()].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName, 'sv')).slice(0, 10).map((item, index) => ({ ...item, rank: index + 1 })), scoring: '10 poäng till vinnaren i varje spel över tid, därefter 9–1.' }
@@ -251,18 +255,21 @@ export default async function handler(request, response) {
         if (key === 'bottleflip' && !validBottleScore(score)) return sendJson(response, 400, { error: 'Ogiltig Bottle Flip-poäng.' })
         if (key === 'snowrider' && !validSnowScore(score)) return sendJson(response, 400, { error: 'Ogiltig Snow Rider-poäng.' })
         if (key === 'skijump' || key === 'downhill') {
-          if (!validWinterScore(key, score)) return sendJson(response, 400, { error: key === 'downhill' ? 'Ogiltig störtloppstid.' : 'Ogiltig poäng för backhoppning.' })
+          const course = request.body?.course
+          if (key === 'downhill' && course !== undefined && course !== DOWNHILL_COURSE) return sendJson(response, 400, { error: 'Okänd störtloppsbana.' })
+          const scoreKey = key === 'downhill' && course === DOWNHILL_COURSE ? downhillCourseKey : key
+          if (!validWinterScore(scoreKey, score)) return sendJson(response, 400, { error: key === 'downhill' ? 'Ogiltig störtloppstid.' : 'Ogiltig poäng för backhoppning.' })
           const week = weekStart()
           const insert = await supabaseRequest('game_scores?on_conflict=profile_id,game_key,week_start', {
             method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-            body: JSON.stringify({ profile_id: profile.id, game_key: key, week_start: week, score }),
+            body: JSON.stringify({ profile_id: profile.id, game_key: scoreKey, week_start: week, score }),
           })
           if (!insert.ok) throw new Error('Winter race record insert failed')
-          const update = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&score=lt.${score}`, {
+          const update = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${scoreKey}&week_start=eq.${week}&score=lt.${score}`, {
             method: 'PATCH', body: JSON.stringify({ score, created_at: new Date().toISOString() }),
           })
           if (!update.ok) throw new Error('Winter race record update failed')
-          return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, key))
+          return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, scoreKey))
         }
         const week = weekStart()
         const existingResult = await supabaseRequest(`game_scores?profile_id=eq.${profile.id}&game_key=eq.${key}&week_start=eq.${week}&select=id,score&limit=1`)
@@ -443,6 +450,10 @@ export default async function handler(request, response) {
       if (!profile || role !== 'swimmer') return sendJson(response, 403, { error: 'Logga in på din profil för att se highscore.' })
       if (requestedGame === 'rally' && request.query?.time === 'true') return sendJson(response, 200, await rallyTimeLeaderboard(profile.id))
       if (requestedGame === 'alltime') return sendJson(response, 200, await allTimeGameLeaderboard())
+      if (requestedGame === 'downhill' && request.query?.course !== undefined) {
+        if (request.query.course !== DOWNHILL_COURSE) return sendJson(response, 400, { error: 'Okänd störtloppsbana.' })
+        return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, downhillCourseKey))
+      }
       if (request.query?.lifetime === 'true') return sendJson(response, 200, await lifetimeGameLeaderboard(profile.id, requestedGame))
       return sendJson(response, 200, request.query?.monthly === 'true' ? await monthlyGameLeaderboard(profile.id, requestedGame) : await gameLeaderboard(profile.id, weekStart(), requestedGame))
     }

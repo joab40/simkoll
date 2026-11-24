@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, CanvasTexture, Color, Matrix4, Vector3 } from 'three'
 import { createPineGeometry } from './winter-pine.js'
 import { snowNoise } from './snow-rider-engine.js'
-import { downhillBank, downhillCentre, downhillGrade, downhillSurface, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_HALF_WIDTH, DOWNHILL_LENGTH } from './downhill-engine.js'
+import { downhillBank, downhillCentre, downhillGrade, downhillSurface, DOWNHILL_CRESTS, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_HALF_WIDTH, DOWNHILL_LENGTH } from './downhill-engine.js'
 
 const H = DOWNHILL_HALF_WIDTH
 const snowBands = [
@@ -105,6 +105,7 @@ function courseBanner(label, backdrop) {
 
 function Arch({ model, finish = false }) {
   const s = finish ? DOWNHILL_LENGTH : 8
+  const postOffset = H + 1.5
   const lamp = useRef(null)
   const texture = useMemo(() => courseBanner(finish ? 'MÅL · FROSTFJÄLL' : 'FROSTFJÄLL · START', finish ? '#19566a' : '#174651'), [finish])
   useEffect(() => () => texture.dispose(), [texture])
@@ -115,11 +116,11 @@ function Arch({ model, finish = false }) {
     lamp.current.color.set(go ? '#d3f68a' : phase === 'countdown' ? '#ff9a62' : '#abccd4')
   })
   return <group position={[downhillCentre(s), downhillSurface(s, 0), -s]}>
-    {[-1, 1].map(side => <group key={side} position={[side * 8.45, 0, 0]}>
+    {[-1, 1].map(side => <group key={side} position={[side * postOffset, 0, 0]}>
       <mesh position={[0, 2.45, 0]}><boxGeometry args={[.75, 5.6, .95]} /><meshStandardMaterial color={finish ? '#357787' : '#20586a'} /></mesh>
       <mesh position={[0, .62, 0]}><boxGeometry args={[1.05, 1.65, 1.2]} /><meshStandardMaterial color={finish ? '#f2ae63' : '#7cd1c4'} /></mesh>
     </group>)}
-    <mesh position={[0, 4.85, .2]}><boxGeometry args={[17.4, 1.18, .72]} /><meshStandardMaterial color="#174651" /></mesh>
+    <mesh position={[0, 4.85, .2]}><boxGeometry args={[postOffset * 2 + .5, 1.18, .72]} /><meshStandardMaterial color="#174651" /></mesh>
     <mesh position={[0, 4.85, .57]}><planeGeometry args={[11.8, 1.13]} /><meshBasicMaterial map={texture} /></mesh>
     {!finish && <mesh position={[0, 3.9, .6]}><boxGeometry args={[2.2, .22, .4]} /><meshBasicMaterial ref={lamp} /></mesh>}
   </group>
@@ -206,20 +207,22 @@ function Skier({ model, effects }) {
     return points
   }, [])
   useFrame(() => {
-    const { track, x, vx, phase, speed, tuck } = model.current
+    const { track, x, vx, phase, speed, tuck, jump } = model.current
     const centre = downhillCentre(track) + x
     const height = downhillSurface(track, x)
     const pitch = Math.atan(downhillGrade(track))
     const heading = (downhillCentre(track + 1) - downhillCentre(track - 1)) * .5
-    skier.current.position.set(centre, height + .07, -track)
-    skier.current.rotation.set(pitch, -heading * .62 - vx * .032, Math.atan(downhillBank(track)) - vx * .032, 'YXZ')
+    const airborne = jump?.height || 0
+    const airPitch = Math.max(-.14, Math.min(.14, (jump?.velocity || 0) * .018)) * Math.min(airborne / .4, 1)
+    skier.current.position.set(centre, height + airborne + .07, -track)
+    skier.current.rotation.set(pitch + airPitch, -heading * .62 - vx * .032, Math.atan(downhillBank(track)) - vx * .032, 'YXZ')
     upperBody.current.position.y = .87 - tuck * .15
     upperBody.current.rotation.x = .54 - tuck * .62
     legs.current.scale.y = 1.04 - tuck * .17
     shadow.current.position.set(centre, height + .1, -track)
     shadow.current.rotation.set(pitch - Math.PI / 2, Math.atan(downhillBank(track)), 0)
     if (spray.current) {
-      spray.current.visible = effects && phase === 'racing' && speed > 15 && Math.abs(vx) > 2.1
+      spray.current.visible = effects && phase === 'racing' && !jump && speed > 15 && Math.abs(vx) > 2.1
       spray.current.position.set(centre, height + .08, -track + .5)
       spray.current.rotation.y = vx * .036
       spray.current.material.opacity = Math.min(.78, Math.abs(vx) * .065)
@@ -274,13 +277,14 @@ export default function DownhillScene({ model, effects, onGraphicsError }) {
     return () => canvas.removeEventListener('webglcontextlost', lost)
   }, [gl, onGraphicsError])
   useFrame((state, delta) => {
-    const { track, x, phase } = model.current
+    const { track, x, phase, jump } = model.current
     const small = state.size.width < 520
     const behind = track - (small ? 7.7 : 9.9)
-    const look = track + (small ? 20 : 24)
+    const look = track + (small ? 18 : 22)
     const centre = downhillCentre(track)
     const height = downhillSurface(track, x)
-    follow.set(centre + x * .64, Math.max(height + 3.5, downhillSurface(behind, 0) + 1.28), -behind)
+    const cameraLift = (jump?.height || 0) * .34
+    follow.set(centre + x * .64, Math.max(height + 5.65 + cameraLift, downhillSurface(behind, 0) + 1.8), -behind)
     if (!effects || phase === 'ready' || phase === 'countdown') camera.position.copy(follow)
     else camera.position.lerp(follow, 1 - Math.exp(-Math.min(delta, .1) * 14))
     const viewDepth = camera.position.z + look
@@ -290,7 +294,7 @@ export default function DownhillScene({ model, effects, onGraphicsError }) {
     const sideLead = viewDepth * Math.tan(camera.fov * Math.PI / 360) * camera.aspect * .56
     // Follow the bend without letting the skier leave the frame on a narrow screen.
     const aimX = throughSkier + sideLead * Math.tanh((curveTarget - throughSkier) / sideLead)
-    target.set(aimX, downhillSurface(look, 0) * .67 + height * .33 + 1.35, -look)
+    target.set(aimX, downhillSurface(look, 0) * .67 + height * .33 + .65 + cameraLift, -look)
     camera.lookAt(target)
     sun.current.position.set(centre + 87, height + 35, -track - 182)
   })
@@ -301,14 +305,15 @@ export default function DownhillScene({ model, effects, onGraphicsError }) {
     <mesh ref={sun}><sphereGeometry args={[12, 22, 13]} /><meshBasicMaterial color="#fff0bd" fog={false} /></mesh>
     <mesh geometry={terrain}><meshStandardMaterial vertexColors roughness={.93} /></mesh>
     <Peaks />
-    {Array.from({ length: 8 }, (_, index) => <ForestTile geometry={pine} start={-6 + index * 204} key={index} />)}
+    {Array.from({ length: Math.ceil(DOWNHILL_LENGTH / 204) }, (_, index) => <ForestTile geometry={pine} start={-6 + index * 204} key={index} />)}
     <Lift model={model} start={-20} end={520} x={39} />
-    <Lift model={model} start={540} end={1510} x={-63} />
+    <Lift model={model} start={540} end={DOWNHILL_LENGTH + 30} x={-63} />
     <Arch model={model} />
     <Arch model={model} finish />
     <Gates model={model} />
+    {DOWNHILL_CRESTS.map(crest => <GroundMark key={crest} distance={crest} width={H * 1.7} depth={.35} color="#f1c36f" />)}
     {Array.from({ length: 12 }, (_, index) => <GroundMark key={index} distance={DOWNHILL_LENGTH - .45 + (index % 2) * .76}
-      x={(index - 5.5) * 1.08} width={1.08} depth={.76} color="#317e94" />)}
+      x={(index - 5.5) * H / 6} width={H / 6} depth={.76} color="#317e94" />)}
     <Skier model={model} effects={effects} />
   </>
 }

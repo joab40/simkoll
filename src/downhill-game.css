@@ -53,6 +53,10 @@
   font-size: .8rem;
   font-weight: 800;
 }
+.downhill-crest { --gate-color: #f8d886; }
+.downhill-crest.is-release { background: #e3ffa2; color: #214739; }
+.downhill-previous { margin-top: 16px; }
+.downhill-previous summary { cursor: pointer; color: #31636e; font-size: .92rem; font-weight: 700; }
 .downhill-progress {
   inset: auto 11px 10px;
   display: grid;
