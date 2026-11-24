@@ -1,12 +1,28 @@
+@import './winter-controls.css';
+
+.downhill-console {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 .downhill-stage {
   background: radial-gradient(ellipse at 75% 20%, #ffebc8, transparent 45%), linear-gradient(#8ebad2, #d5edf5 67%, #e4f2f3);
+  touch-action: manipulation;
 }
-.downhill-hud strong { font-variant-numeric: tabular-nums; }
-.downhill-countdown, .downhill-feedback, .downhill-next, .downhill-progress {
+.downhill-status {
   position: absolute;
+  inset: 12px 12px auto;
+  display: grid;
+  gap: 6px;
+  max-width: 470px;
+  margin-inline: auto;
   pointer-events: none;
 }
+.downhill-status .downhill-hud { position: static; width: 100%; }
+.downhill-cues { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; }
 .downhill-countdown {
+  position: absolute;
+  pointer-events: none;
   top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -24,12 +40,12 @@
 .downhill-countdown strong { font-size: clamp(2.1rem, 9vw, 4rem); line-height: 1; letter-spacing: -.04em; }
 .downhill-countdown span { font-size: .82rem; font-weight: 700; }
 .downhill-countdown.is-green { background: #d2f08b; color: #173a30; }
+.ski-fullscreen .downhill-controls {
+  flex-shrink: 0;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
 .downhill-controls button.downhill-go { outline: 2px solid #d8ff9c; outline-offset: 2px; }
 .downhill-feedback {
-  top: 82px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 22px);
   padding: 7px 12px;
   border-radius: 999px;
   background: #133c4aee;
@@ -41,9 +57,6 @@
 .downhill-feedback.is-boost { background: #d6f39b; color: #214739; }
 .downhill-feedback.is-miss { background: #963f39; color: #fff; }
 .downhill-next {
-  bottom: 62px;
-  left: 50%;
-  transform: translateX(-50%);
   padding: 6px 9px;
   background: #113947ef;
   color: #f2faf9;
@@ -57,13 +70,10 @@
 .downhill-previous { margin-top: 16px; }
 .downhill-previous summary { cursor: pointer; color: #31636e; font-size: .92rem; font-weight: 700; }
 .downhill-progress {
-  inset: auto 11px 10px;
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 5px 10px;
-  max-width: 420px;
-  margin-inline: auto;
-  padding: 7px 10px;
+  gap: 3px 10px;
+  padding: 4px 10px;
   background: #143645ee;
   border: 1px solid #edfafd65;
   border-radius: 10px;
@@ -74,5 +84,11 @@
 .downhill-progress div { grid-column: 1 / -1; height: 5px; border-radius: 7px; background: #72949d; overflow: hidden; }
 .downhill-progress i { display: block; height: 100%; border-radius: 7px; background: #cdef83; }
 @media (max-height: 500px) and (orientation: landscape) {
-  .ski-fullscreen .downhill-feedback { top: 59px; left: auto; right: 9px; transform: none; max-width: 36%; }
+  .ski-fullscreen .downhill-status {
+    inset: 6px auto auto max(12px, env(safe-area-inset-left));
+    width: min(310px, 40%);
+    margin: 0;
+    gap: 4px;
+  }
+  .ski-fullscreen .downhill-cues { justify-content: flex-start; }
 }

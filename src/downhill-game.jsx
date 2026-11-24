@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { enterBalanceFullscreen, exitBalanceFullscreen } from './balance-fullscreen.js'
+import { guardGameTouches } from './balance-touch.js'
 import { advanceDownhill, canTimeDownhillJump, createDownhillRace, downhillJumpAction, downhillStartAction, downhillTime, DOWNHILL_COURSE, DOWNHILL_CRESTS, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, DOWNHILL_SECTORS, validDownhillScore } from './downhill-engine.js'
 import DownhillScene from './downhill-scene.jsx'
 import './ski-jump-game.css'
@@ -34,7 +35,7 @@ class DownhillGraphicsBoundary extends React.Component {
 
 export default function DownhillGame({ code, onBack, preview = false, request }) {
   const model = useRef(createDownhillRace())
-  const input = useRef(new Map()), shell = useRef(null), goButton = useRef(null), fullButton = useRef(null)
+  const input = useRef(new Map()), shell = useRef(null), goButton = useRef(null), fullButton = useRef(null), controlPad = useRef(null)
   const fullBusy = useRef(false), mounted = useRef(false), boardRevision = useRef(0), saving = useRef(false)
   const [view, setView] = useState(() => snapshot(model.current))
   const [paused, setPaused] = useState(false)
@@ -57,6 +58,8 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     pause()
     setGraphics(current => ({ ...current, error: true }))
   }, [pause])
+
+  useEffect(() => guardGameTouches([controlPad.current]), [])
 
   const loadBoard = useCallback(async signal => {
     if (preview) return
@@ -207,7 +210,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     if (!graphics.ready || graphics.error || saving.current) return
     if (paused) {
       setPaused(false)
-      goButton.current?.focus({ preventScroll: true })
+      shell.current?.focus({ preventScroll: true })
       return
     }
     if (model.current.phase === 'finished') {
@@ -217,7 +220,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     if (model.current.phase === 'ready') {
       input.current.clear()
       if (!fullscreen && window.matchMedia('(max-width: 820px)').matches) shell.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
-      goButton.current?.focus({ preventScroll: true })
+      shell.current?.focus({ preventScroll: true })
     }
     downhillStartAction(model.current)
     setView(snapshot(model.current))
@@ -268,7 +271,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
   }
 
   const release = event => input.current.delete(`touch-${event.pointerId}`)
-  const steer = direction => <button type="button" className="downhill-steer"
+  const steer = direction => <button type="button" className={`winter-control downhill-steer ${direction < 0 ? 'left' : 'right'}`}
     aria-label={direction < 0 ? 'Sväng vänster' : 'Sväng höger'} disabled={!running || view.phase !== 'racing'}
     onPointerDown={event => {
       if (event.button !== 0) return
@@ -276,7 +279,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
       event.currentTarget.setPointerCapture(event.pointerId)
       input.current.set(`touch-${event.pointerId}`, direction)
     }} onPointerCancel={release} onLostPointerCapture={release} onPointerUp={release}>
-    <span aria-hidden="true">{direction < 0 ? '←' : '→'}</span>
+    <span className="winter-control-arrow" aria-hidden="true" />
   </button>
 
   const result = view.result
@@ -298,7 +301,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
     <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button>
     <header className="ski-heading"><h1>Frostfjäll <em>Störtlopp</em></h1>{preview && <span>Testläge</span>}</header>
     <div className="ski-layout">
-      <div ref={shell} tabIndex={0} className={`ski-console${fullscreen ? ` ski-fullscreen ${fullscreen}` : ''}`}
+      <div ref={shell} tabIndex={0} className={`ski-console downhill-console${fullscreen ? ` ski-fullscreen ${fullscreen}` : ''}`}
         onKeyDown={onKeyDown} onKeyUp={event => input.current.delete(event.code)}
         onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) clearInput() }}
         aria-label="Störtlopp. Vänster och höger styr. Pil upp startar loppet och hoppar under åket. P pausar.">
@@ -318,28 +321,31 @@ export default function DownhillGame({ code, onBack, preview = false, request })
             </Canvas>
           </DownhillGraphicsBoundary>
 
-          <div className="ski-stage-hud downhill-hud" aria-hidden="true">
-            <div><small>Tid</small><strong>{downhillTime((view.elapsed + view.penalty) * 1000)}</strong></div>
-            <div><small>Portar</small><strong>{view.cleared} <em>/ {DOWNHILL_GATES.length}</em></strong></div>
-            <div><small>Fart</small><strong>{view.speed} <em>km/h</em></strong></div>
+          <div className="downhill-status">
+            <div className="ski-stage-hud downhill-hud" aria-hidden="true">
+              <div><small>Tid</small><strong>{downhillTime((view.elapsed + view.penalty) * 1000)}</strong></div>
+              <div><small>Portar</small><strong>{view.cleared} <em>/ {DOWNHILL_GATES.length}</em></strong></div>
+              <div><small>Fart</small><strong>{view.speed} <em>km/h</em></strong></div>
+            </div>
+            {view.phase === 'racing' && !paused && <>
+              <div className="downhill-progress" aria-hidden="true">
+                <div><i style={{ width: `${view.track / DOWNHILL_LENGTH * 100}%` }} /></div>
+                <span>{DOWNHILL_SECTORS[sector].name}</span><span>{Math.ceil(DOWNHILL_LENGTH - view.track)} m kvar</span>
+              </div>
+              <div className="downhill-cues">
+                {jumpCue ? <div className={`downhill-next downhill-crest${view.jumpWindow ? ' is-ready' : ''}`}>{jumpCue}</div>
+                  : nextGate && <div className="downhill-next" aria-hidden="true" style={{ '--gate-color': nextGate.color }}>
+                    {nextGate.x < 0 ? '←' : '→'} Port {nextGate.id}
+                  </div>}
+                {feedback && <div className={`downhill-feedback is-${feedback.tone}`}>{feedback.text}</div>}
+              </div>
+            </>}
           </div>
 
           {countdown && !paused && <div className={`downhill-countdown${green ? ' is-green' : ''}`}>
             <strong>{green ? 'KÖR!' : Math.ceil(DOWNHILL_GREEN_AT - view.countdown)}</strong>
             <span>{view.early ? 'Tjuvstart · +0,80 s' : green ? 'Tryck nu' : 'Vänta på grönt'}</span>
           </div>}
-          {view.phase === 'racing' && !paused && <>
-            {feedback && <div className={`downhill-feedback is-${feedback.tone}`}>{feedback.text}</div>}
-            {jumpCue ? <div className={`downhill-next downhill-crest${view.jumpWindow ? ' is-ready' : ''}`}>{jumpCue}</div>
-            : nextGate && <div className="downhill-next" aria-hidden="true"
-              style={{ '--gate-color': nextGate.color }}>
-              {nextGate.x < 0 ? '←' : '→'} Port {nextGate.id}
-            </div>}
-            <div className="downhill-progress" aria-hidden="true">
-              <div><i style={{ width: `${view.track / DOWNHILL_LENGTH * 100}%` }} /></div>
-              <span>{DOWNHILL_SECTORS[sector].name}</span><span>{Math.ceil(DOWNHILL_LENGTH - view.track)} m kvar</span>
-            </div>
-          </>}
 
           {(graphics.error || paused || result || view.phase === 'ready') && <div className="ski-overlay">
             <div className="ski-stage-card">
@@ -370,9 +376,10 @@ export default function DownhillGame({ code, onBack, preview = false, request })
             </div>
           </div>}
         </div>
-        <div className="ski-controls downhill-controls" role="group" aria-label="Spelkontroller" onContextMenu={event => event.preventDefault()}>
+        <div ref={controlPad} className="winter-controls downhill-controls" role="group" aria-label="Spelkontroller">
           {steer(-1)}
-          <button type="button" ref={goButton} className={`ski-action${green || (running && view.jumpWindow) ? ' downhill-go' : ''}`}
+          <button type="button" ref={goButton} className={`winter-control jump${green || (running && view.jumpWindow) ? ' downhill-go' : ''}`}
+            aria-label={view.phase === 'racing' ? 'Hoppa' : 'Starta loppet'}
             aria-disabled={!running} tabIndex={running ? 0 : -1}
             onPointerDown={event => {
               if (!running || event.button !== 0) return
@@ -380,7 +387,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
               jumpOrStart()
             }}
             onClick={event => { if (running && event.detail === 0) jumpOrStart() }}
-          ><span aria-hidden="true">↑</span> {view.phase === 'racing' ? 'Hoppa' : 'Kör'}</button>
+          ><span className="winter-control-arrow" aria-hidden="true" /></button>
           {steer(1)}
         </div>
       </div>
@@ -388,8 +395,8 @@ export default function DownhillGame({ code, onBack, preview = false, request })
         <h2>Din rekordjakt</h2>
         <div className="ski-personal"><span>{preview ? 'Bäst i testomgången' : 'Din snabbaste tid'}</span><strong>{best ? downhillTime(DOWNHILL_SCORE_BASE - best, 3) : '–'}</strong></div>
         <ol className="ski-instructions">
-          <li>Tryck <strong>Kör</strong> när startljuset blir grönt.</li>
-          <li>Tryck <strong>↑</strong> eller <strong>Hoppa</strong> för att hoppa. Tajma trycket vid <strong>Hoppa nu!</strong> för ett längre hopp och lite extra fart.</li>
+          <li>Tryck <strong>↑</strong> när startljuset blir grönt.</li>
+          <li>Tajma <strong>↑</strong> vid <strong>Hoppa nu!</strong> för ett längre hopp och lite extra fart.</li>
           <li>Styr med korta tryck för att behålla farten. Tre rena portar i rad ger fartboost.</li>
           <li>Håll dig borta från lössnön i kanten. Varje missad port lägger till 1,25 s.</li>
         </ol>

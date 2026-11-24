@@ -119,7 +119,7 @@ export default function SnowRiderGame({code,onBack,preview=false,request}){
     <button
       type="button"
       data-snow-control={action}
-      className={`snow-control ${action}`}
+      className={`winter-control ${action}`}
       disabled={view.status !== 'playing'}
       aria-label={label}
       onPointerDown={event => pointerDown(event, action)}
@@ -128,7 +128,7 @@ export default function SnowRiderGame({code,onBack,preview=false,request}){
       onLostPointerCapture={releasePointer}
       onClick={event => activateControl(event, action)}
     >
-      <span className="snow-control-arrow" aria-hidden="true"/>
+      <span className="winter-control-arrow" aria-hidden="true"/>
     </button>
   )
   return <section className="snow-page"><button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button><header className="snow-heading"><div><p className="eyebrow">Simkoll arcade · vinteredition</p><h1>Snow <em>Rider</em><span>3D</span></h1><p>Störtbacke med tvära kurvor, krön och hinder.</p></div><span className="snow-mode">{preview?'🧪 Testläge · inget sparas':'🏔 Din egen vintertur'}</span></header>
@@ -149,7 +149,7 @@ export default function SnowRiderGame({code,onBack,preview=false,request}){
         {graphicsError?<div className="snow-overlay"><div><p className="snow-kicker">3D-VYN PAUSAD</p><h2>Vi tappade bilden.</h2><p>Webbläsaren kunde inte behålla 3D-vyn. Pågående åk är pausat. Tidigare sparade rekord påverkas inte.</p>{pending.current&&!saving&&<button onClick={save}>Försök spara ditt avslutade åk igen</button>}<button className="snow-primary" disabled={saving||!!pending.current} onClick={()=>{clearInput();model.current=createSnowGame();setView(snapshot(model.current));setGraphicsError(false);setGraphicsReady(false);setGraphicsKey(key=>key+1)}}>Ladda 3D-vyn igen</button></div></div>:view.status!=='playing'&&<div className="snow-overlay"><div><p className="snow-kicker">{finished?'DIN VINTERTUR':view.status==='paused'?'ANDAS UT EN STUND':'FROSTFJÄLL · BANA 01'}</p><h2>{finished?(view.status==='complete'?'Vilken åktur!':'En sväng till?'):view.status==='paused'?'Backen väntar.':<>Kör<br/><em>störtbacken.</em></>}</h2>{finished?<><strong className="snow-result">{view.score.toLocaleString('sv-SE')} <small>poäng</small></strong><p>{view.elapsed.toLocaleString('sv-SE', {maximumFractionDigits: 1, minimumFractionDigits: 1})} sek · {view.distance} spelmeter · {view.gems} kristaller<br/>{view.reason}</p></>:<p>Hoppa över bommarna och sikta på öppningarna i isvallarna.</p>}
           {view.status==='paused'?<button className="snow-primary" onClick={resume}>Fortsätt åka →</button>:<button className="snow-primary" disabled={saving||!!pending.current||!graphicsReady} onClick={start}>{finished?'Åk igen':'Starta åket'} <span>↗</span></button>}<small>{finished?message:`← → styr · mellanslag hoppar · max ${SNOW_SECONDS / 60} minuter`}</small>{finished&&pending.current&&!saving&&<div className="snow-save-actions"><button onClick={save}>Försök spara igen</button><button onClick={()=>{pending.current=null;start()}}>Åk utan att spara</button></div>}</div></div>}
       </div>
-      <div ref={controls} className="snow-controls" role="group" aria-label="Spelkontroller" onContextMenu={event => event.preventDefault()}>
+      <div ref={controls} className="snow-controls winter-controls" role="group" aria-label="Spelkontroller" onContextMenu={event => event.preventDefault()}>
         {control('left', 'Vänster')}
         {control('jump', 'Hoppa')}
         {control('right', 'Höger')}
