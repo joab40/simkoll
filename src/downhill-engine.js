@@ -16,33 +16,36 @@ const falseStartPenalty = .8
 const baseGrade = -.29
 const gradeWaves = [[.163, .016], [.108, .033], [-.038, .006]]
 const tuckSpeed = 3.65
-const tuckResponse = 1 - Math.exp(-8 * step)
 const normalCrest = { radius: 16, height: 1.8, lift: 5.8, gravity: 17 }
+const smallCrest = { radius: 8, height: .85, lift: 3.15, gravity: 18 }
 const finalStraightStart = 1560
 const finalStraightTransition = 34
-const earlyReleaseWindow = .11
-const releaseWindow = .3
+const jumpLead = 17
+const jumpLateWindow = .22
 export const DOWNHILL_MIN_MS = Math.floor(DOWNHILL_LENGTH * 1000 / maxSpeed)
 export const DOWNHILL_PREVIOUS_MIN_MS = Math.floor(DOWNHILL_PREVIOUS_LENGTH * 1000 / maxSpeed)
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 const mix = (a, b, amount) => a + (b - a) * amount
+const smooth = value => value * value * (3 - 2 * value)
 
 export const DOWNHILL_SECTORS = [
   { name: 'Iskammen', start: 0 },
   { name: 'Gransvängen', start: 494 },
+  { name: 'Gupprakan', start: 700 },
   { name: 'Slutbranten', start: 1030 },
   { name: 'Fjällrakan', start: 1450 },
 ]
 
 export const DOWNHILL_CRESTS = [
   ...[301, 595, 818, 1118, 1434].map(distance => ({ distance, ...normalCrest })),
+  ...[734, 775, 885].map(distance => ({ distance, ...smallCrest })),
   { distance: 1606, radius: 25, height: 4.7, lift: 11.45, gravity: 14, final: true },
-]
+].sort((a, b) => a.distance - b.distance)
 
 export const DOWNHILL_GATES = [
   [114, -2.7], [187, 3.8], [257, -3.4], [337, -2.7], [419, 3.4], [486, -3.5],
-  [568, 3.8], [633, -4], [709, 3.6], [787, -3.3], [863, 3.9], [929, -4],
+  [568, 3.8], [633, -4], [709, 1.6], [787, -1.8], [863, 2.2], [929, -4],
   [998, 3.8], [1082, -3.3], [1163, 3.5], [1236, -4], [1303, 3.8], [1386, -3.6],
   [1487, 4.2], [1532, -3.9], [1575, 2.6],
 ].map(([distance, x], index) => ({
@@ -50,14 +53,17 @@ export const DOWNHILL_GATES = [
   color: index % 2 ? '#1d86ba' : '#f46f59',
 }))
 
+const windingCentre = s => 17 * Math.sin(s * .024) + 13 * Math.sin(s * .041) + 22 * Math.sin(s * .009)
+const straightCentre = windingCentre(672)
+const straightBlend = s => smooth(clamp((s - 642) / 58, 0, 1)) * smooth(clamp((951 - s) / 49, 0, 1))
+
 export function downhillCentre(distance) {
   const s = clamp(distance, 0, DOWNHILL_LENGTH)
-  const start = Math.min(1, s / 51)
-  const bend = start ** 2 * (3 - 2 * start)
+  const bend = smooth(Math.min(1, s / 51))
   const exit = Math.max(0, s - finalStraightStart)
   const easing = Math.min(exit, finalStraightTransition)
   const curve = s - exit + easing * (1 - easing / (2 * finalStraightTransition))
-  return bend * (17 * Math.sin(curve * .024) + 13 * Math.sin(curve * .041) + 22 * Math.sin(curve * .009))
+  return bend * mix(windingCentre(curve), straightCentre, straightBlend(s))
 }
 
 export function downhillGrade(distance) {
@@ -87,7 +93,7 @@ export function downhillHeight(distance) {
 export function downhillBank(distance) {
   const s = clamp(distance, 0, DOWNHILL_LENGTH)
   const exit = clamp(1 - (s - finalStraightStart) / finalStraightTransition, 0, 1)
-  return exit * (.12 * Math.sin(s * .024) + .15 * Math.sin(s * .041))
+  return exit * (1 - straightBlend(s)) * (.12 * Math.sin(s * .024) + .15 * Math.sin(s * .041))
 }
 
 export function downhillSurface(distance, x) {
@@ -97,9 +103,9 @@ export function downhillSurface(distance, x) {
 export function createDownhillRace() {
   return {
     phase: 'ready', countdown: 0, early: false, launch: '', track: 0, elapsed: 0,
-    speed: 0, tuck: 0, x: 0, vx: 0, accumulator: 0, penalty: 0, gateIndex: 0,
+    speed: 0, x: 0, vx: 0, accumulator: 0, penalty: 0, gateIndex: 0,
     cleared: 0, streak: 0, boost: 0, boostUntil: 0, feedback: null, result: null,
-    crestIndex: 0, jump: null, finalJumpDistance: 0, tucking: false, releasedAt: -Infinity, jumpBoostUntil: 0,
+    crestIndex: 0, jump: null, jumpQueued: false, finalJumpDistance: 0, jumpBoostUntil: 0,
   }
 }
 
@@ -143,35 +149,53 @@ function passGate(race, gate, x) {
   } else race.feedback = { text: 'Port klar', tone: 'clear', at: race.elapsed }
 }
 
-export function canExtendDownhillJump(jump) {
-  return Boolean(jump && jump.canExtend && !jump.extended && jump.age <= releaseWindow)
+function readyToExtend(jump) {
+  return Boolean(jump?.crest && !jump.extended && jump.age <= jumpLateWindow)
 }
 
-function updateJump(race, tucking) {
-  const justReleased = race.elapsed - race.releasedAt <= earlyReleaseWindow
+export function canTimeDownhillJump(race) {
+  if (race.jump) return readyToExtend(race.jump)
+  return !race.jumpQueued && (DOWNHILL_CRESTS[race.crestIndex]?.distance ?? Infinity) - race.track <= jumpLead
+}
+
+function extendJump(race) {
+  const { crest } = race.jump
+  race.jump.extended = true
+  race.jump.velocity += crest.lift < normalCrest.lift ? 2.75 : 3.6
+  race.speed = Math.min(maxSpeed, race.speed + 1.2)
+  race.jumpBoostUntil = race.elapsed + 1.15
+  race.feedback = { text: crest.final ? 'Finalhopp · fartboost' : 'Tajmat hopp · fartboost', tone: 'boost', at: race.elapsed }
+}
+
+export function downhillJumpAction(race) {
+  if (race.phase !== 'racing') return
+  if (race.jump) {
+    if (readyToExtend(race.jump)) extendJump(race)
+  } else if ((DOWNHILL_CRESTS[race.crestIndex]?.distance ?? Infinity) - race.track <= jumpLead) {
+    race.jumpQueued = true
+  } else {
+    race.jump = { crest: null, age: 0, height: 0, velocity: 3.5, extended: false }
+  }
+}
+
+function updateJump(race) {
   const crest = DOWNHILL_CRESTS[race.crestIndex]
   if (crest && race.track >= crest.distance) {
     race.crestIndex++
-    race.jump = {
-      crest, age: 0, height: 0, velocity: crest.lift,
-      canExtend: (tucking && race.tuck >= .55) || justReleased, extended: false,
+    if (!race.jump || crest.final || race.jumpQueued) {
+      race.jump = { crest, age: 0, height: race.jump?.height || 0, velocity: crest.lift, extended: false }
+      if (race.jumpQueued) extendJump(race)
+      else if (crest.final) race.feedback = { text: 'Finalhopp!', tone: 'clear', at: race.elapsed }
     }
-    if (crest.final) race.feedback = { text: 'Finalhopp!', tone: 'clear', at: race.elapsed }
+    race.jumpQueued = false
   }
   const jump = race.jump
   if (!jump) return
-  if (justReleased && canExtendDownhillJump(jump)) {
-    jump.extended = true
-    jump.velocity += 3.6
-    race.speed = Math.min(maxSpeed, race.speed + 1.2)
-    race.jumpBoostUntil = race.elapsed + 1.15
-    race.feedback = { text: jump.crest.final ? 'Finalhopp · fartboost' : 'Långt hopp · fartboost', tone: 'boost', at: race.elapsed }
-  }
   jump.age += step
-  jump.velocity -= jump.crest.gravity * step
+  jump.velocity -= (jump.crest?.gravity ?? smallCrest.gravity) * step
   jump.height += jump.velocity * step
   if (jump.height <= 0) {
-    if (jump.crest.final) {
+    if (jump.crest?.final) {
       race.finalJumpDistance = Math.round(race.track - jump.crest.distance)
       race.feedback = { text: `Finalhopp · ${race.finalJumpDistance} m`, tone: 'clear', at: race.elapsed }
     }
@@ -179,21 +203,16 @@ function updateJump(race, tucking) {
   }
 }
 
-function racingStep(race, direction, tucking) {
+function racingStep(race, direction) {
   const oldTrack = race.track
   const oldX = race.x
   const banking = downhillBank(oldTrack)
-  const edge = race.jump ? 0 : clamp((Math.abs(oldX) - DOWNHILL_HALF_WIDTH + 1.15) / 1.15, 0, 1)
+  const edge = clamp((Math.abs(oldX) - DOWNHILL_HALF_WIDTH + 1.15) / 1.15, 0, 1)
   const boost = race.elapsed < race.boostUntil ? race.boost : 0
   const jumpBoost = race.elapsed < race.jumpBoostUntil ? 3.9 : 0
-  if (race.tucking && !tucking && race.tuck >= .55) race.releasedAt = race.elapsed
-  race.tucking = tucking
-  race.tuck += ((tucking ? 1 : 0) - race.tuck) * tuckResponse
-  // In the air the skier keeps glide even after releasing the tuck button.
-  const glide = race.jump ? Math.max(.85, race.tuck) : race.tuck
   const turnDrag = (Math.abs(direction) * 2.4 + Math.abs(race.vx) * .11) * (race.jump ? .38 : 1)
   const target = 40.4 + clamp(-downhillGrade(oldTrack) + baseGrade, -.29, .3) * 22
-    + glide * tuckSpeed + boost + jumpBoost - edge * 7 - turnDrag
+    + tuckSpeed + boost + jumpBoost - edge * 7 - turnDrag
   race.speed = clamp(race.speed + (target - race.speed) * step * 1.15, 0, maxSpeed)
   const groundTurn = clamp(direction - banking * .28, -1, 1)
   race.vx = race.jump ? winterSteer(race.vx, direction * .6, step * .55) : winterSteer(race.vx, groundTurn, step)
@@ -208,7 +227,7 @@ function racingStep(race, direction, tucking) {
     passGate(race, gate, mix(oldX, race.x, crossing))
     race.gateIndex++
   }
-  updateJump(race, tucking)
+  updateJump(race)
   if (race.track === DOWNHILL_LENGTH) {
     const raceMs = Math.round(race.elapsed * 1000)
     const penaltyMs = Math.round(race.penalty * 1000)
@@ -217,7 +236,7 @@ function racingStep(race, direction, tucking) {
   }
 }
 
-export function advanceDownhill(race, delta, steer = 0, tucking = false) {
+export function advanceDownhill(race, delta, steer = 0) {
   if (!Number.isFinite(delta) || delta <= 0 || !['countdown', 'racing'].includes(race.phase)) return
   const direction = Number.isFinite(steer) ? clamp(steer, -1, 1) : 0
   race.accumulator += Math.min(.1, delta)
@@ -226,7 +245,7 @@ export function advanceDownhill(race, delta, steer = 0, tucking = false) {
     if (race.phase === 'countdown') {
       race.countdown += step
       if (race.countdown >= DOWNHILL_GREEN_AT + (race.early ? 0 : .64)) launchDownhill(race, false)
-    } else if (race.phase === 'racing') racingStep(race, direction, tucking)
+    } else if (race.phase === 'racing') racingStep(race, direction)
     else break
   }
 }
