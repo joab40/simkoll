@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { advanceDownhill, canExtendDownhillJump, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, validDownhillScore } from '../src/downhill-engine.js'
+import { advanceDownhill, canExtendDownhillJump, createDownhillRace, downhillStartAction, downhillTime, DOWNHILL_CRESTS, DOWNHILL_GATES, DOWNHILL_GREEN_AT, DOWNHILL_LENGTH, DOWNHILL_SCORE_BASE, validDownhillScore } from '../src/downhill-engine.js'
 
 function launch(start) {
   const race = createDownhillRace()
@@ -115,4 +115,44 @@ test('holding into the crest and releasing in the air lengthens the jump and add
     assert.equal(attempt.jump, null)
   }
   assert(race.track - takeoff > (held.track - takeoff) * 1.3)
+})
+
+test('a short correction keeps more speed than steering continuously', () => {
+  const race = launch('perfect')
+  while (race.track < 63) advanceDownhill(race, 1 / 120, 0, true)
+  const straight = structuredClone(race), shortTurn = structuredClone(race), longTurn = structuredClone(race)
+  for (let frame = 0; frame < 60; frame++) {
+    advanceDownhill(straight, 1 / 120, 0, true)
+    advanceDownhill(shortTurn, 1 / 120, frame < 24 ? 1 : 0, true)
+    advanceDownhill(longTurn, 1 / 120, 1, true)
+  }
+  assert(straight.speed > shortTurn.speed)
+  assert(shortTurn.speed > longTurn.speed)
+  assert(longTurn.speed > straight.speed * .94)
+  assert(longTurn.gateIndex === 0 && longTurn.x < 6)
+})
+
+test('the last jump comes after the final gate and lands before the timer stops', () => {
+  const crest = DOWNHILL_CRESTS.at(-1)
+  const gate = DOWNHILL_GATES.at(-1)
+  assert(gate.distance < crest.distance)
+  function finishWithJump(timed) {
+    const race = launch('perfect')
+    race.track = gate.distance - 1
+    race.x = gate.x
+    race.gateIndex = DOWNHILL_GATES.length - 1
+    race.crestIndex = DOWNHILL_CRESTS.length - 1
+    race.speed = 44
+    for (let frame = 0; race.phase !== 'finished' && frame < 600; frame++) {
+      advanceDownhill(race, 1 / 120, 0, !timed || !race.jump || race.jump.age < .14)
+    }
+    assert.equal(race.phase, 'finished')
+    assert.equal(race.jump, null)
+    assert.equal(race.result.gates, 1)
+    return race.result.finalJumpDistance
+  }
+  const normal = finishWithJump(false)
+  const timed = finishWithJump(true)
+  assert(normal >= 65)
+  assert(timed > normal + 15)
 })

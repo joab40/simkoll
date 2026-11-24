@@ -277,8 +277,10 @@ export default function DownhillGame({ code, onBack, preview = false, request })
   const countdown = view.phase === 'countdown'
   const green = countdown && view.countdown >= DOWNHILL_GREEN_AT
   const nextGate = DOWNHILL_GATES[view.gateIndex]
-  const crestAhead = DOWNHILL_CRESTS[view.crestIndex] - view.track <= 42
-  const jumpCue = view.jumpWindow ? 'Släpp nu!' : crestAhead ? (view.tucked ? 'Krön · håll kvar' : 'Krön · huka dig') : ''
+  const nextCrest = DOWNHILL_CRESTS[view.crestIndex]
+  const crestAhead = nextCrest && nextCrest.distance - view.track <= (nextCrest.final ? 29 : 42)
+  const crestLabel = nextCrest?.final ? 'Finalhopp' : 'Krön'
+  const jumpCue = view.jumpWindow ? 'Släpp nu!' : crestAhead ? `${crestLabel} · ${view.tucked ? 'håll kvar' : 'huka dig'}` : ''
   const sector = DOWNHILL_SECTORS.findLastIndex(item => view.track >= item.start)
   const feedback = view.feedback ?? (view.elapsed < 1.5 && {
     perfect: { text: 'Perfekt start', tone: 'boost' },
@@ -347,6 +349,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
                 <p>{downhillTime(result.raceMs, 3)} åktid · {result.gates}/{DOWNHILL_GATES.length} portar
                   {result.penaltyMs > 0 && ` · +${(result.penaltyMs / 1000).toLocaleString('sv-SE')} s tillägg`}
                 </p>
+                {result.finalJumpDistance > 0 && <p>Finalhopp <strong>{result.finalJumpDistance} m</strong></p>}
                 <button type="button" className="ski-primary" disabled={startLocked} onClick={act}>Åk igen</button>
                 {saveStatus && <small className="ski-save-status" role="status">{{
                   saving: 'Sparar loppet…', failed: 'Tiden kunde inte sparas.', saved: 'Tiden är sparad ✓',
@@ -389,7 +392,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
           <li>Tryck <strong>Kör</strong> när startljuset blir grönt.</li>
           <li>Håll inne <strong>↑</strong> eller <strong>Huka</strong> för att öka farten. Släpp för att resa dig och bromsa lätt.</li>
           <li><strong>Huka före krönet</strong> och släpp när det står <strong>Släpp nu!</strong> för ett längre hopp och en kort fartboost.</li>
-          <li>Sväng genom portarnas mitt för bättre glid. Tre rena portar i rad ger fartboost.</li>
+          <li>Styr med korta tryck för att behålla farten. Tre rena portar i rad ger fartboost.</li>
           <li>Håll dig borta från lössnön i kanten. Varje missad port lägger till 1,25 s.</li>
         </ol>
         <p className="ski-keys"><kbd>←</kbd> <kbd>→</kbd> sväng · <kbd>↑</kbd> huka · <kbd>Mellanslag</kbd> starta</p>

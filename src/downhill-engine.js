@@ -17,9 +17,9 @@ const baseGrade = -.29
 const gradeWaves = [[.163, .016], [.108, .033], [-.038, .006]]
 const tuckSpeed = 3.65
 const tuckResponse = 1 - Math.exp(-8 * step)
-const crestRadius = 16
-const crestHeight = 1.8
-const jumpGravity = 17
+const normalCrest = { radius: 16, height: 1.8, lift: 5.8, gravity: 17 }
+const finalStraightStart = 1560
+const finalStraightTransition = 34
 const earlyReleaseWindow = .11
 const releaseWindow = .3
 export const DOWNHILL_MIN_MS = Math.floor(DOWNHILL_LENGTH * 1000 / maxSpeed)
@@ -35,13 +35,16 @@ export const DOWNHILL_SECTORS = [
   { name: 'Fjällrakan', start: 1450 },
 ]
 
-export const DOWNHILL_CRESTS = [301, 595, 818, 1118, 1434, 1580]
+export const DOWNHILL_CRESTS = [
+  ...[301, 595, 818, 1118, 1434].map(distance => ({ distance, ...normalCrest })),
+  { distance: 1606, radius: 25, height: 4.7, lift: 11.45, gravity: 14, final: true },
+]
 
 export const DOWNHILL_GATES = [
   [114, -2.7], [187, 3.8], [257, -3.4], [337, -2.7], [419, 3.4], [486, -3.5],
   [568, 3.8], [633, -4], [709, 3.6], [787, -3.3], [863, 3.9], [929, -4],
   [998, 3.8], [1082, -3.3], [1163, 3.5], [1236, -4], [1303, 3.8], [1386, -3.6],
-  [1487, 4.2], [1542, -3.9], [1642, 4.1],
+  [1487, 4.2], [1532, -3.9], [1575, 2.6],
 ].map(([distance, x], index) => ({
   id: index + 1, distance, x, halfWidth: index < 3 ? 4.8 : 4.4,
   color: index % 2 ? '#1d86ba' : '#f46f59',
@@ -51,7 +54,10 @@ export function downhillCentre(distance) {
   const s = clamp(distance, 0, DOWNHILL_LENGTH)
   const start = Math.min(1, s / 51)
   const bend = start ** 2 * (3 - 2 * start)
-  return bend * (17 * Math.sin(s * .024) + 13 * Math.sin(s * .041) + 22 * Math.sin(s * .009))
+  const exit = Math.max(0, s - finalStraightStart)
+  const easing = Math.min(exit, finalStraightTransition)
+  const curve = s - exit + easing * (1 - easing / (2 * finalStraightTransition))
+  return bend * (17 * Math.sin(curve * .024) + 13 * Math.sin(curve * .041) + 22 * Math.sin(curve * .009))
 }
 
 export function downhillGrade(distance) {
@@ -59,8 +65,8 @@ export function downhillGrade(distance) {
   let grade = baseGrade
   for (const [amplitude, frequency] of gradeWaves) grade += amplitude * Math.cos(s * frequency)
   for (const crest of DOWNHILL_CRESTS) {
-    const offset = s - crest
-    if (Math.abs(offset) < crestRadius) grade -= crestHeight * Math.PI / (2 * crestRadius) * Math.sin(offset * Math.PI / crestRadius)
+    const offset = s - crest.distance
+    if (Math.abs(offset) < crest.radius) grade -= crest.height * Math.PI / (2 * crest.radius) * Math.sin(offset * Math.PI / crest.radius)
   }
   return distance > DOWNHILL_LENGTH ? grade * Math.max(0, 1 - (distance - DOWNHILL_LENGTH) / 52) : grade
 }
@@ -70,8 +76,8 @@ export function downhillHeight(distance) {
   let height = baseGrade * s
   for (const [amplitude, frequency] of gradeWaves) height += amplitude / frequency * Math.sin(s * frequency)
   for (const crest of DOWNHILL_CRESTS) {
-    const offset = s - crest
-    if (Math.abs(offset) < crestRadius) height += crestHeight / 2 * (1 + Math.cos(offset * Math.PI / crestRadius))
+    const offset = s - crest.distance
+    if (Math.abs(offset) < crest.radius) height += crest.height / 2 * (1 + Math.cos(offset * Math.PI / crest.radius))
   }
   const outrun = clamp(distance - DOWNHILL_LENGTH, 0, 52)
   if (distance < 0) return distance * downhillGrade(0)
@@ -80,7 +86,8 @@ export function downhillHeight(distance) {
 
 export function downhillBank(distance) {
   const s = clamp(distance, 0, DOWNHILL_LENGTH)
-  return .12 * Math.sin(s * .024) + .15 * Math.sin(s * .041)
+  const exit = clamp(1 - (s - finalStraightStart) / finalStraightTransition, 0, 1)
+  return exit * (.12 * Math.sin(s * .024) + .15 * Math.sin(s * .041))
 }
 
 export function downhillSurface(distance, x) {
@@ -92,7 +99,7 @@ export function createDownhillRace() {
     phase: 'ready', countdown: 0, early: false, launch: '', track: 0, elapsed: 0,
     speed: 0, tuck: 0, x: 0, vx: 0, accumulator: 0, penalty: 0, gateIndex: 0,
     cleared: 0, streak: 0, boost: 0, boostUntil: 0, feedback: null, result: null,
-    crestIndex: 0, jump: null, tucking: false, releasedAt: -Infinity, jumpBoostUntil: 0,
+    crestIndex: 0, jump: null, finalJumpDistance: 0, tucking: false, releasedAt: -Infinity, jumpBoostUntil: 0,
   }
 }
 
@@ -143,12 +150,13 @@ export function canExtendDownhillJump(jump) {
 function updateJump(race, tucking) {
   const justReleased = race.elapsed - race.releasedAt <= earlyReleaseWindow
   const crest = DOWNHILL_CRESTS[race.crestIndex]
-  if (crest !== undefined && race.track >= crest) {
+  if (crest && race.track >= crest.distance) {
     race.crestIndex++
     race.jump = {
-      age: 0, height: 0, velocity: 5.8,
+      crest, age: 0, height: 0, velocity: crest.lift,
       canExtend: (tucking && race.tuck >= .55) || justReleased, extended: false,
     }
+    if (crest.final) race.feedback = { text: 'Finalhopp!', tone: 'clear', at: race.elapsed }
   }
   const jump = race.jump
   if (!jump) return
@@ -157,12 +165,18 @@ function updateJump(race, tucking) {
     jump.velocity += 3.6
     race.speed = Math.min(maxSpeed, race.speed + 1.2)
     race.jumpBoostUntil = race.elapsed + 1.15
-    race.feedback = { text: 'Långt hopp · fartboost', tone: 'boost', at: race.elapsed }
+    race.feedback = { text: jump.crest.final ? 'Finalhopp · fartboost' : 'Långt hopp · fartboost', tone: 'boost', at: race.elapsed }
   }
   jump.age += step
-  jump.velocity -= jumpGravity * step
+  jump.velocity -= jump.crest.gravity * step
   jump.height += jump.velocity * step
-  if (jump.height <= 0) race.jump = null
+  if (jump.height <= 0) {
+    if (jump.crest.final) {
+      race.finalJumpDistance = Math.round(race.track - jump.crest.distance)
+      race.feedback = { text: `Finalhopp · ${race.finalJumpDistance} m`, tone: 'clear', at: race.elapsed }
+    }
+    race.jump = null
+  }
 }
 
 function racingStep(race, direction, tucking) {
@@ -177,8 +191,9 @@ function racingStep(race, direction, tucking) {
   race.tuck += ((tucking ? 1 : 0) - race.tuck) * tuckResponse
   // In the air the skier keeps glide even after releasing the tuck button.
   const glide = race.jump ? Math.max(.85, race.tuck) : race.tuck
+  const turnDrag = (Math.abs(direction) * 2.4 + Math.abs(race.vx) * .11) * (race.jump ? .38 : 1)
   const target = 40.4 + clamp(-downhillGrade(oldTrack) + baseGrade, -.29, .3) * 22
-    + glide * tuckSpeed + boost + jumpBoost - edge * 7 - Math.abs(race.vx) * .19
+    + glide * tuckSpeed + boost + jumpBoost - edge * 7 - turnDrag
   race.speed = clamp(race.speed + (target - race.speed) * step * 1.15, 0, maxSpeed)
   const groundTurn = clamp(direction - banking * .28, -1, 1)
   race.vx = race.jump ? winterSteer(race.vx, direction * .6, step * .55) : winterSteer(race.vx, groundTurn, step)
@@ -197,7 +212,7 @@ function racingStep(race, direction, tucking) {
   if (race.track === DOWNHILL_LENGTH) {
     const raceMs = Math.round(race.elapsed * 1000)
     const penaltyMs = Math.round(race.penalty * 1000)
-    race.result = { raceMs, penaltyMs, timeMs: raceMs + penaltyMs, gates: race.cleared }
+    race.result = { raceMs, penaltyMs, timeMs: raceMs + penaltyMs, gates: race.cleared, finalJumpDistance: race.finalJumpDistance }
     race.phase = 'finished'
   }
 }

@@ -279,11 +279,13 @@ export default function DownhillScene({ model, effects, onGraphicsError }) {
   useFrame((state, delta) => {
     const { track, x, phase, jump } = model.current
     const small = state.size.width < 520
-    const behind = track - (small ? 7.7 : 9.9)
+    const flightHeight = jump?.height || 0
+    const finalFlight = jump?.crest.final
+    const behind = track - (small ? 7.7 : 9.9) - (finalFlight ? Math.min(2.6, flightHeight * .4) : 0)
     const look = track + (small ? 18 : 22)
     const centre = downhillCentre(track)
     const height = downhillSurface(track, x)
-    const cameraLift = (jump?.height || 0) * .34
+    const cameraLift = flightHeight * (finalFlight ? .68 : .34)
     follow.set(centre + x * .64, Math.max(height + 5.65 + cameraLift, downhillSurface(behind, 0) + 1.8), -behind)
     if (!effects || phase === 'ready' || phase === 'countdown') camera.position.copy(follow)
     else camera.position.lerp(follow, 1 - Math.exp(-Math.min(delta, .1) * 14))
@@ -311,7 +313,8 @@ export default function DownhillScene({ model, effects, onGraphicsError }) {
     <Arch model={model} />
     <Arch model={model} finish />
     <Gates model={model} />
-    {DOWNHILL_CRESTS.map(crest => <GroundMark key={crest} distance={crest} width={H * 1.7} depth={.35} color="#f1c36f" />)}
+    {DOWNHILL_CRESTS.map(crest => <GroundMark key={crest.distance} distance={crest.distance}
+      width={H * 1.7} depth={crest.final ? 1 : .35} color="#f1c36f" />)}
     {Array.from({ length: 12 }, (_, index) => <GroundMark key={index} distance={DOWNHILL_LENGTH - .45 + (index % 2) * .76}
       x={(index - 5.5) * H / 6} width={H / 6} depth={.76} color="#317e94" />)}
     <Skier model={model} effects={effects} />
