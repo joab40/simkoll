@@ -59,6 +59,14 @@ test('personal Snow Rider record is read without a week filter even outside the 
   assert.equal(personal.query.get('order'), 'score.desc')
   assert.equal(personal.query.has('week_start'), false)
 })
+test('a score from an extended run can exceed the previous 10,000-point limit', async () => {
+  const score = 15000
+  const db = fixture({ rows: [{ ...row, score }] })
+  const result = await call({ action: 'submit-game-score', gameKey: 'snowrider', score })
+  assert.equal(result.code, 200)
+  assert.equal(db.writes[0].body.score, score)
+  assert.equal(result.data.ownBest, score)
+})
 test('impossible scores and non-swimmer actors cannot submit',async()=>{
   const db=fixture();for(const score of [0,-1,1.5,SNOW_MAX_SCORE+1])assert.equal((await call({action:'submit-game-score',gameKey:'snowrider',score})).code,400)
   assert.equal(db.writes.length,0)

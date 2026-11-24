@@ -88,7 +88,7 @@ test('a runner who times jumps and steers through the gaps can finish at maximum
     maxPool = Math.max(maxPool, game.objects.length)
   }
   assert.equal(game.status, 'complete', `Crashed at ${game.distance.toFixed(1)} m: ${game.reason}`)
-  assert.equal(game.elapsed, SNOW_SECONDS)
+  assert.equal(game.elapsed, 240)
   assert.equal(game.speed, SNOW_MAX_SPEED)
   assert(maxPool <= 18)
   assert(validSnowScore(game.score))

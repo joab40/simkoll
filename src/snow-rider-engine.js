@@ -1,6 +1,5 @@
 // Distances are game metres. Rendering and collision use the same course profile.
-export const SNOW_SECONDS = 120
-export const SNOW_MAX_SCORE = 10000
+export const SNOW_SECONDS = 240
 export const SNOW_STEP = 1 / 120
 export const SNOW_MAX_SPEED = 48
 export const SNOW_HALF_WIDTH = 5.1
@@ -11,6 +10,11 @@ const ACCELERATION = 1
 const FIRST_CHALLENGE = 110
 const CHALLENGE_SPACING = 48
 const LOOKAHEAD = 210
+const CRYSTAL_POINTS = 25
+const MAX_DISTANCE = SNOW_MAX_SPEED * SNOW_SECONDS
+const MAX_CHALLENGES = Math.ceil(MAX_DISTANCE / CHALLENGE_SPACING)
+// Each encounter can place up to two crystals.
+export const SNOW_MAX_SCORE = MAX_DISTANCE + 2 * MAX_CHALLENGES * CRYSTAL_POINTS
 
 const OPENING_CHALLENGES = ['jump', 'left', 'jump', 'right', 'middle']
 const CHALLENGES = ['left', 'jump', 'right', 'jump', 'middle']
@@ -43,7 +47,7 @@ export function validSnowScore(score) {
 }
 
 export function snowScore(game) {
-  return Math.min(SNOW_MAX_SCORE, Math.floor(game.distance) + game.gems * 25)
+  return Math.min(SNOW_MAX_SCORE, Math.floor(game.distance) + game.gems * CRYSTAL_POINTS)
 }
 
 function spawnChallenges(game) {

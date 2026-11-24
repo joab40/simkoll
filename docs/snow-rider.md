@@ -32,7 +32,7 @@ Pulkan startar i cirka 122 km/h och når upp till 173 km/h. Första bommen
 kommer efter ungefär tre sekunder. Hoppa över bommarna och styr genom
 öppningarna i isvallarna. Ledtråden ovanför banan visar vart du ska styra
 eller när du ska hoppa. Resultatet visar hur länge åket varade, upp till
-120 sekunder. En spelmeter ger 1 poäng och en kristall ger 25 poäng.
+240 sekunder. En spelmeter ger 1 poäng och en kristall ger 25 poäng.
 Alla åk använder samma kurvor, krön, svackor och hinder. Fysiken använder
 steg på 1/120 s även när bildfrekvensen varierar.
 
