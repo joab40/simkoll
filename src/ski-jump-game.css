@@ -181,6 +181,17 @@
   width: 8px; height: 16px; border: 1px solid #15394b; border-radius: 5px;
   background: #fff; transform: translate(-50%, -50%);
 }
+.ski-gauge-track:is(.ski-angle-track, .ski-timing-track)::after {
+  content: '';
+  position: absolute;
+  left: var(--sweet-spot);
+  top: calc(100% + 2px);
+  width: 10px;
+  height: 6px;
+  background: #ffe093;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  transform: translateX(-50%);
+}
 .ski-balance-track { --cursor: 50%; }
 .ski-balance-track:not(.in-zone) span { background: #ffca7f; }
 .ski-gauge-track.in-zone span { box-shadow: 0 0 7px 3px #a0edc67c; }

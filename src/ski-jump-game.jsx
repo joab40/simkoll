@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { enterBalanceFullscreen, exitBalanceFullscreen } from './balance-fullscreen.js'
 import SkiJumpScene from './ski-jump-scene.jsx'
-import { advanceSkiJump, createSkiJump, formatSkiJumpScore, SKI_ANGLE_MAX, SKI_ANGLE_MIN, SKI_ANGLE_ZONE, SKI_BALANCE_ZONE, SKI_CROSSWINDS, SKI_K_POINT, SKI_LIP, SKI_WIND, skiAction, skiPushAngle, skiTiming } from './ski-jump-engine.js'
+import { advanceSkiJump, createSkiJump, formatSkiJumpScore, SKI_ANGLE_MAX, SKI_ANGLE_MIN, SKI_ANGLE_ZONE, SKI_BALANCE_ZONE, SKI_CROSSWINDS, SKI_IDEAL_ANGLE, SKI_IDEAL_TAKEOFF, SKI_K_POINT, SKI_LIP, SKI_WIND, skiAction, skiPushAngle, skiTiming } from './ski-jump-engine.js'
 import './ski-jump-game.css'
 
 const isRunning = phase => ['approach', 'air', 'runout'].includes(phase)
@@ -322,12 +322,12 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
   const inrun = view.phase === 'approach'
   const angle = Math.round(skiPushAngle(push.current ? Math.max(0, view.elapsed - push.current.at) : 0))
   const takeoffStatus = view.launch && view.elapsed < 1.35 && view.phase === 'air'
-    ? view.launch.timing < .8 ? (view.launch.progress < .95 ? 'Tidigt upphopp' : 'Sent upphopp') : view.launch.angle < SKI_ANGLE_ZONE[0] ? 'Flack vinkel'
+    ? view.launch.timing < .8 ? (view.launch.progress < SKI_IDEAL_TAKEOFF ? 'Tidigt upphopp' : 'Sent upphopp') : view.launch.angle < SKI_ANGLE_ZONE[0] ? 'Flack vinkel'
       : view.launch.angle > SKI_ANGLE_ZONE[1] ? 'Brant vinkel' : 'Rent upphopp'
     : ''
   const inTimingZone = timing && timing.position >= timing.zone[0] && timing.position <= timing.zone[1]
   const cue = inrun ? inTimingZone
-    ? push.current ? (angle < SKI_ANGLE_ZONE[0] && timing.position < .95 ? 'Håll lite till' : 'Släpp nu') : 'Tryck för att hoppa'
+    ? push.current ? (angle < SKI_ANGLE_ZONE[0] && timing.position < timing.target ? 'Håll lite till' : 'Släpp nu') : 'Tryck för att hoppa'
     : 'Håll för att ladda vinkeln' : inTimingZone ? 'Landa nu' : 'Vänta på grönt'
   const actionLocked = !running || !graphics.ready || view.phase === 'runout' || Boolean(view.landing)
   const overlayActionLocked = !graphics.ready || saveStatus === 'saving'
@@ -439,12 +439,16 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
               <strong>Vinkel <small>{angle}°</small></strong>
               <div className="ski-gauge-track ski-angle-track" ref={angleMeter} aria-hidden="true" style={{
                 '--zone-start': `${angleZone[0] * 100}%`, '--zone-width': `${(angleZone[1] - angleZone[0]) * 100}%`,
+                '--sweet-spot': `${anglePosition(SKI_IDEAL_ANGLE) * 100}%`,
               }}><span /></div>
             </div>}
             {timing && <div className="ski-gauge ski-precision">
               <strong>{inrun ? 'Upphopp' : 'Landning'} <small data-good={Boolean(inTimingZone)}>{cue}</small></strong>
               <div className="ski-gauge-track ski-timing-track" ref={meter} aria-hidden="true"
-                style={{ '--zone-start': `${timing.zone[0] * 100}%`, '--zone-width': `${(timing.zone[1] - timing.zone[0]) * 100}%` }}>
+                style={{
+                  '--zone-start': `${timing.zone[0] * 100}%`, '--zone-width': `${(timing.zone[1] - timing.zone[0]) * 100}%`,
+                  '--sweet-spot': `${timing.target * 100}%`,
+                }}>
                 <span />
               </div>
             </div>}
@@ -480,9 +484,9 @@ export default function SkiJumpGame({ code, onBack, preview = false, request }) 
           <strong>{best ? formatSkiJumpScore(best) : '–'} <small>p</small></strong>
         </div>
         <ol className="ski-instructions">
-          <li><strong>Håll</strong> hoppknappen för att ladda vinkeln. <strong>Släpp</strong> när upphoppet och vinkeln är i grönt.</li>
+          <li><strong>Håll</strong> hoppknappen för att ladda vinkeln. <strong>Släpp</strong> i grönt och sikta på de gula markeringarna.</li>
           <li><strong>Balansera</strong> med korta vänster- och högertryck. Håll markören i mitten.</li>
-          <li><strong>Landa</strong> i nästa gröna fält. Bra balans ger mer plats och högre stilpoäng.</li>
+          <li><strong>Landa</strong> vid den gula markeringen i nästa gröna fält. Bra balans ger mer plats och högre stilpoäng.</li>
         </ol>
         <p className="ski-keys"><kbd>↑</kbd> eller <kbd>Mellanslag</kbd> för upphopp · <kbd>←</kbd> <kbd>→</kbd> balansera · <kbd>↓</kbd> eller <kbd>Mellanslag</kbd> för landning</p>
         {!preview && <div className="ski-ranking">

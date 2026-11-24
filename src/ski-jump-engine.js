@@ -11,9 +11,11 @@ export const SKI_LANDING_ZONE = [.45, .95]
 export const SKI_ANGLE_MIN = 10
 export const SKI_ANGLE_MAX = 26
 export const SKI_ANGLE_ZONE = [15, 21]
+export const SKI_IDEAL_ANGLE = 18
+export const SKI_IDEAL_TAKEOFF = .95
+const idealLanding = .72
 const pushDuration = .85
-const idealAngle = 18
-const idealHold = (idealAngle - SKI_ANGLE_MIN) / (SKI_ANGLE_MAX - SKI_ANGLE_MIN) * pushDuration
+const idealHold = (SKI_IDEAL_ANGLE - SKI_ANGLE_MIN) / (SKI_ANGLE_MAX - SKI_ANGLE_MIN) * pushDuration
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value))
 const gravity = 10.8
@@ -69,13 +71,14 @@ function findTouchdown(launch, elapsed, distance, speed) {
 }
 
 export function skiTiming(game) {
-  if (game.phase === 'approach') return { position: clamp(game.elapsed / SKI_APPROACH_TIME), zone: SKI_TAKEOFF_ZONE }
+  if (game.phase === 'approach') return { position: clamp(game.elapsed / SKI_APPROACH_TIME), zone: SKI_TAKEOFF_ZONE, target: SKI_IDEAL_TAKEOFF }
   if (game.phase === 'air' && !game.landing) {
     const touchdown = findTouchdown(game.launch, game.elapsed, game.distance, game.speed)
     const shrink = Math.abs(game.bank) * .11
     return {
       position: clamp(1 - (touchdown - game.elapsed) / SKI_LANDING_LEAD),
       zone: [SKI_LANDING_ZONE[0] + shrink, SKI_LANDING_ZONE[1] - shrink],
+      target: idealLanding,
     }
   }
   return null
@@ -97,9 +100,9 @@ export function skiAction(game, hold = idealHold) {
       game.phase = 'finished'
       return
     }
-    const timing = clamp(1 - Math.abs(progress - .95) / .24)
+    const timing = clamp(1 - Math.abs(progress - SKI_IDEAL_TAKEOFF) / .24)
     const angle = skiPushAngle(Number.isFinite(hold) ? hold : 0)
-    const angleQuality = clamp(1 - Math.abs(angle - idealAngle) / 14)
+    const angleQuality = clamp(1 - Math.abs(angle - SKI_IDEAL_ANGLE) / 14)
     const launch = {
       distance: game.distance,
       height: game.height,
@@ -114,9 +117,9 @@ export function skiAction(game, hold = idealHold) {
     return
   }
   if (game.phase === 'air' && !game.landing) {
-    const { position, zone: [early, late] } = skiTiming(game)
+    const { position, target, zone: [early, late] } = skiTiming(game)
     const quality = position >= early && position <= late
-      ? clamp(1 - Math.abs(position - .72) / (late - early)) : 0
+      ? clamp(1 - Math.abs(position - target) / (late - early)) : 0
     game.landing = { quality, early: position < early }
   }
 }
