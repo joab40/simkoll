@@ -12,7 +12,7 @@ const controls = { ArrowLeft: -1, KeyA: -1, ArrowRight: 1, KeyD: 1 }
 function snapshot(race) {
   return {
     phase: race.phase, countdown: race.countdown, early: race.early, track: race.track,
-    speed: Math.round(race.speed * 3.6), cleared: race.cleared, gateIndex: race.gateIndex,
+    speed: Math.round(race.speed * 3.6), tucked: race.tuck >= .5, cleared: race.cleared, gateIndex: race.gateIndex,
     elapsed: race.elapsed, penalty: race.penalty, launch: race.launch, result: race.result,
     feedback: race.feedback && race.elapsed - race.feedback.at < 1.25 ? race.feedback : null,
   }
@@ -100,14 +100,15 @@ export default function DownhillGame({ code, onBack, preview = false, request })
       const delta = (now - previous) / 1000
       previous = now
       if (delta > .55) { pause(); return }
-      let left = false, right = false
+      let left = false, right = false, tuck = false
       for (const direction of input.current.values()) {
-        if (direction < 0) left = true
+        if (direction === 'tuck') tuck = true
+        else if (direction < 0) left = true
         else right = true
       }
       const race = model.current
       const phase = race.phase
-      advanceDownhill(race, delta, Number(right) - Number(left))
+      advanceDownhill(race, delta, Number(right) - Number(left), tuck)
       if (now - lastHud > 65 || phase !== race.phase) {
         setView(snapshot(race))
         lastHud = now
@@ -223,6 +224,15 @@ export default function DownhillGame({ code, onBack, preview = false, request })
       if (!event.repeat) input.current.set(event.code, direction)
       return
     }
+    if (event.code === 'ArrowUp' && running) {
+      event.preventDefault()
+      if (!event.repeat) {
+        input.current.set(event.code, 'tuck')
+        if (model.current.phase === 'countdown') act()
+      }
+      return
+    }
+    if (event.code === 'Space' && running && model.current.phase === 'racing') return
     if (!['Space', 'ArrowUp'].includes(event.code) || ![goButton.current, shell.current].includes(event.target)) return
     event.preventDefault()
     if (!event.repeat) act()
@@ -258,7 +268,7 @@ export default function DownhillGame({ code, onBack, preview = false, request })
       <div ref={shell} tabIndex={0} className={`ski-console${fullscreen ? ` ski-fullscreen ${fullscreen}` : ''}`}
         onKeyDown={onKeyDown} onKeyUp={event => input.current.delete(event.code)}
         onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) input.current.clear() }}
-        aria-label="Störtlopp. Vänster och höger styr. Mellanslag eller pil upp startar. P pausar.">
+        aria-label="Störtlopp. Vänster och höger styr. Pil upp startar och hålls inne för att huka. P pausar.">
         <div className="ski-toolbar"><strong>SIMKOLL <span>FROSTFJÄLL</span></strong><div>
           <button type="button" aria-pressed={effects} onClick={() => setEffects(current => !current)}>❄ Effekter</button>
           <button type="button" onClick={pause} disabled={!running}>Ⅱ Paus</button>
@@ -328,8 +338,21 @@ export default function DownhillGame({ code, onBack, preview = false, request })
         <div className="ski-controls downhill-controls" role="group" aria-label="Spelkontroller" onContextMenu={event => event.preventDefault()}>
           {steer(-1)}
           <button type="button" ref={goButton} className={`ski-action${green ? ' downhill-go' : ''}`}
-            aria-disabled={!countdown || !running} tabIndex={countdown && running ? 0 : -1}
-            onClick={() => { if (countdown && running) act() }}><span aria-hidden="true">↑</span> Kör</button>
+            aria-disabled={!running} tabIndex={running ? 0 : -1}
+            aria-pressed={view.phase === 'racing' ? view.tucked : undefined}
+            onPointerDown={event => {
+              if (!running || event.button !== 0) return
+              event.preventDefault()
+              event.currentTarget.setPointerCapture(event.pointerId)
+              input.current.set(`touch-${event.pointerId}`, 'tuck')
+              if (model.current.phase === 'countdown') act()
+            }}
+            onPointerCancel={release} onLostPointerCapture={release} onPointerUp={release}
+            onClick={event => {
+              if (!running || event.detail !== 0) return
+              if (model.current.phase === 'countdown') act()
+              else if (!input.current.delete('toggle-tuck')) input.current.set('toggle-tuck', 'tuck')
+            }}><span aria-hidden="true">↑</span> {view.phase === 'racing' ? 'Huka' : 'Kör'}</button>
           {steer(1)}
         </div>
       </div>
@@ -338,10 +361,11 @@ export default function DownhillGame({ code, onBack, preview = false, request })
         <div className="ski-personal"><span>{preview ? 'Bäst i testomgången' : 'Din snabbaste tid'}</span><strong>{best ? downhillTime(DOWNHILL_SCORE_BASE - best, 3) : '–'}</strong></div>
         <ol className="ski-instructions">
           <li>Tryck <strong>Kör</strong> när startljuset blir grönt.</li>
+          <li>Håll inne <strong>↑</strong> eller <strong>Huka</strong> för att öka farten. Släpp för att resa dig och bromsa lätt.</li>
           <li>Sväng genom portarnas mitt för bättre glid. Tre rena portar i rad ger fartboost.</li>
           <li>Håll dig borta från lössnön i kanten. Varje missad port lägger till 1,25 s.</li>
         </ol>
-        <p className="ski-keys"><kbd>←</kbd> <kbd>→</kbd> sväng · <kbd>↑</kbd> eller <kbd>Mellanslag</kbd> starta</p>
+        <p className="ski-keys"><kbd>←</kbd> <kbd>→</kbd> sväng · <kbd>↑</kbd> huka · <kbd>Mellanslag</kbd> starta</p>
         {!preview && <div className="ski-ranking"><h2>Genom tiderna</h2>
           {boardError ? <><p>Topplistan kunde inte hämtas.</p><button type="button" className="text-button" onClick={() => loadBoard()}>Försök igen</button></>
             : board === null ? <p>Hämtar tider…</p>

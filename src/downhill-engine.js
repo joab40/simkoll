@@ -11,6 +11,10 @@ const maxSpeed = 51.5
 const step = 1 / 120
 const missedGatePenalty = 1.25
 const falseStartPenalty = .8
+const baseGrade = -.29
+const gradeWaves = [[.163, .016], [.108, .033], [-.038, .006]]
+const tuckSpeed = 3.65
+const tuckResponse = 1 - Math.exp(-8 * step)
 export const DOWNHILL_MIN_MS = Math.floor(DOWNHILL_LENGTH * 1000 / maxSpeed)
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
@@ -27,7 +31,7 @@ export const DOWNHILL_GATES = [
   [568, 3.8], [633, -4], [709, 3.6], [787, -3.3], [863, 3.9], [929, -4],
   [998, 3.8], [1082, -3.3], [1163, 3.5], [1236, -4], [1303, 3.8], [1386, -3.6],
 ].map(([distance, x], index) => ({
-  id: index + 1, distance, x, halfWidth: index < 3 ? 2.05 : 1.78,
+  id: index + 1, distance, x, halfWidth: index < 3 ? 2.6 : 2.32,
   color: index % 2 ? '#1d86ba' : '#f46f59',
 }))
 
@@ -40,17 +44,18 @@ export function downhillCentre(distance) {
 
 export function downhillGrade(distance) {
   const s = clamp(distance, 0, DOWNHILL_LENGTH)
-  const grade = -.236 + .138 * Math.cos(s * .016) + .098 * Math.cos(s * .033) - .038 * Math.cos(s * .006)
+  let grade = baseGrade
+  for (const [amplitude, frequency] of gradeWaves) grade += amplitude * Math.cos(s * frequency)
   return distance > DOWNHILL_LENGTH ? grade * Math.max(0, 1 - (distance - DOWNHILL_LENGTH) / 52) : grade
 }
 
 export function downhillHeight(distance) {
   const s = clamp(distance, 0, DOWNHILL_LENGTH)
-  const slope = -.236 * s + 8.625 * Math.sin(s * .016) + (.098 / .033) * Math.sin(s * .033)
-    - (.038 / .006) * Math.sin(s * .006)
+  let height = baseGrade * s
+  for (const [amplitude, frequency] of gradeWaves) height += amplitude / frequency * Math.sin(s * frequency)
   const outrun = clamp(distance - DOWNHILL_LENGTH, 0, 52)
   if (distance < 0) return distance * downhillGrade(0)
-  return slope + downhillGrade(s) * outrun * (1 - outrun / 104)
+  return height + downhillGrade(s) * outrun * (1 - outrun / 104)
 }
 
 export function downhillBank(distance) {
@@ -65,7 +70,7 @@ export function downhillSurface(distance, x) {
 export function createDownhillRace() {
   return {
     phase: 'ready', countdown: 0, early: false, launch: '', track: 0, elapsed: 0,
-    speed: 0, x: 0, vx: 0, accumulator: 0, penalty: 0, gateIndex: 0,
+    speed: 0, tuck: 0, x: 0, vx: 0, accumulator: 0, penalty: 0, gateIndex: 0,
     cleared: 0, streak: 0, boost: 0, boostUntil: 0, feedback: null, result: null,
   }
 }
@@ -110,14 +115,15 @@ function passGate(race, gate, x) {
   } else race.feedback = { text: 'Port klar', tone: 'clear', at: race.elapsed }
 }
 
-function racingStep(race, direction) {
+function racingStep(race, direction, tucking) {
   const oldTrack = race.track
   const oldX = race.x
   const banking = downhillBank(oldTrack)
   const edge = clamp((Math.abs(oldX) - 5.75) / 1.15, 0, 1)
   const boost = race.elapsed < race.boostUntil ? race.boost : 0
-  const target = 41.9 + clamp(-downhillGrade(oldTrack) - .23, -.23, .25) * 21
-    + boost - edge * 7 - Math.abs(race.vx) * .19
+  race.tuck += ((tucking ? 1 : 0) - race.tuck) * tuckResponse
+  const target = 40.4 + clamp(-downhillGrade(oldTrack) + baseGrade, -.29, .3) * 22
+    + race.tuck * tuckSpeed + boost - edge * 7 - Math.abs(race.vx) * .19
   race.speed = clamp(race.speed + (target - race.speed) * step * 1.15, 0, maxSpeed)
   race.vx = winterSteer(race.vx, clamp(direction - banking * .28, -1, 1), step)
   race.x = clamp(oldX + race.vx * step, -DOWNHILL_HALF_WIDTH, DOWNHILL_HALF_WIDTH)
@@ -139,7 +145,7 @@ function racingStep(race, direction) {
   }
 }
 
-export function advanceDownhill(race, delta, steer = 0) {
+export function advanceDownhill(race, delta, steer = 0, tucking = false) {
   if (!Number.isFinite(delta) || delta <= 0 || !['countdown', 'racing'].includes(race.phase)) return
   const direction = Number.isFinite(steer) ? clamp(steer, -1, 1) : 0
   race.accumulator += Math.min(.1, delta)
@@ -148,7 +154,7 @@ export function advanceDownhill(race, delta, steer = 0) {
     if (race.phase === 'countdown') {
       race.countdown += step
       if (race.countdown >= DOWNHILL_GREEN_AT + (race.early ? 0 : .64)) launchDownhill(race, false)
-    } else if (race.phase === 'racing') racingStep(race, direction)
+    } else if (race.phase === 'racing') racingStep(race, direction, tucking)
     else break
   }
 }

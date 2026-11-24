@@ -199,19 +199,23 @@ function Lift({ model, start, end, x }) {
 
 function Skier({ model, effects }) {
   const skier = useRef(null), shadow = useRef(null), spray = useRef(null)
+  const upperBody = useRef(null), legs = useRef(null)
   const specks = useMemo(() => {
     const points = new Float32Array(64 * 3)
     for (let i = 0; i < 64; i++) points.set([(snowNoise(i) - .5) * 1.9, snowNoise(i * 3) * .65, snowNoise(i + 44) * 4.6], i * 3)
     return points
   }, [])
   useFrame(() => {
-    const { track, x, vx, phase, speed } = model.current
+    const { track, x, vx, phase, speed, tuck } = model.current
     const centre = downhillCentre(track) + x
     const height = downhillSurface(track, x)
     const pitch = Math.atan(downhillGrade(track))
     const heading = (downhillCentre(track + 1) - downhillCentre(track - 1)) * .5
     skier.current.position.set(centre, height + .07, -track)
     skier.current.rotation.set(pitch, -heading * .62 - vx * .032, Math.atan(downhillBank(track)) - vx * .032, 'YXZ')
+    upperBody.current.position.y = .87 - tuck * .15
+    upperBody.current.rotation.x = .54 - tuck * .62
+    legs.current.scale.y = 1.04 - tuck * .17
     shadow.current.position.set(centre, height + .1, -track)
     shadow.current.rotation.set(pitch - Math.PI / 2, Math.atan(downhillBank(track)), 0)
     if (spray.current) {
@@ -229,19 +233,25 @@ function Skier({ model, effects }) {
       {[-1, 1].map(side => <group key={side} position={[side * .24, 0, 0]}>
         <mesh><boxGeometry args={[.17, .1, 2.52]} /><meshStandardMaterial color="#e67452" /></mesh>
         <mesh position={[0, .055, -.55]}><boxGeometry args={[.173, .03, .6]} /><meshStandardMaterial color="#d8f5b2" /></mesh>
-        <mesh position={[0, .43, .22]} rotation={[.42, 0, side * .1]}><capsuleGeometry args={[.12, .57, 3, 8]} /><meshStandardMaterial color="#204150" /></mesh>
       </group>)}
-      <mesh position={[0, 1.01, -.1]} rotation={[-.79, 0, 0]} scale={[1.04, 1, .8]}>
-        <capsuleGeometry args={[.31, .49, 4, 9]} /><meshStandardMaterial color="#167981" />
-      </mesh>
-      <mesh position={[0, 1.14, .15]} rotation={[-.79, 0, 0]}>
-        <boxGeometry args={[.43, .28, .088]} /><meshStandardMaterial color="#eef7ec" />
-      </mesh>
-      <mesh position={[0, 1.44, -.39]}><sphereGeometry args={[.255, 13, 9]} /><meshStandardMaterial color="#d9f179" /></mesh>
-      <mesh position={[0, 1.415, -.6]}><boxGeometry args={[.41, .093, .104]} /><meshStandardMaterial color="#242f46" /></mesh>
-      {[-1, 1].map(side => <mesh key={side} position={[side * .36, .97, -.2]} rotation={[-1.1, 0, side * .25]}>
-        <capsuleGeometry args={[.1, .54, 3, 7]} /><meshStandardMaterial color="#2c9da1" />
-      </mesh>)}
+      <group ref={legs}>
+        {[-1, 1].map(side => <mesh key={side} position={[side * .24, .43, .22]} rotation={[.42, 0, side * .1]}>
+          <capsuleGeometry args={[.12, .57, 3, 8]} /><meshStandardMaterial color="#204150" />
+        </mesh>)}
+      </group>
+      <group ref={upperBody} position={[0, .87, .2]}>
+        <mesh position={[0, .19, -.3]} rotation={[-.79, 0, 0]} scale={[1.04, 1, .8]}>
+          <capsuleGeometry args={[.31, .49, 4, 9]} /><meshStandardMaterial color="#167981" />
+        </mesh>
+        <mesh position={[0, .32, -.05]} rotation={[-.79, 0, 0]}>
+          <boxGeometry args={[.43, .28, .088]} /><meshStandardMaterial color="#eef7ec" />
+        </mesh>
+        <mesh position={[0, .62, -.59]}><sphereGeometry args={[.255, 13, 9]} /><meshStandardMaterial color="#d9f179" /></mesh>
+        <mesh position={[0, .595, -.8]}><boxGeometry args={[.41, .093, .104]} /><meshStandardMaterial color="#242f46" /></mesh>
+        {[-1, 1].map(side => <mesh key={side} position={[side * .36, .15, -.4]} rotation={[-1.1, 0, side * .25]}>
+          <capsuleGeometry args={[.1, .54, 3, 7]} /><meshStandardMaterial color="#2c9da1" />
+        </mesh>)}
+      </group>
     </group>
     {effects && <points ref={spray} frustumCulled={false}>
       <bufferGeometry><bufferAttribute attach="attributes-position" args={[specks, 3]} /></bufferGeometry>
@@ -273,7 +283,14 @@ export default function DownhillScene({ model, effects, onGraphicsError }) {
     follow.set(centre + x * .64, Math.max(height + 3.5, downhillSurface(behind, 0) + 1.28), -behind)
     if (!effects || phase === 'ready' || phase === 'countdown') camera.position.copy(follow)
     else camera.position.lerp(follow, 1 - Math.exp(-Math.min(delta, .1) * 14))
-    target.set(centre * .3 + downhillCentre(look) * .7 + x * .23, downhillSurface(look, 0) * .67 + height * .33 + 1.35, -look)
+    const viewDepth = camera.position.z + look
+    const skierDepth = camera.position.z + track
+    const throughSkier = camera.position.x + (centre + x - camera.position.x) * viewDepth / skierDepth
+    const curveTarget = centre * .3 + downhillCentre(look) * .7 + x * .23
+    const sideLead = viewDepth * Math.tan(camera.fov * Math.PI / 360) * camera.aspect * .56
+    // Follow the bend without letting the skier leave the frame on a narrow screen.
+    const aimX = throughSkier + sideLead * Math.tanh((curveTarget - throughSkier) / sideLead)
+    target.set(aimX, downhillSurface(look, 0) * .67 + height * .33 + 1.35, -look)
     camera.lookAt(target)
     sun.current.position.set(centre + 87, height + 35, -track - 182)
   })

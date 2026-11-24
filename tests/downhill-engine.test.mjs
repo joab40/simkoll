@@ -11,11 +11,11 @@ function launch(start) {
   return race
 }
 
-function finish(race, steer) {
+function finish(race, steer, tuck = false) {
   let landedBoost = false
   for (let frame = 0; race.phase !== 'finished' && frame < 6000; frame++) {
     const gate = DOWNHILL_GATES[race.gateIndex]
-    advanceDownhill(race, 1 / 120, steer(race, gate))
+    advanceDownhill(race, 1 / 120, steer(race, gate), tuck)
     landedBoost ||= race.feedback?.tone === 'boost'
   }
   assert.equal(race.phase, 'finished')
@@ -53,11 +53,39 @@ test('a clean line accelerates and finishes inside the target time', () => {
 test('race time and steering are stable across render frame rates', () => {
   function simulate(fps) {
     const race = launch('perfect')
-    for (let i = 0; i < 8 * fps; i++) advanceDownhill(race, 1 / fps, -.14)
+    for (let i = 0; i < 8 * fps; i++) advanceDownhill(race, 1 / fps, -.14, true)
     return race
   }
   const slow = simulate(30), smooth = simulate(120)
   assert(Math.abs(slow.track - smooth.track) < .01)
   assert(Math.abs(slow.x - smooth.x) < .01)
   assert.equal(slow.penalty, smooth.penalty)
+})
+
+test('the wider gate accepts a line near the post and still penalizes a miss', () => {
+  const first = DOWNHILL_GATES[0]
+  function cross(offset) {
+    const race = launch('perfect')
+    race.track = first.distance - .1
+    race.x = first.x + offset
+    advanceDownhill(race, 1 / 120)
+    return race
+  }
+  assert.equal(cross(2.4).cleared, 1)
+  assert.equal(cross(2.8).penalty, 1.25)
+})
+
+test('tucking saves time and releasing lets the skier slow gradually', () => {
+  const steer = (race, gate) => gate ? (gate.x - race.x) * .55 - race.vx * .06 : 0
+  const standing = finish(launch('perfect'), steer)
+  const tucked = finish(launch('perfect'), steer, true)
+  assert.equal(tucked.gates, DOWNHILL_GATES.length)
+  assert(tucked.timeMs >= 30000 && tucked.timeMs < standing.timeMs)
+
+  const race = launch('perfect')
+  while (race.track < 150) advanceDownhill(race, 1 / 120, 0, true)
+  const speedBeforeRelease = race.speed
+  for (let frame = 0; frame < 30; frame++) advanceDownhill(race, 1 / 120)
+  assert(race.tuck > 0 && race.tuck < .2)
+  assert(race.speed < speedBeforeRelease && race.speed > speedBeforeRelease * .95)
 })

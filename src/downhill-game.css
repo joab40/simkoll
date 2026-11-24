@@ -25,6 +25,7 @@
 .downhill-countdown span { font-size: .82rem; font-weight: 700; }
 .downhill-countdown.is-green { background: #d2f08b; color: #173a30; }
 .downhill-controls button.downhill-go { outline: 2px solid #d8ff9c; outline-offset: 2px; }
+.downhill-controls button[aria-pressed="true"] { background: #e3ffa2; box-shadow: inset 0 0 0 2px #f2ffcd; }
 .downhill-feedback {
   top: 82px;
   left: 50%;
