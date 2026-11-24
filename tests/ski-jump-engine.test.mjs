@@ -2,21 +2,25 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   advanceSkiJump, createSkiJump, skiAction, skiTiming, validSkiJumpScore,
-  SKI_APPROACH_TIME, SKI_K_POINT, SKI_LANDING_LEAD, SKI_WIND,
+  SKI_APPROACH_TIME, SKI_K_POINT, SKI_WIND,
 } from '../src/ski-jump-engine.js'
 
-function fly(wind, takeoff = .975) {
-  const game = createSkiJump(wind)
+function fly(wind, takeoff = .975, crosswind = 0) {
+  const game = createSkiJump(wind, crosswind)
   skiAction(game)
   advanceSkiJump(game, SKI_APPROACH_TIME * takeoff)
   skiAction(game)
   return game
 }
 
-function land(game, timing) {
-  advanceSkiJump(game, game.launch.touchdown - SKI_LANDING_LEAD * (1 - timing))
-  skiAction(game)
-  advanceSkiJump(game, SKI_LANDING_LEAD)
+const step = .004
+const correct = game => Math.abs(game.bank) > .11 ? -Math.sign(game.bank) : 0
+
+function land(game, timing, steer = () => 0) {
+  while (game.phase === 'air') {
+    if (!game.landing && skiTiming(game).position >= timing) skiAction(game)
+    advanceSkiJump(game, step, steer(game))
+  }
   advanceSkiJump(game, 2)
   return game.result
 }
@@ -37,7 +41,7 @@ test('wind affects flight length and weak takeoff gives a shorter jump', () => {
   for (let i = 1; i < scores.length; i++) assert(scores[i].distance > scores[i - 1].distance)
   assert(land(fly(0, .82), .72).score < scores[2].score)
   for (const wind of SKI_WIND) {
-    for (let p = .72; p < 1; p += .002) assert(validSkiJumpScore(land(fly(wind, p), .72).score))
+    for (let p = .72; p < 1; p += .025) assert(validSkiJumpScore(land(fly(wind, p), .72).score))
   }
 })
 
@@ -51,4 +55,36 @@ test('too early, missed takeoff and mistimed landings give feedback and no ranka
   assert.equal(missed.phase, 'finished')
   assert.match(missed.result.reason, /missade hoppkanten/)
   for (const result of [early.result, missed.result, land(fly(0), .2), land(fly(0), .98)]) assert.equal(result.score, 0)
+})
+
+
+test('short corrections counter gusts and improve the flight and landing window', () => {
+  for (const wind of [-3, 3]) {
+    const ignored = fly(0, .975, wind)
+    const corrected = fly(0, .975, wind)
+    for (let tick = 0; tick < 200; tick++) {
+      advanceSkiJump(ignored, .01)
+      advanceSkiJump(corrected, .01, correct(corrected))
+    }
+    assert.equal(Math.sign(ignored.bank), Math.sign(wind))
+    assert(Math.abs(corrected.bank) < Math.abs(ignored.bank))
+    assert(ignored.speed < corrected.speed)
+    const [early, late] = skiTiming(ignored).zone
+    const [correctedEarly, correctedLate] = skiTiming(corrected).zone
+    assert(late - early < correctedLate - correctedEarly)
+
+    const plain = land(ignored, .72)
+    const controlled = land(corrected, .72, correct)
+    assert(controlled.distance > plain.distance)
+    assert(controlled.style > plain.style)
+    assert(controlled.score > plain.score)
+    assert(validSkiJumpScore(controlled.score))
+  }
+})
+
+test('holding a direction through the entire flight overcorrects and costs length', () => {
+  const oversteered = land(fly(0, .975, 2), .72, () => -1)
+  const timed = land(fly(0, .975, 2), .72, correct)
+  assert(timed.distance > oversteered.distance)
+  assert(timed.style > oversteered.style)
 })

@@ -4,6 +4,8 @@ export const SKI_APPROACH_TIME = 3.35
 export const SKI_LANDING_LEAD = .9
 export const SKI_MAX_SCORE = 1500
 export const SKI_WIND = [-2, -1, 0, 1, 2]
+export const SKI_CROSSWINDS = [-3, -2, 2, 3]
+export const SKI_BALANCE_ZONE = .23
 export const SKI_TAKEOFF_ZONE = [.86, 1]
 export const SKI_LANDING_ZONE = [.48, .95]
 
@@ -30,10 +32,12 @@ export function skiGrade(heightAt, distance) {
   return (heightAt(distance + .05) - heightAt(distance - .05)) / .1
 }
 
-export function createSkiJump(wind = 0) {
+export function createSkiJump(wind = 0, crosswind = 0) {
   return {
     phase: 'ready', elapsed: 0, wind: SKI_WIND.includes(wind) ? wind : 0,
+    crosswind: SKI_CROSSWINDS.includes(crosswind) ? crosswind : 0, gust: 0,
     distance: 0, height: skiRampHeight(0), speed: 0, pitch: 0,
+    bank: 0, drift: 0, instability: 0,
     launch: null, landing: null, result: null,
   }
 }
@@ -46,12 +50,12 @@ function airHeight(launch, time) {
   return launch.height + launch.lift * time - gravity * time ** 2 / 2
 }
 
-function findTouchdown(launch) {
-  let low = (SKI_LIP - launch.distance) / launch.speed
+function findTouchdown(launch, elapsed, distance, speed) {
+  let low = elapsed + Math.max(0, (SKI_LIP - distance) / speed)
   let high = 6
-  for (let iteration = 0; iteration < 24; iteration++) {
+  for (let iteration = 0; iteration < 17; iteration++) {
     const time = (low + high) / 2
-    const height = skiHillHeight(launch.distance + launch.speed * time)
+    const height = skiHillHeight(distance + speed * (time - elapsed))
     if (airHeight(launch, time) > height) low = time
     else high = time
   }
@@ -61,7 +65,12 @@ function findTouchdown(launch) {
 export function skiTiming(game) {
   if (game.phase === 'approach') return { position: clamp(game.elapsed / SKI_APPROACH_TIME), zone: SKI_TAKEOFF_ZONE }
   if (game.phase === 'air' && !game.landing) {
-    return { position: clamp(1 - (game.launch.touchdown - game.elapsed) / SKI_LANDING_LEAD), zone: SKI_LANDING_ZONE }
+    const touchdown = findTouchdown(game.launch, game.elapsed, game.distance, game.speed)
+    const shrink = Math.abs(game.bank) * .145
+    return {
+      position: clamp(1 - (touchdown - game.elapsed) / SKI_LANDING_LEAD),
+      zone: [SKI_LANDING_ZONE[0] + shrink, SKI_LANDING_ZONE[1] - shrink],
+    }
   }
   return null
 }
@@ -86,7 +95,6 @@ export function skiAction(game) {
       lift: -.8 + timing * 3.2,
       timing,
     }
-    launch.touchdown = findTouchdown(launch)
     game.phase = 'air'
     game.elapsed = 0
     game.launch = launch
@@ -94,14 +102,14 @@ export function skiAction(game) {
     return
   }
   if (game.phase === 'air' && !game.landing) {
-    const position = 1 - (game.launch.touchdown - game.elapsed) / SKI_LANDING_LEAD
-    const quality = position >= SKI_LANDING_ZONE[0] && position <= SKI_LANDING_ZONE[1]
-      ? clamp(1 - Math.abs(position - .72) / .46) : 0
-    game.landing = { quality, early: position < SKI_LANDING_ZONE[0] }
+    const { position, zone: [early, late] } = skiTiming(game)
+    const quality = position >= early && position <= late
+      ? clamp(1 - Math.abs(position - .72) / (late - early)) : 0
+    game.landing = { quality, early: position < early }
   }
 }
 
-export function advanceSkiJump(game, delta) {
+export function advanceSkiJump(game, delta, steer = 0) {
   if (!Number.isFinite(delta) || delta <= 0) return
   const time = game.elapsed + delta
   if (game.phase === 'approach') {
@@ -118,38 +126,70 @@ export function advanceSkiJump(game, delta) {
     return
   }
   if (game.phase === 'air') {
-    const { launch, landing } = game
-    game.elapsed = Math.min(time, launch.touchdown)
-    game.distance = launch.distance + launch.speed * game.elapsed
-    game.height = airHeight(launch, game.elapsed)
-    const angle = Math.atan2(launch.lift - gravity * game.elapsed, launch.speed)
-    const groundAngle = Math.atan(skiGrade(skiHillHeight, game.distance))
-    const landingProgress = landing?.quality ? clamp(1 - (launch.touchdown - time) / .26) : 0
-    game.pitch = clamp(angle * .52 + .11, -.48, .28) * (1 - landingProgress) + groundAngle * landingProgress
-    if (time < launch.touchdown) return
-
-    const distance = Math.round(10 * (game.distance - SKI_LIP)) / 10
-    const style = Math.round(100 * (.35 * launch.timing + .65 * (landing?.quality ?? 0)))
-    const score = landing?.quality ? Math.round(10 * (.9 * distance + .36 * style)) : 0
-    const reason = landing?.quality
-      ? style >= 90 ? 'Snyggt! Du satte en telemarklandning.' : 'Stabilt! Nästa meter finns i tajmingen.'
-      : landing?.early ? 'Landningen kom för tidigt. Vänta på det gröna fältet.' : 'Landningen kom för sent. Tryck innan skidorna når snön.'
-    game.result = { distance, style, score, reason }
-    game.height = skiHillHeight(game.distance)
-    game.phase = 'runout'
-    game.elapsed = 0
-    game.touchdownDistance = game.distance
+    const input = Number.isFinite(steer) ? clamp(steer, -1, 1) : 0
+    // Short steps keep the wind and touchdown consistent at different frame rates.
+    let remaining = delta
+    while (remaining > 0 && game.phase === 'air') {
+      const step = Math.min(.02, remaining)
+      advanceFlight(game, step, input)
+      remaining -= step
+    }
     return
   }
   if (game.phase === 'runout') {
     game.elapsed = Math.min(time, runoutTime)
     const progress = game.elapsed / runoutTime
+    game.drift = game.touchdownDrift * (1 - progress * .35)
+    game.bank = game.touchdownBank * (1 - progress)
     game.distance = game.touchdownDistance + (game.result.score ? 17 : 6) * (1 - (1 - progress) ** 2)
     game.height = skiHillHeight(game.distance)
     game.speed = (game.result.score ? 32 : 11) * (1 - progress)
     game.pitch = Math.atan(skiGrade(skiHillHeight, game.distance))
     if (progress === 1) game.phase = 'finished'
   }
+}
+
+function advanceFlight(game, step, steer) {
+  const { launch, landing } = game
+  const time = game.elapsed + step
+  const gust = game.crosswind * (.66 + .34 * Math.sin(time * 2.5 - .2) + .17 * Math.sin(time * 5.4))
+  const equilibrium = gust * .4 + steer * 1.85
+  const bank = clamp(equilibrium + (game.bank - equilibrium) * Math.exp(-2.2 * step), -1, 1)
+  const speed = launch.speed * (1 - .22 * bank ** 2)
+  const distance = game.distance + speed * step
+  const height = airHeight(launch, time)
+  const landed = distance >= SKI_LIP && height <= skiHillHeight(distance)
+  const contact = landed ? findTouchdown(launch, game.elapsed, game.distance, speed) : time
+  const inAir = contact - game.elapsed
+
+  game.elapsed = contact
+  game.distance += speed * inAir
+  game.height = airHeight(launch, contact)
+  game.speed = speed
+  game.bank = bank
+  game.gust = gust
+  game.drift = clamp(game.drift + bank * inAir * 1.6, -5.5, 5.5)
+  game.instability += Math.abs(bank) * inAir
+  const angle = Math.atan2(launch.lift - gravity * contact, speed)
+  const groundAngle = Math.atan(skiGrade(skiHillHeight, game.distance))
+  game.pitch = landing?.quality ? groundAngle : clamp(angle * .52 + .11, -.48, .28)
+  if (!landed) return
+
+  const jumpDistance = Math.round(10 * (game.distance - SKI_LIP)) / 10
+  const stability = clamp(1 - game.instability / contact)
+  const style = landing?.quality
+    ? Math.round(100 * (.35 * launch.timing + .65 * landing.quality) * (.68 + .32 * stability)) : 0
+  const score = landing?.quality ? Math.round(10 * (.9 * jumpDistance + .36 * style)) : 0
+  const reason = landing?.quality
+    ? style >= 90 ? 'Snyggt! Du satte en telemarklandning.' : 'Stabilt! Korta styrtryck kan ge dig mer längd och stil.'
+    : landing?.early ? 'Landningen kom för tidigt. Vänta på det gröna fältet.' : 'Landningen kom för sent. Tryck innan skidorna når snön.'
+  game.result = { distance: jumpDistance, style, score, reason }
+  game.height = skiHillHeight(game.distance)
+  game.phase = 'runout'
+  game.elapsed = 0
+  game.touchdownDistance = game.distance
+  game.touchdownBank = game.bank
+  game.touchdownDrift = game.drift
 }
 
 export function validSkiJumpScore(score) {

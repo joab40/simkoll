@@ -132,10 +132,10 @@ function Peaks() {
 function Skier({ model, effects }) {
   const root = useRef(null), body = useRef(null), leftSki = useRef(null), rightSki = useRef(null), shadow = useRef(null)
   useFrame(() => {
-    const { distance, height, pitch, phase, elapsed, landing, result } = model.current
+    const { distance, height, pitch, phase, elapsed, landing, result, bank, drift } = model.current
     const flying = phase === 'air'
-    root.current.position.set(0, height + .14, -distance)
-    root.current.rotation.x = pitch
+    root.current.position.set(drift, height + .14, -distance)
+    root.current.rotation.set(pitch, 0, -bank * .55)
     body.current.rotation.x = flying && !landing?.quality ? -.96 : phase === 'approach' ? -.67 : phase === 'runout' && !result?.score ? -1.26 : -.13
     const spread = flying && !landing?.quality ? .28 : .025
     leftSki.current.rotation.y = spread
@@ -145,7 +145,7 @@ function Skier({ model, effects }) {
     rightSki.current.position.z = -telemark
     const surface = distance < SKI_LIP ? skiRampHeight : skiHillHeight
     const ground = surface(distance)
-    shadow.current.position.set(0, ground + .065, -distance)
+    shadow.current.position.set(drift, ground + .065, -distance)
     shadow.current.rotation.x = Math.atan(skiGrade(surface, distance)) - Math.PI / 2
     shadow.current.material.opacity = effects ? .2 / (1 + Math.max(0, height - ground) * .085) : .16
   })
@@ -201,7 +201,7 @@ export default function SkiJumpScene({ model, effects, onGraphicsError }) {
     return () => canvas.removeEventListener('webglcontextlost', lost)
   }, [gl, onGraphicsError])
   useFrame((state, delta) => {
-    const { distance, height, phase } = model.current
+    const { distance, height, phase, drift } = model.current
     const air = phase === 'air'
     const landing = phase === 'runout' || phase === 'finished'
     const mobile = state.size.width < 540
@@ -210,13 +210,13 @@ export default function SkiJumpScene({ model, effects, onGraphicsError }) {
     const inrun = distance - behind < SKI_LIP
     const terrain = (inrun ? skiRampHeight : skiHillHeight)(distance - behind)
     const altitude = Math.max(height + (air ? 3.2 : 3.6), terrain + 1.35)
-    follow.set(x, altitude, -distance + behind)
+    follow.set(x + drift * .64, altitude, -distance + behind)
     if (phase === 'ready' || !effects) camera.position.copy(follow)
     else {
       camera.position.lerp(follow, 1 - Math.exp(-Math.min(delta, .1) * 11))
       camera.position.y = Math.max(camera.position.y, terrain + 1.35)
     }
-    target.set(0, height - (inrun && !air ? 4.6 : 4.3), -distance - (air ? 12 : 16))
+    target.set(drift * .7, height - (inrun && !air ? 4.6 : 4.3), -distance - (air ? 12 : 16))
     camera.lookAt(target)
   })
   return <>
