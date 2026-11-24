@@ -317,8 +317,14 @@ button { cursor: pointer; }
 .start-card > div > p:last-child { color: var(--muted); margin: 0; }
 .start-card-actions { display: grid; justify-items: end; gap: 8px; flex: 0 0 auto; }
 .start-card-actions .primary-button { margin: 0; }
-.yesterday-checkin-button { color: var(--muted); font-size: 13px; line-height: 1.35; }
-.yesterday-checkin-button span { display: block; color: var(--teal); font-weight: 700; }
+.home-actions-carousel { margin-top: 18px; }
+.home-actions-carousel .swimmer-hero-track { border-radius: 24px; }
+.home-actions-carousel .start-card { margin: 0; }
+.home-actions-carousel .hero-slide-arrow { width: 44px; height: 44px; flex: none; }
+@media (max-width: 640px) {
+  .home-actions-carousel .swimmer-hero-navigation .hero-slide-arrow { display: block; }
+  .home-actions-carousel .start-card-actions button { width: 100%; }
+}
 .game-card { margin-top: 12px; background: linear-gradient(120deg, #e4f3f1, #edf5d2); border: 1px solid #c9dfd7; border-radius: 22px; padding: 23px 28px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .game-card-stack { display: grid; gap: 12px; }
 .games-carousel { margin-top: 12px; }
@@ -1562,7 +1568,13 @@ button { cursor: pointer; }
 .weekly-summary h3 { margin: 2px 0; }
 .weekly-summary small { color: var(--muted); }
 .weekly-summary small button { border: 0; background: transparent; color: var(--teal); padding: 0; text-decoration: underline; }
-.weekly-summary > button { border: 0; background: transparent; color: var(--teal); font-weight: 700; }
+.weekly-summary > button, .weekly-summary-links button { border: 0; background: transparent; color: var(--teal); font-weight: 700; }
+.weekly-summary-links { display: grid; justify-items: end; flex: none; }
+.weekly-summary-links button { min-height: 44px; padding: 4px 0; }
+@media (max-width: 420px) {
+  .weekly-summary:has(.weekly-summary-links) { flex-wrap: wrap; row-gap: 6px; }
+  .weekly-summary-links { justify-items: start; }
+}
 .week-log { margin-top: 19px; overflow-x: auto; }
 .week-log-head, .week-log-row { min-width: 600px; display: grid; grid-template-columns: 125px repeat(7, 1fr); gap: 5px; align-items: center; }
 .week-log-head { margin-bottom: 5px; }

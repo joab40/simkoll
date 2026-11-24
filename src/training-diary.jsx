@@ -123,7 +123,7 @@ export function DiaryEntry({ entry, code, request, reflectionsAvailable, onSaved
   </div></details>
 }
 
-export default function TrainingDiary({ code, request, onBack, onGoals }) {
+export default function TrainingDiary({ code, request, onBack, onGoals, initialShortcut }) {
   const today = todayKey()
   const [range, setRange] = useState(() => presetRange('month', today)), [draft, setDraft] = useState(() => presetRange('month', today)), [data, setData] = useState(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [retry, setRetry] = useState(0)
   const activeRange = useRef(''), mounted = useRef(true)
@@ -133,7 +133,15 @@ export default function TrainingDiary({ code, request, onBack, onGoals }) {
   const volumeScroll = useRef(null), metricScroll = useRef(null)
   const timesSection = useRef(null), historySection = useRef(null)
   const calendarSection = useRef(null), calendarNavigation = useRef(null)
-  const [timeState, setTimeState] = useState({ rows: [], loading: true }), [createTime, setCreateTime] = useState(null)
+  const openCalendar = useRef(initialShortcut === 'calendar')
+  const [timeState, setTimeState] = useState({ rows: [], loading: true })
+  const [createTime, setCreateTime] = useState(() => initialShortcut === 'training' || initialShortcut === 'test' ? { kind: initialShortcut } : null)
+  useLayoutEffect(() => {
+    if (data && openCalendar.current && calendarSection.current) {
+      openCalendar.current = false
+      calendarSection.current.scrollIntoView({ block: 'start' })
+    }
+  }, [data])
   const showHistory = (activity) => { if (!allowLeave()) return; setType(activity); setDay(null); setSearch(''); setLimit(20); historySection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   const syncCharts = (event) => { const other = event.currentTarget === volumeScroll.current ? metricScroll.current : volumeScroll.current; if (other && other.scrollLeft !== event.currentTarget.scrollLeft) other.scrollLeft = event.currentTarget.scrollLeft }
   const onDirty = (key, dirty) => setDirtyKeys((current) => { if (current.has(key) === dirty) return current; const next = new Set(current); if (dirty) next.add(key); else next.delete(key); return next })
