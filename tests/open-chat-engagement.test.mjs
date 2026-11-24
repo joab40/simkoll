@@ -79,3 +79,44 @@ test('SQL 147 handles repeated views, unlike, visibility and aggregate-only acce
     assert.deepEqual(await save([coachPost], swimmer, true), [])
   } finally { await db.close() }
 })
+
+test('SQL 150 counts current recipients and restricts access to unseen names', { skip: !pgliteModule }, async () => {
+  const { PGlite } = await import(pgliteModule)
+  const db = new PGlite()
+  try {
+    await db.exec(`
+      create role anon; create role authenticated; create role service_role bypassrls;
+      create table public.profiles(
+        id uuid primary key, display_name text, emoji text,
+        active boolean default true, approval_status text default 'approved', is_test_profile boolean default false
+      );
+      create table public.app_settings(setting_key text primary key, setting_value jsonb);
+    `)
+    for (const migration of ['061_open_group_chat', '062_open_chat_visibility', '147_open_chat_engagement', '150_open_chat_read_receipts']) {
+      await db.exec(await readFile(new URL(`../supabase/migrations/${migration}.sql`, import.meta.url), 'utf8'))
+    }
+    const former = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    const pending = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const demo = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    await db.query("insert into public.profiles values ($1, 'Sett', '🐬', true, 'approved', false), ($2, 'Anna', '🐳', true, 'approved', false), ($3, 'Inaktiv', null, false, 'approved', false), ($4, 'Väntande', null, true, 'pending', false), ($5, 'Test', null, true, 'approved', true)", [swimmer, other, former, pending, demo])
+    await db.query(`
+      insert into public.open_chat_messages(id, sender_role, visibility, content, deleted_at) values
+      ($1, 'coach', 'group', 'Info', null), ($2, 'coach', 'coaches', 'Privat', null),
+      ($3, 'swimmer', 'group', 'Fråga', null), ($4, 'coach', 'group', 'Borttaget', now())
+    `, [coachPost, privatePost, question, deleted])
+    await db.query('insert into public.open_chat_engagement values ($1, $2, false), ($1, $3, true), ($1, $4, false)', [coachPost, swimmer, former, demo])
+    await db.exec('grant select on public.profiles, public.open_chat_messages to service_role; set role authenticated;')
+    await assert.rejects(db.query('select * from public.open_chat_coach_read_details($1)', [coachPost]), /permission denied/)
+    await assert.rejects(db.query('select * from public.open_chat_coach_read_totals($1)', [[coachPost]]), /permission denied/)
+    await db.exec('set role service_role;')
+    const totals = async ids => (await db.query('select * from public.open_chat_coach_read_totals($1)', [ids])).rows
+    const details = async id => (await db.query('select * from public.open_chat_coach_read_details($1)', [id])).rows
+    assert.deepEqual(await totals([coachPost, privatePost, question, deleted]), [{ message_id: coachPost, seen_count: 1, recipient_count: 2, like_count: 1 }])
+    assert.deepEqual(await details(coachPost), [{ seen_count: 1, recipient_count: 2, unseen: [{ id: other, displayName: 'Anna', emoji: '🐳' }] }])
+    for (const id of [privatePost, question, deleted]) assert.deepEqual(await details(id), [])
+    await db.query('insert into public.open_chat_engagement values ($1, $2, false)', [coachPost, other])
+    assert.deepEqual(await details(coachPost), [{ seen_count: 2, recipient_count: 2, unseen: [] }])
+    await db.exec('reset role; update public.profiles set active = false; set role service_role;')
+    assert.deepEqual(await details(coachPost), [{ seen_count: 0, recipient_count: 0, unseen: [] }])
+  } finally { await db.close() }
+})

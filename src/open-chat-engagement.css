@@ -34,3 +34,41 @@
 .info-like-button:focus-visible { outline: 2px solid var(--teal, #0f6e70); outline-offset: 2px; }
 .open-chat-messages .info-message-meta:has(.info-message-engagement) { flex-wrap: wrap; gap: 4px 13px; }
 .coach-messages-workspace .info-message-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.info-seen-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 5px 11px;
+  border: 1px solid #c8dcd8;
+  border-radius: 10px;
+  background: #edf6f3;
+  color: var(--teal, #0f6e70);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.info-seen-button:hover { background: #dbeee9; }
+.info-seen-button:focus-visible { outline: 2px solid var(--teal, #0f6e70); outline-offset: 2px; }
+.info-read-dialog {
+  width: min(480px, calc(100% - 24px));
+  max-height: min(680px, 88dvh);
+  padding: 0;
+  border: 1px solid #c8dcd8;
+  border-radius: 20px;
+  background: var(--paper, #f8faf6);
+  color: var(--ink, #102f39);
+  box-shadow: 0 18px 54px #13363e29;
+}
+.info-read-dialog::backdrop { background: #112c3b80; }
+.info-read-dialog-content { padding: clamp(16px, 4vw, 28px); }
+.info-read-dialog header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.info-read-dialog h2, .info-read-dialog h3, .info-read-dialog .eyebrow { margin: 0; }
+.info-read-dialog h2 { margin-top: 5px; }
+.info-read-dialog h3 { font-size: 1rem; }
+.info-read-dialog ul { list-style: none; padding: 0; margin: 8px 0 16px; }
+.info-read-dialog li { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid #dbe8e5; }
+.info-read-dialog-note { margin-bottom: 0; color: var(--muted, #45636b); font-size: .875rem; }

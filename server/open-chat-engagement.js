@@ -23,17 +23,29 @@ const presentTotals = rows => rows.map(row => ({
   liked: row.liked === true,
 }))
 
-async function engagementRpc(read, name, body) {
+async function openChatRpc(read, name, body) {
   const result = await read(`rpc/${name}`, { method: 'POST', body: JSON.stringify(body) })
   if (!result.ok) throw new Error(`Open chat engagement unavailable (${result.status})`)
-  return presentTotals(await result.json())
+  return result.json()
 }
 
-export async function loadOpenChatEngagement(rows, profileId, read = supabaseRequest) {
+export async function loadOpenChatEngagement(rows, profileId, read = supabaseRequest, { coach = false } = {}) {
   const ids = rows.filter(isPublicCoachMessage).map(row => row.id)
   if (!ids.length) return new Map()
+  if (coach) {
+    try {
+      const totals = await openChatRpc(read, 'open_chat_coach_read_totals', { p_message_ids: ids })
+      return new Map(totals.map(row => [row.message_id, {
+        seenCount: row.seen_count,
+        recipientCount: row.recipient_count,
+        likeCount: row.like_count,
+      }]))
+    } catch {
+      // Preserve the existing counts while the read receipt migration is unavailable.
+    }
+  }
   try {
-    const totals = await engagementRpc(read, 'open_chat_engagement_totals', { p_message_ids: ids, p_profile_id: profileId || null })
+    const totals = presentTotals(await openChatRpc(read, 'open_chat_engagement_totals', { p_message_ids: ids, p_profile_id: profileId || null }))
     return new Map(totals.map(({ messageId, ...counts }) => [messageId, counts]))
   } catch {
     // A missing migration or a transient stats error must not hide trainer messages.
@@ -42,5 +54,12 @@ export async function loadOpenChatEngagement(rows, profileId, read = supabaseReq
 }
 
 export async function saveOpenChatEngagement(profileId, { ids, liked }, read = supabaseRequest) {
-  return engagementRpc(read, 'save_open_chat_engagement', { p_message_ids: ids, p_profile_id: profileId, p_liked: liked })
+  return presentTotals(await openChatRpc(read, 'save_open_chat_engagement', { p_message_ids: ids, p_profile_id: profileId, p_liked: liked }))
+}
+
+export async function loadOpenChatReadDetails(messageId, read = supabaseRequest) {
+  if (!isMessageId(messageId)) return null
+  const [row] = await openChatRpc(read, 'open_chat_coach_read_details', { p_message_id: messageId })
+  if (!row) return null
+  return { seenCount: row.seen_count, recipientCount: row.recipient_count, unseen: row.unseen }
 }

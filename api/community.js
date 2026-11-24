@@ -8,7 +8,7 @@ import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/privat
 import { proposePrivateReply } from '../server/private-reply-ai.js'
 import { loadCommunityPreview, loadCoachMessageCount } from '../server/community-preview.js'
 import { loadInfoChannel, loadCoachInbox } from '../server/community-channels.js'
-import { parseOpenChatEngagement, saveOpenChatEngagement } from '../server/open-chat-engagement.js'
+import { loadOpenChatReadDetails, parseOpenChatEngagement, saveOpenChatEngagement } from '../server/open-chat-engagement.js'
 import { handleFeedbackDialog, isFeedbackDialogRequest } from '../server/app-feedback-dialog.js'
 
 const stockholmCalendar = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' })
@@ -276,6 +276,7 @@ export default async function handler(request, response) {
     if (isFeedbackDialogRequest(request)) return await handleFeedbackDialog(request, response)
     if (request.body?.action === 'reply-app-feedback') return sendJson(response,409,{error:'Öppna feedbackdialogen för att svara. Uppdatera sidan om du ser det gamla svarsfältet.'})
     if (request.method === 'GET') {
+      if (request.query?.openChatReadDetails !== undefined && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se vilka simmare som saknar en visning.' })
       if (request.query?.messageCount === 'true' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan se meddelandeantalet.' })
       if (request.query?.channel === 'private' && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa tränarnas inkorg.' })
       if (role === 'coach' && request.query?.coachFeed === 'true') return sendJson(response, 200, { events: await getCoachFeed() })
@@ -306,6 +307,12 @@ export default async function handler(request, response) {
       const openChatEnabled = webappSettings.openChat?.enabled === true
       const openChatCoachOnly = webappSettings.openChat?.coachOnly === true
       const openChatSwimmerPrivate = webappSettings.openChat?.swimmerPrivate !== false
+      if (request.query?.openChatReadDetails !== undefined) {
+        if (!openChatEnabled) return sendJson(response, 404, { error: 'Tränarinfo är avstängd.' })
+        const details = await loadOpenChatReadDetails(request.query.openChatReadDetails)
+        if (!details) return sendJson(response, 404, { error: 'Gruppmeddelandet kunde inte hittas.' })
+        return sendJson(response, 200, details)
+      }
       if (request.query?.openChat) return sendJson(response, 200, await loadInfoChannel(webappSettings, role, profile))
       if (request.query?.messageCount === 'true') {
         const since = Number(request.query.since || 0)
@@ -719,6 +726,7 @@ export default async function handler(request, response) {
     return sendJson(response, 405, { error: 'Method not allowed' })
   } catch (error) {
     console.error(error)
+    if (request.method === 'GET' && request.query?.openChatReadDetails !== undefined) return sendJson(response, 500, { error: 'Kunde inte hämta visningslistan.' })
     return sendJson(response, 500, { error: 'Kunde inte ladda klubbflödet.' })
   }
 }

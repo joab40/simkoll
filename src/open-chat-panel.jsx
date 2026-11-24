@@ -3,6 +3,7 @@ import { apiRequest } from './api-request.js'
 import { chatBackgroundUrl } from './chat-background.js'
 import { markCoachMessageRead } from './coach-info.js'
 import PrivateChatReply from './private-chat-reply.jsx'
+import OpenChatReadDetails from './open-chat-read-details.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { formatFeedDate } from './community-date.js'
 import { useCommunityChannel } from './use-community-channel.js'
@@ -11,10 +12,13 @@ import './open-chat-engagement.css'
 
 const emptyChat = { enabled: false, messages: [] }
 
-function MessageEngagement({ item, coach, engagement }) {
-  const { seenCount, likeCount, liked } = item.engagement
+function MessageEngagement({ item, coach, engagement, onShowReaders }) {
+  const { seenCount, recipientCount, likeCount, liked } = item.engagement
   return <span className="info-message-engagement">
-    <small className="info-seen" aria-label={`Sett av ${seenCount} simmare`}>Sett av {seenCount}</small>
+    {coach && Number.isInteger(recipientCount)
+      ? <button type="button" className="info-seen-button" aria-haspopup="dialog" onClick={onShowReaders}
+          aria-label={`Sett av ${seenCount} av ${recipientCount} simmare. Visa vilka som saknar en visning.`}>Sett av {seenCount} / {recipientCount} <span aria-hidden="true">›</span></button>
+      : <small className="info-seen" aria-label={`Sett av ${seenCount} simmare`}>Sett av {seenCount}</small>}
     {coach
       ? <span className="info-like-count" aria-label={`${likeCount} tummar upp`}>👍 {likeCount}</span>
       : <button type="button" className="info-like-button" aria-pressed={liked} disabled={engagement.likingId !== null}
@@ -36,6 +40,7 @@ export default function OpenChatPanel(props) {
 
 function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = false, active = true, request = apiRequest }) {
   const [privateReply, setPrivateReply] = useState(null)
+  const [readDetailsMessage, setReadDetailsMessage] = useState(null)
   const privateReplyTrigger = useRef(null)
   const closePrivateReply = () => { setPrivateReply(null); privateReplyTrigger.current?.focus() }
   const channel = useCommunityChannel({ code, channel: 'openChat=true', active, request, merge: mergeChat })
@@ -60,7 +65,7 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
   useLayoutEffect(() => {
     if (!active || channel.loading) return
     const ids = new Set(chat.messages.map(item => item.id))
-    if (follow.current && !privateReply && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight
+    if (follow.current && !privateReply && !readDetailsMessage && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight
     else if (!follow.current) setUnread(value => value + chat.messages.filter(item => !seen.current.has(item.id)).length)
     seen.current = ids
   }, [chat.messages, active, channel.loading])
@@ -102,6 +107,7 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
       const result = await request('/api/community', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open-chat-message', content: messageContent }) })
       const savedMessage = result.message || { ...pendingMessage, pending: false }
       setChat((current) => ({ ...current, messages: [...(current.messages || []).filter((item) => item.id !== pendingId && item.id !== savedMessage.id), savedMessage].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }))
+      if (coach) void load()
       setStatus('')
     } catch (error) {
       setChat((current) => ({ ...current, messages: (current.messages || []).filter((item) => item.id !== pendingId) }))
@@ -152,7 +158,7 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
         <span className="private-question-content">{item.content}</span>
         {coach && !item.engagement ? timestamp : <span className="info-message-meta">
           {timestamp}
-          {item.engagement && <MessageEngagement item={item} coach={coach} engagement={engagement} />}
+          {item.engagement && <MessageEngagement item={item} coach={coach} engagement={engagement} onShowReaders={() => setReadDetailsMessage(item)} />}
           {!coach && removeButton}
         </span>}
         {canReply && <small className="private-reply-hint">↩ Svara privat till {item.sender?.displayName || 'simmaren'}</small>}
@@ -174,5 +180,6 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
     {channel.error && <p className="private-replies-warning" role="status">Uppdateringen misslyckades. Senast hämtade meddelanden visas. <button type="button" onClick={load}>Försök igen</button></p>}
     {engagement.error && <p className="private-replies-warning" role="status">{engagement.error}</p>}
     {chat.privateRepliesWarning && <p className="private-replies-warning" role="status">{chat.privateRepliesWarning}</p>}
+    {coach && active && readDetailsMessage && <OpenChatReadDetails message={readDetailsMessage} code={code} request={request} onClose={() => setReadDetailsMessage(null)} />}
   </section>
 }

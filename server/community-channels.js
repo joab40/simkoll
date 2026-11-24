@@ -32,7 +32,7 @@ export async function loadInfoChannel(settings, role, viewer, read = supabaseReq
   const [senders, threaded, engagement] = await Promise.all([
     loadSenders(),
     loadPrivateChatReplies(messages, role, profileId, read),
-    loadOpenChatEngagement(visibleRows, profileId, read),
+    loadOpenChatEngagement(visibleRows, profileId, read, { coach: role === 'coach' }),
   ])
   const profiles = new Map(senders.map(row => [row.id, displayProfile(row)]))
   if (viewer) profiles.set(profileId, displayProfile(viewer))

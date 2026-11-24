@@ -28,6 +28,41 @@ test('real info route skips unrelated tables and returns no inbox/public-feed pa
   assert.deepEqual(Object.keys(response.data), ['openChat'])
 })
 
+test('coach info sends counts up front and returns unseen names only on an authorized detail request', async () => {
+  const messageId = '22222222-2222-4222-8222-222222222222'
+  const missingMessageId = '33333333-3333-4333-8333-333333333333'
+  const unseen = [{ id: '11111111-1111-4111-8111-111111111111', displayName: 'Demo', emoji: '🐬' }]
+  const calls = []
+  globalThis.fetch = async (raw, options) => {
+    const table = new URL(raw).pathname.split('/').at(-1)
+    calls.push(table)
+    switch (table) {
+      case 'app_settings': return json(rows.app_settings)
+      case 'open_chat_messages': return json([{ ...rows.open_chat_messages[0], id: messageId, visibility: 'group' }])
+      case 'open_chat_coach_read_totals':
+        assert.deepEqual(JSON.parse(options.body), { p_message_ids: [messageId] })
+        return json([{ message_id: messageId, seen_count: 8, recipient_count: 9, like_count: 2 }])
+      case 'open_chat_coach_read_details':
+        return json(JSON.parse(options.body).p_message_id === messageId ? [{ seen_count: 8, recipient_count: 9, unseen }] : [])
+      default: assert.fail(table)
+    }
+  }
+  const channel = await call({ openChat: 'true' })
+  assert.equal(channel.code, 200)
+  assert.deepEqual(channel.data.openChat.messages[0].engagement, { seenCount: 8, recipientCount: 9, likeCount: 2 })
+  assert.deepEqual(calls, ['app_settings', 'open_chat_messages', 'open_chat_coach_read_totals'])
+  const detail = await call({ openChatReadDetails: messageId })
+  assert.equal(detail.code, 200)
+  assert.deepEqual(detail.data, { seenCount: 8, recipientCount: 9, unseen })
+  assert.match(detail.headers['Cache-Control'], /no-store/)
+  assert.equal((await call({ openChatReadDetails: missingMessageId })).code, 404)
+  assert.equal((await call({ openChatReadDetails: 'invalid' })).code, 404)
+  calls.length = 0
+  assert.equal((await call({ openChatReadDetails: messageId }, 'swimmer-channel-fixture')).code, 403)
+  assert.equal((await call({ openChatReadDetails: messageId }, '')).code, 403)
+  assert.deepEqual(calls, [])
+})
+
 test('real club route skips private inbox, questions, linked replies and private kudos', async () => {
   const calls = []
   globalThis.fetch = async url => {
