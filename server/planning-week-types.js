@@ -25,6 +25,12 @@ async function readWeekTypes(query) {
   throw Object.assign(new Error(needsMigration ? 'Veckotyper kräver databasuppdatering 143.' : 'Veckotyperna kunde inte hämtas. Försök igen.'), { status: 503 })
 }
 
+export async function loadFlightPlanningWeeks(trainingGroup, from) {
+  const group = flightGroupId(trainingGroup)
+  if (!group) return []
+  return readWeekTypes(`planning_week_types?week_start=gte.${coachWeekMonday(from)}&group_id=eq.${group}&select=week_start,group_id,week_type&order=week_start.asc`)
+}
+
 async function competitionsInRange(from, to) {
   const result = await analyticsRows(`competition_calendar?start_date=lte.${to}&end_date=gte.${from}&select=id,title,start_date,end_date,target_groups&order=start_date.asc,id.asc`)
   if (!result.ok || result.truncated) return null

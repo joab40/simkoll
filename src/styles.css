@@ -3144,3 +3144,33 @@ button { cursor: pointer; }
 .coach-reset-page .code-form > input:focus-visible { outline: 3px solid #9fd8d2; outline-offset: 2px; }
 .coach-reset-page .code-form > button { width: 100%; }
 .coach-reset-page .login-card > a { display: inline-block; margin-top: 20px; color: #087478; font-weight: 600; }
+
+.planning-past-day {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f3f7f6;
+  min-width: 0;
+}
+.planning-past-day > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--muted);
+}
+.planning-past-day > summary::-webkit-details-marker { display: none; }
+.planning-past-day > summary > span:first-child { display: grid; gap: 2px; }
+.planning-past-day > summary strong { text-transform: capitalize; }
+.planning-past-day[open] > summary > span:last-child { transform: rotate(180deg); }
+.planning-past-day[open] > article.planning-day { margin: 0 8px 8px; }
+.swimmer-planning-list .planning-past-day[open] { padding-bottom: 8px; }
+.swimmer-planning-list .planning-past-day[open] > :not(summary) { margin: 0 8px 8px; }
+
+.workout-follow-up { align-items: flex-start; }
+.workout-follow-up > span { flex: none; }
+.workout-follow-up > div { min-width: 0; }
+.workout-follow-up .secondary-button { align-self: flex-start; margin-block: 10px 4px; }
+.workout-follow-up .workout-day-item { margin-top: 8px; }

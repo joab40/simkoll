@@ -58,7 +58,7 @@ test('hide and restore a selected competition card for both views without changi
     if (table === 'profile_sessions') return json([{ profile_id: profileId }])
     if (table === 'profiles') return json([{ id: profileId, training_group: 'junior' }])
     if (table === 'app_settings') return json([{ setting_value: {} }])
-    assert.ok(['sportadmin_hidden_activities', 'daily_workouts', 'training_cycles', 'workout_unlocks', 'planning_week_types'].includes(table), table)
+    assert.ok(['responses', 'sportadmin_hidden_activities', 'daily_workouts', 'training_cycles', 'workout_unlocks', 'planning_week_types'].includes(table), table)
     return json([])
   })
 

@@ -6,11 +6,11 @@ import { writeAuditLog } from './audit.js'
 import { analyticsRows } from './analytics-rows.js'
 import { loadTrainingDiary } from './training-diary.js'
 import { readFlightMeasures, readFlightScores, saveFlightMeasure, sleepGoalField } from './flight-record-measures.js'
-import { coachWeekAddDays } from '../shared/coach-week.js'
+import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
 import { isTimeDate, isTimeId } from '../shared/swim-times.js'
 import { flightGroupId, FLIGHT_OVERVIEW_BATCH } from '../shared/flight-defaults.js'
 import { coachFlightDefaults, loadFlightDefaults } from './flight-defaults.js'
-import { loadPlanningWeekType } from './planning-week-types.js'
+import { loadFlightPlanningWeeks } from './planning-week-types.js'
 import { FLIGHT_HISTORY_DAYS, FLIGHT_PERIODS, flightRecordDays, flightTimeSeries } from '../shared/flight-record.js'
 import { FLIGHT_BOOST_MAX_DAYS, readFlightBoostSettings, validateFlightBoostSettings } from '../shared/flight-boosts.js'
 import { FLIGHT_PRACTICE_BOOST_DAYS, flightPbCandidates, readFlightPbSettings, tempusPbLookup, validateFlightPbSettings } from '../shared/flight-pb.js'
@@ -87,7 +87,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = F
   const raceStart = needTaper && historyStart < timeStart ? historyStart : timeStart
   const extended = Object.hasOwn(profile, sleepGoalField)
   const needCustom = extended && (!chartOnly || Object.keys(weights).some(key => isTimeId(key) && weights[key] > 0))
-  const [diary, practice, races, sleep, audit, measures, scores, tempus, weekType] = await Promise.allSettled([
+  const [diary, practice, races, sleep, audit, measures, scores, tempus, planningWeeks] = await Promise.allSettled([
     loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false,
       includeGoals: false, includeCheckinSignals: true, planningCache }),
     readRows(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`),
@@ -97,7 +97,7 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = F
     needCustom ? readFlightMeasures(profile.id) : [],
     needCustom ? readFlightScores(profile.id, contextStart, end) : new Map(),
     needPb ? readRows(`competition_results?${owner}&source=eq.tempus&result_date=lte.${end}&select=source,result_date,event,pool,result_time,swim_time&order=result_date.asc,id.asc`) : [],
-    preview || (includeWeekType && presentation.sky) ? loadPlanningWeekType(profile.training_group, end) : null,
+    preview || includeWeekType ? loadFlightPlanningWeeks(profile.training_group, start) : [],
   ])
   if ([diary, practice, races, sleep].every(result => result.status === 'rejected') && !scores.value?.size) {
     throw Object.assign(new Error('Formresans underlag kunde inte hämtas. Försök igen.'), { status: 502 })
@@ -138,8 +138,10 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = F
   const timeLifts = [...practiceLifts, ...raceLifts]
   if (chartOnly) {
     const line = flightLine(visibleDays, contextDays, timeLifts, weights, customMeasures, taperAdjustments, boostSettings, pbBoostSettings)
+    const weekTypes = planningWeeks.value ?? []
+    const weekType = weekTypes.find(row => row.weekStart === coachWeekMonday(end))?.type
     return { asOf: end, partial: warnings.length > 0, points: flightChartPoints(line, visibleDays, presentation.sky || preview),
-      ...(presentationAvailable ? { presentation } : {}), ...(weekType.value ? { weekType: weekType.value } : {}) }
+      ...(presentationAvailable ? { presentation } : {}), ...(weekType ? { weekType } : {}), ...(weekTypes.length ? { weekTypes } : {}) }
   }
   const series = history.map(group => ({ ...group, points: group.points.filter(point => point.date >= start) }))
     .filter(group => group.points.length)

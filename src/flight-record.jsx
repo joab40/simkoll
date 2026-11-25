@@ -106,8 +106,8 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
   const today = x(asOf)
   const futureStart = Math.max(left, today)
   const hasFuture = timeline ? end > asOf : future > 0
-  const plannedWeeks = flightWeekAnnotations(weekTypes, start, asOf)
-  const selectedWeek = plannedWeeks.find(week => week.weekStart === coachWeekMonday(selected ?? asOf))
+  const plannedWeeks = flightWeekAnnotations(weekTypes, start, timeline ? end : asOf)
+  const selectedWeek = plannedWeeks.find(week => week.weekStart === coachWeekMonday(timeline?.anchor ?? selected ?? asOf))
   const ticks = timed ? [min, Math.round((min + max) / 2), max] : metric.scale?.[1] === 5 ? [1, 2, 3, 4, 5] : [min, (min + max) / 2, max]
   const midpoint = days[Math.floor((days.length - 1) / 2)]?.date
   const showMidpoint = skyGoal ? historyRight - left > 380 : width > 430
@@ -217,9 +217,10 @@ export function FlightPlot({ days, metric, timed, points, selected, onSelect, as
       {plannedWeeks.map(week => {
         const nextWeek = coachWeekAddDays(week.weekStart, 7)
         const from = x(week.weekStart < start ? start : week.weekStart)
-        const to = nextWeek <= asOf ? x(nextWeek) : today
+        const limit = timeline ? end : asOf
+        const to = x(nextWeek <= limit ? nextWeek : limit)
         return <rect key={week.weekStart} className={`flight-week-mark week-type-${week.type}`}
-          x={Math.min(from, today - 3)} width={Math.max(3, to - from - 1)} y={base + 4} height="4" rx="2">
+          x={Math.min(from, x(limit) - 3)} width={Math.max(3, to - from - 2)} y={base + 4} height="6" rx="3">
           <title>{shortDate(week.weekStart)} · {week.text}</title>
         </rect>
       })}
@@ -835,6 +836,8 @@ function SwimmerFlightChart({ data, competitions = [], presentation = data.prese
   const { visible, target: competition, focus } = flightJourneyWindow(journey, start, end, anchor, chosen?.start === start ? chosen.id : null)
   const events = visible.map(event => ({ ...event, date: event.startDate < start ? start : event.startDate }))
   const visiblePoints = points.filter(point => point.date >= start && point.date <= end)
+  const weekTypes = data.weekTypes ?? []
+  const focusWeek = flightWeekAnnotations(weekTypes, anchor, anchor)[0]
 
   // Keep the same dates in view when newly loaded competitions extend the rail.
   useLayoutEffect(() => {
@@ -858,7 +861,13 @@ function SwimmerFlightChart({ data, competitions = [], presentation = data.prese
   const target = events.find(event => event.id === competition?.id)
   return <div className="flight-swimmer-presentation">
     <div className="flight-timeline-toolbar">
-      <span>{periodLabel(start, end)}</span>
+      <div className="flight-timeline-period">
+        <span>{periodLabel(start, end)}</span>
+        {focusWeek && <span className="flight-timeline-week">
+          <i className={`flight-week-mark week-type-${focusWeek.type}`} aria-hidden="true" />
+          {anchor === asOf ? 'Den här veckan' : shortDate(focusWeek.weekStart)} · {focusWeek.text}
+        </span>}
+      </div>
       <div className="flight-timeline-actions">
         <button type="button" className="secondary-button" aria-label="Flytta grafen en vecka bakåt" disabled={start === first} onClick={() => shift(-7)}>←</button>
         <button type="button" className="secondary-button" onClick={() => { setChosen(null); jumpTo(todayStart) }}>Idag</button>
@@ -885,8 +894,8 @@ function SwimmerFlightChart({ data, competitions = [], presentation = data.prese
       <div className="flight-timeline-rail" style={{ '--flight-timeline-overflow': `${maxScroll}px` }}>
         <div className="flight-timeline-window">
           <FlightPlot days={visiblePoints} points={visiblePoints} metric={lineMetric} asOf={asOf} target={target} period={FLIGHT_TIMELINE_SPAN + 1}
-            timeline={{ start, end, events, allPoints: points }} status={data.partial ? 'Delar av underlaget saknas' : undefined}
-            presentation={presentation} weekType={data.weekType} />
+            timeline={{ start, end, anchor, events, allPoints: points }} status={data.partial ? 'Delar av underlaget saknas' : undefined}
+            presentation={presentation} weekType={data.weekType} weekTypes={weekTypes} />
         </div>
       </div>
     </div>

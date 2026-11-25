@@ -110,7 +110,7 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
       return json(keys.filter(key => appSettings.has(key)).map(key => ({ setting_key: key, setting_value: appSettings.get(key) })))
     }
     if (table === 'training_groups') return json(query.get('id') === 'eq.junior' && query.get('active') === 'eq.true' ? [{ id: 'junior' }] : [])
-    if (table === 'planning_week_types') return json(weekType ? [{ week_type: weekType }] : [])
+    if (table === 'planning_week_types') return json(weekType ? [{ week_start: coachWeekMonday(today), group_id: 'ungdom_svart', week_type: weekType }] : [])
     if (table === 'profile_sessions') return json([{ profile_id: id }])
     if (table === 'profiles') {
       assert([`eq.${id}`, `in.(${id})`].includes(query.get('id')))
@@ -332,10 +332,11 @@ test('the personal coach saves the swimmer presentation and previews the same ch
   assert.deepEqual(preview.data, swimmer.data)
   assert.deepEqual(swimmer.data.presentation, configuration)
   assert.equal(swimmer.data.weekType, 'taper')
+  assert.deepEqual(swimmer.data.weekTypes, [{ weekStart: coachWeekMonday(today), groupId: 'ungdom_svart', type: 'taper' }])
   const weekReads = calls.filter(row => row.table === 'planning_week_types')
   assert.equal(weekReads.length, 2)
   assert(weekReads.every(row => row.query.get('group_id') === 'eq.ungdom_svart'
-    && row.query.get('week_start') === `eq.${coachWeekMonday(today)}`))
+    && row.query.get('week_start')?.startsWith('gte.')))
   assert.equal((await call({ mode: 'preview', profileId: id })).code, 403)
   profile.flight_record_choice = 'later'
   assert.equal((await call({ mode: 'chart' })).code, 403)

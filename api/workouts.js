@@ -584,25 +584,34 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates, planQuery) {
   return refreshed.ok && !refreshed.truncated ? await refreshed.json() : cleanPlans
 }
 
+async function pendingWorkoutFollowUp(profile, today) {
+  const yesterday = planningAddDays(today, -1)
+  const result = await supabaseRequest(`responses?profile_id=eq.${profile.id}&activity_date=eq.${yesterday}&or=(competition.is.null,competition.eq.false)&day_type=in.(before,after,rest,sick)&select=day_type&order=created_at.desc,id.desc&limit=1`)
+  if (!result.ok) throw planningLinkError('Gårdagens incheckning kunde inte kontrolleras. Försök igen.')
+  const [last] = await result.json()
+  return last?.day_type === 'before' ? yesterday : null
+}
+
 async function loadSwimmerPlanningWeek(profile, start, end, today) {
   const includesToday = start <= today && today <= end
-  const [planResult, workoutResult, unlockResult, weekType] = await Promise.all([
+  const [planResult, workoutResult, unlockResult, weekType, followUpDate] = await Promise.all([
     analyticsRows(`training_plans?plan_date=gte.${start}&plan_date=lte.${end}&select=*,competition_calendar(${competitionScope})&order=plan_date.asc,id.asc`),
     analyticsRows(`daily_workouts?workout_date=gte.${start}&workout_date=lte.${end}&select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,alternative_group_id,updated_at&order=workout_date.asc,created_at.asc,id.asc`),
     includesToday ? supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${today}&select=profile_id&limit=1`).catch(() => null) : null,
     loadPlanningWeekType(profile.training_group, start).catch(() => null),
+    includesToday ? pendingWorkoutFollowUp(profile, today) : null,
   ])
   if ([planResult, workoutResult].some(result => !result.ok || result.truncated)) throw planningLinkError('Veckoplaneringen kunde inte hämtas. Försök igen.')
   const [plans, workouts] = await Promise.all([planResult.json(), workoutResult.json()])
   const orphanIds = new Set(orphanPlanningRows(plans, workouts).map(item => item.id))
   const visibleWorkouts = workouts.map(item => publicWorkout(item, { includeDetails: false }))
     .filter(item => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
-  const locked = includesToday && visibleWorkouts.some(item => item.date === today) && (!unlockResult?.ok || !(await unlockResult.json()).length)
+  const locked = includesToday && visibleWorkouts.some(item => item.date === today) && (Boolean(followUpDate) || !unlockResult?.ok || !(await unlockResult.json()).length)
   const visiblePlans = plans.filter(item => !item.hidden_from_weekly_planning && !orphanIds.has(item.id) && !item.calendar_link?.detachedWorkoutId
     && (item.source_competition_id ? canReadCompetition(item.competition_calendar, 'swimmer', profile)
       : !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
     .map(item => publicPlan(locked && item.plan_date === today && item.activity_type === 'swim' && item.source_workout_id ? { ...item, notes: '' } : item))
-  return { plans: visiblePlans, workouts: visibleWorkouts, locked, weekType }
+  return { plans: visiblePlans, workouts: visibleWorkouts, locked, weekType, ...(followUpDate ? { followUpDate } : {}) }
 }
 
 function parseWorkoutCsv(csv) {
@@ -866,6 +875,28 @@ export default async function handler(request, response) {
         if (!result.ok) throw new Error(`Workout library GET failed: ${result.status} ${await result.text()}`)
         return sendJson(response, 200, { workouts: (await result.json()).map((item) => publicWorkout(item, { includeDetails: false })) })
       }
+      if (request.query?.planningWorkout !== undefined) {
+        if (role !== 'swimmer' || !profile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att öppna passet.' })
+        const id = request.query.planningWorkout
+        if (typeof id !== 'string' || !competitionUuid.test(id)) return sendJson(response, 400, { error: 'Ogiltigt pass-ID.' })
+        const result = await supabaseRequest(`daily_workouts?id=eq.${id}&select=*&limit=1`)
+        if (!result.ok) throw new Error('Planning workout lookup failed')
+        const [workout] = await result.json()
+        if (!workout || (workout.target_groups?.length && profile.training_group && !workout.target_groups.includes(profile.training_group))) {
+          return sendJson(response, 404, { error: 'Passet finns inte för din grupp.' })
+        }
+        const today = stockholmDate()
+        if (workout.workout_date > today) return sendJson(response, 403, { error: 'Passet öppnas tidigast på träningsdagen.' })
+        if (workout.workout_date === today && await pendingWorkoutFollowUp(profile, today)) {
+          return sendJson(response, 403, { error: 'Komplettera gårdagens incheckning för att öppna dagens pass.' })
+        }
+        const unlock = await supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${workout.workout_date}&select=profile_id&limit=1`)
+        if (!unlock.ok) throw new Error('Planning workout unlock lookup failed')
+        if (!(await unlock.json()).length) return sendJson(response, 403, { error: workout.workout_date === today
+          ? 'Checka in för att öppna dagens pass.'
+          : 'Passet är tillgängligt för simmare som låste upp det på träningsdagen.' })
+        return sendJson(response, 200, { workout: publicWorkout(workout) })
+      }
       if (role === 'coach' && request.query?.libraryItem) {
         const id = String(request.query.libraryItem)
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return sendJson(response, 400, { error: 'Ogiltigt pass-ID.' })
@@ -882,6 +913,11 @@ export default async function handler(request, response) {
         workouts = workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         await touchProfileActivity(profile.id)
         if (workouts.length && requestedDate !== stockholmDate()) return sendJson(response, 200, { workout: null, workouts: [], locked: true })
+        const followUpDate = workouts.length ? await pendingWorkoutFollowUp(profile, requestedDate) : null
+        if (followUpDate) {
+          const previews = workouts.map(({ content, note, ...metadata }) => metadata)
+          return sendJson(response, 200, { workout: previews[0], workouts: previews, locked: true, followUpDate })
+        }
         const unlockResult = await supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${requestedDate}&select=profile_id&limit=1`)
         if (!unlockResult.ok) throw new Error(`Unlock GET failed: ${unlockResult.status} ${await unlockResult.text()}`)
         const unlocked = (await unlockResult.json()).length > 0

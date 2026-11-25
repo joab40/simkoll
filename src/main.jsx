@@ -204,6 +204,13 @@ function App() {
   const [pendingProfiles, setPendingProfiles] = useState([])
   const [workout, setWorkout] = useState(null)
   const [workoutLocked, setWorkoutLocked] = useState(false)
+  const [workoutFollowUpDate, setWorkoutFollowUpDate] = useState(null)
+  const updateDailyWorkout = useCallback(data => {
+    setWorkout(data.workouts?.length ? data.workouts : data.workout)
+    setWorkoutLocked(data.locked)
+    setWorkoutFollowUpDate(data.followUpDate ?? null)
+  }, [])
+  const fromWorkoutFollowUp = useRef(false)
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
   const [activityDates, setActivityDates] = useState(null)
   const [points, setPoints] = useState(null)
@@ -314,7 +321,7 @@ function App() {
   }, [auth])
 
   useEffect(() => {
-    if (!auth || !profile) { setWorkout(null); setWorkoutLocked(false); return }
+    if (!auth || !profile) { updateDailyWorkout({ workout: null, locked: false }); return }
     let active = true
     setTraining(null); setPoints(null); setWorkout(null); setActivityDates(null)
     setCompetitionsLoaded(false)
@@ -322,7 +329,7 @@ function App() {
     const load = (url, apply) => apiRequest(url, auth.code).then((data) => { if (active) apply(data) })
     const loadProfileData = () => Promise.allSettled([
       weeklyTrainingSync.refresh(),
-      load('/api/workouts', (data) => { setWorkout(data.workouts?.length ? data.workouts : data.workout); setWorkoutLocked(data.locked) }),
+      load('/api/workouts', updateDailyWorkout),
       load('/api/activity?streak=true', (data) => { setActiveProfilesToday(data.activeProfilesToday); setActivityDates(data.activityDates || []) }),
       load('/api/workouts?calendar=true', (data) => { setCompetitions(data.competitions || []); setCompetitionsLoaded(true) }).catch(() => { if (active) { setCompetitions([]); setCompetitionsLoaded(true) } }),
       load('/api/points', setPoints),
@@ -342,7 +349,7 @@ function App() {
       window.removeEventListener('simkoll-points-changed', refreshPoints)
       document.removeEventListener('visibilitychange', refreshOnFocus)
     }
-  }, [auth, profile?.id,weeklyTrainingSync])
+  }, [auth, profile?.id, weeklyTrainingSync, updateDailyWorkout])
 
   // The first swimmer response fetch is intentionally anonymized for the
   // group view. Once a profile is restored, merge the profile's detailed
@@ -427,6 +434,7 @@ function App() {
     setPendingProfiles([])
     setWorkout(null)
     setWorkoutLocked(false)
+    setWorkoutFollowUpDate(null)
     setActiveProfilesToday(0)
     setPoints(null)
     setNotificationInbox(null)
@@ -506,7 +514,10 @@ function App() {
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
         <Home key={profile?.id || 'guest'} code={auth.code} onOpenDiary={shortcut => { setDiaryShortcut(shortcut); setScreen('training-diary') }}
-          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsRead={dismissNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={openCoachInfo} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsRead={dismissNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} workoutFollowUpDate={workoutFollowUpDate} onWorkoutFollowUp={date => {
+            fromWorkoutFollowUp.current = true
+            setCheckinActivityDate(date); setHistoricalCheckin(true); setIdentified(true); setScreen('checkin')
+          }} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={openCoachInfo} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           setHistoricalCheckin(false)
           setCheckinActivityDate(todayKey())
           if (profile) setScreen('privacy-choice')
@@ -532,7 +543,10 @@ function App() {
           competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item, checkinActivityDate)))}
           competitionStatusLoaded={competitionsLoaded}
           plannedWorkouts={!historicalCheckin && checkinActivityDate === todayKey() ? workout : []}
-          onBack={() => setScreen(historicalCheckin ? 'checkin-history' : 'home')}
+          onBack={() => {
+            setScreen(historicalCheckin && !fromWorkoutFollowUp.current ? 'checkin-history' : 'home')
+            fromWorkoutFollowUp.current = false
+          }}
           onSubmit={async (response) => {
             const result = await apiRequest('/api/responses', auth.code, {
               method: 'POST',
@@ -548,11 +562,13 @@ function App() {
             setScreen('thanks')
             if (historicalCheckin) {
               void weeklyTrainingSync.refresh().catch(() => {})
+              if (checkinActivityDate === workoutFollowUpDate) {
+                void apiRequest('/api/workouts', auth.code).then(updateDailyWorkout).catch(() => {})
+              }
             } else if (profile && checkinActivityDate === todayKey()) {
               void (async () => {
                 const [trainingData, workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/training?summary=true', auth.code), apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
-                setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout)
-                setWorkoutLocked(workoutData.locked)
+                updateDailyWorkout(workoutData)
                 setActiveProfilesToday(activityData.activeProfilesToday)
                 setPoints(pointsData)
                 setTraining(trainingData)
@@ -561,7 +577,10 @@ function App() {
           }}
         />
       )}
-      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={historicalCheckin || checkinActivityDate !== todayKey()} historical={historicalCheckin} workout={workout} onDone={() => setScreen(historicalCheckin ? 'checkin-history' : 'home')} />}
+      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={historicalCheckin || checkinActivityDate !== todayKey()} historical={historicalCheckin} returnToWorkout={fromWorkoutFollowUp.current} workout={workout} onDone={() => {
+        setScreen(historicalCheckin && !fromWorkoutFollowUp.current ? 'checkin-history' : 'home')
+        fromWorkoutFollowUp.current = false
+      }} />}
       {['community', 'private-messages'].includes(screen) && <Community key={profile.id} profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} />}
       {screen === 'coach-info' && <CoachInfoPage key={profile?.id} code={auth.code} profile={profile} initialThread={coachInfoThread} onPrivateMessagesViewed={viewTrainerMessages} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
@@ -694,6 +713,36 @@ function Login({ onLogin }) {
   )
 }
 
+function PlanningPastDay({ date, past, children }) {
+  if (!past) return children
+  const day = new Date(`${date}T12:00:00Z`)
+  return <details className="planning-past-day">
+    <summary>
+      <span><strong>{day.toLocaleDateString('sv-SE', { weekday: 'long', timeZone: 'Europe/Stockholm' })}</strong>
+        <small>{day.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', timeZone: 'Europe/Stockholm' })}</small></span>
+      <span aria-hidden="true">⌄</span>
+    </summary>
+    {children}
+  </details>
+}
+
+function SwimmerPlanningWorkout({ code, id }) {
+  const [result, setResult] = useState(null)
+  const load = async () => {
+    setResult({ loading: true })
+    try {
+      const { workout } = await apiRequest(`/api/workouts?planningWorkout=${encodeURIComponent(id)}`, code)
+      setResult({ workout })
+    } catch (error) { setResult({ error: error.message }) }
+  }
+  return <details className="swimmer-planning-pm" onToggle={event => { if (event.currentTarget.open && !result) void load() }}>
+    <summary>Öppna upplagt pass <span>↓</span></summary>
+    {result?.loading && <p role="status">Hämtar passet…</p>}
+    {result?.error && <p role="status">{result.error} <button type="button" className="text-button" onClick={load}>Försök igen</button></p>}
+    {result?.workout && <><WorkoutContent content={result.workout.content} />{result.workout.note && <p>{result.workout.note}</p>}</>}
+  </details>
+}
+
 function SwimmerPlanning({ code, onBack }) {
   const [weekOffset, setWeekOffset] = useState(0)
   const [weekAttempt, retryWeek] = useState(0)
@@ -723,7 +772,7 @@ function SwimmerPlanning({ code, onBack }) {
       .then(data => finish({ data })).catch(() => finish({ error: true }))
     return () => controller.abort()
   }, [code, startKey, calendarAttempt])
-  const { plans = [], workouts = [], locked = true, weekType } = week?.data ?? {}
+  const { plans = [], workouts = [], locked = true, weekType, followUpDate } = week?.data ?? {}
   const sportAdminActivities = calendar?.data?.sportAdminActivities ?? []
   const calendarTimeOfDay = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
   const displayPlans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(item => item.id)) }).rows
@@ -805,6 +854,13 @@ function SwimmerPlanning({ code, onBack }) {
     return cleanSwimmerCompetitionPm(notes.join('\n\n'))
   }
   const occasions = groupSwimOccasions(visiblePlans)
+  const occasionsByDate = new Map()
+  for (const occasion of occasions) {
+    const date = occasion.items[0].date
+    if (!occasionsByDate.has(date)) occasionsByDate.set(date, [])
+    occasionsByDate.get(date).push(occasion)
+  }
+  const publishedIds = new Set(workouts.map(workout => workout.id))
   const dateClass = date => date < currentDate ? ' planning-past' : date === currentDate ? ' planning-today' : ''
 
   return <section className="swimmer-planning">
@@ -830,16 +886,14 @@ function SwimmerPlanning({ code, onBack }) {
           <div><strong>{swimmerPlanningMinutes}</strong><span>minuter</span></div>
           <div><strong>{occasions.length}</strong><span>träningstillfällen / aktiviteter</span></div>
         </div>
-        {occasions.length > 0 && <div className="swimmer-planning-list">{occasions.map((occasion, index) => {
-          const date = occasion.items[0].date
-          const firstOfDay = date !== occasions[index - 1]?.items[0].date
+        {occasions.length > 0 && <div className="swimmer-planning-list">{[...occasionsByDate].map(([date, dayOccasions]) => {
           const headingDate = new Date(`${date}T12:00:00Z`)
-          return <React.Fragment key={occasion.key}>
-            {firstOfDay && <div className={`planning-day-heading${dateClass(date)}`}>
+          return <PlanningPastDay key={date} date={date} past={date < currentDate}>
+            {date >= currentDate && <div className={`planning-day-heading${dateClass(date)}`}>
               <strong>{headingDate.toLocaleDateString('sv-SE', { weekday: 'long', timeZone: 'Europe/Stockholm' })}</strong>
               <small>{headingDate.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', timeZone: 'Europe/Stockholm' })}{date === currentDate ? ' · Idag' : ''}</small>
             </div>}
-            <SwimOccasion occasion={occasion}>{occasion.items.map(plan => {
+            {dayOccasions.map(occasion => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map(plan => {
               const requiresCheckIn = plan.date === currentDate && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && locked
               const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']
               const fromCalendar = plan.source === 'SportAdmin' || plan.activityType === 'sportadmin'
@@ -855,12 +909,15 @@ function SwimmerPlanning({ code, onBack }) {
                   {plan.location && <span>{plan.location}</span>}
                 </div>
                 {plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map(group => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}
-                {requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se passets upplägg</strong><small>Rubrik, fokus och träningsmängd är synliga. Serier och tränarens instruktioner låses upp efter dagens check-in.</small></div>
+                {requiresCheckIn ? <div className="planning-checkin-lock"><strong>{followUpDate ? '🔒 Komplettera gårdagens incheckning' : '🔒 Checka in för att se passets upplägg'}</strong>
+                    <small>{followUpDate ? 'Öppna Dagens pass på startsidan för att svara om gårdagen.' : 'Serier och tränarens instruktioner låses upp efter dagens check-in.'}</small></div>
                   : competitionInfo ? <details className="swimmer-planning-pm"><summary>{plan.activityType === 'competition' ? '📄 Tävlingsinformation' : '📅 Information från SportAdmin'} <span>Visa</span></summary><div>{competitionInfo.split('\n').map((line, index) => <React.Fragment key={index}>{index ? <br /> : null}{line}</React.Fragment>)}</div></details>
                   : !fromCalendar && <small>{plan.notes}</small>}
+                {!requiresCheckIn && date <= currentDate && publishedIds.has(plan.sourceWorkoutId) &&
+                  <SwimmerPlanningWorkout key={plan.sourceWorkoutId} id={plan.sourceWorkoutId} code={code} />}
               </article>
-            })}</SwimOccasion>
-          </React.Fragment>
+            })}</SwimOccasion>)}
+          </PlanningPastDay>
         })}</div>}
         {!calendar ? <p className="swimmer-planning-calendar-status" role="status">Hämtar händelser från SportAdmin…</p>
           : calendar.error || calendar.data.incomplete ? <p className="swimmer-planning-calendar-status" role="status">Vissa kalenderhändelser kunde inte hämtas. <button type="button" className="text-button" onClick={() => retryCalendar(value => value + 1)}>Försök igen</button></p>
@@ -1163,7 +1220,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest = 0, responses, responsesLoaded = false, profile, points, onPointsChange, notifications, onNotificationsRead, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onOpenCheckinHistory }) {
+function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest = 0, responses, responsesLoaded = false, profile, points, onPointsChange, notifications, onNotificationsRead, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, workoutFollowUpDate, onWorkoutFollowUp, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onOpenCheckinHistory }) {
   const bonusScope = useRef(null)
   useEffect(() => {
     bonusScope.current = {}
@@ -1292,7 +1349,7 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
       {profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === todayKey()) && <DailyProgressCard responses={responses.filter((item) => item.profileId === profile.id)} />}
 
       {profile && pendingDevelopmentTalk && <DevelopmentTalkCard talk={pendingDevelopmentTalk} onOpen={onTalk} />}
-      {profile && <WorkoutCard workout={workout} locked={workoutLocked} />}
+      {profile && <WorkoutCard workout={workout} locked={workoutLocked} followUpDate={workoutFollowUpDate} onFollowUp={onWorkoutFollowUp} />}
       {flightRecord}
       {profile && newDevelopmentGoals.length > 0 && <NewDevelopmentGoalCard goals={newDevelopmentGoals} onOpen={onGoals} />}
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
@@ -2481,7 +2538,7 @@ function getQuestions(type, activityType = null, canSaveSwimTime = false) {
   ]
 }
 
-function Thanks({ responses, profile, identified, activityDate = todayKey(), lateEntry = false, historical = false, workout, onDone }) {
+function Thanks({ responses, profile, identified, activityDate = todayKey(), lateEntry = false, historical = false, returnToWorkout = false, workout, onDone }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === activityDate)
   return (
     <div className="thanks-page">
@@ -2491,7 +2548,7 @@ function Thanks({ responses, profile, identified, activityDate = todayKey(), lat
       <p>{identified ? 'Svaret har sparats i din profil.' : 'Svaret är anonymt och hjälper tränaren att göra passen bättre.'}</p>
       {!lateEntry && profile && workout && <p className="unlock-message">🔓 Dagens pass är upplåst!</p>}
       <div className="mini-moods">{todayResponses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
-      <button className="primary-button" onClick={onDone}>{historical ? 'Till tidigare incheckningar →' : !lateEntry && profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
+      <button className="primary-button" onClick={onDone}>{returnToWorkout ? 'Till dagens pass →' : historical ? 'Till tidigare incheckningar →' : !lateEntry && profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
     </div>
   )
 }
@@ -3805,7 +3862,7 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
         cycles={cycles} code={code} request={apiRequest} />
       <HiddenCompetitionPlans code={code} request={apiRequest} plans={plans} onSaved={savePlan}
         from={days[0].key} to={days[6].key} groups={selectedGroups} groupLabels={Object.fromEntries(availableGroups)} />
-      <div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.reduce((sum, day) => sum + groupSwimOccasions(day.activities).length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-day-list">{days.map((day) => <article className={`planning-day${day.activities.length ? ' has-workout' : ''}${day.key < currentDay ? ' is-past' : ''}${day.key === currentDay ? ' is-today' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}{day.key === currentDay && <b className="planning-today-label">Idag</b>}</small></div><div className="planning-day-actions"><PlanningEditButton code={code} calendarActivities={sportAdminActivities} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current, saved])} label="+ Lägg till" /><PlanningDayDeleteButton code={code} date={day.key} onDeleted={() => setPlans((current) => current.filter((item) => item.date !== day.key))} /></div></header>{day.activities.length ? groupSwimOccasions(day.activities).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<PlanningEditButton code={code} calendarActivities={sportAdminActivities} plan={plan} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current.filter((item) => item.id !== saved.id), saved])} /><PlanningPassDeleteButton code={code} plan={plan} onDeleted={removePass} /><CompetitionPlanVisibilityButton code={code} request={apiRequest} plan={plan} onSaved={savePlan} /><CalendarVisibilityButton code={code} activities={plan.calendarItems || (plan.source === 'SportAdmin' ? [plan] : [])} /></div>)}</SwimOccasion>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article>)}</div></>}
+      <div className="planning-summary"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div><div><strong>{days.reduce((sum, day) => sum + groupSwimOccasions(day.activities).length, 0)}</strong><span>aktiviteter</span></div></div><div className="planning-day-list">{days.map((day) => <PlanningPastDay key={day.key} date={day.key} past={day.key < currentDay}><article className={`planning-day${day.activities.length ? ' has-workout' : ''}${day.key < currentDay ? ' is-past' : ''}${day.key === currentDay ? ' is-today' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}{day.key === currentDay && <b className="planning-today-label">Idag</b>}</small></div><div className="planning-day-actions"><PlanningEditButton code={code} calendarActivities={sportAdminActivities} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current, saved])} label="+ Lägg till" /><PlanningDayDeleteButton code={code} date={day.key} onDeleted={() => setPlans((current) => current.filter((item) => item.date !== day.key))} /></div></header>{day.activities.length ? groupSwimOccasions(day.activities).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<PlanningEditButton code={code} calendarActivities={sportAdminActivities} plan={plan} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current.filter((item) => item.id !== saved.id), saved])} /><PlanningPassDeleteButton code={code} plan={plan} onDeleted={removePass} /><CompetitionPlanVisibilityButton code={code} request={apiRequest} plan={plan} onSaved={savePlan} /><CalendarVisibilityButton code={code} activities={plan.calendarItems || (plan.source === 'SportAdmin' ? [plan] : [])} /></div>)}</SwimOccasion>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article></PlanningPastDay>)}</div></>}
     {planningView !== 'week' && <><div className="planning-cycle-intro"><div><strong>{planningView === 'term' ? 'Sätt riktningen för säsongen' : 'Dela upp terminen i träningsfaser'}</strong><p>{planningView === 'term' ? 'Terminen ramar in helheten. Träningsblocken och veckopassen ligger kvar under den.' : 'Blocken kan till exempel vara uppbyggnad, tävlingsspecifik träning eller återhämtning.'}</p></div><button className="primary-button" onClick={() => planningView === 'term' ? startCycleDraft('term') : (cycles.find((item) => item.type === 'term') ? startCycleDraft('block', cycles.find((item) => item.type === 'term')) : setCycleError('Skapa en termin först så kan träningsblocken kopplas till den.'))}>＋ {planningView === 'term' ? 'Ny termin' : 'Nytt träningsblock'}</button></div>{!cyclesAvailable && <p className="form-error">Termins- och blockplanering kräver databasuppdatering 071. Veckoplaneringen fungerar som vanligt.</p>}{cycleError && !cycleDraft && <p className="form-error">{cycleError}</p>}{cycleDraft && <form className="planning-cycle-form" onSubmit={saveCycle}><div className="planning-cycle-form-heading"><div><span>{cycleDraft.type === 'term' ? 'TERMINSPLAN' : 'TRÄNINGSBLOCK'}</span><h2>{cycleDraft.id ? 'Redigera period' : cycleDraft.type === 'term' ? 'Planera en termin' : 'Lägg in ett träningsblock'}</h2></div><button type="button" className="text-button" onClick={() => setCycleDraft(null)}>Stäng</button></div><div className="planning-cycle-fields"><label>Namn<input required maxLength="100" value={cycleDraft.name} onChange={(event) => setCycleDraft({ ...cycleDraft, name: event.target.value })} placeholder={cycleDraft.type === 'term' ? 'Hösttermin 2026' : 'Uppbyggnad · aerob kapacitet'} /></label><label>Startdatum<input required type="date" value={cycleDraft.startDate} onChange={(event) => setCycleDraft({ ...cycleDraft, startDate: event.target.value })} /></label><label>Slutdatum<input required type="date" value={cycleDraft.endDate} onChange={(event) => setCycleDraft({ ...cycleDraft, endDate: event.target.value })} /></label><label>Fas<select value={cycleDraft.phase} onChange={(event) => setCycleDraft({ ...cycleDraft, phase: event.target.value })}>{cyclePhases.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Fokus<input value={cycleDraft.focus} maxLength="160" onChange={(event) => setCycleDraft({ ...cycleDraft, focus: event.target.value })} placeholder="Ex. aerob kapacitet och teknik" /></label><label>Mål<textarea value={cycleDraft.goal} maxLength="500" onChange={(event) => setCycleDraft({ ...cycleDraft, goal: event.target.value })} placeholder="Vad vill ni att gruppen ska utveckla under perioden?" /></label><label className="wide">Anteckningar<textarea value={cycleDraft.notes} maxLength="2000" onChange={(event) => setCycleDraft({ ...cycleDraft, notes: event.target.value })} placeholder="Valfri information till tränarteamet" /></label></div><fieldset className="competition-form"><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{availableGroups.map(([value, label]) => <label key={value}><input type="checkbox" checked={cycleDraft.targetGroups.includes(value)} onChange={(event) => setCycleDraft({ ...cycleDraft, targetGroups: event.target.checked ? [...cycleDraft.targetGroups, value] : cycleDraft.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset>{cycleError && <p className="form-error">{cycleError}</p>}<div className="planning-cycle-form-actions"><button type="button" className="secondary-button" onClick={() => setCycleDraft(null)}>Avbryt</button><button className="primary-button" disabled={cycleSaving || !cyclesAvailable}>{cycleSaving ? 'Sparar…' : 'Spara planering'}</button></div></form>}
     {(planningView === 'term' ? cycles.filter((item) => item.type === 'term' && cycleMatchesGroups(item)) : cycles.filter((item) => item.type === 'block' && cycleMatchesGroups(item))).map((cycle) => { const term = cycle.type === 'term' ? cycle : cycles.find((item) => item.id === cycle.parentId); const blocks = cycles.filter((item) => item.type === 'block' && item.parentId === (cycle.type === 'term' ? cycle.id : cycle.parentId) && cycleMatchesGroups(item)); const shownBlocks = cycle.type === 'term' ? blocks : [cycle]; return <article className={`planning-cycle-card planning-cycle-${cycle.type}`} key={cycle.id}><header><div><span className="planning-cycle-kicker">{cycle.type === 'term' ? 'MACROCYKEL · TERMIN' : 'MESOCYKEL · TRÄNINGSBLOCK'}</span><h2>{cycle.name}</h2><small>{cycleDateLabel(cycle.startDate, cycle.endDate)}</small></div><div className="planning-cycle-actions"><button className="text-button" onClick={() => startCycleDraft(cycle.type, term, cycle)}>Redigera</button><button className="text-button" onClick={() => deleteCycle(cycle)}>Ta bort</button></div></header>{cycle.type === 'term' && <div className="planning-term-progress"><span>{blocks.length} träningsblock</span><button className="secondary-button" onClick={() => startCycleDraft('block', cycle)}>＋ Lägg till block</button></div>}{cycle.focus && <p><strong>Fokus:</strong> {cycle.focus}</p>}{cycle.goal && <p><strong>Mål:</strong> {cycle.goal}</p>}{cycle.notes && <p className="planning-cycle-notes">{cycle.notes}</p>}{cycle.targetGroups.length > 0 && <div className="planning-group-pills">{cycle.targetGroups.map((value) => <span key={value}>{groupLabel(value)}</span>)}</div>}{cycle.type === 'term' && <div className="planning-block-list">{shownBlocks.map((block) => <div className="planning-block-row" key={block.id}><div><span className={`planning-phase phase-${block.phase}`}>{cyclePhases.find(([value]) => value === block.phase)?.[1] || 'Uppbyggnad'}</span><strong>{block.name}</strong><small>{cycleDateLabel(block.startDate, block.endDate)}{block.focus ? ` · ${block.focus}` : ''}</small></div><button className="text-button" onClick={() => selectCycleWeek(block.startDate)}>Visa veckor →</button></div>)}{!blocks.length && <p className="planning-empty">Lägg till träningsblock när terminsriktningen är på plats.</p>}</div>}{cycle.type === 'block' && <button className="secondary-button" onClick={() => selectCycleWeek(cycle.startDate)}>Öppna veckoplaneringen →</button>}</article>})}{!cycles.some((item) => item.type === (planningView === 'term' ? 'term' : 'block') && cycleMatchesGroups(item)) && <div className="planning-cycle-empty"><span>🧭</span><h2>{planningView === 'term' ? 'Börja med terminsriktningen' : 'Inga träningsblock ännu'}</h2><p>{planningView === 'term' ? 'Skapa en gemensam ram för perioden. Därefter kan du dela upp den i block och lägga de konkreta passen i veckoplaneringen.' : 'Träningsblocken placeras inom en termin och beskriver periodens fokus och mål.'}</p></div>}</>}
   </>}</section>

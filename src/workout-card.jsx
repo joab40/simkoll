@@ -2,13 +2,20 @@ import React, { useState } from 'react'
 import { WORKOUT_FOCUSES } from '../shared/workout-focuses.js'
 import { workoutStartLabel } from '../shared/workout-start.js'
 
-export default function WorkoutCard({ workout, locked, initiallyExpanded = false }) {
+export default function WorkoutCard({ workout, locked, followUpDate, onFollowUp, initiallyExpanded = false }) {
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const workouts = (Array.isArray(workout) ? workout : workout ? [workout] : []).filter(Boolean)
   return (
     <section className={`workout-card ${workouts.length ? '' : 'workout-empty'}`}>
       <div className="workout-label"><span>🏊</span><div><p className="eyebrow">Endast för profiler</p><h2>Dagens pass</h2></div>{workouts.length > 0 && !locked && <button type="button" className="workout-expand-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Dölj ↑' : `Visa ${workouts.length > 1 ? 'pass' : 'pass'} ↓`}</button>}</div>
-      {locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workouts.length ? <div className="workout-body">{workouts.map((item) => <article className="workout-day-item" key={item.id}><h3>{item.title}</h3><WorkoutMeta workout={item} />{expanded && <><WorkoutContent content={item.content} />{item.note && <aside><strong>Kommentar från tränaren</strong>{item.note}</aside>}</>}</article>)}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
+      {locked && followUpDate ? <div className="locked-workout workout-follow-up">
+        <span aria-hidden="true">🔒</span><div>
+          <strong>Hur gick det igår?</strong>
+          <small>Komplettera gårdagens incheckning för att öppna dagens upplägg.</small>
+          <button type="button" className="secondary-button" onClick={() => onFollowUp(followUpDate)}>Svara om gårdagen →</button>
+          {workouts.map(item => <article className="workout-day-item" key={item.id}><h3>{item.title}</h3><WorkoutMeta workout={item} /></article>)}
+        </div>
+      </div> : locked ? <div className="locked-workout"><span>🔒</span><div><strong>Checka in för att se passet</strong><small>Du kan fortfarande välja att svara anonymt.</small></div></div> : workouts.length ? <div className="workout-body">{workouts.map((item) => <article className="workout-day-item" key={item.id}><h3>{item.title}</h3><WorkoutMeta workout={item} />{expanded && <><WorkoutContent content={item.content} />{item.note && <aside><strong>Kommentar från tränaren</strong>{item.note}</aside>}</>}</article>)}</div> : <p className="empty">Tränaren har inte lagt upp något pass idag.</p>}
     </section>
   )
 }

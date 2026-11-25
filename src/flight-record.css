@@ -457,3 +457,17 @@ html:has(.flight-coach-content:modal) { overflow: hidden; }
   .flight-invitation { padding: 14px; }
   .flight-invitation-icon { border-radius: 11px; }
 }
+
+.flight-timeline-period { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.flight-timeline-week {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c8ded9;
+  border-radius: 999px;
+  background: #f5faf8;
+  color: #173a44;
+  padding: 4px 9px;
+  font-size: .8rem;
+}
+.flight-timeline-week i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
