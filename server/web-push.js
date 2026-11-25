@@ -176,7 +176,7 @@ export async function deliverMessagePush(event, send) {
   const payload = {
     title: event.kind === 'goal-reflection' ? 'Simkoll · Svar på utvecklingsmål' : category === 'coachMessages' ? 'Simkoll · Nytt från tränarna' : 'Simkoll · Privat meddelande',
     body: event.kind === 'goal-reflection' ? 'En simmare har svarat på ett mål. Öppna tränarvyn för att läsa.' : category === 'coachMessages' ? 'Tränarna har skickat ny information. Öppna Simkoll för att läsa.' : 'Du har fått ett nytt privat meddelande. Öppna Simkoll för att läsa.',
-    screen: event.kind === 'goal-reflection' ? 'goals' : event.toCoaches ? 'messages' : event.kind === 'coach-info' ? 'coach-info' : event.kind === 'coach-post' ? 'community' : 'private',
+    screen: event.kind === 'goal-reflection' ? 'goals' : event.toCoaches ? 'messages' : ['coach-info', 'trainer-private'].includes(event.kind) ? 'coach-info' : event.kind === 'coach-post' ? 'community' : 'private',
     tag: `simkoll-${event.kind}-${event.id}`,
   }
   // Bound concurrency; all work stays inside Vercel's waitUntil lifetime.

@@ -1,12 +1,14 @@
 import { supabaseRequest } from './supabase.js'
+import { loadTrainerPrivateMessages } from './trainer-private-threads.js'
 import { loadOpenChatEngagement } from './open-chat-engagement.js'
 
 export async function loadCommunityPreview(settings, templates, { profileId = null, read = supabaseRequest } = {}) {
   const chat = settings.openChat || {}
-  const [postsResult, pepResult, chatResult] = await Promise.all([
+  const [postsResult, pepResult, chatResult, privateMessages] = await Promise.all([
     read('community_posts?deleted_at=is.null&select=id,content,created_at&order=created_at.desc,id.desc&limit=2'),
     read('group_pep?or=(moderation_status.eq.approved,moderation_status.is.null)&select=id,sender_profile_id,template_key,content,created_at,moderation_status&order=created_at.desc,id.desc&limit=2'),
     chat.enabled === true ? read('open_chat_messages?deleted_at=is.null&sender_role=eq.coach&visibility=neq.coaches&select=id,content,created_at,sender_role,visibility&order=created_at.desc,id.desc&limit=2') : Promise.resolve({ ok: true, json: async () => [] }),
+    loadTrainerPrivateMessages(profileId, 1, read).catch(() => null),
   ])
   if (![postsResult, pepResult, chatResult].every((result) => result.ok)) throw new Error('Community preview lookup failed')
   const [posts, pep, messages] = await Promise.all([postsResult.json(), pepResult.json(), chatResult.json()])
@@ -23,6 +25,7 @@ export async function loadCommunityPreview(settings, templates, { profileId = nu
   ].filter((row) => row.content).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).slice(0,2)
   return {
     items,
+    trainerPrivate: privateMessages,
     openChat: { enabled: chat.enabled === true, coachOnly: chat.coachOnly === true, backgroundImage: chat.backgroundImage || '/assets/open-chat-bg.png', messages: messages.map((row) => ({ id: row.id, content: row.content, createdAt: row.created_at, senderRole: 'coach', sender: { displayName: 'Tränare', emoji: '🧑‍🏫' }, ...(engagement.has(row.id) ? { engagement: engagement.get(row.id) } : {}) })).reverse() },
   }
 }

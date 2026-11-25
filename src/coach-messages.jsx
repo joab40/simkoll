@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { apiRequest } from './api-request.js'
 import OpenChatPanel from './open-chat-panel.jsx'
+import PrivateChatReply, { privateThreadKey } from './private-chat-reply.jsx'
 import PeppChannelPanel from './pepp-channel.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { useCommunityChannel } from './use-community-channel.js'
@@ -51,6 +52,7 @@ function ClubChannel({ code, active, request }) {
 function PrivateInbox({ code, profiles, initialRecipientId, active, request }) {
   const channel = useCommunityChannel({ code, channel: 'channel=private', active, request })
   const [recipientId, setRecipientId] = useState(initialRecipientId || ''), [content, setContent] = useState(''), [status, setStatus] = useState(''), [busy, setBusy] = useState(false)
+  const [thread, setThread] = useState(null)
   const sending = useRef(false)
   useEffect(() => { if (initialRecipientId) setRecipientId(initialRecipientId) }, [initialRecipientId])
   const send = async event => {
@@ -69,7 +71,21 @@ function PrivateInbox({ code, profiles, initialRecipientId, active, request }) {
     catch (error) { setStatus(error.message) }
   }
   const messages = (channel.data?.messages || []).filter(item => !recipientId || item.sender?.id === recipientId || item.recipient?.id === recipientId)
-  return <section className="coach-private-inbox"><header><h2>Privata meddelanden</h2><p>Bara mottagaren och tränarna kan läsa meddelandet.</p></header><form onSubmit={send}><label>Simmare<select required value={recipientId} disabled={busy} onChange={event => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.filter(profile => !profile.isTestProfile).map(profile => <option key={profile.id} value={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Meddelande<textarea required maxLength={1000} rows={3} disabled={busy} value={content} onChange={event => setContent(event.target.value)} placeholder="Skriv ett privat meddelande…" /></label><div><small>🔒 Privat · {content.length}/1000</small><button type="submit" className="primary-button" disabled={busy || !content.trim() || !recipientId}>{busy ? 'Skickar…' : 'Skicka privat ↑'}</button></div></form>{status && <p role="status" className="message-channel-error">{status}</p>}{!channel.data ? <ChannelLoading title="Inkorg" channel={channel} /> : <div className="coach-private-history"><div className="private-history-heading"><h3>{recipientId ? 'Tidigare meddelanden med simmaren' : 'Senaste privata meddelanden'}</h3>{recipientId && <button type="button" className="text-button" onClick={() => setRecipientId('')}>Visa alla</button>}</div>{channel.error && <p role="status">Uppdateringen misslyckades. Senast hämtade meddelanden visas.</p>}{messages.length ? messages.map(item => <article key={item.id}><span aria-hidden="true">{item.fromCoach ? '📣' : item.sender?.emoji || '🏊'}</span><div><strong>{item.fromCoach ? `Tränarna → ${item.recipient?.displayName || 'simmare'}` : `${item.sender?.displayName || 'Simmare'} → tränarna`}</strong><p>{item.content}</p><time dateTime={item.createdAt}>{formatFeedDate(item.createdAt)}</time></div><button type="button" className="text-button" onClick={() => remove(item.id)}>Ta bort</button></article>) : <p className="empty">Inga privata meddelanden i det här urvalet.</p>}</div>}</section>
+  const visible = new Set()
+  const threads = messages.filter(item => {
+    const key = item.thread?.id ? privateThreadKey(item.thread) : item.id
+    if (visible.has(key)) return false
+    visible.add(key)
+    return true
+  })
+  return <section className="coach-private-inbox"><header><h2>Privata meddelanden</h2><p>Bara mottagaren och tränarna kan läsa meddelandet.</p></header><form onSubmit={send}><label>Simmare<select required value={recipientId} disabled={busy} onChange={event => setRecipientId(event.target.value)}><option value="">Välj simmare…</option>{profiles.filter(profile => !profile.isTestProfile).map(profile => <option key={profile.id} value={profile.id}>{profile.emoji} {profile.displayName}</option>)}</select></label><label>Meddelande<textarea required maxLength={1000} rows={3} disabled={busy} value={content} onChange={event => setContent(event.target.value)} placeholder="Skriv ett privat meddelande…" /></label><div><small>🔒 Privat · {content.length}/1000</small><button type="submit" className="primary-button" disabled={busy || !content.trim() || !recipientId}>{busy ? 'Skickar…' : 'Skicka privat ↑'}</button></div></form>{status && <p role="status" className="message-channel-error">{status}</p>}{!channel.data ? <ChannelLoading title="Inkorg" channel={channel} /> : <div className="coach-private-history"><div className="private-history-heading"><h3>{recipientId ? 'Tidigare meddelanden med simmaren' : 'Senaste privata meddelanden'}</h3>{recipientId && <button type="button" className="text-button" onClick={() => setRecipientId('')}>Visa alla</button>}</div>{channel.error && <p role="status">Uppdateringen misslyckades. Senast hämtade meddelanden visas.</p>}{threads.length ? threads.map(item => <article key={item.id}><span aria-hidden="true">{item.fromCoach ? '📣' : item.sender?.emoji || '🏊'}</span><div><strong>{item.fromCoach ? `Tränarna → ${item.recipient?.displayName || 'simmare'}` : `${item.sender?.displayName || 'Simmare'} → tränarna`}</strong><p>{item.content}</p><time dateTime={item.createdAt}>{formatFeedDate(item.createdAt)}</time></div><div>
+    {item.thread?.id && <button type="button" className="secondary-button" aria-haspopup="dialog"
+      onClick={() => setThread({ ...item.thread, name: (item.fromCoach ? item.recipient : item.sender)?.displayName })}>Öppna dialog →</button>}
+    <button type="button" className="text-button" onClick={() => remove(item.id)}>Ta bort senaste</button>
+  </div></article>) : <p className="empty">Inga privata meddelanden i det här urvalet.</p>}</div>}
+    {thread && active && <PrivateChatReply key={privateThreadKey(thread)} thread={thread} name={thread.name} coach
+      code={code} request={request} onClose={() => setThread(null)} onSent={() => void channel.refresh({ force: true }).catch(() => {})} />}
+  </section>
 }
 
 export default function CoachMessages({ code, profiles = [], initialRecipientId = '', request = apiRequest }) {

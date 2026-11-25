@@ -7,6 +7,7 @@ import { queueMessagePush } from '../server/web-push.js'
 import { loadPrivateChatReplies, saveLinkedPrivateReply } from '../server/private-chat-replies.js'
 import { proposePrivateReply } from '../server/private-reply-ai.js'
 import { loadCommunityPreview, loadCoachMessageCount } from '../server/community-preview.js'
+import { loadTrainerPrivateMessages, loadTrainerThread, sendTrainerThreadMessage } from '../server/trainer-private-threads.js'
 import { loadInfoChannel, loadCoachInbox } from '../server/community-channels.js'
 import { loadOpenChatReadDetails, parseOpenChatEngagement, saveOpenChatEngagement } from '../server/open-chat-engagement.js'
 import { handleFeedbackDialog, isFeedbackDialogRequest } from '../server/app-feedback-dialog.js'
@@ -273,6 +274,24 @@ export default async function handler(request, response) {
   if (request.method === 'POST' && request.body?.action === 'propose-private-reply' && role !== 'coach') return sendJson(response,403,{error:'Endast tränaren kan skapa svarsförslag.'})
 
   try {
+    if ((request.method === 'GET' && request.query?.privateThread !== undefined)
+      || (request.method === 'POST' && request.body?.action === 'trainer-thread-message')) {
+      response.setHeader('Cache-Control', 'private, no-store')
+      const profile = role === 'swimmer' ? await getSessionProfile(request) : null
+      const input = request.method === 'GET'
+        ? { kind: request.query.privateThread, id: request.query.threadId }
+        : { kind: request.body.kind, id: request.body.threadId, content: request.body.content }
+      try {
+        const scope = { ...input, role, profileId: profile?.id }
+        if (request.method === 'GET') return sendJson(response, 200, await loadTrainerThread(scope))
+        const { message, recipientId } = await sendTrainerThreadMessage(scope)
+        queueMessagePush({ kind: role === 'coach' ? 'trainer-private' : 'private', id: message.id,
+          ...(role === 'coach' ? { profileId: recipientId } : { toCoaches: true }) })
+        return sendJson(response, 201, { message })
+      } catch (error) {
+        return sendJson(response, error.status || 502, { error: error.status ? error.message : 'Dialogen kunde inte behandlas.' })
+      }
+    }
     if (isFeedbackDialogRequest(request)) return await handleFeedbackDialog(request, response)
     if (request.body?.action === 'reply-app-feedback') return sendJson(response,409,{error:'Öppna feedbackdialogen för att svara. Uppdatera sidan om du ser det gamla svarsfältet.'})
     if (request.method === 'GET') {
@@ -293,6 +312,11 @@ export default async function handler(request, response) {
       }
       const profile = role === 'coach' ? null : await getSessionProfile(request)
       if (role !== 'coach' && !profile) return sendJson(response, 403, { error: 'Klubbflödet visas bara för profiler.' })
+      if (request.query?.channel === 'trainer-private') {
+        response.setHeader('Cache-Control', 'private, no-store')
+        if (role !== 'swimmer' || !profile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil.' })
+        return sendJson(response, 200, { messages: await loadTrainerPrivateMessages(profile.id, 100) })
+      }
       if (request.query?.channel === 'private') {
         return sendJson(response, 200, await loadCoachInbox())
       }
@@ -319,7 +343,10 @@ export default async function handler(request, response) {
         if (!Number.isFinite(since) || since < 0 || Number.isNaN(new Date(since).getTime())) return sendJson(response, 400, { error: 'Ogiltig lästid.' })
         return sendJson(response, 200, await loadCoachMessageCount(since, openChatEnabled))
       }
-      if (request.query?.preview === 'true') return sendJson(response, 200, await loadCommunityPreview(webappSettings, GROUP_TEMPLATES, { profileId: profile?.id }))
+      if (request.query?.preview === 'true') {
+        response.setHeader('Cache-Control', 'private, no-store')
+        return sendJson(response, 200, await loadCommunityPreview(webappSettings, GROUP_TEMPLATES, { profileId: profile?.id }))
+      }
       if (role === 'coach' && request.query?.appFeedback === 'true') {
         const superadmin = isSuperadminRequest(request)
         const columns = superadmin ? 'id,profile_id,submitted_by_role,rating,best_area,improve_area,feature_request,comment,created_at,workflow_status,admin_note,admin_reply,admin_reply_sent_at,archived_at,updated_at' : 'rating,best_area,improve_area,feature_request,comment,created_at'
@@ -555,7 +582,7 @@ export default async function handler(request, response) {
         if (request.body.replyToMessageId) {
           try {
             const reply = await saveLinkedPrivateReply(request.body)
-            queueMessagePush({kind:'private',id:reply.id,profileId:reply.recipientId})
+            queueMessagePush({kind:'trainer-private',id:reply.id,profileId:reply.recipientId})
             return sendJson(response,201,{ok:true,privateReply:reply})
           } catch(error) { return sendJson(response,error.status || 502,{error:error.message}) }
         }
@@ -566,7 +593,7 @@ export default async function handler(request, response) {
         const result = await supabaseRequest('private_messages', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sender_role: 'coach', recipient_profile_id: recipientId, recipient_role: 'swimmer', content }) })
         if (!result.ok) throw new Error(`Coach message failed: ${result.status}`)
         const [message] = await result.json()
-        queueMessagePush({ kind: 'private', id: message.id, profileId: recipientId })
+        queueMessagePush({ kind: 'trainer-private', id: message.id, profileId: recipientId })
         return sendJson(response, 201, { ok: true })
       }
       const content = String(request.body?.content || '').trim()

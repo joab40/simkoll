@@ -215,6 +215,8 @@ function App() {
   const [historicalCheckin, setHistoricalCheckin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
+  const [coachInfoThread, setCoachInfoThread] = useState(null)
+  const openCoachInfo = thread => { setCoachInfoThread(thread ?? null); setScreen('coach-info') }
   const [diaryShortcut, setDiaryShortcut] = useState(null)
   useEffect(() => { if (screen !== 'training-diary') setDiaryShortcut(null) }, [screen])
   const [feedbackJumpRequest, setFeedbackJumpRequest] = useState(0)
@@ -248,7 +250,8 @@ function App() {
   usePushSession(auth, profile, (target) => {
     if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
     else if (target.screen === 'talks') { setSelectedDevelopmentTalkId(target.talkId || null); setScreen('talks') }
-    else setScreen(target.screen === 'goals' ? 'goals' : target.screen === 'coach-info' ? 'coach-info' : target.screen === 'private' ? 'private-messages' : target.screen === 'community' ? 'community' : target.screen === 'competition-entries' ? 'competition-entries' : target.screen === 'planning' ? 'planning' : 'home')
+    else if (target.screen === 'coach-info') openCoachInfo()
+    else setScreen(target.screen === 'goals' ? 'goals' : target.screen === 'private' ? 'private-messages' : target.screen === 'community' ? 'community' : target.screen === 'competition-entries' ? 'competition-entries' : target.screen === 'planning' ? 'planning' : 'home')
   })
 
   useEffect(() => {
@@ -478,8 +481,8 @@ function App() {
       )}
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
-        <Home code={auth.code} onOpenDiary={shortcut => { setDiaryShortcut(shortcut); setScreen('training-diary') }}
-          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+        <Home key={profile?.id || 'guest'} code={auth.code} onOpenDiary={shortcut => { setDiaryShortcut(shortcut); setScreen('training-diary') }}
+          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={openCoachInfo} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           setHistoricalCheckin(false)
           setCheckinActivityDate(todayKey())
           if (profile) setScreen('privacy-choice')
@@ -536,7 +539,7 @@ function App() {
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={historicalCheckin || checkinActivityDate !== todayKey()} historical={historicalCheckin} workout={workout} onDone={() => setScreen(historicalCheckin ? 'checkin-history' : 'home')} />}
       {['community', 'private-messages'].includes(screen) && <Community key={profile.id} profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} />}
-      {screen === 'coach-info' && <CoachInfoPage code={auth.code} profile={profile} onBack={() => setScreen('home')} />}
+      {screen === 'coach-info' && <CoachInfoPage key={profile?.id} code={auth.code} profile={profile} initialThread={coachInfoThread} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'dryland-program' && <DrylandProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
@@ -1151,7 +1154,7 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
   }
   const [communityPreview, setCommunityPreview] = useState(null)
   const [communityPreviewError, setCommunityPreviewError] = useState(false)
-  const chatVisible = communityPreview?.openChat?.enabled ?? (openChatEnabled === true)
+  const chatVisible = Boolean(communityPreview?.trainerPrivate?.length) || (communityPreview?.openChat?.enabled ?? (openChatEnabled === true))
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
   const levelVisible = Boolean(profile && points?.current)
   const pendingDevelopmentTalk = latestPendingDevelopmentTalk(developmentTalks)
@@ -1352,18 +1355,22 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
 function OpenChatCard({ data, code, setData, error = false, onOpen, channel = 'coach' }) {
   const chat = data?.openChat
   const isPep = channel === 'pep'
-  const messages = useMemo(() => isPep
-    ? (data?.items || []).slice(0, 2)
-    : (chat?.messages || []).filter(item => item.senderRole === 'coach').slice(-2).reverse(), [data, chat, isPep])
+  const messages = useMemo(() => {
+    if (isPep) return (data?.items || []).slice(0, 2)
+    const announcements = (chat?.messages || []).filter(item => item.senderRole === 'coach').slice(-2).reverse()
+    const privateMessage = data?.trainerPrivate?.[0]
+    return privateMessage ? [privateMessage, ...announcements.slice(0, 1)] : announcements
+  }, [data, chat, isPep])
   const preview = useRef(null)
   const trackViews = !isPep && Boolean(chat?.enabled && setData)
   useOpenChatEngagement({ active: trackViews, messages, scroller: preview, code, request: apiRequest, setData })
   const background = chatBackgroundUrl(chat?.backgroundImage || '/assets/open-chat-bg-teal.png')
   return <section className="open-chat-card hero-coach-preview" style={{ backgroundImage: `linear-gradient(rgba(239,250,247,.88),rgba(255,253,248,.94)),url(${background})` }}>
     <div><p className="eyebrow">{isPep ? 'Tillsammans i gruppen' : 'Från tränarna'}</p><h2>{isPep ? 'Peppflödet 🙌' : 'Info från tränarna 💬'}</h2><p>{isPep ? 'Peppa varandra, fråga och snacka simning.' : 'Träningsinfo, samlingar och hälsningar.'}</p></div>
-    {messages.length > 0 ? <div className="open-chat-preview" ref={preview}>{messages.map((item) => <article key={`${item.type || 'chat'}-${item.id}`} data-open-chat-view={trackViews && item.engagement ? item.id : undefined}><span aria-hidden="true">{isPep ? (item.sender?.emoji || '🧑‍🏫') : '🧑‍🏫'}</span><div><strong>{item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><div className="open-chat-preview-meta"><small>{formatFeedDate(item.createdAt)}</small>
+    {messages.length > 0 ? <div className="open-chat-preview" ref={preview}>{messages.map((item) => <article key={`${item.type || 'chat'}-${item.id}`} className={item.thread ? 'trainer-private-preview' : undefined} data-open-chat-view={trackViews && item.engagement ? item.id : undefined}><span aria-hidden="true">{isPep ? (item.sender?.emoji || '🧑‍🏫') : '🧑‍🏫'}</span><div><strong className={item.thread ? 'trainer-private-label' : undefined}>{item.thread ? '🔒 Privat till dig · Tränare' : item.sender?.displayName || 'Tränare'}</strong><p>{item.content}</p><div className="open-chat-preview-meta"><small>{formatFeedDate(item.createdAt)}</small>
+      {item.thread && <button type="button" className="text-button trainer-preview-open" aria-haspopup="dialog" onClick={() => onOpen?.(item.thread)}>Öppna dialog →</button>}
       {!isPep && item.engagement && <small className="open-chat-preview-seen" aria-label={`Sett av ${item.engagement.seenCount} simmare`}>Sett av {item.engagement.seenCount}</small>}</div></div></article>)}</div> : <p className="open-chat-empty" role="status">{error ? 'Kunde inte hämta meddelanden just nu.' : !chat ? 'Laddar meddelanden…' : isPep ? 'Bli först med en hälsning till gruppen!' : 'Inga meddelanden från tränarna ännu.'}</p>}
-    <button type="button" className="primary-button" onClick={onOpen}>{isPep ? 'Öppna peppflödet →' : 'Öppna tränarinfo →'}</button>
+    <button type="button" className="primary-button" onClick={() => onOpen?.()}>{isPep ? 'Öppna peppflödet →' : 'Öppna tränarinfo →'}</button>
     <small>{isPep ? 'Öppen kanal · alla i klubben kan läsa.' : <>Läs hela meddelanden och {chat?.coachOnly ? 'följ informationen från tränarna.' : 'ställ en fråga.'}</>}</small>
   </section>
 }

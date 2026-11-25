@@ -13,7 +13,7 @@ const call=async(query,code='swimmer-fixture',cookie='simkoll_session=fixture')=
   await handler({method:'GET',headers:{'x-simkoll-code':code,cookie},query},response)
   return response
 }
-test('home preview loads view totals for only its public coach announcements',async()=>{
+test('home preview includes one private reminder for the viewer and counts only public announcements',async()=>{
   const queries=[]
   globalThis.fetch=async(raw,options={})=>{
     const url=new URL(raw),table=url.pathname.split('/').at(-1);queries.push(url)
@@ -26,6 +26,12 @@ test('home preview loads view totals for only its public coach announcements',as
     if(table==='community_posts'){assert.equal(url.searchParams.get('limit'),'2');return json([{id:'post',content:'Tränarinfo',created_at:'2026-10-29T10:00:00Z'}])}
     if(table==='group_pep'){assert.match(url.searchParams.get('or'),/moderation_status.eq.approved/);return json([{id:'pep',sender_profile_id:id,template_key:'group_start',moderation_status:'approved',created_at:'2026-10-29T11:00:00Z'}])}
     if(table==='open_chat_messages'){assert.equal(url.searchParams.get('sender_role'),'eq.coach');assert.equal(url.searchParams.get('visibility'),'neq.coaches');return json([{id,content:'Samling 18',created_at:'2026-10-29T12:00:00Z',sender_role:'coach',visibility:'group'}])}
+    if(table==='private_messages'){
+      assert.equal(url.searchParams.get('recipient_profile_id'), `eq.${id}`)
+      assert.equal(url.searchParams.get('sender_role'), 'eq.coach')
+      assert.equal(url.searchParams.get('limit'), '1')
+      return json([{id:'reminder',sender_role:'coach',recipient_role:'swimmer',recipient_profile_id:id,content:'Ta med glasögonen',created_at:'2026-10-29T11:30:00Z'}])
+    }
     if(table==='open_chat_engagement_totals'){
       assert.equal(options.method,'POST')
       assert.deepEqual(JSON.parse(options.body),{p_message_ids:[id],p_profile_id:id})
@@ -41,8 +47,9 @@ test('home preview loads view totals for only its public coach announcements',as
   assert.equal(response.data.openChat.coachOnly,true)
   assert.deepEqual(response.data.openChat.messages[0].engagement,{seenCount:8,likeCount:2,seen:false,liked:false})
   assert.equal(queries.filter(url=>url.pathname.endsWith('/rpc/open_chat_engagement_totals')).length,1)
-  assert(queries.length<=9)
-  assert(!('messages' in response.data),'no private-message payload')
+  assert(queries.length<=10)
+  assert.deepEqual(response.data.trainerPrivate.map(item=>[item.content,item.thread]),[['Ta med glasögonen',{kind:'direct',id}]])
+  assert(!('messages' in response.data),'preview never includes the old inbox payload')
 })
 test('closed channels do not fetch chat; moderation excludes pending/rejected messages',async()=>{
   const preview=await loadCommunityPreview({}, {},{read:async(query)=>{

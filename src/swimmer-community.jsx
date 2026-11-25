@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { apiRequest } from './api-request.js'
 import OpenChatPanel from './open-chat-panel.jsx'
+import PrivateChatReply, { privateThreadKey } from './private-chat-reply.jsx'
 import PeppChannelPanel from './pepp-channel.jsx'
 import ChatEmojiPicker from './chat-emoji-picker.jsx'
 import { formatFeedDate } from './community-date.js'
@@ -40,11 +41,29 @@ function ChatPageHeading({ title, onBack, points }) {
   </header>
 }
 
-export function CoachInfoPage({ code, profile, onBack, request = apiRequest }) {
+export function CoachInfoPage({ code, profile, initialThread, onBack, request = apiRequest }) {
+  const [thread, setThread] = useState(initialThread)
+  const privateChannel = useCommunityChannel({ code, request, active: Boolean(profile), channel: 'channel=trainer-private' })
+  const messages = privateChannel.data?.messages || noItems
   return <main className="page-content coach-info-page swimmer-chat-page">
     <ChatPageHeading title="Info från tränarna" onBack={onBack} />
-    <OpenChatPanel code={code} profileId={profile?.id} fitViewport request={request} />
+    {(messages.length > 0 || privateChannel.error) && <section className="trainer-thread-list" aria-label="Privata dialoger">
+      <h2>🔒 Privata meddelanden till dig</h2>
+      {messages.slice(0, 1).map(item => <TrainerPrivateCard key={item.id} item={item} onOpen={setThread} />)}
+      {messages.length > 1 && <details><summary>Fler privata dialoger</summary>
+        {messages.slice(1).map(item => <TrainerPrivateCard key={item.id} item={item} onOpen={setThread} />)}
+      </details>}
+      {privateChannel.error && <p role="status">Kunde inte uppdatera privata meddelanden. <button type="button" className="text-button" onClick={() => privateChannel.refresh({ force: true }).catch(() => {})}>Försök igen</button></p>}
+    </section>}
+    <OpenChatPanel code={code} profileId={profile?.id} fitViewport request={request} onOpenThread={setThread} />
+    {thread && <PrivateChatReply key={privateThreadKey(thread)} thread={thread} code={code} request={request} onClose={() => setThread(null)} />}
   </main>
+}
+
+function TrainerPrivateCard({ item, onOpen }) {
+  return <button type="button" className="trainer-thread-open" aria-haspopup="dialog" onClick={() => onOpen(item.thread)}>
+    <span>{item.content}</span><small>{formatFeedDate(item.createdAt)} · Öppna dialog →</small>
+  </button>
 }
 
 export function Community({ profile, code, points, customPepEnabled = true, initialView = 'group', onBack, request = apiRequest }) {

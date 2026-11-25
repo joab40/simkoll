@@ -46,11 +46,11 @@ export async function loadInfoChannel(settings, role, viewer, read = supabaseReq
 
 export async function loadCoachInbox(read = supabaseRequest) {
   const [result, directory] = await Promise.all([
-    read('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=id,content,created_at,sender_role,recipient_role,sender_profile_id,recipient_profile_id,read_at&order=created_at.desc&limit=200'),
+    read('private_messages?or=(recipient_role.eq.coach,sender_role.eq.coach)&select=id,content,created_at,sender_role,recipient_role,sender_profile_id,recipient_profile_id,read_at,reply_to_open_chat_id&order=created_at.desc&limit=200'),
     read('profiles?select=id,display_name,emoji&active=eq.true'),
   ])
   if (!result.ok || !directory.ok) throw new Error('Coach inbox unavailable')
   const profiles = Object.fromEntries((await directory.json()).map(row => [row.id, { id: row.id, displayName: row.display_name, emoji: row.emoji }]))
-  const messages = (await result.json()).filter(row => row.sender_role === 'coach' || row.recipient_role === 'coach').map(row => ({ id: row.id, content: row.content, createdAt: row.created_at, fromCoach: row.sender_role === 'coach', toCoach: row.recipient_role === 'coach', sender: profiles[row.sender_profile_id], recipient: profiles[row.recipient_profile_id], readAt: row.read_at }))
+  const messages = (await result.json()).filter(row => row.sender_role === 'coach' || row.recipient_role === 'coach').map(row => ({ id: row.id, content: row.content, createdAt: row.created_at, fromCoach: row.sender_role === 'coach', toCoach: row.recipient_role === 'coach', sender: profiles[row.sender_profile_id], recipient: profiles[row.recipient_profile_id], readAt: row.read_at, thread: row.reply_to_open_chat_id ? { kind: 'question', id: row.reply_to_open_chat_id } : { kind: 'direct', id: row.sender_role === 'coach' ? row.recipient_profile_id : row.sender_profile_id } }))
   return { messages }
 }
