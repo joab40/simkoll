@@ -45,7 +45,7 @@ export function publicWorkout(item, { includeDetails = true } = {}) {
   return includeDetails ? { ...workout, content: item.content, note: item.note || '' } : workout
 }
 function publicPlan(item) {
-  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], alternativeGroupId: item.alternative_group_id || null, location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, calendarLink: item.calendar_link || null, time: item.calendar_link?.mode === 'linked' ? item.calendar_link.time || '' : '', syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at }
+  return { id: item.id, date: item.plan_date, activityType: item.activity_type, title: item.title, focus: item.focus || '', distanceMeters: item.distance_meters || null, durationMinutes: item.duration_minutes || null, timeOfDay: item.time_of_day || '', targetGroups: item.target_groups || [], alternativeGroupId: item.alternative_group_id || null, location: item.location || '', notes: item.notes || '', sourceWorkoutId: item.source_workout_id || null, calendarLink: item.calendar_link || null, time: item.calendar_link?.mode === 'linked' ? item.calendar_link.time || '' : '', syncStatus: item.sync_status || 'manual', syncedAt: item.synced_at || null, updatedAt: item.updated_at, ...(item.hidden_from_weekly_planning === true ? { hiddenFromWeeklyPlanning: true } : {}) }
 }
 function publicCycle(item) {
   return { id: item.id, parentId: item.parent_id || null, type: item.cycle_type, name: item.name, startDate: item.start_date, endDate: item.end_date, targetGroups: item.target_groups || [], focus: item.focus || '', goal: item.goal || '', phase: item.phase || 'build', notes: item.notes || '', updatedAt: item.updated_at }
@@ -598,7 +598,7 @@ async function loadSwimmerPlanningWeek(profile, start, end, today) {
   const visibleWorkouts = workouts.map(item => publicWorkout(item, { includeDetails: false }))
     .filter(item => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
   const locked = includesToday && visibleWorkouts.some(item => item.date === today) && (!unlockResult?.ok || !(await unlockResult.json()).length)
-  const visiblePlans = plans.filter(item => !orphanIds.has(item.id) && !item.calendar_link?.detachedWorkoutId
+  const visiblePlans = plans.filter(item => !item.hidden_from_weekly_planning && !orphanIds.has(item.id) && !item.calendar_link?.detachedWorkoutId
     && (item.source_competition_id ? canReadCompetition(item.competition_calendar, 'swimmer', profile)
       : !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
     .map(item => publicPlan(locked && item.plan_date === today && item.activity_type === 'swim' && item.source_workout_id ? { ...item, notes: '' } : item))
@@ -742,7 +742,7 @@ export default async function handler(request, response) {
         const settingsResult = await supabaseRequest('app_settings?setting_key=eq.webapp&select=setting_value&limit=1')
         const settings = settingsResult.ok ? ((await settingsResult.json())[0]?.setting_value || {}) : {}
         const plans = await backfillPlanningFromWorkouts(await result.json(), settings.planningHiddenDates || [], planQuery)
-        const visiblePlans = plans.filter(item => !item.calendar_link?.detachedWorkoutId && (role === 'coach'
+        const visiblePlans = plans.filter(item => !item.hidden_from_weekly_planning && !item.calendar_link?.detachedWorkoutId && (role === 'coach'
           || (item.source_competition_id ? canReadCompetition(item.competition_calendar, role, profile)
             : !item.target_groups?.length || item.target_groups.includes(profile.training_group))))
         const [workoutsResult, sportAdminActivities, cyclesResult] = await Promise.all([
@@ -755,7 +755,17 @@ export default async function handler(request, response) {
         const visibleWorkouts = role === 'coach' ? workouts : workouts.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const visibleSportAdminActivities = role === 'coach' ? sportAdminActivities : sportAdminActivities.filter((item) => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
         const cycles = cyclesResult.ok ? await cyclesResult.json() : []
-        return sendJson(response, 200, { plans: visiblePlans.map(publicPlan), workouts: visibleWorkouts, sportAdminActivities: visibleSportAdminActivities, ...(role === 'coach' ? { hiddenCalendarActivities: hiddenCalendar.map(row => ({ ...row.snapshot, hiddenAt: row.hidden_at })) } : {}), cycles: role === 'coach' ? cycles.map(publicCycle) : [], cyclesAvailable: cyclesResult.ok })
+        return sendJson(response, 200, {
+          plans: visiblePlans.map(publicPlan),
+          workouts: visibleWorkouts,
+          sportAdminActivities: visibleSportAdminActivities,
+          ...(role === 'coach' ? {
+            hiddenCalendarActivities: hiddenCalendar.map(row => ({ ...row.snapshot, hiddenAt: row.hidden_at })),
+            hiddenCompetitionPlans: plans.filter(item => item.hidden_from_weekly_planning).map(publicPlan),
+          } : {}),
+          cycles: role === 'coach' ? cycles.map(publicCycle) : [],
+          cyclesAvailable: cyclesResult.ok,
+        })
       }
       if (request.query?.calendar === 'true') {
         const result = await supabaseRequest('competition_calendar?select=*&order=start_date.asc&limit=100')
@@ -891,6 +901,27 @@ export default async function handler(request, response) {
           assistantCalendarCache = { expiresAt: 0, activities: [] }
           return sendJson(response, 200, result)
         } catch (error) { return sendJson(response, error.status || 503, { error: error.message, ...(error.needsConfirmation ? { needsConfirmation: true, impact: error.impact } : {}) }) }
+      }
+      if (request.body?.action === 'set-competition-plan-visibility') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan dölja tävlingskort i veckoplaneringen.' })
+        const { id, hidden } = request.body
+        if (typeof id !== 'string' || !competitionUuid.test(id) || typeof hidden !== 'boolean') {
+          return sendJson(response, 400, { error: 'Välj ett giltigt tävlingskort och om det ska döljas eller visas.' })
+        }
+        const result = await supabaseRequest(`training_plans?id=eq.${id}&activity_type=eq.competition&source_workout_id=is.null`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ hidden_from_weekly_planning: hidden }),
+        })
+        if (!result.ok) {
+          const detail = await result.json().catch(() => null)
+          return sendJson(response, 503, { error: ['42703', 'PGRST204'].includes(detail?.code)
+            ? 'Funktionen kräver databasuppdatering 152.'
+            : 'Tävlingskortets synlighet kunde inte sparas. Försök igen.' })
+        }
+        const [saved] = await result.json()
+        if (!saved) return sendJson(response, 404, { error: 'Tävlingskortet finns inte längre. Hämta veckoplaneringen igen.' })
+        return sendJson(response, 200, { plan: publicPlan(saved) })
       }
       if (['test-drive-folder', 'save-drive-settings'].includes(request.body?.action)) {
         if (role !== 'coach' || coachAccount?.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan ändra Drive-inställningar.' })

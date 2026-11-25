@@ -39,3 +39,49 @@ export function HiddenCalendarActivities({ code, activities, from, to, groups, g
   const visible = activities.filter(item => item.date >= from && item.date <= to && (!item.targetGroups?.length || item.targetGroups.some(group => groups.includes(group))))
   return <details className="hidden-calendar-activities"><summary>Visa dolda aktiviteter ({visible.length})</summary><p>Dolda kalendertillfällen i vald vecka och valda grupper. Sparade pass och incheckningar påverkas inte.</p>{visible.length ? visible.map(item => <div key={calendarActivityKey(item)}><span><strong>{item.date} · {item.time} · {item.title}</strong><small>{(item.targetGroups || []).map(group => groupLabels[group] || group).join(' · ')} · {item.location}</small></span><CalendarVisibilityButton code={code} activities={[item]} restore /></div>) : <p>Inga dolda aktiviteter i urvalet.</p>}</details>
 }
+
+export function CompetitionPlanVisibilityButton({ code, plan, request, onSaved }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  if (plan.activityType !== 'competition' || plan.sourceWorkoutId) return null
+
+  const hidden = plan.hiddenFromWeeklyPlanning === true
+  const label = hidden ? 'Visa i veckoplaneringen igen' : 'Dölj i veckoplaneringen'
+  const save = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const { plan: saved } = await request('/api/workouts', code, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-competition-plan-visibility', id: plan.id, hidden: !hidden }),
+      })
+      onSaved(saved)
+    } catch (requestError) {
+      setError(requestError.message || 'Synligheten kunde inte sparas. Försök igen.')
+    } finally { setSaving(false) }
+  }
+  return <>
+    <button type="button" className="text-button calendar-visibility-button" aria-label={`${label} · ${plan.title}`}
+      disabled={saving} onClick={save}>{saving ? 'Sparar…' : label}</button>
+    {error && <small className="form-error" role="alert">{error}</small>}
+  </>
+}
+
+export function HiddenCompetitionPlans({ code, plans, request, onSaved, from, to, groups, groupLabels }) {
+  const hidden = plans.filter(plan => plan.hiddenFromWeeklyPlanning && plan.date >= from && plan.date <= to &&
+    (!plan.targetGroups.length || plan.targetGroups.some(group => groups.includes(group))))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, 'sv'))
+  if (!hidden.length) return null
+  return <details className="hidden-calendar-activities">
+    <summary>Dolda tävlingskort ({hidden.length})</summary>
+    <p>Korten är dolda i veckoplaneringen för tränare och simmare. Tävlingarna finns kvar i tävlingskalendern.</p>
+    {hidden.map(plan => <div key={plan.id}>
+      <span><strong>{plan.date} · {plan.title}</strong><small>
+        {[plan.time || { morning: 'Morgon', afternoon: 'Eftermiddag / kväll' }[plan.timeOfDay], plan.location,
+          ...plan.targetGroups.map(group => groupLabels[group] || group)].filter(Boolean).join(' · ')}
+      </small></span>
+      <CompetitionPlanVisibilityButton code={code} plan={plan} request={request} onSaved={onSaved} />
+    </div>)}
+  </details>
+}
