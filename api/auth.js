@@ -3,6 +3,7 @@ import { logRememberedSwimmerLogin, writeAuditLog } from '../server/audit.js'
 import { coachFromRequest, countCoaches, createCoach, createCoachToken, findCoach, verifyCoachPassword, readCoachToken, COACH_TERMS_VERSION } from '../server/coach-auth.js'
 import { getSessionDays } from '../server/session-settings.js'
 import { clearSessionCookie, createSession, deleteCurrentSession, getSessionProfile, normalizeUsername, publicProfile, validPin, verifyPin } from '../server/profile-auth.js'
+import { readCoachCardLayout, saveCoachCardCategory, saveCoachViewCategory } from '../server/coach-card-categories.js'
 import { handleCoachRecovery } from '../server/coach-recovery.js'
 
 const getCookie = (request, name) => { const match = String(request.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`)); return match ? decodeURIComponent(match.slice(name.length + 1)) : null }
@@ -75,6 +76,8 @@ export default async function handler(request, response) {
   }
 
   const actor = coachFromRequest(request)
+  if (action === 'coach-card-layout') return readCoachCardLayout(request, response, actor)
+  if (action === 'coach-set-card-category') return saveCoachCardCategory(request, response, actor)
   if (action === 'coach-profile') {
     if (!actor) return sendJson(response, 403, { error: 'Tränarsession saknas.' })
     const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}&select=id,email,display_name,role,status,managed_groups,personal_settings_enabled,personal_settings,linked_profile_id&limit=1`)
@@ -154,15 +157,16 @@ export default async function handler(request, response) {
     await writeAuditLog(request, { eventType: 'coach_own_swimmer_mode', role: 'coach', profileId: profile.id, details: { actorName: actor.name, action: 'enter' } })
     return sendJson(response, 200, { code: process.env.SIMKOLL_SWIMMER_CODE, profile: publicProfile(profile) })
   }
-  if (action === 'coach-list' || action === 'coach-approve' || action === 'coach-reject' || action === 'coach-set-role') {
+  if (action === 'coach-list' || action === 'coach-approve' || action === 'coach-reject' || action === 'coach-set-role' || action === 'coach-set-view-category') {
     if (!actor || actor.role !== 'superadmin') return sendJson(response, 403, { error: 'Endast superadmin kan hantera tränarkonton.' })
     if (action === 'coach-list') {
-      const result = await supabaseRequest('coach_accounts?select=id,email,display_name,role,status,created_at,approved_at,last_login_at&order=created_at.asc&limit=200')
+      const result = await supabaseRequest('coach_accounts?select=id,email,display_name,role,status,view_category,created_at,approved_at,last_login_at&order=created_at.asc&limit=200')
       if (!result.ok) throw new Error(`Coach list failed: ${result.status}`)
       return sendJson(response, 200, { accounts: await result.json() })
     }
     const accountId = String(request.body.accountId || '')
     if (!accountId) return sendJson(response, 400, { error: 'Tränarkonto saknas.' })
+    if (action === 'coach-set-view-category') return saveCoachViewCategory(request, response, actor, accountId)
     if (action === 'coach-reject') {
       const targetResult = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(accountId)}&status=eq.pending&select=id,email,display_name,status&limit=1`)
       if (!targetResult.ok) throw new Error(`Coach rejection lookup failed: ${targetResult.status}`)

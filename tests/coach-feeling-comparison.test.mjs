@@ -38,7 +38,7 @@ test('both overview cards receive trends; comments stay in the day overview and 
   assert.equal((app.match(/<CoachFeelingTrend comparison=\{feelingComparison\}/g) || []).length, 2)
   assert.match(app, /feelingComparison=\{feelingComparison\} hideComments/)
   assert.match(app, /hideComments = false/)
-  assert.match(app, /!hideComments && <section className="coach-card comments-card">/)
+  assert.match(app, /!hideComments && <CoachCategorizedCard id="anonymous-comments"><section className="coach-card comments-card">/)
   assert.doesNotMatch(app, /Vad har gruppen gjort/)
   assert.match(panel, /buildCoachFeelingComparison\(responses.filter\(row => row.profileId \? ids.has\(row.profileId\) : includeAnonymous\)/)
 })

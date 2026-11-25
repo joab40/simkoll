@@ -1,0 +1,77 @@
+.coach-category-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.coach-category-toolbar .text-button[aria-pressed="true"] {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.coach-card-category {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  border-top: 1px solid var(--line, #dce9e5);
+  padding-top: 4px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.coach-card-category .text-button {
+  color: var(--teal);
+  padding: 4px 6px;
+  min-height: 32px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.coach-card-category select,
+.coach-account-category select {
+  color: inherit;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  min-height: 32px;
+  font: inherit;
+}
+
+.coach-card-category-slot {
+  min-width: 0;
+}
+
+.coach-card-category-slot:has(> .coach-card-category:only-child) {
+  display: none;
+}
+
+.stat-drilldown .coach-card-category {
+  position: relative;
+  z-index: 2;
+}
+
+.coach-account-category {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.coach-card-category-slot > .coach-card-category {
+  margin: 0 0 8px;
+  padding: 2px 8px 0;
+}
+
+.stats-grid:empty,
+.coach-panel-metrics:empty,
+.planning-summary:empty,
+.competition-day-groups:empty {
+  display: none;
+}

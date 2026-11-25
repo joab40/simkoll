@@ -3,11 +3,12 @@ import { buildDayIllnessSummary } from '../shared/mild-illness-summary.js'
 import { illnessLabel } from '../shared/illness.js'
 import { startVisiblePolling } from './visible-refresh.js'
 import { apiRequest } from './api-request.js'
+import { CoachCategorizedCard } from './coach-card-categories.jsx'
 import './coach-mild-illness.css'
 
 const dayLabel = date => new Date(`${date}T12:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' })
 
-export default function CoachMildIllnessCard({ summary, loading = false, error = '', onRetry, onOpenSwimmer, trend }) {
+export default function CoachMildIllnessCard({ summary, loading = false, error = '', onRetry, onOpenSwimmer, trend, categoryId }) {
   const content = <div className="coach-mild-content">
       {loading ? <p role="status">Hämtar sjukdomskoll…</p> : error ? <p className="form-error" role="alert">Underlaget kunde inte hämtas. {error}</p> : <>
         {summary.count ? <ul>{summary.swimmers.map(swimmer => <li key={swimmer.profileId}><div><button type="button" className="text-button" onClick={() => onOpenSwimmer(swimmer.profileId)}>{swimmer.emoji} {swimmer.displayName} <span aria-hidden="true">→</span></button><small>{`${swimmer.days} ${swimmer.days === 1 ? 'dag' : 'dagar'}: ${swimmer.dates.map(dayLabel).join(', ')}`}</small>{swimmer.latestDate > swimmer.lastDate && <small>Senaste dagsvar: {swimmer.latestStatus ? illnessLabel(swimmer.latestStatus) : 'Överhoppat'} · {dayLabel(swimmer.latestDate)}</small>}</div></li>)}</ul> : <p>Inga ”Lite känningar”-svar registrerade under perioden.</p>}
@@ -15,7 +16,8 @@ export default function CoachMildIllnessCard({ summary, loading = false, error =
       </>}
       {onRetry && <button type="button" className="text-button" onClick={onRetry} disabled={loading}>{error ? 'Försök igen' : 'Uppdatera'}</button>}
     </div>
-  return <article><small>Lite känningar</small><strong>{loading || error ? '–' : summary.count} <em>simmare</em></strong>{trend}<span>{error ? 'Underlaget för känningar kunde inte hämtas.' : `${summary.days} dagar med rapporterade känningar under perioden. Varje simmare räknas en gång per dag.`}</span><details><summary>Visa vilka</summary>{content}</details></article>
+  const card = <article><small>Lite känningar</small><strong>{loading || error ? '–' : summary.count} <em>simmare</em></strong>{trend}<span>{error ? 'Underlaget för känningar kunde inte hämtas.' : `${summary.days} dagar med rapporterade känningar under perioden. Varje simmare räknas en gång per dag.`}</span><details><summary>Visa vilka</summary>{content}</details></article>
+  return categoryId ? <CoachCategorizedCard id={categoryId}>{card}</CoachCategorizedCard> : card
 }
 
 function DayIllnessCard({ title, icon, tone, profiles, loading, error, onRetry, onOpenSwimmer }) {
@@ -60,7 +62,7 @@ export function TodayIllnessCards({ code, profiles, dayResponses, date, asOf, on
   const onRetry = () => setRevision(value => value + 1)
   const state = { loading, error, onRetry, onOpenSwimmer }
   return <React.Fragment key={date}>
-    <DayIllnessCard title="Rapporterad sjukdom" icon="🤒" tone="reported-sick" profiles={summary.sick} {...state} />
-    <DayIllnessCard title="Lite känningar" icon="🤧" tone="reported-mild" profiles={summary.mild} {...state} />
+    <CoachCategorizedCard id="today-illness"><DayIllnessCard title="Rapporterad sjukdom" icon="🤒" tone="reported-sick" profiles={summary.sick} {...state} /></CoachCategorizedCard>
+    <CoachCategorizedCard id="today-symptoms"><DayIllnessCard title="Lite känningar" icon="🤧" tone="reported-mild" profiles={summary.mild} {...state} /></CoachCategorizedCard>
   </React.Fragment>
 }
