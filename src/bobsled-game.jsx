@@ -185,6 +185,7 @@ export default function BobsledGame({ code, onBack, request, preview = false }) 
   const dive = pushing && view.pushTime >= BOB_DIVE_START
   const sweet = dive && view.pushTime <= BOB_DIVE_END
   const bumped = racing && view.elapsed - view.lastHit < .75
+  const boosted = racing && view.elapsed - view.lastBoost < .85
   return <section className="ski-page bobsled-page">
     <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button>
     <header className="ski-heading"><h1>Frostfjäll <em>Bobsläde</em></h1></header>
@@ -212,7 +213,10 @@ export default function BobsledGame({ code, onBack, request, preview = false }) 
             }}><i /></div>
             <span>{dive ? 'Tryck en gång till' : `${view.pushes} av 12 frånskjut`}</span>
           </div>}
-          {racing && !paused && (bumped || view.elapsed < 1.25) && <div className={`bob-cue${bumped ? ' bump' : ''}`}>{bumped ? 'Väggträff · fart tappad' : view.launch}</div>}
+          {racing && !paused && (bumped || boosted || view.elapsed < 1.25) &&
+            <div className={`bob-cue${bumped ? ' bump' : boosted ? ' boost' : ''}`}>
+              {bumped ? 'Väggträff · fart tappad' : boosted ? 'Ren kurva · fartboost' : view.launch}
+            </div>}
           {(view.phase === 'ready' || paused || finished) && <div className="ski-overlay">
             <div className="ski-stage-card bob-card">
               {paused ? <><h2>Pausat</h2><button className="ski-primary" onClick={resume}>Fortsätt åket →</button></> : finished ? <>
@@ -221,7 +225,7 @@ export default function BobsledGame({ code, onBack, request, preview = false }) 
                 <button className="ski-primary" onClick={start} disabled={saveStatus === 'saving'}>Kör igen ↗</button>
                 {saveStatus === 'failed' && <button type="button" className="ski-retry" onClick={() => saveRace(view.result)}>Spara tiden igen</button>}
               </> : <><h2>Full fart<em> i isrännan.</em></h2>
-                <p>Tryck snabbt för att springa. Hoppa i när markören når det gröna fältet och följ kurvornas gröna spår.</p>
+                <p>Tryck snabbt för att springa. Hoppa i när markören når det gröna fältet. Följ det gröna spåret uppför kurvans ytterkant för att få fart på utgången.</p>
                 <button className="ski-primary" onClick={start}>Starta åket ↗</button></>}
             </div>
           </div>}
@@ -236,7 +240,7 @@ export default function BobsledGame({ code, onBack, request, preview = false }) 
       </div>
       <aside className="ski-side">
         <div className="ski-personal"><span>{preview ? 'Bäst i testläget' : 'Ditt personbästa'}</span><strong>{best ? bobTime(BOB_SCORE_BASE - best) : '—'}</strong></div>
-        <ol className="ski-instructions"><li>Bygg fart med snabba tryck på ↑.</li><li>Tryck igen när markören når grönt för att kasta dig i släden.</li><li>Styr mjukt mot den gröna linjen i kurvorna. Släpp på rakorna för att behålla farten.</li></ol>
+        <ol className="ski-instructions"><li>Bygg fart med snabba tryck på ↑.</li><li>Tryck igen när markören når grönt för att kasta dig i släden.</li><li>Följ det gröna spåret upp på kurvans rundade yttervägg. Träffar du linjen utan att slå i kanten får du fart ut ur kurvan.</li></ol>
         <p className="ski-keys">Tangentbord <kbd>↑</kbd> eller <kbd>mellanslag</kbd> för starten · <kbd>←</kbd> <kbd>→</kbd> styr</p>
         {!preview && <div className="ski-ranking"><h2>Snabbast genom tiderna</h2>
           {Array.isArray(board) && board.length ? <ol>{board.map(row => <li key={row.profileId}><span>{row.rank}</span><span>{row.emoji} {row.displayName}</span><strong>{bobTime(BOB_SCORE_BASE - row.score)}</strong></li>)}</ol>

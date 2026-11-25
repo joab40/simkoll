@@ -28,6 +28,7 @@
 .bob-timing i { position: absolute; width: 4px; height: 15px; border-radius: 3px; top: -3px; left: var(--bob-progress); background: white; box-shadow: 0 0 2px #1b3d4a; }
 .bob-cue { top: 24%; padding: 7px 12px; border-radius: 30px; white-space: nowrap; }
 .bob-cue.bump { background: #844d3b; }
+.bob-cue.boost { background: #d8f28b; color: #183c34; }
 .bob-card { background: #f6faf3f5; box-shadow: 0 9px 38px #16394436; }
 @media (max-width: 700px) {
   .ski-stage.bobsled-stage { height: clamp(325px, 52svh, 470px); }

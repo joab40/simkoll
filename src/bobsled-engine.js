@@ -5,7 +5,9 @@ export const BOB_DIVE_END = 3.7
 export const BOB_SCORE_BASE = 100000
 export const BOB_MIN_MS = 18000
 export const BOB_MAX_MS = 60000
-export const BOB_LANE = 2.63
+export const BOB_FLAT = 1.05
+export const BOB_RIM = 3.55
+export const BOB_LANE = 3.17
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 export const bobTime = ms => (ms / 1000).toFixed(3).replace('.', ',') + ' s'
 export const validBobScore = score => Number.isInteger(score) && score >= BOB_SCORE_BASE - BOB_MAX_MS && score <= BOB_SCORE_BASE - BOB_MIN_MS
@@ -15,19 +17,41 @@ const turns = [
   [537, 87, 1.08], [631, 72, -1.12], [713, 106, 1.15],
 ]
 export function bobTrack(z) {
-  let x = 0, force = 0, heading = 0
-  for (const [start, length, direction] of turns) {
+  let x = 0, force = 0, heading = 0, turnIndex = -1
+  for (const [index, [start, length, direction]] of turns.entries()) {
     if (z <= start) break
-    const t = clamp((z - start) / length, 0, 1)
-    const wave = Math.sin(Math.PI * t)
-    x += direction * (length / 42) * 22 * (t - Math.sin(2 * Math.PI * t) / (2 * Math.PI))
-    if (t < 1) {
-      force = direction * wave ** 2
-      heading = direction * 22 / 42 * (1 - Math.cos(2 * Math.PI * t))
+    const distance = Math.min(z - start, length)
+    const frequency = 2 * Math.PI / length
+    const angle = frequency * distance
+    const bend = direction * .013
+    const tangent = bend * (distance - Math.sin(angle) / frequency) / 2
+    // Integrate the same curvature that pushes the sled toward the outer bank.
+    x += bend * (distance ** 2 / 4 + (Math.cos(angle) - 1) / (2 * frequency ** 2))
+      + tangent * (z - start - distance)
+    heading += tangent
+    if (distance < length) {
+      force = direction * (1 - Math.cos(angle)) / 2
+      turnIndex = index
     }
   }
-  const drop = -6.5 * Math.sin(z * 0.012) - 2.6 * Math.sin(z * 0.039) - z * 0.085
-  return { x, y: drop, force, heading }
+  const drop = -6.5 * Math.sin(z * .012) - 2.6 * Math.sin(z * .039) - z * .085
+  return { x, y: drop, force, heading, turnIndex }
+}
+
+const bankAngle = Math.PI * .45
+const bankWidth = BOB_RIM - BOB_FLAT
+const bankWidthFactor = bankWidth / Math.sin(bankAngle)
+
+export function bobIceProfile(lateral, force) {
+  if (Math.abs(lateral) <= BOB_FLAT) return { x: lateral, y: 0, slope: 0 }
+  const side = Math.sign(lateral)
+  const angle = bankAngle * clamp((Math.abs(lateral) - BOB_FLAT) / bankWidth, 0, 1)
+  const rise = (.54 + Math.max(0, -side * force) * 2.65) / (1 - Math.cos(bankAngle))
+  return {
+    x: side * (BOB_FLAT + bankWidthFactor * Math.sin(angle)),
+    y: rise * (1 - Math.cos(angle)),
+    slope: side * rise / bankWidthFactor * Math.tan(angle),
+  }
 }
 
 export function createBobRace() {
@@ -35,6 +59,7 @@ export function createBobRace() {
     phase: 'ready', distance: 0, elapsed: 0, pushTime: 0, pushes: 0, lastPush: -1,
     speed: 0, lateral: 0, drift: 0, turn: 0, hits: 0, lastHit: -1,
     cleanTime: 0, maxSpeed: 0, launch: '', result: null,
+    curveIndex: -1, curveMeters: 0, cleanMeters: 0, curveHits: 0, boosts: 0, lastBoost: -Infinity,
   }
 }
 export function bobAction(race) {
@@ -55,7 +80,17 @@ function dive(race, onTime) {
   race.launch = onTime && race.pushes >= 10 ? 'Perfekt start' : onTime ? 'Bra inhopp' : 'Sent inhopp'
   race.speed = 13 + race.pushes * 0.82 + (onTime ? 3 : 0)
 }
-export function bobIdealLine(force) { return force * 1.4 }
+export function bobIdealLine(force) { return -force * 2.20 }
+
+function enterBobCurve(race, index) {
+  if (race.curveMeters > 0 && race.curveHits === 0 && race.cleanMeters / race.curveMeters >= .61) {
+    race.speed += 3.3
+    race.boosts += 1
+    race.lastBoost = race.elapsed
+  }
+  race.curveIndex = index
+  race.curveMeters = race.cleanMeters = race.curveHits = 0
+}
 
 export function advanceBob(race, elapsed, steer = 0) {
   if (race.phase === 'push') {
@@ -68,18 +103,20 @@ export function advanceBob(race, elapsed, steer = 0) {
   while (remaining > 0 && race.phase === 'racing') {
     const dt = Math.min(remaining, 1 / 90)
     remaining -= dt
-    const curve = bobTrack(race.distance).force
-    const line = bobIdealLine(curve)
+    const { force, turnIndex } = bobTrack(race.distance)
+    if (turnIndex !== race.curveIndex) enterBobCurve(race, turnIndex)
+    const bank = bobIceProfile(race.lateral, force)
     race.turn += (clamp(steer, -1, 1) - race.turn) * Math.min(1, dt * 8)
-    race.drift += (race.turn * 19 - curve * (6.3 + race.speed * 0.105) - race.lateral * 1.3 - race.drift * 3) * dt
+    const cornerPush = force * (7 + race.speed * .103)
+    const centering = (1 - Math.min(1, Math.abs(force))) * race.lateral * 1.3
+    race.drift += (race.turn * 19 - cornerPush - bank.slope * 3.2 - centering - race.drift * 3) * dt
     race.lateral += race.drift * dt
-    const clean = Math.abs(curve) > 0.25 && Math.abs(race.lateral - line) < 0.78
-    if (clean) race.cleanTime += dt
-    race.speed += (44.8 + (clean ? 3.4 : 0) - 3.5 * Math.abs(race.turn) - race.speed) * Math.min(1, dt * 0.35)
+    race.speed += (44.8 - 3.5 * Math.abs(race.turn) - race.speed) * Math.min(1, dt * .35)
     if (Math.abs(race.lateral) > BOB_LANE) {
       race.lateral = Math.sign(race.lateral) * BOB_LANE
-      race.drift *= -0.25
-      if (race.elapsed - race.lastHit > 0.55) {
+      race.drift *= -.25
+      race.curveHits += 1
+      if (race.elapsed - race.lastHit > .55) {
         race.speed = Math.max(16, race.speed - 5.8)
         race.hits += 1
         race.lastHit = race.elapsed
@@ -87,6 +124,13 @@ export function advanceBob(race, elapsed, steer = 0) {
     }
     race.maxSpeed = Math.max(race.speed, race.maxSpeed)
     const travel = race.speed * dt
+    if (Math.abs(force) > .30) {
+      race.curveMeters += travel
+      if (Math.abs(race.lateral - bobIdealLine(force)) < .66 && Math.abs(race.turn) < .84) {
+        race.cleanMeters += travel
+        race.cleanTime += dt
+      }
+    }
     race.elapsed += Math.min(dt, (BOB_LENGTH - race.distance) / race.speed)
     race.distance = Math.min(BOB_LENGTH, race.distance + travel)
     if (race.distance >= BOB_LENGTH) {

@@ -1,4 +1,4 @@
-import { BOB_LENGTH, BOB_START_LIMIT, bobIdealLine, bobTrack, clamp } from './bobsled-engine.js'
+import { BOB_FLAT, BOB_LENGTH, BOB_RIM, BOB_START_LIMIT, bobIceProfile, bobIdealLine, bobTrack, clamp } from './bobsled-engine.js'
 
 function shape(ctx, fill, points) {
   ctx.fillStyle = fill
@@ -57,11 +57,12 @@ function fir(ctx, [x, y], size, seed) {
     shape(ctx, '#deeff0', [[x, top], [x - width * .67, level - size * .17], [x + width * .56, level - size * .21]])
   }
 }
-function sled(ctx, x, y, unit, race) {
+function sled(ctx, x, y, unit, slope, race) {
   ctx.save()
   ctx.translate(x, y)
-  ctx.rotate(race.turn * .13 + race.lateral * .024)
+  ctx.rotate(-Math.atan(slope) + race.turn * .08)
   ctx.scale(unit, unit)
+  ctx.translate(0, -19)
   oval(ctx, '#25485353', 0, 13, 46, 12)
   for (const side of [-1, 1]) {
     const runner = side * 24
@@ -90,80 +91,114 @@ function sled(ctx, x, y, unit, race) {
   ctx.restore()
 }
 
+const bankDivisions = 6
+const bankSamples = Array.from({ length: bankDivisions + 1 }, (_, index) =>
+  BOB_FLAT + (BOB_RIM - BOB_FLAT) * index / bankDivisions)
+const iceShades = ['#d4edf1', '#cce7eb', '#c0dfe7', '#accfdc', '#9ac4d4', '#81b0c2']
+const step = 4
+
 export function createBobScene(canvas) {
   const ctx = canvas.getContext('2d', { alpha: false })
   const sky = document.createElement('canvas')
+  const trackSamples = new Map()
+  const sample = at => {
+    if (!trackSamples.has(at)) {
+      const track = bobTrack(at)
+      trackSamples.set(at, {
+        ...track,
+        leftBank: bankSamples.map(lateral => bobIceProfile(-lateral, track.force)),
+        rightBank: bankSamples.map(lateral => bobIceProfile(lateral, track.force)),
+      })
+    }
+    return trackSamples.get(at)
+  }
   let width = 0, height = 0
   return function draw(race, effects) {
     if (canvas.width !== width || canvas.height !== height) {
       width = sky.width = canvas.width
       height = sky.height = canvas.height
-      paintSky(sky.getContext('2d'), width, height)
+      if (width && height) paintSky(sky.getContext('2d'), width, height)
     }
     const w = width, h = height
     if (!w || !h) return
     ctx.drawImage(sky, 0, 0)
     const z = race.phase === 'push' ? -17 + race.pushTime / BOB_START_LIMIT * 11 + race.pushes * .5 : race.phase === 'ready' ? -17 : race.distance
     const origin = bobTrack(z)
-    const heading = bobTrack(z + 10).heading * .86
-    const focal = Math.min(w * .92, h * 1.06)
-    const road = 3.25, step = 4
-    const camY = 4.45 + Math.max(0, Math.sin(race.elapsed * 5)) * Math.abs(race.turn) * .18
-    const section = (at) => {
-      const track = bobTrack(at)
-      const depth = at - z + 9
-      const s = focal / depth
-      const base = (track.x - origin.x - heading * (at - z) - race.lateral * .74) * s + w / 2
-      const level = h * .52 + (origin.y + camY - track.y) * s
-      const bank = track.force * .25
-      const point = (x, y = 0) => [base + s * x, level - (y - x * bank) * s]
-      return { at, s, point, force: track.force }
+    const rider = bobIceProfile(race.lateral, origin.force)
+    const heading = (origin.heading * .67 + bobTrack(z + 17).heading * .33)
+    const focal = Math.min(w * .92, h * 1.12)
+    const cameraDistance = 13
+    const camY = h * .36 * cameraDistance / focal + rider.y * .50
+    const section = (at, track) => {
+      const s = focal / (at - z + cameraDistance)
+      const base = (track.x - origin.x - heading * (at - z) - rider.x * .72) * s + w / 2
+      const level = h * .47 + (origin.y + camY - track.y) * s
+      const point = (x, y = 0) => [base + s * x, level - y * s]
+      const project = ({ x, y }) => point(x, y)
+      return { at, s, point, project, track }
     }
-    let far = section(Math.floor(z / step) * step + 160)
-    for (let i = 0; i < 40; i++) {
+    const slice = at => {
+      const track = sample(at)
+      const view = section(at, track)
+      return { ...view, banks: [track.leftBank.map(view.project), track.rightBank.map(view.project)] }
+    }
+    let far = slice(Math.floor(z / step) * step + 160)
+    for (let i = 0; i < 42; i++) {
       const at = far.at - step
-      const near = section(at)
+      const near = slice(at)
       const stripe = (Math.round(at / step) % 2 + 2) % 2
-      const quad = (color, left, right, nearLeft = left, nearRight = right, farY = 0, nearY = farY) =>
-        shape(ctx, color, [far.point(left, farY), far.point(right, farY), near.point(nearRight, nearY), near.point(nearLeft, nearY)])
-      quad(stripe ? '#e5f1f1' : '#e8f4f4', -55, 55)
-      quad(stripe ? '#c5e3e8' : '#cbe8ed', -road, road)
-      quad('#d8edf1', -.07, .07)
-      if (Math.abs(near.force) > .25 && at >= 0 && at < BOB_LENGTH) {
-        const first = bobIdealLine(far.force), last = bobIdealLine(near.force)
-        quad(stripe ? '#92c99a' : '#b1dca9', first - .16, first + .16, last - .16, last + .16)
+      const strip = (color, farLeft, farRight, nearLeft, nearRight) =>
+        shape(ctx, color, [farLeft, farRight, nearRight, nearLeft])
+
+      strip(stripe ? '#e5f1f1' : '#e8f4f4', far.point(-85, -.2), far.point(85, -.2), near.point(-85, -.2), near.point(85, -.2))
+      strip(stripe ? '#d4edf1' : '#d8eff3', far.point(-BOB_FLAT), far.point(BOB_FLAT), near.point(-BOB_FLAT), near.point(BOB_FLAT))
+
+      for (const [index, side] of [[0, -1], [1, 1]]) {
+        const farBank = far.banks[index], nearBank = near.banks[index]
+        const farEdge = farBank.at(-1), nearEdge = nearBank.at(-1)
+        const farRimY = (index === 0 ? far.track.leftBank : far.track.rightBank).at(-1).y
+        const nearRimY = (index === 0 ? near.track.leftBank : near.track.rightBank).at(-1).y
+        const coping = side * (BOB_RIM + .29)
+        strip('#6e9ba9', far.point(coping, farRimY + .08), far.point(coping + side * .23, -.2),
+          near.point(coping, nearRimY + .08), near.point(coping + side * .23, -.2))
+        for (let band = 0; band < bankDivisions; band++) {
+          strip(iceShades[band], farBank[band], farBank[band + 1], nearBank[band], nearBank[band + 1])
+        }
+        strip('#f1f8f5', farEdge, far.point(coping, farRimY + .08), nearEdge, near.point(coping, nearRimY + .08))
       }
-      for (const side of [-1, 1]) {
-        const inner = side * road, outer = side * (road + .42)
-        const top = 1.5 + Math.max(0, -side * near.force) * 1.7
-        const farTop = 1.5 + Math.max(0, -side * far.force) * 1.7
-        shape(ctx, side > 0 ? '#89b5c0' : '#a2cbd4', [far.point(inner), far.point(inner, farTop), near.point(inner, top), near.point(inner)])
-        quad('#f5faf4', inner, outer, inner, outer, farTop, top)
-        shape(ctx, stripe ? '#146170' : '#2b8190', [far.point(inner, farTop - .18), far.point(inner, farTop - .31), near.point(inner, top - .31), near.point(inner, top - .18)])
+      if (at >= 0 && at < BOB_LENGTH) {
+        const farLine = bobIdealLine(far.track.force), nearLine = bobIdealLine(near.track.force)
+        const farWidth = clamp((Math.abs(far.track.force) - .17) * .65, 0, .10)
+        const nearWidth = clamp((Math.abs(near.track.force) - .17) * .65, 0, .10)
+        if (nearWidth || farWidth) {
+          const linePoint = (view, lateral) => view.project(bobIceProfile(lateral, view.track.force))
+          strip(stripe ? '#82ba91' : '#a2cfa5', linePoint(far, farLine - farWidth), linePoint(far, farLine + farWidth),
+            linePoint(near, nearLine - nearWidth), linePoint(near, nearLine + nearWidth))
+        }
       }
       if (at % 12 === 0) {
         const seed = at / 12
         for (const side of [-1, 1]) {
           const spot = side * (8 + wave(seed + side) * 10)
-          fir(ctx, near.point(spot), near.s * (6.5 + wave(seed + side * 3) * 4.8), seed + side)
+          fir(ctx, near.point(spot, -.2), near.s * (6.5 + wave(seed + side * 3) * 4.8), seed + side)
         }
       }
       if (at === 0 || at === BOB_LENGTH) {
-        const left = near.point(-road, 2.8), right = near.point(road, 2.8)
+        const left = near.point(-BOB_RIM, 2.8), right = near.point(BOB_RIM, 2.8)
         const marker = at === 0 ? '#c5e96b' : '#133a4b'
         const ink = at === 0 ? '#173e3c' : '#f1f9f3'
         const banner = near.s * .68
         for (const side of [-1, 1]) {
-          const x = side * road
+          const x = side * BOB_RIM
           shape(ctx, marker, [near.point(x - .13), near.point(x + .13), near.point(x + .13, 3.45), near.point(x - .13, 3.45)])
         }
         ctx.fillStyle = marker
-        ctx.fillRect(left[0], Math.min(left[1],right[1]) - banner, right[0] - left[0], Math.abs(left[1]-right[1]) + banner)
+        ctx.fillRect(left[0], Math.min(left[1], right[1]) - banner, right[0] - left[0], Math.abs(left[1] - right[1]) + banner)
         if (banner > 8) {
           ctx.fillStyle = ink
           ctx.font = `800 ${banner * .66}px system-ui`
           ctx.textAlign = 'center'
-          ctx.fillText(at === 0 ? 'FROSTFJÄLL' : 'MÅL', (left[0] + right[0]) / 2, Math.min(left[1],right[1]) - banner * .23)
+          ctx.fillText(at === 0 ? 'FROSTFJÄLL' : 'MÅL', (left[0] + right[0]) / 2, Math.min(left[1], right[1]) - banner * .23)
         }
       }
       far = near
@@ -179,7 +214,9 @@ export function createBobScene(canvas) {
         ctx.fillRect(x, y, w * .0022, 2 + p * h * .024)
       }
     }
-    sled(ctx, w * .5 + race.lateral * focal * .063, h * .82, Math.min(w / 380, h / 420), race)
+    const riderSection = section(z, origin)
+    const [sledX, sledY] = riderSection.project(rider)
+    sled(ctx, sledX, sledY, Math.min(riderSection.s * .027, h / 420), rider.slope, race)
     if (effects && race.phase === 'racing' && race.elapsed - race.lastHit < .18) {
       ctx.fillStyle = '#e7845255'
       ctx.fillRect(race.lateral < 0 ? 0 : w * .96, 0, w * .04, h)
