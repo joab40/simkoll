@@ -593,9 +593,23 @@ button { cursor: pointer; }
 .my-history > summary > b, .my-competition-results > summary > b { color: var(--teal); font-size: 22px; }
 .my-history[open] > summary > b, .my-competition-results[open] > summary > b { transform: rotate(45deg); }
 .profile-stats-button { display: block; margin: 18px auto 0; }
-.attendance-panel { margin: 0 0 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
-.attendance-panel-head { display: flex; align-items: stretch; gap: 8px; padding-right: 10px; }
-.attendance-panel-head .attendance-toggle { flex: 1; }
+.attendance-panel, .lane-panel {
+  margin: 0 0 18px;
+  background: var(--paper);
+  border: 1px solid #c7dad5;
+  border-radius: 18px;
+  overflow: hidden;
+}
+.attendance-panel-head, .lane-panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 18px;
+  box-sizing: border-box;
+}
+.attendance-panel-head .attendance-toggle { flex: 1; min-width: 0; align-self: stretch; }
 .lane-planner-button { align-self: center; border: 1px solid #b8d9d0; border-radius: 11px; background: #edf8f4; color: var(--teal); padding: 9px 13px; font-weight: 800; font-size: 11px; cursor: pointer; }
 .lane-planner-button:disabled { opacity: .5; cursor: not-allowed; }
 .lane-planner-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(16, 43, 45, .42); }
@@ -653,9 +667,29 @@ button { cursor: pointer; }
 .lane-published-view article > em { color: var(--muted); font-size: 11px; }
 .coach-managed-groups { margin-top: 12px; }
 .personal-settings-subtitle { margin: 20px 0 8px; font-size: 14px; color: var(--teal); }
-@media (max-width: 560px) { .attendance-panel-head { flex-direction: column; padding-right: 0; } .lane-planner-button { min-height: 40px; margin: 0 10px 10px; } .lane-planner-form { grid-template-columns: 1fr; } .lane-planner-wide { grid-column: auto; } }
-.attendance-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; background: transparent; padding: 16px 18px; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; text-align: left; }
-.attendance-toggle span { color: var(--muted); font-size: .85rem; font-weight: 600; white-space: nowrap; }
+@media (max-width: 560px) { .lane-planner-form { grid-template-columns: 1fr; } .lane-planner-wide { grid-column: auto; } }
+.attendance-toggle, .lane-panel-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.attendance-toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0; }
+.attendance-toggle span, .lane-panel-toggle span { font-size: .85rem; font-weight: 600; }
+.attendance-toggle span { color: var(--muted); }
+.lane-panel-toggle strong { font-weight: inherit; }
+.lane-panel-toggle span { color: var(--teal); }
+.attendance-toggle:focus-visible, .lane-panel-toggle:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+@media (max-width: 560px) {
+  .attendance-panel-head, .lane-panel-toggle { min-height: 76px; padding-inline: 14px; }
+  .attendance-toggle, .lane-panel-toggle { flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; }
+  .lane-planner-button { min-height: 40px; flex-shrink: 0; }
+}
 .attendance-body { border-top: 1px solid var(--line); padding: 14px 18px 18px; }
 .attendance-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
 .attendance-list button { display: grid; grid-template-columns: 30px 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 0 8px; border: 1px solid var(--line); border-radius: 12px; background: white; padding: 10px; text-align: left; cursor: pointer; }

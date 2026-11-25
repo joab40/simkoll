@@ -1,6 +1,4 @@
-.lane-panel,.lane-settings { margin:16px 0; border:1px solid var(--line,#d4e3df); border-radius:22px; background:var(--paper,#fbfdf9); overflow:hidden; }
-.lane-panel-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px; border:0; background:transparent; padding:22px; text-align:left; font:inherit; color:var(--ink,#16353f); cursor:pointer; }
-.lane-panel-toggle strong { font-size:18px; }.lane-panel-toggle span { color:var(--teal,#147b7b); font-size:14px; }
+.lane-settings { margin:16px 0; border:1px solid var(--line,#d4e3df); border-radius:22px; background:var(--paper,#fbfdf9); overflow:hidden; }
 .lane-panel-body,.lane-settings { padding:22px; }.lane-panel-body>p:first-child { margin-top:0; }
 .lane-panel fieldset,.lane-settings fieldset { border:0; padding:0; margin:0; min-width:0; }
 .lane-panel label,.lane-settings label { display:grid; gap:8px; font-weight:700; min-width:0; margin:12px 0; }
