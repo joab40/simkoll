@@ -6,8 +6,9 @@ import { validPlanningDate } from '../shared/planning-import.js'
 
 const fail = (message, status = 503, extra = {}) => { throw Object.assign(new Error(message), { status, ...extra }) }
 const hash = key => createHash('sha256').update(key).digest('hex')
-export async function loadHiddenCalendarActivities(db = supabaseRequest) {
-  const result = await analyticsRows('sportadmin_hidden_activities?select=*&order=key_hash.asc', db)
+export async function loadHiddenCalendarActivities(db = supabaseRequest, { from, to } = {}) {
+  const range = from && to ? `&event_date=gte.${from}&event_date=lte.${to}` : ''
+  const result = await analyticsRows(`sportadmin_hidden_activities?select=*&order=key_hash.asc${range}`, db)
   if (!result.ok || result.truncated) fail('Dolda kalenderaktiviteter kunde inte hämtas. Kontrollera att SQL 115 är körd. Försök igen.')
   return result.json()
 }

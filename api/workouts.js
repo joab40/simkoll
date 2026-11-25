@@ -592,6 +592,24 @@ async function pendingWorkoutFollowUp(profile, today) {
   return last?.day_type === 'before' ? yesterday : null
 }
 
+async function loadCoachPlanningWeek(start, end) {
+  const [planResult, workoutResult] = await Promise.all([
+    analyticsRows(`training_plans?plan_date=gte.${start}&plan_date=lte.${end}&select=*&order=plan_date.asc,id.asc`),
+    analyticsRows(`daily_workouts?workout_date=gte.${start}&workout_date=lte.${end}&select=*&order=workout_date.asc,created_at.asc,id.asc`),
+  ])
+  if ([planResult, workoutResult].some(result => !result.ok || result.truncated)) {
+    throw planningLinkError('Veckoplaneringen kunde inte hämtas. Försök igen.')
+  }
+  const [plans, workouts] = await Promise.all([planResult.json(), workoutResult.json()])
+  // Publishing already syncs the records. Display older published workouts
+  // directly and omit orphan plans without writing anything on a page read.
+  const orphanIds = new Set(orphanPlanningRows(plans, workouts).map(item => item.id))
+  return {
+    plans: plans.filter(item => !orphanIds.has(item.id) && !item.calendar_link?.detachedWorkoutId).map(publicPlan),
+    workouts: workouts.map(item => publicWorkout(item)),
+  }
+}
+
 async function loadSwimmerPlanningWeek(profile, start, end, today) {
   const includesToday = start <= today && today <= end
   const [planResult, workoutResult, unlockResult, weekType, followUpDate] = await Promise.all([
@@ -728,18 +746,45 @@ export default async function handler(request, response) {
         if (!choiceProfile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att välja pass.' })
         return sendJson(response, 200, { options: await loadWorkoutChoices(date, choiceProfile.training_group) })
       }
-      if (request.query?.planningWeek !== undefined || request.query?.planningCalendar !== undefined) {
+      if (request.query?.coachPlanningWeek !== undefined) {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Den här veckoplaneringen visas för tränare.' })
+        const start = request.query.coachPlanningWeek
+        if (!validCoachWeek(start) || start < '1900-01-01') return sendJson(response, 400, { error: 'Välj en giltig vecka.' })
+        return sendJson(response, 200, await loadCoachPlanningWeek(start, planningAddDays(start, 6)))
+      }
+      if (request.query?.planningCycles === 'true') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Terminsplaneringen visas för tränare.' })
+        const result = await supabaseRequest('training_cycles?select=*&order=start_date.asc&limit=300')
+        if (result.ok) return sendJson(response, 200, { cycles: (await result.json()).map(publicCycle) })
+        const detail = await result.json().catch(() => null)
+        const error = ['42P01', 'PGRST205'].includes(detail?.code)
+          ? 'Termins- och blockplanering kräver databasuppdatering 071.'
+          : 'Terminer och träningsblock kunde inte hämtas. Försök igen.'
+        return sendJson(response, 503, { error })
+      }
+      if (request.query?.planningWeek !== undefined) {
         if (role !== 'swimmer' || !profile) return sendJson(response, 403, { error: 'Veckoplaneringen visas för inloggade simmare.' })
-        const start = request.query.planningWeek ?? request.query.planningCalendar
+        const start = request.query.planningWeek
+        if (!validCoachWeek(start) || start < '1900-01-01') return sendJson(response, 400, { error: 'Välj en giltig vecka.' })
+        return sendJson(response, 200, await loadSwimmerPlanningWeek(profile, start, planningAddDays(start, 6), stockholmDate()))
+      }
+      if (request.query?.planningCalendar !== undefined) {
+        if (role !== 'coach' && role !== 'swimmer') return sendJson(response, 403, { error: 'Kalendern visas för inloggade tränare och simmare.' })
+        const start = request.query.planningCalendar
         if (!validCoachWeek(start) || start < '1900-01-01') return sendJson(response, 400, { error: 'Välj en giltig vecka.' })
         const end = planningAddDays(start, 6)
-        if (request.query.planningWeek !== undefined) return sendJson(response, 200, await loadSwimmerPlanningWeek(profile, start, end, stockholmDate()))
-        const calendars = await configuredSportAdminCalendars({ strict: true })
+        const [calendars, hiddenActivities] = await Promise.all([
+          configuredSportAdminCalendars({ strict: true }),
+          role === 'coach' ? loadHiddenCalendarActivities(supabaseRequest, { from: start, to: end }) : null,
+        ])
         let incomplete = false
-        const activities = await readSportAdminCalendars(calendars, { from: start, to: end, onFailure: () => { incomplete = true } })
+        const activities = await readSportAdminCalendars(calendars, {
+          from: start, to: end, hiddenActivities, onFailure: () => { incomplete = true },
+        })
         return sendJson(response, 200, {
           incomplete,
-          sportAdminActivities: activities.filter(item => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group)),
+          sportAdminActivities: role === 'coach' ? activities : activities.filter(item => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group)),
+          ...(role === 'coach' ? { hiddenCalendarActivities: hiddenActivities.map(row => ({ ...row.snapshot, hiddenAt: row.hidden_at })) } : {}),
         })
       }
       if (request.query?.planning === 'true') {

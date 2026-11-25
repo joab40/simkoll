@@ -16,7 +16,8 @@ test('viewed planning week follows the selected Monday forwards, backwards and a
 test('actual planning navigation labels the selected week, not today, and announces changes', () => {
   const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
   const label = readFileSync(new URL('../src/planning-week-label.jsx', import.meta.url), 'utf8')
-  assert.match(main, /planningView === 'week' && <PlanningWeekLabel monday=\{days\[0\]\.key\} \/>/)
+  assert.match(main, /planningView === 'week' && <>\s+<PlanningWeekLabel monday=\{weekStart\} \/>/)
+  assert.match(main, /const weekStart = dateKey\(monday\)/)
   assert.match(main, /planningView !== 'week' && <small>Nu: vecka/)
   assert.match(label, /isoWeek\(monday\)/)
   assert.match(label, /Visar vecka \{week\} · \{year\}/)

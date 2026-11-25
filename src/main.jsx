@@ -715,16 +715,17 @@ function Login({ onLogin }) {
   )
 }
 
-function PlanningPastDay({ date, past, children }) {
+function PlanningPastDay({ date, past, defer = false, children }) {
+  const [hasOpened, setHasOpened] = useState(false)
   if (!past) return children
   const day = new Date(`${date}T12:00:00Z`)
-  return <details className="planning-past-day">
+  return <details className="planning-past-day" onToggle={event => { if (defer && event.currentTarget.open) setHasOpened(true) }}>
     <summary>
       <span><strong>{day.toLocaleDateString('sv-SE', { weekday: 'long', timeZone: 'Europe/Stockholm' })}</strong>
         <small>{day.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', timeZone: 'Europe/Stockholm' })}</small></span>
       <span aria-hidden="true">⌄</span>
     </summary>
-    {children}
+    {(!defer || hasOpened) && children}
   </details>
 }
 
@@ -3674,40 +3675,28 @@ function amountRangeLabel(range) {
   return range.max ? range.min === range.max ? range.max.toLocaleString('sv-SE') : `${range.min.toLocaleString('sv-SE')}–${range.max.toLocaleString('sv-SE')}` : '–'
 }
 
+const NO_PLANNING_ROWS = Object.freeze([])
+
 function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart', 'junior'], availableGroups = [['ungdom_orange', 'Ungdom Orange'], ['ungdom_svart', 'Ungdom Svart'], ['junior', 'Junior']] }) {
-  const [plans, setPlans] = useState([])
+  const [weekResult, setWeekResult] = useState(null)
+  const [calendarResult, setCalendarResult] = useState(null)
+  const [calendarRevision, setCalendarRevision] = useState(0)
   const [importOpen, setImportOpen] = useState(false)
   const [planningRevision, setPlanningRevision] = useState(0)
-  const [workouts, setWorkouts] = useState([])
   const [cycles, setCycles] = useState([])
-  const [cyclesAvailable, setCyclesAvailable] = useState(true)
+  const [cyclesLoading, setCyclesLoading] = useState(true)
+  const [cyclesLoadError, setCyclesLoadError] = useState('')
+  const [cyclesRevision, setCyclesRevision] = useState(0)
+  const cyclesAvailable = !cyclesLoading && !cyclesLoadError
   const [planningView, setPlanningView] = useState('week')
   const [cycleDraft, setCycleDraft] = useState(null)
   const [cycleSaving, setCycleSaving] = useState(false)
   const [cycleError, setCycleError] = useState('')
-  const [sportAdminActivities, setSportAdminActivities] = useState([])
   const [workoutToEdit, setWorkoutToEdit] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [weekOffset, setWeekOffset] = useState(0)
-  const [sportAdmin, setSportAdmin] = useState({ activities: [], fetchedAt: null })
-  const [sportAdminLoading, setSportAdminLoading] = useState(false)
-  const [sportAdminError, setSportAdminError] = useState('')
-  const [hiddenCalendarActivities, setHiddenCalendarActivities] = useState([])
   const group = selectedGroups
-  const setGroup = () => {}
   const topGroupFilter = selectedGroups.length === availableGroups.length ? null : selectedGroups
   const planningGroupKey = (value) => ({ 'ungdom orange': 'ungdom_orange', 'ungdom svart': 'ungdom_svart', 'ungdoms orange': 'ungdom_orange', 'ungdoms svart': 'ungdom_svart', junior: 'junior' }[String(value || '').trim().toLowerCase()] || String(value || '').trim().toLowerCase())
-  const importSportAdmin = async () => { setSportAdminLoading(true); setSportAdminError(''); try { setSportAdmin(await apiRequest('/api/workouts', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import-sportadmin-calendar' }) })) } catch (error) { setSportAdminError(error.message || 'Kunde inte läsa SportAdmin-kalendern.') } finally { setSportAdminLoading(false) } }
-
-  useEffect(() => {
-    if (planningRevision === 0) setLoading(true)
-    setError('')
-    apiRequest('/api/workouts?planning=true', code)
-      .then((data) => { setPlans([...(data.plans || []), ...(data.hiddenCompetitionPlans || [])]); setWorkouts(data.workouts || []); setSportAdminActivities(data.sportAdminActivities || []); setHiddenCalendarActivities(data.hiddenCalendarActivities || []); setCycles(data.cycles || []); setCyclesAvailable(data.cyclesAvailable !== false) })
-      .catch((requestError) => setError(requestError.message || 'Kunde inte hämta planeringen.'))
-      .finally(() => setLoading(false))
-  }, [code, planningRevision])
   useEffect(() => {
     const openWorkout = (event) => setWorkoutToEdit(event.detail || null)
     window.addEventListener('simkoll-open-workout', openWorkout)
@@ -3716,13 +3705,14 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
   useEffect(() => {
     const removeDetachedPlan = (event) => {
       const id = event.detail?.id
-      if (id) setPlans((current) => current.filter((item) => item.id !== id))
+      if (id) setWeekResult(current => current?.plans
+        ? { ...current, plans: current.plans.filter(item => item.id !== id) } : current)
     }
     window.addEventListener('simkoll-plan-detached', removeDetachedPlan)
     return () => window.removeEventListener('simkoll-plan-detached', removeDetachedPlan)
   }, [])
   useEffect(() => {
-    const refresh = () => setPlanningRevision(value => value + 1)
+    const refresh = () => setCalendarRevision(value => value + 1)
     window.addEventListener('simkoll-calendar-visibility', refresh)
     return () => window.removeEventListener('simkoll-calendar-visibility', refresh)
   }, [])
@@ -3738,6 +3728,54 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     value.setDate(value.getDate() + weekOffset * 7)
     return value
   }, [baseMonday, weekOffset])
+  const weekStart = dateKey(monday)
+  const week = weekResult?.weekStart === weekStart ? weekResult : null
+  const calendar = calendarResult?.weekStart === weekStart && calendarResult.revision === calendarRevision ? calendarResult : null
+  const loading = !week
+  const plans = week?.plans ?? NO_PLANNING_ROWS
+  const workouts = week?.workouts ?? NO_PLANNING_ROWS
+  const sportAdminActivities = calendar?.sportAdminActivities ?? NO_PLANNING_ROWS
+  const hiddenCalendarActivities = calendar?.hiddenCalendarActivities ?? NO_PLANNING_ROWS
+
+  useEffect(() => {
+    if (planningView !== 'week') return
+    const controller = new AbortController()
+    apiRequest(`/api/workouts?coachPlanningWeek=${weekStart}`, code, { signal: controller.signal, retry: false })
+      .then(data => {
+        if (!controller.signal.aborted) setWeekResult({ weekStart, ...data })
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) setWeekResult(current => ({
+          ...(current?.weekStart === weekStart ? current : {}), weekStart, error: error.message,
+        }))
+      })
+    return () => controller.abort()
+  }, [code, weekStart, planningRevision, planningView])
+  useEffect(() => {
+    if (planningView !== 'week') return
+    const controller = new AbortController()
+    const finish = result => {
+      if (!controller.signal.aborted) setCalendarResult({ weekStart, revision: calendarRevision, ...result })
+    }
+    apiRequest(`/api/workouts?planningCalendar=${weekStart}`, code, { signal: controller.signal, retry: false })
+      .then(finish).catch(error => finish({ error: error.message }))
+    return () => controller.abort()
+  }, [code, weekStart, calendarRevision, planningView])
+  useEffect(() => {
+    const controller = new AbortController()
+    setCyclesLoading(true)
+    setCyclesLoadError('')
+    apiRequest('/api/workouts?planningCycles=true', code, { signal: controller.signal, retry: false })
+      .then(data => { if (!controller.signal.aborted) setCycles(data.cycles || []) })
+      .catch(error => { if (!controller.signal.aborted) setCyclesLoadError(error.message) })
+      .finally(() => { if (!controller.signal.aborted) setCyclesLoading(false) })
+    return () => controller.abort()
+  }, [code, cyclesRevision])
+
+  const updateWeekRows = (field, update) => setWeekResult(current =>
+    current?.weekStart === weekStart && current[field] ? { ...current, [field]: update(current[field]) } : current)
+  const setPlans = update => updateWeekRows('plans', update)
+  const setWorkouts = update => updateWeekRows('workouts', update)
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(monday)
     date.setDate(monday.getDate() + index)
@@ -3868,9 +3906,11 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
     setPlanningView('week')
   }
   const cycleMatchesGroups = (item) => !topGroupFilter || !item.targetGroups?.length || item.targetGroups.some((value) => topGroupFilter.includes(value))
-  const todayForCycles = todayKey()
-  const defaultTerm = cycles.find((item) => item.type === 'term' && item.startDate <= todayForCycles && item.endDate >= todayForCycles) || cycles.find((item) => item.type === 'term')
-  if (workoutToEdit) return <section className="workout-library-edit"><button className="back-button inline" onClick={() => setWorkoutToEdit(null)}>← Tillbaka till veckoplaneringen</button><WorkoutEditor code={code} responses={[]} initialWorkout={workoutToEdit} selectedGroups={selectedGroups} availableGroups={availableGroups} onClose={() => setWorkoutToEdit(null)} /></section>
+  const closeWorkout = () => {
+    setWorkoutToEdit(null)
+    setPlanningRevision(value => value + 1)
+  }
+  if (workoutToEdit) return <section className="workout-library-edit"><button className="back-button inline" onClick={closeWorkout}>← Tillbaka till veckoplaneringen</button><WorkoutEditor code={code} responses={[]} initialWorkout={workoutToEdit} selectedGroups={selectedGroups} availableGroups={availableGroups} onClose={closeWorkout} /></section>
   const currentDay = todayKey()
   return <section className="coach-planning">
     <div className="period-heading"><div><p className="eyebrow">Planera & följa upp</p><h1>{planningView === 'week' ? 'Veckans grundplan' : planningView === 'blocks' ? 'Träningsblock' : 'Terminsplanering'}</h1><small>{planningView === 'week' ? `Vecka ${isoWeek(days[0].key).week} · ${weekLabel} · ${selectedGroups.map(id => availableGroups.find(([key]) => key === id)?.[1] || id).join(' · ')}` : 'Från terminens riktning till veckans konkreta pass'}</small></div><div className="big-count"><strong>{planningView === 'week' ? days.reduce((sum, day) => sum + groupSwimOccasions(day.activities).length, 0) : cycles.filter((item) => planningView === 'term' ? item.type === 'term' : item.type === 'block').length}</strong><span>{planningView === 'week' ? 'aktiviteter' : planningView === 'term' ? 'terminer' : 'träningsblock'}</span></div></div>
@@ -3880,18 +3920,27 @@ function CoachPlanning({ code, selectedGroups = ['ungdom_orange', 'ungdom_svart'
       {planningView !== 'week' && <small>Nu: vecka {isoWeek(todayKey()).week}</small>}
     </div>
     {importOpen && <PlanningImport code={code} selectedGroups={selectedGroups} availableGroups={availableGroups} initialMonday={days[0].key} onClose={() => setImportOpen(false)} onSaved={date => { selectCycleWeek(date); setPlanningRevision(value => value + 1) }} />}
-    <HiddenCalendarActivities code={code} activities={hiddenCalendarActivities} from={days[0].key} to={days[6].key} groups={selectedGroups} groupLabels={Object.fromEntries(availableGroups)} />
-    {planningView === 'week' && <PlanningWeekLabel monday={days[0].key} />}
-    {loading ? <p className="empty">Hämtar planering…</p> : error ? <p className="form-error">{error}</p> : <>
-    {planningView === 'week' && <><div className="planning-controls"><button className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Föregående vecka</button><button className="secondary-button" onClick={() => setWeekOffset(0)}>Den här veckan</button><button className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>
-      <CoachCategorizedCard id="planning-week-types"><PlanningWeekTypes key={days[0].key} weekStart={days[0].key} groups={availableGroups.filter(([id]) => selectedGroups.includes(id))}
+    {planningView === 'week' && <>
+      <PlanningWeekLabel monday={weekStart} />
+      <div className="planning-controls"><button className="secondary-button" onClick={() => setWeekOffset(value => value - 1)}>← Föregående vecka</button><button className="secondary-button" onClick={() => setWeekOffset(0)}>Den här veckan</button><button className="secondary-button" onClick={() => setWeekOffset(value => value + 1)}>Nästa vecka →</button></div>
+      <CoachCategorizedCard id="planning-week-types"><PlanningWeekTypes key={weekStart} weekStart={weekStart} groups={availableGroups.filter(([id]) => selectedGroups.includes(id))}
         cycles={cycles} code={code} request={apiRequest} /></CoachCategorizedCard>
+      {!calendar ? <p className="planning-empty" role="status">Hämtar SportAdmin-kalendern…</p>
+        : calendar.error || calendar.incomplete ? <p className="planning-empty" role="status">
+          {calendar.error || 'Alla SportAdmin-kalendrar kunde inte hämtas.'} <button type="button" className="text-button" onClick={() => setCalendarRevision(value => value + 1)}>Försök igen</button>
+        </p> : null}
+      {calendar?.hiddenCalendarActivities && <HiddenCalendarActivities code={code} activities={hiddenCalendarActivities} from={days[0].key} to={days[6].key} groups={selectedGroups} groupLabels={Object.fromEntries(availableGroups)} />}
+      {loading ? <p className="empty" role="status">Hämtar planering…</p> : week.error ? <p className="form-error" role="alert">
+        {week.error} <button type="button" className="text-button" onClick={() => { setWeekResult(current => current?.plans ? { ...current, error: '' } : null); setPlanningRevision(value => value + 1) }}>Försök igen</button>
+      </p> : null}
+      {week?.plans && <>
       <HiddenCompetitionPlans code={code} request={apiRequest} plans={plans} onSaved={savePlan}
         from={days[0].key} to={days[6].key} groups={selectedGroups} groupLabels={Object.fromEntries(availableGroups)} />
-      <div className="planning-summary"><CoachCategorizedCard id="planned-meters"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div></CoachCategorizedCard><CoachCategorizedCard id="planned-minutes"><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div></CoachCategorizedCard><CoachCategorizedCard id="planned-activities"><div><strong>{days.reduce((sum, day) => sum + groupSwimOccasions(day.activities).length, 0)}</strong><span>aktiviteter</span></div></CoachCategorizedCard></div><div className="planning-day-list">{days.map((day) => <PlanningPastDay key={day.key} date={day.key} past={day.key < currentDay}><article className={`planning-day${day.activities.length ? ' has-workout' : ''}${day.key < currentDay ? ' is-past' : ''}${day.key === currentDay ? ' is-today' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}{day.key === currentDay && <b className="planning-today-label">Idag</b>}</small></div><div className="planning-day-actions"><PlanningEditButton code={code} calendarActivities={sportAdminActivities} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current, saved])} label="+ Lägg till" /><PlanningDayDeleteButton code={code} date={day.key} onDeleted={() => setPlans((current) => current.filter((item) => item.date !== day.key))} /></div></header>{day.activities.length ? groupSwimOccasions(day.activities).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<PlanningEditButton code={code} calendarActivities={sportAdminActivities} plan={plan} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current.filter((item) => item.id !== saved.id), saved])} /><PlanningPassDeleteButton code={code} plan={plan} onDeleted={removePass} /><CompetitionPlanVisibilityButton code={code} request={apiRequest} plan={plan} onSaved={savePlan} /><CalendarVisibilityButton code={code} activities={plan.calendarItems || (plan.source === 'SportAdmin' ? [plan] : [])} /></div>)}</SwimOccasion>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article></PlanningPastDay>)}</div></>}
-    {planningView !== 'week' && <><div className="planning-cycle-intro"><div><strong>{planningView === 'term' ? 'Sätt riktningen för säsongen' : 'Dela upp terminen i träningsfaser'}</strong><p>{planningView === 'term' ? 'Terminen ramar in helheten. Träningsblocken och veckopassen ligger kvar under den.' : 'Blocken kan till exempel vara uppbyggnad, tävlingsspecifik träning eller återhämtning.'}</p></div><button className="primary-button" onClick={() => planningView === 'term' ? startCycleDraft('term') : (cycles.find((item) => item.type === 'term') ? startCycleDraft('block', cycles.find((item) => item.type === 'term')) : setCycleError('Skapa en termin först så kan träningsblocken kopplas till den.'))}>＋ {planningView === 'term' ? 'Ny termin' : 'Nytt träningsblock'}</button></div>{!cyclesAvailable && <p className="form-error">Termins- och blockplanering kräver databasuppdatering 071. Veckoplaneringen fungerar som vanligt.</p>}{cycleError && !cycleDraft && <p className="form-error">{cycleError}</p>}{cycleDraft && <form className="planning-cycle-form" onSubmit={saveCycle}><div className="planning-cycle-form-heading"><div><span>{cycleDraft.type === 'term' ? 'TERMINSPLAN' : 'TRÄNINGSBLOCK'}</span><h2>{cycleDraft.id ? 'Redigera period' : cycleDraft.type === 'term' ? 'Planera en termin' : 'Lägg in ett träningsblock'}</h2></div><button type="button" className="text-button" onClick={() => setCycleDraft(null)}>Stäng</button></div><div className="planning-cycle-fields"><label>Namn<input required maxLength="100" value={cycleDraft.name} onChange={(event) => setCycleDraft({ ...cycleDraft, name: event.target.value })} placeholder={cycleDraft.type === 'term' ? 'Hösttermin 2026' : 'Uppbyggnad · aerob kapacitet'} /></label><label>Startdatum<input required type="date" value={cycleDraft.startDate} onChange={(event) => setCycleDraft({ ...cycleDraft, startDate: event.target.value })} /></label><label>Slutdatum<input required type="date" value={cycleDraft.endDate} onChange={(event) => setCycleDraft({ ...cycleDraft, endDate: event.target.value })} /></label><label>Fas<select value={cycleDraft.phase} onChange={(event) => setCycleDraft({ ...cycleDraft, phase: event.target.value })}>{cyclePhases.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Fokus<input value={cycleDraft.focus} maxLength="160" onChange={(event) => setCycleDraft({ ...cycleDraft, focus: event.target.value })} placeholder="Ex. aerob kapacitet och teknik" /></label><label>Mål<textarea value={cycleDraft.goal} maxLength="500" onChange={(event) => setCycleDraft({ ...cycleDraft, goal: event.target.value })} placeholder="Vad vill ni att gruppen ska utveckla under perioden?" /></label><label className="wide">Anteckningar<textarea value={cycleDraft.notes} maxLength="2000" onChange={(event) => setCycleDraft({ ...cycleDraft, notes: event.target.value })} placeholder="Valfri information till tränarteamet" /></label></div><fieldset className="competition-form"><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{availableGroups.map(([value, label]) => <label key={value}><input type="checkbox" checked={cycleDraft.targetGroups.includes(value)} onChange={(event) => setCycleDraft({ ...cycleDraft, targetGroups: event.target.checked ? [...cycleDraft.targetGroups, value] : cycleDraft.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset>{cycleError && <p className="form-error">{cycleError}</p>}<div className="planning-cycle-form-actions"><button type="button" className="secondary-button" onClick={() => setCycleDraft(null)}>Avbryt</button><button className="primary-button" disabled={cycleSaving || !cyclesAvailable}>{cycleSaving ? 'Sparar…' : 'Spara planering'}</button></div></form>}
-    {(planningView === 'term' ? cycles.filter((item) => item.type === 'term' && cycleMatchesGroups(item)) : cycles.filter((item) => item.type === 'block' && cycleMatchesGroups(item))).map((cycle) => { const term = cycle.type === 'term' ? cycle : cycles.find((item) => item.id === cycle.parentId); const blocks = cycles.filter((item) => item.type === 'block' && item.parentId === (cycle.type === 'term' ? cycle.id : cycle.parentId) && cycleMatchesGroups(item)); const shownBlocks = cycle.type === 'term' ? blocks : [cycle]; return <article className={`planning-cycle-card planning-cycle-${cycle.type}`} key={cycle.id}><header><div><span className="planning-cycle-kicker">{cycle.type === 'term' ? 'MACROCYKEL · TERMIN' : 'MESOCYKEL · TRÄNINGSBLOCK'}</span><h2>{cycle.name}</h2><small>{cycleDateLabel(cycle.startDate, cycle.endDate)}</small></div><div className="planning-cycle-actions"><button className="text-button" onClick={() => startCycleDraft(cycle.type, term, cycle)}>Redigera</button><button className="text-button" onClick={() => deleteCycle(cycle)}>Ta bort</button></div></header>{cycle.type === 'term' && <div className="planning-term-progress"><span>{blocks.length} träningsblock</span><button className="secondary-button" onClick={() => startCycleDraft('block', cycle)}>＋ Lägg till block</button></div>}{cycle.focus && <p><strong>Fokus:</strong> {cycle.focus}</p>}{cycle.goal && <p><strong>Mål:</strong> {cycle.goal}</p>}{cycle.notes && <p className="planning-cycle-notes">{cycle.notes}</p>}{cycle.targetGroups.length > 0 && <div className="planning-group-pills">{cycle.targetGroups.map((value) => <span key={value}>{groupLabel(value)}</span>)}</div>}{cycle.type === 'term' && <div className="planning-block-list">{shownBlocks.map((block) => <div className="planning-block-row" key={block.id}><div><span className={`planning-phase phase-${block.phase}`}>{cyclePhases.find(([value]) => value === block.phase)?.[1] || 'Uppbyggnad'}</span><strong>{block.name}</strong><small>{cycleDateLabel(block.startDate, block.endDate)}{block.focus ? ` · ${block.focus}` : ''}</small></div><button className="text-button" onClick={() => selectCycleWeek(block.startDate)}>Visa veckor →</button></div>)}{!blocks.length && <p className="planning-empty">Lägg till träningsblock när terminsriktningen är på plats.</p>}</div>}{cycle.type === 'block' && <button className="secondary-button" onClick={() => selectCycleWeek(cycle.startDate)}>Öppna veckoplaneringen →</button>}</article>})}{!cycles.some((item) => item.type === (planningView === 'term' ? 'term' : 'block') && cycleMatchesGroups(item)) && <div className="planning-cycle-empty"><span>🧭</span><h2>{planningView === 'term' ? 'Börja med terminsriktningen' : 'Inga träningsblock ännu'}</h2><p>{planningView === 'term' ? 'Skapa en gemensam ram för perioden. Därefter kan du dela upp den i block och lägga de konkreta passen i veckoplaneringen.' : 'Träningsblocken placeras inom en termin och beskriver periodens fokus och mål.'}</p></div>}</>}
-  </>}</section>
+      <div className="planning-summary"><CoachCategorizedCard id="planned-meters"><div><strong>{totalMeters ? totalMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div></CoachCategorizedCard><CoachCategorizedCard id="planned-minutes"><div><strong>{totalMinutes || '–'}</strong><span>minuter</span></div></CoachCategorizedCard><CoachCategorizedCard id="planned-activities"><div><strong>{days.reduce((sum, day) => sum + groupSwimOccasions(day.activities).length, 0)}</strong><span>aktiviteter</span></div></CoachCategorizedCard></div><div className="planning-day-list">{days.map((day) => <PlanningPastDay key={day.key} date={day.key} past={day.key < currentDay} defer><article className={`planning-day${day.activities.length ? ' has-workout' : ''}${day.key < currentDay ? ' is-past' : ''}${day.key === currentDay ? ' is-today' : ''}`} key={day.key}><header><div><strong>{day.date.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>{day.date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}{day.key === currentDay && <b className="planning-today-label">Idag</b>}</small></div><div className="planning-day-actions"><PlanningEditButton code={code} calendarActivities={sportAdminActivities} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current, saved])} label="+ Lägg till" /><PlanningDayDeleteButton code={code} date={day.key} onDeleted={() => setPlans((current) => current.filter((item) => item.date !== day.key))} /></div></header>{day.activities.length ? groupSwimOccasions(day.activities).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => <div className="planning-workout" key={plan.id}><div className="planning-activity-title"><span className={`planning-type planning-type-${plan.activityType}`}>{typeLabel(plan.activityType)}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{focusLabel(plan.focus)}</span>}<div className="workout-library-stats">{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.notes && <p>{plan.notes}</p>}<PlanningEditButton code={code} calendarActivities={sportAdminActivities} plan={plan} date={day.key} group={group} onSaved={(saved) => setPlans((current) => [...current.filter((item) => item.id !== saved.id), saved])} /><PlanningPassDeleteButton code={code} plan={plan} onDeleted={removePass} /><CompetitionPlanVisibilityButton code={code} request={apiRequest} plan={plan} onSaved={savePlan} /><CalendarVisibilityButton code={code} activities={plan.calendarItems || (plan.source === 'SportAdmin' ? [plan] : [])} /></div>)}</SwimOccasion>) : <p className="planning-empty">Ingen aktivitet planerad</p>}</article></PlanningPastDay>)}</div></>}</>}
+    {planningView !== 'week' && <><div className="planning-cycle-intro"><div><strong>{planningView === 'term' ? 'Sätt riktningen för säsongen' : 'Dela upp terminen i träningsfaser'}</strong><p>{planningView === 'term' ? 'Terminen ramar in helheten. Träningsblocken och veckopassen ligger kvar under den.' : 'Blocken kan till exempel vara uppbyggnad, tävlingsspecifik träning eller återhämtning.'}</p></div><button className="primary-button" disabled={!cyclesAvailable} onClick={() => planningView === 'term' ? startCycleDraft('term') : (cycles.find((item) => item.type === 'term') ? startCycleDraft('block', cycles.find((item) => item.type === 'term')) : setCycleError('Skapa en termin först så kan träningsblocken kopplas till den.'))}>＋ {planningView === 'term' ? 'Ny termin' : 'Nytt träningsblock'}</button></div>{cyclesLoading && <p className="empty" role="status">Hämtar terminer och träningsblock…</p>}
+    {cyclesLoadError && <p className="form-error" role="alert">{cyclesLoadError} <button type="button" className="text-button" onClick={() => setCyclesRevision(value => value + 1)}>Försök igen</button></p>}{cycleError && !cycleDraft && <p className="form-error">{cycleError}</p>}{cycleDraft && <form className="planning-cycle-form" onSubmit={saveCycle}><div className="planning-cycle-form-heading"><div><span>{cycleDraft.type === 'term' ? 'TERMINSPLAN' : 'TRÄNINGSBLOCK'}</span><h2>{cycleDraft.id ? 'Redigera period' : cycleDraft.type === 'term' ? 'Planera en termin' : 'Lägg in ett träningsblock'}</h2></div><button type="button" className="text-button" onClick={() => setCycleDraft(null)}>Stäng</button></div><div className="planning-cycle-fields"><label>Namn<input required maxLength="100" value={cycleDraft.name} onChange={(event) => setCycleDraft({ ...cycleDraft, name: event.target.value })} placeholder={cycleDraft.type === 'term' ? 'Hösttermin 2026' : 'Uppbyggnad · aerob kapacitet'} /></label><label>Startdatum<input required type="date" value={cycleDraft.startDate} onChange={(event) => setCycleDraft({ ...cycleDraft, startDate: event.target.value })} /></label><label>Slutdatum<input required type="date" value={cycleDraft.endDate} onChange={(event) => setCycleDraft({ ...cycleDraft, endDate: event.target.value })} /></label><label>Fas<select value={cycleDraft.phase} onChange={(event) => setCycleDraft({ ...cycleDraft, phase: event.target.value })}>{cyclePhases.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Fokus<input value={cycleDraft.focus} maxLength="160" onChange={(event) => setCycleDraft({ ...cycleDraft, focus: event.target.value })} placeholder="Ex. aerob kapacitet och teknik" /></label><label>Mål<textarea value={cycleDraft.goal} maxLength="500" onChange={(event) => setCycleDraft({ ...cycleDraft, goal: event.target.value })} placeholder="Vad vill ni att gruppen ska utveckla under perioden?" /></label><label className="wide">Anteckningar<textarea value={cycleDraft.notes} maxLength="2000" onChange={(event) => setCycleDraft({ ...cycleDraft, notes: event.target.value })} placeholder="Valfri information till tränarteamet" /></label></div><fieldset className="competition-form"><legend>Berörda grupper</legend><div className="competition-group-checkboxes">{availableGroups.map(([value, label]) => <label key={value}><input type="checkbox" checked={cycleDraft.targetGroups.includes(value)} onChange={(event) => setCycleDraft({ ...cycleDraft, targetGroups: event.target.checked ? [...cycleDraft.targetGroups, value] : cycleDraft.targetGroups.filter((item) => item !== value) })} />{label}</label>)}</div></fieldset>{cycleError && <p className="form-error">{cycleError}</p>}<div className="planning-cycle-form-actions"><button type="button" className="secondary-button" onClick={() => setCycleDraft(null)}>Avbryt</button><button className="primary-button" disabled={cycleSaving || !cyclesAvailable}>{cycleSaving ? 'Sparar…' : 'Spara planering'}</button></div></form>}
+    {(planningView === 'term' ? cycles.filter((item) => item.type === 'term' && cycleMatchesGroups(item)) : cycles.filter((item) => item.type === 'block' && cycleMatchesGroups(item))).map((cycle) => { const term = cycle.type === 'term' ? cycle : cycles.find((item) => item.id === cycle.parentId); const blocks = cycles.filter((item) => item.type === 'block' && item.parentId === (cycle.type === 'term' ? cycle.id : cycle.parentId) && cycleMatchesGroups(item)); const shownBlocks = cycle.type === 'term' ? blocks : [cycle]; return <article className={`planning-cycle-card planning-cycle-${cycle.type}`} key={cycle.id}><header><div><span className="planning-cycle-kicker">{cycle.type === 'term' ? 'MACROCYKEL · TERMIN' : 'MESOCYKEL · TRÄNINGSBLOCK'}</span><h2>{cycle.name}</h2><small>{cycleDateLabel(cycle.startDate, cycle.endDate)}</small></div><div className="planning-cycle-actions"><button className="text-button" onClick={() => startCycleDraft(cycle.type, term, cycle)}>Redigera</button><button className="text-button" onClick={() => deleteCycle(cycle)}>Ta bort</button></div></header>{cycle.type === 'term' && <div className="planning-term-progress"><span>{blocks.length} träningsblock</span><button className="secondary-button" onClick={() => startCycleDraft('block', cycle)}>＋ Lägg till block</button></div>}{cycle.focus && <p><strong>Fokus:</strong> {cycle.focus}</p>}{cycle.goal && <p><strong>Mål:</strong> {cycle.goal}</p>}{cycle.notes && <p className="planning-cycle-notes">{cycle.notes}</p>}{cycle.targetGroups.length > 0 && <div className="planning-group-pills">{cycle.targetGroups.map((value) => <span key={value}>{groupLabel(value)}</span>)}</div>}{cycle.type === 'term' && <div className="planning-block-list">{shownBlocks.map((block) => <div className="planning-block-row" key={block.id}><div><span className={`planning-phase phase-${block.phase}`}>{cyclePhases.find(([value]) => value === block.phase)?.[1] || 'Uppbyggnad'}</span><strong>{block.name}</strong><small>{cycleDateLabel(block.startDate, block.endDate)}{block.focus ? ` · ${block.focus}` : ''}</small></div><button className="text-button" onClick={() => selectCycleWeek(block.startDate)}>Visa veckor →</button></div>)}{!blocks.length && <p className="planning-empty">Lägg till träningsblock när terminsriktningen är på plats.</p>}</div>}{cycle.type === 'block' && <button className="secondary-button" onClick={() => selectCycleWeek(cycle.startDate)}>Öppna veckoplaneringen →</button>}</article>})}{cyclesAvailable && !cycles.some((item) => item.type === (planningView === 'term' ? 'term' : 'block') && cycleMatchesGroups(item)) && <div className="planning-cycle-empty"><span>🧭</span><h2>{planningView === 'term' ? 'Börja med terminsriktningen' : 'Inga träningsblock ännu'}</h2><p>{planningView === 'term' ? 'Skapa en gemensam ram för perioden. Därefter kan du dela upp den i block och lägga de konkreta passen i veckoplaneringen.' : 'Träningsblocken placeras inom en termin och beskriver periodens fokus och mål.'}</p></div>}</>}
+  </section>
 }
 
 function BackupTools({ code }) {
