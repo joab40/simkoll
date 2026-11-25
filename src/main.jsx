@@ -1,3 +1,4 @@
+import { PLANNING_WEEK_TYPES } from '../shared/planning-week-types.js'
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AssistantUsageLog } from './assistant-usage.jsx'
 import CoachPasswordReset, { coachResetRoute } from './coach-password-reset.jsx'
@@ -101,6 +102,7 @@ import { canUseSwimmerAssistant } from '../shared/swimmer-assistant.js'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
 const TrainingDiary = React.lazy(() => import('./training-diary.jsx'))
+const CheckinHistory = deferredPanel(() => import('./checkin-history.jsx'), 'Öppnar tidigare incheckningar…')
 const CheckinSwimTime = deferredPanel(() => import('./swim-times.jsx').then(module => ({ default: module.CheckinSwimTime })), 'Öppnar tidsfrågan…')
 const SwimmerAssistant = deferredPanel(() => import('./swimmer-assistant.jsx'), 'Öppnar simmarassistenten…')
 const StrengthProgramImport = deferredPanel(() => import('./strength-program-import.jsx'))
@@ -131,6 +133,7 @@ const BottleFlipGame = deferredPanel(() => import('./bottle-flip-game.jsx'), 'Ö
 const SnowRiderGame = deferredPanel(() => import('./snow-rider-game.jsx'), 'Öppnar Snow Rider 3D…')
 const SkiJumpGame = deferredPanel(() => import('./ski-jump-game.jsx'), 'Öppnar Frostfjäll Backhoppning…')
 const DownhillGame = deferredPanel(() => import('./downhill-game.jsx'), 'Öppnar Frostfjäll Störtlopp…')
+const BobsledGame = deferredPanel(() => import('./bobsled-game.jsx'), 'Öppnar Frostfjäll Bobsläde…')
 
 const APP_VERSION = __APP_VERSION__
 const BUILD_TIME = __BUILD_TIME__
@@ -163,6 +166,7 @@ const GAME_CATALOG = [
   { key: 'snowrider', title: 'Snow Rider 3D', emoji: '🛷', description: 'Hitta vinterflytet. Styr pulkan, hoppa över hinder och samla kristaller i Frostfjäll.', route: 'snowrider' },
   { key: 'skijump', title: 'Frostfjäll Backhoppning', emoji: '⛷️', description: 'Tajma upphoppet, flyg över dalen och sätt en telemarklandning.', route: 'skijump' },
   { key: 'downhill', title: 'Frostfjäll Störtlopp', emoji: '🎿', description: 'Tajma starten, skär genom portarna och jaga snabbaste tid.', route: 'downhill' },
+  { key: 'bobsled', title: 'Frostfjäll Bobsläde', emoji: '🛷', description: 'Sätt sprintstarten och håll fart genom den isiga rännan.', route: 'bobsled' },
 ]
 
 const dateKey = (date) => {
@@ -194,7 +198,6 @@ function App() {
   const [profile, setProfile] = useState(null)
   const [responses, setResponses] = useState([])
   const [responsesLoaded, setResponsesLoaded] = useState(false)
-  const [ownResponsesLoaded, setOwnResponsesLoaded] = useState(false)
   const [profiles, setProfiles] = useState([])
   const [pendingProfiles, setPendingProfiles] = useState([])
   const [workout, setWorkout] = useState(null)
@@ -209,6 +212,7 @@ function App() {
   useEffect(()=>{weeklyTrainingSync.activate();return()=>weeklyTrainingSync.dispose()},[weeklyTrainingSync])
   const [identified, setIdentified] = useState(false)
   const [checkinActivityDate, setCheckinActivityDate] = useState(todayKey())
+  const [historicalCheckin, setHistoricalCheckin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [screen, setScreen] = useState('home')
   const [diaryShortcut, setDiaryShortcut] = useState(null)
@@ -324,9 +328,8 @@ function App() {
   // group view. Once a profile is restored, merge the profile's detailed
   // responses so the status card can show the selected day type as well.
   useEffect(() => {
-    if (!auth || !profile) { setOwnResponsesLoaded(false); return }
+    if (!auth || !profile) return
     let active = true
-    setOwnResponsesLoaded(false)
     apiRequest('/api/responses?mine=true', auth.code).then((data) => {
       if (!active) return
       setResponses((current) => {
@@ -335,7 +338,6 @@ function App() {
         const existing = new Set(merged.map((item) => item.id))
         return [...merged, ...(data.responses || []).filter((item) => !existing.has(item.id))]
       })
-      if (active) setOwnResponsesLoaded(true)
     }).catch(() => {})
     return () => { active = false }
   }, [auth, profile?.id])
@@ -449,6 +451,7 @@ function App() {
       {screen === 'snowrider' && <SnowRiderGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'skijump' && <SkiJumpGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'downhill' && <DownhillGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
+      {screen === 'bobsled' && <BobsledGame code={auth.code} onBack={() => setScreen('home')} request={apiRequest} />}
       {screen === 'bikerun' && <BikeRun code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'twenty48' && <Twenty48 code={auth.code} onBack={() => setScreen('home')} />}
       {screen === 'beta-game' && profile && <BetaGamePanel key={`${profile.id}:${betaGameKey}`} game={betaGames.find(game => game.key === betaGameKey)} code={auth.code} onBack={() => setScreen('home')} />}
@@ -476,45 +479,49 @@ function App() {
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
         <Home code={auth.code} onOpenDiary={shortcut => { setDiaryShortcut(shortcut); setScreen('training-diary') }}
-          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} ownResponsesLoaded={ownResponsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
-          // A previous after-registration can leave yesterday selected.
-          // Every normal check-in must start on the current activity date.
+          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={() => setScreen('coach-info')} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+          setHistoricalCheckin(false)
           setCheckinActivityDate(todayKey())
           if (profile) setScreen('privacy-choice')
           else { setIdentified(false); setScreen('checkin') }
-        }} onStartYesterday={() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); setCheckinActivityDate(dateKey(yesterday)); setScreen('privacy-choice') }} />
+        }} onOpenCheckinHistory={() => { setHistoricalCheckin(false); setScreen('checkin-history') }} />
       )}
       {screen === 'privacy-choice' && <PrivacyChoice profile={profile} lateEntry={checkinActivityDate !== todayKey()} onBack={() => setScreen('home')} onChoose={(value) => { setIdentified(value); setScreen('checkin') }} />}
+      {screen === 'checkin-history' && profile && <CheckinHistory code={auth.code} request={apiRequest}
+        initialDate={historicalCheckin ? checkinActivityDate : null}
+        onStart={date => { setCheckinActivityDate(date); setHistoricalCheckin(true); setIdentified(true); setScreen('checkin') }}
+        onBack={() => setScreen('home')}
+        onUpdated={updated => setResponses(current => current.map(item => item.id === updated.id ? updated : item))} />}
       {screen === 'checkin' && (
         <CheckIn
           code={auth.code}
           activityDate={checkinActivityDate}
           identified={identified}
+          historical={historicalCheckin}
           hasProfile={Boolean(profile)}
-          lateEntry={checkinActivityDate !== todayKey()}
+          lateEntry={historicalCheckin || checkinActivityDate !== todayKey()}
           followUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).followUp}
           raceFollowUp={checkinFollowUp(responses.filter((item) => item.profileId === profile?.id), checkinActivityDate).raceFollowUp}
-          competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item)))}
+          competitionToday={Boolean(profile && competitions.some((item) => competitionIsToday(item, checkinActivityDate)))}
           competitionStatusLoaded={competitionsLoaded}
-          plannedWorkouts={checkinActivityDate === todayKey() ? workout : []}
-          onBack={() => setScreen('home')}
+          plannedWorkouts={!historicalCheckin && checkinActivityDate === todayKey() ? workout : []}
+          onBack={() => setScreen(historicalCheckin ? 'checkin-history' : 'home')}
           onSubmit={async (response) => {
             const result = await apiRequest('/api/responses', auth.code, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...response, identified, activityDate: checkinActivityDate }),
+              body: JSON.stringify({ ...response, identified, activityDate: checkinActivityDate, ...(historicalCheckin ? { historical: true } : {}) }),
             })
             // Anonymous responses intentionally come back without details
             // from the API. Keep the selected type in this session so the
             // swimmer still gets useful confirmation in the status card.
-            setResponses((current) => [...current.filter(item => item.id !== result.response.id), { ...response, ...result.response, activityDate: checkinActivityDate, lateEntry: checkinActivityDate !== todayKey() }])
-            if (checkinActivityDate !== todayKey() && profile) {
-              try { window.localStorage.setItem(`simkoll-late-checkin:${profile.id}:${checkinActivityDate}`, 'done') } catch { /* Storage is optional; server still enforces one entry. */ }
-            }
+            setResponses((current) => [...current.filter(item => item.id !== result.response.id), { ...response, ...result.response, activityDate: checkinActivityDate, lateEntry: historicalCheckin || checkinActivityDate !== todayKey() }])
             // Show confirmation as soon as the response is persisted. The
             // surrounding dashboard data can refresh without blocking the UI.
             setScreen('thanks')
-            if (profile && checkinActivityDate === todayKey()) {
+            if (historicalCheckin) {
+              void weeklyTrainingSync.refresh().catch(() => {})
+            } else if (profile && checkinActivityDate === todayKey()) {
               void (async () => {
                 const [trainingData, workoutData, activityData, pointsData] = await Promise.all([apiRequest('/api/training?summary=true', auth.code), apiRequest('/api/workouts', auth.code), apiRequest('/api/activity', auth.code), apiRequest('/api/points', auth.code)])
                 setWorkout(workoutData.workouts?.length ? workoutData.workouts : workoutData.workout)
@@ -527,7 +534,7 @@ function App() {
           }}
         />
       )}
-      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={checkinActivityDate !== todayKey()} workout={workout} onDone={() => setScreen('home')} />}
+      {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={historicalCheckin || checkinActivityDate !== todayKey()} historical={historicalCheckin} workout={workout} onDone={() => setScreen(historicalCheckin ? 'checkin-history' : 'home')} />}
       {['community', 'private-messages'].includes(screen) && <Community key={profile.id} profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} />}
       {screen === 'coach-info' && <CoachInfoPage code={auth.code} profile={profile} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
@@ -661,26 +668,41 @@ function Login({ onLogin }) {
 }
 
 function SwimmerPlanning({ code, onBack }) {
-  const [loading, setLoading] = useState(true)
-  const [plans, setPlans] = useState([])
-  const [workouts, setWorkouts] = useState([])
-  const [sportAdminActivities, setSportAdminActivities] = useState([])
-  const [todayWorkoutAccess, setTodayWorkoutAccess] = useState({ locked: false, hasWorkout: false })
   const [weekOffset, setWeekOffset] = useState(0)
+  const [weekAttempt, retryWeek] = useState(0)
+  const [calendarAttempt, retryCalendar] = useState(0)
+  const [weekResult, setWeekResult] = useState(null)
+  const [calendarResult, setCalendarResult] = useState(null)
+  const currentDate = stockholmActivityDay()
+  const startKey = planningAddDays(planningMonday(currentDate), weekOffset * 7)
+  const endKey = planningAddDays(startKey, 6)
+  const week = weekResult?.date === startKey && weekResult.code === code && weekResult.attempt === weekAttempt ? weekResult : null
+  const calendar = calendarResult?.date === startKey && calendarResult.code === code && calendarResult.attempt === calendarAttempt ? calendarResult : null
   useEffect(() => {
-    Promise.all([apiRequest('/api/workouts?planning=true', code), apiRequest(`/api/workouts?date=${todayKey()}`, code)])
-      .then(([planningData, workoutData]) => { setPlans(planningData.plans || []); setWorkouts(planningData.workouts || []); setSportAdminActivities(planningData.sportAdminActivities || []); setTodayWorkoutAccess({ locked: workoutData.locked === true, hasWorkout: Boolean(workoutData.workout || workoutData.workouts?.length) }) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [code])
-  const selectedStart = useMemo(() => { const start = weekStart(new Date()); start.setDate(start.getDate() + weekOffset * 7); return start }, [weekOffset])
-  const selectedEnd = useMemo(() => { const end = new Date(selectedStart); end.setDate(end.getDate() + 7); return end }, [selectedStart])
-  const startKey = dateKey(selectedStart), endKey = dateKey(selectedEnd)
+    const controller = new AbortController()
+    const finish = result => {
+      if (!controller.signal.aborted) setWeekResult({ date: startKey, code, attempt: weekAttempt, ...result })
+    }
+    apiRequest(`/api/workouts?planningWeek=${startKey}`, code, { signal: controller.signal, retry: false })
+      .then(data => finish({ data })).catch(() => finish({ error: true }))
+    return () => controller.abort()
+  }, [code, startKey, weekAttempt])
+  useEffect(() => {
+    const controller = new AbortController()
+    const finish = result => {
+      if (!controller.signal.aborted) setCalendarResult({ date: startKey, code, attempt: calendarAttempt, ...result })
+    }
+    apiRequest(`/api/workouts?planningCalendar=${startKey}`, code, { signal: controller.signal, retry: false })
+      .then(data => finish({ data })).catch(() => finish({ error: true }))
+    return () => controller.abort()
+  }, [code, startKey, calendarAttempt])
+  const { plans = [], workouts = [], locked = true, weekType } = week?.data ?? {}
+  const sportAdminActivities = calendar?.data?.sportAdminActivities ?? []
   const calendarTimeOfDay = (time) => { const hour = Number(String(time || '').split(':')[0]); return Number.isFinite(hour) ? (hour < 12 ? 'morning' : 'afternoon') : '' }
   const displayPlans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(item => item.id)) }).rows
   const linkedWorkoutIds = new Set(displayPlans.map((plan) => plan.sourceWorkoutId).filter(Boolean))
   const publishedWorkoutPlans = workouts.filter((workout) => !linkedWorkoutIds.has(workout.id)).map((workout) => ({ ...workout, activityType: 'swim', sourceWorkoutId: workout.id, syncStatus: 'linked' }))
-  const planningRows = [...displayPlans, ...publishedWorkoutPlans].filter((plan) => plan.date >= startKey && plan.date < endKey)
+  const planningRows = [...displayPlans, ...publishedWorkoutPlans].filter((plan) => plan.date >= startKey && plan.date <= endKey)
   // Äldre importer kan ha lämnat flera identiska planeringskort efter sig.
   // Behåll den mest informativa raden, men slå inte ihop separata morgon- och
   // eftermiddagspass (timeOfDay ingår därför i nyckeln).
@@ -707,7 +729,7 @@ function SwimmerPlanning({ code, onBack }) {
     }
   })
   const uniquePlanningRows = deduplicatedPlanningRows
-  const calendarRows = sportAdminActivities.filter((item) => item.date >= startKey && item.date < endKey).map((item) => ({ ...item, id: `sportadmin-${item.id}`, activityType: 'sportadmin', title: item.title || 'Kalenderaktivitet', time: item.time || '', source: 'SportAdmin' }))
+  const calendarRows = sportAdminActivities.filter((item) => item.date >= startKey && item.date <= endKey).map((item) => ({ ...item, id: `sportadmin-${item.id}`, activityType: 'sportadmin', title: item.title || 'Kalenderaktivitet', time: item.time || '', source: 'SportAdmin' }))
   const matchedCalendarIds = new Set()
   const mergedPlans = uniquePlanningRows.map((plan) => {
     const planGroups = new Set(plan.targetGroups || [])
@@ -739,10 +761,10 @@ function SwimmerPlanning({ code, onBack }) {
     if (duplicate) matchedCalendarIds.add(item.id)
   })
   const visiblePlans = [...mergedPlans, ...calendarRows.filter((item) => !matchedCalendarIds.has(item.id))].sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '').localeCompare(String(b.time || '')))
-  const weekLabel = `${selectedStart.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}–${new Date(selectedEnd.getTime() - 1).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`
+  const weekDate = date => new Date(`${date}T12:00:00Z`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' })
+  const weekLabel = `${weekDate(startKey)}–${weekDate(endKey)}`
   const groupLabels = { ungdom_orange: 'Orange', ungdom_svart: 'Svart', junior: 'Junior' }
   const activityLabels = { swim: ['🏊', 'Simning'], strength: ['🏋️', 'Styrka'], dryland: ['🤸', 'Landträning'], sportadmin: ['📅', 'Kalender'], competition: ['🏆', 'Tävling'] }
-  const currentDate = todayKey()
   const swimmerPlanningMeters = amountRangeLabel(planningAmountRange(visiblePlans, 'distanceMeters'))
   const swimmerPlanningMinutes = amountRangeLabel(planningAmountRange(visiblePlans, 'durationMinutes'))
   const cleanSwimmerCompetitionPm = (value) => String(value || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => !/^\s*(?:egen\s*avgift|anmälningsavgift|kostnad)\s*:/i.test(line) && !/\bergenavgift\b/i.test(line)).join('\n').replace(/\n{3,}/g, '\n\n').trim()
@@ -755,40 +777,70 @@ function SwimmerPlanning({ code, onBack }) {
     const notes = [plan.notes, ...sportAdminActivities.filter((item) => (item.date === plan.date || (plan.activityType === 'competition' && sameEvent(item))).length).map((item) => item.notes)].filter(Boolean)
     return cleanSwimmerCompetitionPm(notes.join('\n\n'))
   }
-  useEffect(() => {
-    document.querySelectorAll('.swimmer-planning-list article').forEach((card) => {
-      const date = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
-      card.classList.toggle('planning-past', /^\d{4}-\d{2}-\d{2}$/.test(date) && date < currentDate)
-      card.classList.toggle('planning-today', date === currentDate)
-    })
-    const list = document.querySelector('.swimmer-planning-list')
-    if (list) {
-      list.querySelectorAll('.planning-day-heading').forEach((heading) => heading.remove())
-      let lastDate = ''
-      Array.from(list.children).filter((card) => card.matches('article, .swim-occasion')).forEach((card) => {
-        const date = card.querySelector('.eyebrow')?.textContent?.trim().slice(0, 10) || ''
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date === lastDate) return
-        lastDate = date
-        const value = new Date(`${date}T12:00:00`)
-        const heading = document.createElement('div')
-        heading.className = `planning-day-heading${date < currentDate ? ' planning-past' : date === currentDate ? ' planning-today' : ''}`
-        heading.innerHTML = `<strong>${value.toLocaleDateString('sv-SE', { weekday: 'long' })}</strong><small>${value.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}${date === currentDate ? ' · Idag' : ''}</small>`
-        list.insertBefore(heading, card)
-      })
-    }
-    const controls = document.querySelector('.swimmer-planning-week-controls')
-    const container = controls?.parentElement
-    if (controls && container) {
-      let summary = container.querySelector('.swimmer-planning-summary')
-      if (!summary) {
-        summary = document.createElement('div')
-        summary.className = 'swimmer-planning-summary'
-        controls.insertAdjacentElement('afterend', summary)
-      }
-      summary.innerHTML = `<div><strong>${swimmerPlanningMeters ? swimmerPlanningMeters.toLocaleString('sv-SE') : '–'}</strong><span>simmetrar</span></div><div><strong>${swimmerPlanningMinutes || '–'}</strong><span>minuter</span></div><div><strong>${groupSwimOccasions(visiblePlans).length}</strong><span>träningstillfällen / aktiviteter</span></div>`
-    }
-  }, [visiblePlans.length, sportAdminActivities.length, swimmerPlanningMeters, swimmerPlanningMinutes, currentDate, weekOffset])
-  return <section className="swimmer-planning"><button className="back-button inline" onClick={onBack}>← Tillbaka</button><div className="period-heading"><div><p className="eyebrow">Planering</p><h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1><small>Planerade aktiviteter och kalenderhändelser för din grupp.</small></div></div><div className="swimmer-planning-week-controls"><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value - 1)}>← Förra veckan</button><strong>Vecka {isoWeek(startKey).week} · {weekLabel}</strong><button type="button" className="secondary-button" onClick={() => setWeekOffset((value) => value + 1)}>Nästa vecka →</button></div>{loading ? <div className="swimmer-planning-loading" role="status"><span aria-hidden="true">〰</span><strong>Hämtar din veckoplanering…</strong><small>Vi laddar pass, aktiviteter och kalenderhändelser.</small></div> : visiblePlans.length ? <div className="swimmer-planning-list">{groupSwimOccasions(visiblePlans).map((occasion) => <SwimOccasion key={occasion.key} occasion={occasion}>{occasion.items.map((plan) => { const requiresCheckIn = plan.date === todayKey() && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && todayWorkoutAccess.locked; const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']; const competitionInfo = !requiresCheckIn && (plan.activityType === 'competition' || plan.source === 'SportAdmin' || plan.activityType === 'sportadmin') ? competitionInfoFor(plan) : ''; const metadata = <><div className="workout-library-stats">{plan.time && plan.time !== '00:00' && <span>⏰ {plan.time}</span>}{plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}{plan.durationMinutes && <span>{plan.durationMinutes} min</span>}{plan.location && <span>{plan.location}</span>}</div>{plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map((group) => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}</>; return <article key={plan.id} className={`${plan.source === 'SportAdmin' ? 'calendar-planning-item ' : ''}${requiresCheckIn ? 'planning-locked-item' : ''}`}><p className="eyebrow">{plan.date}</p><div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{plan.title}</h2></div>{plan.focus && <span className="workout-focus-pill">{plan.focus}</span>}{metadata}{requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se passets upplägg</strong><small>Rubrik, fokus och träningsmängd är synliga. Serier och tränarens instruktioner låses upp efter dagens check-in.</small></div> : competitionInfo ? <details className="swimmer-planning-pm"><summary>{plan.activityType === 'competition' ? '📄 Tävlingsinformation' : '📅 Information från SportAdmin'} <span>Visa</span></summary><div>{competitionInfo.split('\n').map((line, index) => <React.Fragment key={`${plan.id}-info-${index}`}>{index ? <br /> : null}{line}</React.Fragment>)}</div></details> : plan.source !== 'SportAdmin' && <small>{plan.notes}</small>}</article> })}</SwimOccasion>)}</div> : <p className="empty">Ingen planering publicerad för den här veckan.</p>}<PersonalTrainingPlanner key={startKey} code={code} start={startKey} end={dateKey(new Date(selectedEnd.getTime() - 86400000))} /></section>
+  const occasions = groupSwimOccasions(visiblePlans)
+  const dateClass = date => date < currentDate ? ' planning-past' : date === currentDate ? ' planning-today' : ''
+
+  return <section className="swimmer-planning">
+    <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button>
+    <div className="period-heading"><div>
+      <p className="eyebrow">Planering</p>
+      <h1>{weekOffset === 0 ? 'Den här veckan' : weekOffset === -1 ? 'Förra veckan' : weekOffset === 1 ? 'Nästa vecka' : 'Veckoplanering'}</h1>
+      <small>Planerade aktiviteter och kalenderhändelser för din grupp.</small>
+    </div></div>
+    <div className="swimmer-planning-week-controls">
+      <button type="button" className="secondary-button" onClick={() => setWeekOffset(value => value - 1)}>← Förra veckan</button>
+      <div className="swimmer-planning-week-title" aria-live="polite">
+        <strong>Vecka {isoWeek(startKey).week} · {weekLabel}</strong>
+        {PLANNING_WEEK_TYPES[weekType] && <span className="planning-type">Veckotyp · {PLANNING_WEEK_TYPES[weekType]}</span>}
+      </div>
+      <button type="button" className="secondary-button" onClick={() => setWeekOffset(value => value + 1)}>Nästa vecka →</button>
+    </div>
+    {!week ? <div className="swimmer-planning-loading" role="status"><span aria-hidden="true">〰</span><strong>Hämtar din veckoplanering…</strong></div>
+      : week.error ? <p className="empty" role="status">Veckoplaneringen kunde inte hämtas. <button type="button" className="text-button" onClick={() => retryWeek(value => value + 1)}>Försök igen</button></p>
+      : <>
+        <div className="swimmer-planning-summary">
+          <div><strong>{swimmerPlanningMeters}</strong><span>simmetrar</span></div>
+          <div><strong>{swimmerPlanningMinutes}</strong><span>minuter</span></div>
+          <div><strong>{occasions.length}</strong><span>träningstillfällen / aktiviteter</span></div>
+        </div>
+        {occasions.length > 0 && <div className="swimmer-planning-list">{occasions.map((occasion, index) => {
+          const date = occasion.items[0].date
+          const firstOfDay = date !== occasions[index - 1]?.items[0].date
+          const headingDate = new Date(`${date}T12:00:00Z`)
+          return <React.Fragment key={occasion.key}>
+            {firstOfDay && <div className={`planning-day-heading${dateClass(date)}`}>
+              <strong>{headingDate.toLocaleDateString('sv-SE', { weekday: 'long', timeZone: 'Europe/Stockholm' })}</strong>
+              <small>{headingDate.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', timeZone: 'Europe/Stockholm' })}{date === currentDate ? ' · Idag' : ''}</small>
+            </div>}
+            <SwimOccasion occasion={occasion}>{occasion.items.map(plan => {
+              const requiresCheckIn = plan.date === currentDate && plan.activityType === 'swim' && Boolean(plan.sourceWorkoutId) && locked
+              const activity = activityLabels[plan.activityType] || ['•', 'Aktivitet']
+              const fromCalendar = plan.source === 'SportAdmin' || plan.activityType === 'sportadmin'
+              const competitionInfo = !requiresCheckIn && (plan.activityType === 'competition' || fromCalendar) ? competitionInfoFor(plan) : ''
+              return <article key={plan.id} className={`${fromCalendar ? 'calendar-planning-item' : ''}${dateClass(plan.date)}${requiresCheckIn ? ' planning-locked-item' : ''}`}>
+                <p className="eyebrow">{plan.date}</p>
+                <div className="swimmer-planning-title"><span className="planning-type">{activity[0]} {activity[1]}</span><h2>{plan.title}</h2></div>
+                {plan.focus && <span className="workout-focus-pill">{plan.focus}</span>}
+                <div className="workout-library-stats">
+                  {plan.time && plan.time !== '00:00' && <span>⏰ {plan.time}</span>}
+                  {plan.distanceMeters && <span>{Number(plan.distanceMeters).toLocaleString('sv-SE')} m</span>}
+                  {plan.durationMinutes && <span>{plan.durationMinutes} min</span>}
+                  {plan.location && <span>{plan.location}</span>}
+                </div>
+                {plan.targetGroups?.length > 0 && <div className="planning-group-pills">{plan.targetGroups.map(group => <span className="planning-type" key={group}>{groupLabels[group] || group}</span>)}</div>}
+                {requiresCheckIn ? <div className="planning-checkin-lock"><strong>🔒 Checka in för att se passets upplägg</strong><small>Rubrik, fokus och träningsmängd är synliga. Serier och tränarens instruktioner låses upp efter dagens check-in.</small></div>
+                  : competitionInfo ? <details className="swimmer-planning-pm"><summary>{plan.activityType === 'competition' ? '📄 Tävlingsinformation' : '📅 Information från SportAdmin'} <span>Visa</span></summary><div>{competitionInfo.split('\n').map((line, index) => <React.Fragment key={index}>{index ? <br /> : null}{line}</React.Fragment>)}</div></details>
+                  : !fromCalendar && <small>{plan.notes}</small>}
+              </article>
+            })}</SwimOccasion>
+          </React.Fragment>
+        })}</div>}
+        {!calendar ? <p className="swimmer-planning-calendar-status" role="status">Hämtar händelser från SportAdmin…</p>
+          : calendar.error || calendar.data.incomplete ? <p className="swimmer-planning-calendar-status" role="status">Vissa kalenderhändelser kunde inte hämtas. <button type="button" className="text-button" onClick={() => retryCalendar(value => value + 1)}>Försök igen</button></p>
+          : !occasions.length && <p className="empty">Ingen planering publicerad för den här veckan.</p>}
+      </>}
+    <PersonalTrainingPlanner key={startKey} code={code} start={startKey} end={endKey} />
+  </section>
 }
 
 function SwimmerCompetitionEntries({ code, onBack }) {
@@ -1084,7 +1136,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest = 0, responses, responsesLoaded = false, ownResponsesLoaded = false, profile, points, onPointsChange, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onStartYesterday }) {
+function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest = 0, responses, responsesLoaded = false, profile, points, onPointsChange, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onOpenCheckinHistory }) {
   const bonusScope = useRef(null)
   useEffect(() => {
     bonusScope.current = {}
@@ -1129,11 +1181,6 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
     const timer = window.setTimeout(() => setAnimatedMoodIds([]), 700)
     return () => window.clearTimeout(timer)
   }, [responsesLoaded, todayResponseIds])
-  const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-  const yesterdayKey = dateKey(yesterdayDate)
-  const hasYesterdayCheckin = profile && responses.some((item) => item.profileId === profile.id && dateKey(responseDate(item)) === yesterdayKey)
-  let hasLocalYesterdayCheckin = false
-  if (profile) { try { hasLocalYesterdayCheckin = window.localStorage.getItem(`simkoll-late-checkin:${profile.id}:${yesterdayKey}`) === 'done' } catch { /* Storage is optional. */ } }
   const { followUp, raceFollowUp } = checkinFollowUp(profile ? todayResponses.filter((item) => item.profileId === profile.id) : [], todayKey())
   // Daily activity is stored as a Stockholm calendar date on the server.
   // Use it as the source of truth for streaks, while merging in responses
@@ -1154,7 +1201,7 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
   useEffect(() => { if (profile) apiRequest('/api/points', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync-stars', stars, streak, weekStart: stars.weekStart, goalKey: stars.goalKey, month: stars.month }) }).catch(() => {}) }, [code, profile?.id, streak, stars.weeklyPlan, stars.crossGoals, stars.swimGoal, stars.monthlySwim, stars.weekStart, stars.goalKey, stars.month])
   return (
     <div className={`page-content home${raceDayActive ? ' race-day-page' : ''}${themeClass}`}>
-      <SwimmerHeroCarousel className="home-hero-carousel" enabled={Boolean(levelVisible || profile)} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : []), ...(profile ? ['Peppflödet'] : [])]} regionLabel="Din nivå, gruppens läge, tränarinfo och peppflöde">
+      <SwimmerHeroCarousel hideLabel className="home-hero-carousel" enabled={Boolean(levelVisible || profile)} initialIndex={levelVisible ? 1 : 0} infoRequest={coachPreviewRequest} infoIndex={levelVisible ? 2 : 1} labels={[...(levelVisible ? ['Din nivå'] : []), 'Idag i gruppen', ...(profile && chatVisible ? ['Info från tränarna'] : []), ...(profile ? ['Peppflödet'] : [])]} regionLabel="Din nivå, gruppens läge, tränarinfo och peppflöde">
       {levelVisible && <RewardCard key={`level-${profile.id}`} points={points} onCommunity={onCommunity} onEmblemTap={!profile.isTestProfile ? tapEmblem : undefined} featured />}
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
@@ -1190,21 +1237,19 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
       {profile && chatVisible && <OpenChatCard key={`coach-info-${profile.id}`} code={code} setData={setCommunityPreview} data={communityPreview} error={communityPreviewError} onOpen={onCommunityChat || onCommunity} />}
       {profile && <OpenChatCard key="pep-feed" data={communityPreview} error={communityPreviewError} channel="pep" onOpen={onCommunity} />}
       </SwimmerHeroCarousel>
-      {profile && <SwimmerHeroCarousel enabled initialIndex={1}
+      {profile && <SwimmerHeroCarousel enabled hideLabel initialIndex={1}
         labels={['Tidigare dagar', 'Idag', 'Träningstid och testlopp']} regionLabel="Incheckning och tider" className="home-actions-carousel">
         <section key="previous" className="start-card">
-          <div><p className="eyebrow">Incheckning</p><h2>Tidigare dagar</h2><p>Välj en dag i träningsdagboken för att se och komplettera dina pass.</p></div>
+          <div><p className="eyebrow">Incheckning</p><h2>Tidigare dagar</h2><p>Välj en dag för att korrigera eller komplettera en äldre incheckning.</p></div>
           <div className="start-card-actions">
-            {ownResponsesLoaded && !hasYesterdayCheckin && !hasLocalYesterdayCheckin && <button type="button" className="primary-button" onClick={onStartYesterday}>Efterregistrera gårdagen →</button>}
-            <button type="button" className="secondary-button" onClick={() => onOpenDiary('calendar')}>Öppna dagboken →</button>
+            <button type="button" className="primary-button" onClick={onOpenCheckinHistory}>Öppna →</button>
           </div>
         </section>
         <StartCard key="today" profile={profile} onStart={onStart} followUp={followUp} raceFollowUp={raceFollowUp} />
         <section key="times" className="start-card">
           <div><p className="eyebrow">Mina tider</p><h2>Registrera en tid</h2><p>Spara en träningstid eller ett testlopp i träningsdagboken.</p></div>
           <div className="start-card-actions">
-            <button type="button" className="primary-button" onClick={() => onOpenDiary('training')}>Träningstid →</button>
-            <button type="button" className="secondary-button" onClick={() => onOpenDiary('test')}>Testlopp →</button>
+            <button type="button" className="primary-button" onClick={() => onOpenDiary('training')}>Öppna →</button>
           </div>
         </section>
       </SwimmerHeroCarousel>}
@@ -1240,13 +1285,12 @@ function StrengthProgramCard({ training, onOpen, programType = 'strength' }) {
   return <section className="strength-program-card swimmer-program-shortcut"><span className="swimmer-program-shortcut-icon" aria-hidden="true">{kind.icon}</span><div><p className="swimmer-program-shortcut-type">{kind.title}</p><h3>{assignment.program.title}</h3></div><button type="button" className="primary-button" aria-label={`Öppna ${kind.name}: ${assignment.program.title}`} onClick={onOpen}>Öppna →</button></section>
 }
 
-function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', autoHeight = false }) {
+function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest, infoIndex = 1, labels = ['Idag i gruppen', 'Info från tränarna'], regionLabel = 'Gruppens läge och tränarinfo', className = '', hideLabel = false }) {
   const track = useRef(null)
   const activeRef = useRef(0)
   const activeKey = useRef(null)
   const slideStep = useRef(0)
   const [active, setActive] = useState(0)
-  const [height, setHeight] = useState(null)
   const slides = React.Children.toArray(children)
   const slideKeys = JSON.stringify(slides.map(slide => slide.key))
   const select = (index) => {
@@ -1285,18 +1329,8 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
     return () => observer.disconnect()
   }, [enabled, initialIndex, slideKeys])
   useEffect(() => { if (enabled && infoRequest > 0) goTo(infoIndex) }, [infoRequest, enabled, infoIndex])
-  useLayoutEffect(() => {
-    if (!enabled || !autoHeight) { setHeight(null); return }
-    const slide = track.current?.children[activeRef.current]
-    if (!slide) return
-    const measure = () => setHeight(Math.ceil(slide.getBoundingClientRect().height))
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(slide)
-    return () => observer.disconnect()
-  }, [enabled, autoHeight, active, slides.length])
   return <div className={`swimmer-hero-carousel ${className}`} role="region" aria-label={regionLabel} aria-roledescription="karusell">
-    <div className={`swimmer-hero-track${autoHeight ? ' auto-height' : ''}`} style={autoHeight && height ? { '--active-slide-height': `${height}px` } : undefined} ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
+    <div className="swimmer-hero-track" ref={track} tabIndex={enabled ? 0 : -1} onScroll={(event) => {
       if (!enabled || !slideStep.current) return
       const index = Math.max(0, Math.min(slides.length - 1, Math.round(event.currentTarget.scrollLeft / slideStep.current)))
       if (index !== activeRef.current) select(index)
@@ -1309,7 +1343,7 @@ function SwimmerHeroCarousel({ children, enabled, initialIndex = 0, infoRequest,
     {enabled && slides.length > 1 && <div className="swimmer-hero-navigation">
       <button type="button" className="hero-slide-arrow" disabled={active === 0} aria-label={`Visa ${labels[Math.max(0, active - 1)]}`} onClick={() => goTo(active - 1)}>←</button>
       <div className="hero-slide-indicators">{labels.map((label, index) => <button type="button" key={label} aria-label={`Visa ${label}`} aria-pressed={active === index} onClick={() => goTo(index)}><span /></button>)}</div>
-      <span className="hero-slide-label" aria-live="polite">{labels[active]}</span>
+      <span className={hideLabel ? 'sr-only' : 'hero-slide-label'} aria-live="polite">{labels[active]}</span>
       <button type="button" className="hero-slide-arrow" disabled={active === slides.length - 1} aria-label={`Visa ${labels[Math.min(slides.length - 1, active + 1)]}`} onClick={() => goTo(active + 1)}>→</button>
     </div>}
   </div>
@@ -1411,8 +1445,8 @@ function StartCard({ profile, onStart, followUp = false, raceFollowUp = false })
 }
 
 function GameCard({ games = GAME_CATALOG, previousGames = [], onOpen, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino }) {
-  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: () => onOpen(), aljakten: onAljakten, breakout: onBreakout, sprint100: onSprint, longjump: onLongJump, hurdles100: () => onOpen('hurdles100'), bikerun: onBikeRun, twenty48: onTwenty48, dino: onDino, balance: () => onOpen('balance'), rally: () => onOpen('rally'), bottleflip: () => onOpen('bottleflip'), snowrider: () => onOpen('snowrider'), skijump: () => onOpen('skijump'), downhill: () => onOpen('downhill') }
-  return <SwimmerHeroCarousel enabled autoHeight labels={['Veckans spel', 'Tidigare veckors spel', 'All time-topplista']} regionLabel="Spel och topplistor" className="games-carousel">
+  const actions = { swimgames: onSwimgames, vanda: onVanda, simpaus: () => onOpen(), aljakten: onAljakten, breakout: onBreakout, sprint100: onSprint, longjump: onLongJump, hurdles100: () => onOpen('hurdles100'), bikerun: onBikeRun, twenty48: onTwenty48, dino: onDino, balance: () => onOpen('balance'), rally: () => onOpen('rally'), bottleflip: () => onOpen('bottleflip'), snowrider: () => onOpen('snowrider'), skijump: () => onOpen('skijump'), downhill: () => onOpen('downhill'), bobsled: () => onOpen('bobsled') }
+  return <SwimmerHeroCarousel enabled labels={['Veckans spel', 'Tidigare veckors spel', 'All time-topplista']} regionLabel="Spel och topplistor" className="games-carousel">
     <section className="game-card"><div><p className="eyebrow">Veckans spel</p><h2>{games.length ? games[0].title : 'Inga spel just nu'} {games.length ? games[0].emoji : '🎮'}</h2><p>{games.length ? games[0].description : 'Tränaren har inte publicerat något spel ännu.'}</p><div className="game-choice">{games.map((game, index) => <button type="button" key={game.key} className={index === 0 ? 'primary-button' : 'secondary-button'} onClick={actions[game.key]}>{game.title} {game.emoji} →</button>)}</div></div></section>
     <section className="game-card game-archive"><div><p className="eyebrow">Spelhistorik</p><h2>Tidigare veckors spel 📚</h2><p>{previousGames.length ? `${previousGames.length} tidigare spel att välja mellan.` : 'Här samlas spelen när en ny spelvecka börjar.'}</p><div className="previous-games-list">{previousGames.map((game) => <button type="button" className="secondary-button" key={game.key} onClick={() => actions[game.key]?.()}>{game.title} {game.emoji} →</button>)}</div></div></section>
     <section className="game-card game-records"><div><p className="eyebrow">Rekord genom tiderna</p><h2>All time-topplista 🏆</h2><p>Se de bästa resultaten från alla spel och tidigare veckor.</p><button type="button" className="primary-button" onClick={onAllTime}>Öppna topplistan →</button></div></section>
@@ -1427,7 +1461,7 @@ function BetaGamePanel({ game, code, onBack }) {
     return () => { active = false }
   },[code,game?.key])
   if(access !== 'allowed') return <section className="settings-card"><button type="button" className="back-button inline" onClick={onBack}>← Tillbaka</button><p role="status">{access === 'loading' ? 'Kontrollerar ditt betatest…' : access === 'error' ? 'Betatestet kunde inte öppnas. Gå tillbaka och försök igen.' : 'Du har inte längre betatillgång till det här spelet.'}</p></section>
-  const games = { swimgames: Swimgames, vanda: Vandningsmastaren, simpaus: Simpaus, aljakten: Aljakten, breakout: PreppeBreakout, sprint100: SprintGame, longjump: LongJumpGame, hurdles100: HurdlesGame, bikerun: BikeRun, twenty48: Twenty48, rally: RallyGame, balance: BalanceGame, dino: DinoRunner, bottleflip: BottleFlipGame, snowrider: SnowRiderGame, skijump: SkiJumpGame, downhill: DownhillGame }
+  const games = { swimgames: Swimgames, vanda: Vandningsmastaren, simpaus: Simpaus, aljakten: Aljakten, breakout: PreppeBreakout, sprint100: SprintGame, longjump: LongJumpGame, hurdles100: HurdlesGame, bikerun: BikeRun, twenty48: Twenty48, rally: RallyGame, balance: BalanceGame, dino: DinoRunner, bottleflip: BottleFlipGame, snowrider: SnowRiderGame, skijump: SkiJumpGame, downhill: DownhillGame, bobsled: BobsledGame }
   const Game = games[game?.key]
   if(!Game)return <button type="button" className="back-button inline" onClick={onBack}>← Tillbaka till spelen</button>
   return <section><div className="game-test-banner"><strong>🧪 Betatest · {game.title}</strong><span>Du har fått förhandstillgång av tränaren. Resultat och poäng sparas inte.</span></div><Game code={code} onBack={onBack} preview request={apiRequest} /></section>
@@ -2166,7 +2200,7 @@ function MyProfile({ flightRecord, profile, points, code, onProfileChange, onBac
   )
 }
 
-export function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], onBack, onSubmit, request = apiRequest }) {
+export function CheckIn({ code, activityDate, identified, hasProfile, competitionToday, competitionStatusLoaded = true, lateEntry = false, historical = false, followUp = false, raceFollowUp = false, plannedWorkouts = [], onBack, onSubmit, request = apiRequest }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(() => followUp || raceFollowUp ? { type: 'after', ...(raceFollowUp ? { competition: true } : {}) } : {})
   const [competitionDecision, setCompetitionDecision] = useState(null)
@@ -2182,8 +2216,10 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
   const [dailySaving, setDailySaving] = useState(false)
   const [dailyPrompts, setDailyPrompts] = useState(null)
   const [savedSwimTimes, setSavedSwimTimes] = useState({})
+  const olderCheckin = historical && activityDate < planningAddDays(stockholmActivityDay(), -1)
+  const historicalEyebrow = historical ? `Efterregistrering · ${activityDate}` : 'Efterregistrering'
   useEffect(() => {
-    if (!identified || !hasProfile) { setIllnessStatus('done'); return }
+    if (!identified || !hasProfile || olderCheckin) { setIllnessStatus('done'); return }
     let active = true
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
     request(`/api/responses?illness=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then(data => {
@@ -2192,7 +2228,7 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
       setIllnessError(data.available === false ? data.warning : '')
     }).catch(error => { if (active) { setIllnessError(error.name === 'AbortError' ? 'Sjukdomskollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setIllnessStatus('error') } }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
-  }, [code, activityDate, identified, hasProfile, request])
+  }, [code, activityDate, identified, hasProfile, olderCheckin, request])
   const [workoutOptions, setWorkoutOptions] = useState([])
   const [optionsStatus, setOptionsStatus] = useState('loading')
   const [optionsRetry, setOptionsRetry] = useState(0)
@@ -2206,16 +2242,18 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
     return () => { active = false }
   }, [code, activityDate, hasProfile, optionsRetry, request])
   useEffect(() => {
-    if (!identified || !hasProfile) { setSleepStatus('done'); return }
+    if (!identified || !hasProfile || olderCheckin) { setSleepStatus('done'); return }
     let active = true
     setSleepStatus('loading'); setSleepError('')
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000)
     request(`/api/responses?sleep=true&start=${activityDate}&end=${activityDate}`, code, { signal: controller.signal }).then((data) => { if (active) { const done = Boolean(data.records?.length); setSleepStatus(done ? 'done' : 'needed'); if (done) setSleepSaved(true) } }).catch((error) => { if (active) { setSleepError(error.name === 'AbortError' ? 'Sömnkollen kunde inte hämtas i tid. Du kan fortsätta utan den.' : error.message); setSleepStatus('error') } }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
-  }, [code, activityDate, identified, hasProfile, sleepRetry, request])
-  const typeQuestions = form.type ? getQuestions(form.type, form.activityType, identified && hasProfile).filter((question) => question.key !== 'sleep') : []
+  }, [code, activityDate, identified, hasProfile, olderCheckin, sleepRetry, request])
+  const typeQuestions = form.type ? getQuestions(form.type, form.activityType, identified && hasProfile)
+    .filter(question => question.key !== 'sleep')
+    .map(question => historical && question.key === 'comment' ? { ...question, hint: 'Frivilligt. Kommentaren sparas med incheckningen på din profil.' } : question) : []
   const raceQuestions = competitionToday && hasProfile && form.competition === true ? [{ key: 'body', title: form.type === 'after' ? 'Hur kändes kroppen under tävlingen?' : 'Hur känns kroppen inför tävlingen?', hint: '1 = väldigt tung · 5 = väldigt bra', kind: 'scale', count: 5, left: 'Tung', right: 'Bra' }, { key: 'energy', title: 'Hur känns energin?', hint: '1 = låg · 5 = hög', kind: 'scale', count: 5, left: 'Låg', right: 'Hög' }, { key: 'motivation', title: form.type === 'after' ? 'Hur kändes huvudet?' : 'Hur känns huvudet?', hint: '1 = stressat eller oroligt · 5 = lugnt och fokuserat', kind: 'scale', count: 5, left: 'Oroligt', right: 'Fokuserat' }, { key: 'speedFeeling', title: form.type === 'after' ? 'Hur var fartkänslan i tävlingen?' : 'Hur redo känns du för att tävla?', hint: '1 = låg/trög · 5 = riktigt bra', kind: 'scale', count: 5, left: 'Låg', right: 'Bra' }, { key: 'raceConcern', title: 'Behöver tränaren veta något?', hint: 'Välj bara om något behöver fångas upp idag.', kind: 'concern' }, { key: 'comment', title: 'Något du vill säga?', hint: 'Helt frivilligt – skriv en kort rad till tränaren.', kind: 'comment' }] : []
-  const questions = [...(identified && hasProfile && (dailyPrompts?.illness ?? illnessStatus !== 'done') ? [{ key: 'dailyIllness', title: 'Känner du dig sjuk eller på väg att bli sjuk?', hint: 'Sjukdomskänsla är något annat än trötthet efter träningen.', kind: 'dailyIllness' }] : []), ...(identified && hasProfile && (dailyPrompts?.sleep ?? sleepStatus !== 'done') ? [{ key: 'dailySleep', title: lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
+  const questions = [...(identified && hasProfile && !olderCheckin && (dailyPrompts?.illness ?? illnessStatus !== 'done') ? [{ key: 'dailyIllness', title: 'Känner du dig sjuk eller på väg att bli sjuk?', hint: 'Sjukdomskänsla är något annat än trötthet efter träningen.', kind: 'dailyIllness' }] : []), ...(identified && hasProfile && !olderCheckin && (dailyPrompts?.sleep ?? sleepStatus !== 'done') ? [{ key: 'dailySleep', title: historical ? 'Hur sov du natten före incheckningen?' : lateEntry ? 'Hur sov du inför gårdagen?' : 'Hur sov du i natt?', hint: 'Berätta ungefär hur länge och hur det kändes.', kind: 'dailySleep' }] : []), ...(form.competition === true ? raceQuestions : typeQuestions)]
   const needsActivity = form.type === 'after' && form.competition !== true
   const allowPersonal = hasProfile && identified
   const swimPlans = (hasProfile ? (optionsStatus === 'done' ? workoutOptions : []) : [plannedWorkouts].flat())
@@ -2263,13 +2301,13 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
     if (!lateEntry && hasProfile && !competitionStatusLoaded) {
       content = <Question eyebrow="Snabbkoll" title="Hämtar dagens tävlingsinfo…" hint="Ett ögonblick, så visar vi rätt check-in för idag."><div className="loading-state" role="status">Laddar…</div></Question>
     } else {
-    const showCompetitionChoice = !lateEntry && competitionToday && hasProfile && competitionDecision === null
+    const showCompetitionChoice = (!lateEntry || historical) && competitionToday && hasProfile && competitionDecision === null
     content = (
-      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Vad gjorde du igår?' : showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={lateEntry ? 'Välj det som bäst beskriver gårdagen.' : showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
+      <Question eyebrow={lateEntry ? historicalEyebrow : 'Snabbkoll'} title={historical ? (showCompetitionChoice ? 'Tävlade du den här dagen?' : 'Vad gjorde du den här dagen?') : lateEntry ? 'Vad gjorde du igår?' : showCompetitionChoice ? 'Ska du tävla idag?' : raceFollowUp ? 'Hur gick simtävlingen?' : followUp ? 'Hur gick simträningen?' : 'Hur ser din dag ut?'} hint={historical ? 'Välj det som stämmer för det valda datumet. Svaret sparas på din profil.' : lateEntry ? 'Välj det som bäst beskriver gårdagen.' : showCompetitionChoice ? 'Tävlingscheck-in ersätter träningsfrågan idag.' : raceFollowUp ? 'Svara kort på hur tävlingen gick.' : followUp ? 'Jag har tränat är förvalt – ändra om det inte stämmer.' : 'Välj det som stämmer bäst just nu.'}>
         <div className="choice-stack">
-          {showCompetitionChoice ? <><button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm({ competition: true, workoutReference: null, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' }); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm({ competition: true, workoutReference: null, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' }); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.filter((type) => !lateEntry || type.value !== 'before').map((type) => (
+          {showCompetitionChoice ? <>{!lateEntry && <button className="choice-card" onClick={() => { setCompetitionDecision('before'); setForm({ competition: true, workoutReference: null, type: 'before', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' }); next() }}><span className="choice-icon">🏁</span>Ja, jag ska tävla<span>›</span></button>}<button className="choice-card" onClick={() => { setCompetitionDecision('after'); setForm({ competition: true, workoutReference: null, type: 'after', registerTraining: hasProfile, trainingSlot: 'afternoon_swim' }); next() }}><span className="choice-icon">🏅</span>Jag har tävlat<span>›</span></button><button className="choice-card" onClick={() => { setCompetitionDecision('none') }}><span className="choice-icon">→</span>Nej<span>›</span></button></> : DAY_TYPES.filter((type) => !lateEntry || type.value !== 'before').map((type) => (
               <button key={type.value} className={`choice-card${(followUp || lateEntry) && type.value === 'after' ? ' selected' : ''}`} onClick={() => { const countsAsAttendance = hasProfile && type.value === 'after'; setForm({ type: type.value, competition: false, workoutReference: null, activityType: type.value === 'before' ? 'swim' : null, registerTraining: countsAsAttendance, trainingSlot: null }); next() }}>
-              <span className="choice-icon">{type.icon}</span>{lateEntry ? ({ after: 'Jag tränade / tävlade', rest: 'Jag vilade', sick: 'Jag var sjuk' }[type.value]) : type.title}<span>›</span>
+              <span className="choice-icon">{type.icon}</span>{lateEntry ? ({ after: historical ? 'Jag tränade' : 'Jag tränade / tävlade', rest: 'Jag vilade', sick: 'Jag var sjuk' }[type.value]) : type.title}<span>›</span>
             </button>
           ))}
         </div>
@@ -2298,7 +2336,7 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
     </Question>
   } else if (step === questionOffset - 1) {
     content = (
-      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? 'Hur mådde du igår?' : 'Hur känns det idag?'} hint="Gå på magkänslan.">
+      <Question eyebrow={lateEntry ? historicalEyebrow : 'Snabbkoll'} title={historical ? 'Hur mådde du den här dagen?' : lateEntry ? 'Hur mådde du igår?' : 'Hur känns det idag?'} hint="Gå på magkänslan.">
         <div className="feeling-grid">
           {FEELINGS.map((feeling) => (
             <button key={feeling.value} disabled={identified && hasProfile && (sleepStatus === 'loading' || illnessStatus === 'loading')} onClick={() => { setDailyPrompts(current => current || { illness: illnessStatus !== 'done', sleep: sleepStatus !== 'done' }); update('feeling', feeling.value); next() }}>
@@ -2312,7 +2350,7 @@ export function CheckIn({ code, activityDate, identified, hasProfile, competitio
   } else {
     const question = questions[step - questionOffset]
     content = (
-      <Question eyebrow={lateEntry ? 'Efterregistrering' : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', 'igår').replaceAll('nu?', 'igår?') : question.title} hint={question.kind === 'comment' && identified ? 'Helt frivilligt. Sparas till ditt svar och är synligt för tränarna.' : question.hint}>
+      <Question eyebrow={lateEntry ? historicalEyebrow : 'Snabbkoll'} title={lateEntry ? question.title.replaceAll('idag', historical ? 'den dagen' : 'igår').replaceAll('nu?', historical ? 'den dagen?' : 'igår?') : question.title} hint={question.kind === 'comment' && identified ? 'Helt frivilligt. Sparas till ditt svar och är synligt för tränarna.' : question.hint}>
         {question.kind === 'dailyIllness' && (illnessSaved ? <div><p>Sjukdomskollen är hanterad för den här dagen. Du kan ändra svaret i din dagbok.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : illnessStatus === 'loading' ? <p role="status">Kontrollerar dagens svar…</p> : illnessStatus === 'error' ? <div><p className="form-error" role="alert">{illnessError}</p><button type="button" className="text-button" onClick={next}>Fortsätt utan sjukdomskoll</button></div> : <IllnessQuestion date={activityDate} code={code} request={request} onBusyChange={setDailySaving} onContinue={() => { setIllnessSaved(true); next() }} />)}
         {question.kind === 'dailySleep' && (sleepSaved ? <div><p>Sömnkollen är hanterad för den här dagen.</p><button type="button" className="primary-button" onClick={next}>Fortsätt →</button></div> : sleepStatus === 'loading' ? <p role="status">Kontrollerar om du redan svarat idag…</p> : sleepStatus === 'error' ? <div><p className="form-error" role="alert">{sleepError}</p><button type="button" className="secondary-button" onClick={() => setSleepRetry((value) => value + 1)}>Försök igen</button><button type="button" className="text-button" onClick={next}>Fortsätt utan sömnkoll</button></div> : <SleepQuestion date={activityDate} code={code} request={request} lateEntry={lateEntry} onContinue={() => { setSleepSaved(true); next() }} />)}
         {question.kind === 'swimTime' && <CheckinSwimTime key={swimTimeKey} activityDate={activityDate} code={code} request={request} saved={savedSwimTime}
@@ -2403,17 +2441,17 @@ function getQuestions(type, activityType = null, canSaveSwimTime = false) {
   ]
 }
 
-function Thanks({ responses, profile, identified, activityDate = todayKey(), lateEntry = false, workout, onDone }) {
+function Thanks({ responses, profile, identified, activityDate = todayKey(), lateEntry = false, historical = false, workout, onDone }) {
   const todayResponses = responses.filter((response) => dateKey(responseDate(response)) === activityDate)
   return (
     <div className="thanks-page">
       <div className="success-mark">✓</div>
       <p className="eyebrow">Klart</p>
-      <h1>{lateEntry ? 'Tack för gårdagens check-in!' : 'Tack för din check-in!'}</h1>
+      <h1>{historical ? 'Incheckningen är sparad' : lateEntry ? 'Tack för gårdagens check-in!' : 'Tack för din check-in!'}</h1>
       <p>{identified ? 'Svaret har sparats i din profil.' : 'Svaret är anonymt och hjälper tränaren att göra passen bättre.'}</p>
       {!lateEntry && profile && workout && <p className="unlock-message">🔓 Dagens pass är upplåst!</p>}
       <div className="mini-moods">{todayResponses.slice(-7).map((response) => <span key={response.id}>{FEELINGS[response.feeling - 1]?.emoji}</span>)}</div>
-      <button className="primary-button" onClick={onDone}>{!lateEntry && profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
+      <button className="primary-button" onClick={onDone}>{historical ? 'Till tidigare incheckningar →' : !lateEntry && profile && workout ? 'Se dagens pass →' : 'Till dagens läge →'}</button>
     </div>
   )
 }
@@ -2531,6 +2569,7 @@ function CoachGameLibrary({ code }) {
     if (testing === 'snowrider') return <section className="game-library"><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div><SnowRiderGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
     if (testing === 'skijump') return <section className="game-library"><SkiJumpGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
     if (testing === 'downhill') return <section className="game-library"><DownhillGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
+    if (testing === 'bobsled') return <section className="game-library"><BobsledGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
     if (testing === 'hurdles100') return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div><HurdlesGame code={code} onBack={() => setTesting('')} preview request={apiRequest} /></section>
     return <section className="game-library"><button className="back-button inline" onClick={() => setTesting('')}>← Tillbaka till spelbiblioteket</button><div className="game-test-banner"><strong>Testläge · {game?.title}</strong><span>Resultat och poäng sparas inte när du testar som tränare.</span></div>{testing === 'swimgames' && <Swimgames code={code} onBack={() => setTesting('')} preview />}{testing === 'vanda' && <Vandningsmastaren code={code} onBack={() => setTesting('')} preview />}{testing === 'simpaus' && <Simpaus code={code} onBack={() => setTesting('')} preview />}{testing === 'aljakten' && <Aljakten code={code} onBack={() => setTesting('')} preview />}{testing === 'longjump' && <LongJumpGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'sprint100' && <SprintGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'breakout' && <PreppeBreakout code={code} onBack={() => setTesting('')} preview />}{testing === 'bikerun' && <BikeRun code={code} onBack={() => setTesting('')} preview />}{testing === 'twenty48' && <Twenty48 code={code} onBack={() => setTesting('')} preview />}{testing === 'rally' && <RallyGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'balance' && <BalanceGame code={code} onBack={() => setTesting('')} preview request={apiRequest} />}{testing === 'dino' && <DinoRunner code={code} onBack={() => setTesting('')} preview request={apiRequest} />}</section>
   }

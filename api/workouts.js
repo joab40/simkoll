@@ -23,7 +23,8 @@ import { importDriveWorkbook } from '../server/drive-workout-import.js'
 import { loadPlanningFile, inspectPlanningFile, analyzePlanningFile, loadPlanningRows, preparePlanningImport, planningCalendarChoices } from '../server/planning-import.js'
 import { validatePlanningDraft, validatePlanningSelection } from '../shared/planning-import.js'
 import { loadPlanningGroups } from '../server/planning-groups.js'
-import { handlePlanningWeekTypes } from '../server/planning-week-types.js'
+import { handlePlanningWeekTypes, loadPlanningWeekType } from '../server/planning-week-types.js'
+import { validCoachWeek } from '../shared/coach-week.js'
 import { loadHiddenCalendarActivities, visibleCalendarActivities, setCalendarVisibility } from '../server/calendar-visibility.js'
 import { driveApiKey, loadDriveConfig, listDriveFolder, verifyDriveFolder, saveDriveSettings } from '../server/drive-settings.js'
 import { planningAddDays } from '../shared/weekly-planning.js'
@@ -548,12 +549,7 @@ async function syncPlanningFromWorkout(workout, occasionPlan = null) {
   else if (current.source_workout_id) result = await supabaseRequest(`training_plans?id=eq.${current.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ sync_status: 'changed', synced_at: new Date().toISOString() }) })
   if (occasionPlan && !result?.ok) throw planningLinkError('Passet har publicerats men kalenderkopplingen kunde inte bekräftas. Försök igen med samma import.')
 }
-async function backfillPlanningFromWorkouts(plans, hiddenDates, planQuery) {
-  const currentPlans = Array.isArray(plans) ? plans : []
-  const hidden = new Set(Array.isArray(hiddenDates) ? hiddenDates : [])
-  const workoutsResult = await analyticsRows('daily_workouts?select=*&order=workout_date.asc,id.asc')
-  if (!workoutsResult.ok || workoutsResult.truncated) return currentPlans
-  const workouts = await workoutsResult.json()
+function orphanPlanningRows(plans, workouts) {
   // Raderade upplagda pass kan lämna kvar sin länk i training_plans. Dessa
   // rader ska inte fortsätta synas i vare sig tränar- eller simmarvyn.
   const activeWorkoutIds = new Set(workouts.map((item) => String(item.id)))
@@ -562,7 +558,16 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates, planQuery) {
   const matchingWorkouts = (plan) => workouts.filter((workout) => workout.workout_date === plan.plan_date && Number(workout.distance_meters || 0) === Number(plan.distance_meters || 0) && Number(workout.duration_minutes || 0) === Number(plan.duration_minutes || 0) && (!plan.focus || !workout.focus || plan.focus === workout.focus) && (!plan.time_of_day || !workout.time_of_day || plan.time_of_day === workout.time_of_day) && (!normalizeGroups(plan.target_groups) || !normalizeGroups(workout.target_groups) || normalizeGroups(plan.target_groups) === normalizeGroups(workout.target_groups)))
   const hasMatchingWorkout = (plan) => matchingWorkouts(plan).length > 0
   const hasMeaningfulMatchingWorkout = (plan) => matchingWorkouts(plan).some((workout) => !isImportedPlaceholder({ title: workout.title }))
-  const orphanPlans = currentPlans.filter((item) => (item.activity_type === 'swim' && item.source_workout_id && !activeWorkoutIds.has(String(item.source_workout_id))) || (item.activity_type === 'swim' && !item.source_workout_id && isImportedPlaceholder(item) && (!hasMatchingWorkout(item) || hasMeaningfulMatchingWorkout(item))))
+  return plans.filter((item) => (item.activity_type === 'swim' && item.source_workout_id && !activeWorkoutIds.has(String(item.source_workout_id))) || (item.activity_type === 'swim' && !item.source_workout_id && isImportedPlaceholder(item) && (!hasMatchingWorkout(item) || hasMeaningfulMatchingWorkout(item))))
+}
+
+async function backfillPlanningFromWorkouts(plans, hiddenDates, planQuery) {
+  const currentPlans = Array.isArray(plans) ? plans : []
+  const hidden = new Set(Array.isArray(hiddenDates) ? hiddenDates : [])
+  const workoutsResult = await analyticsRows('daily_workouts?select=*&order=workout_date.asc,id.asc')
+  if (!workoutsResult.ok || workoutsResult.truncated) return currentPlans
+  const workouts = await workoutsResult.json()
+  const orphanPlans = orphanPlanningRows(currentPlans, workouts)
   if (orphanPlans.length) {
     await Promise.all(orphanPlans.map((item) => supabaseRequest(`training_plans?id=eq.${encodeURIComponent(item.id)}`, { method: 'DELETE' })))
   }
@@ -576,6 +581,27 @@ async function backfillPlanningFromWorkouts(plans, hiddenDates, planQuery) {
   if (!workouts.length) return cleanPlans
   const refreshed = await analyticsRows(planQuery)
   return refreshed.ok && !refreshed.truncated ? await refreshed.json() : cleanPlans
+}
+
+async function loadSwimmerPlanningWeek(profile, start, end, today) {
+  const includesToday = start <= today && today <= end
+  const [planResult, workoutResult, unlockResult, weekType] = await Promise.all([
+    analyticsRows(`training_plans?plan_date=gte.${start}&plan_date=lte.${end}&select=*,competition_calendar(${competitionScope})&order=plan_date.asc,id.asc`),
+    analyticsRows(`daily_workouts?workout_date=gte.${start}&workout_date=lte.${end}&select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,alternative_group_id,updated_at&order=workout_date.asc,created_at.asc,id.asc`),
+    includesToday ? supabaseRequest(`workout_unlocks?profile_id=eq.${profile.id}&workout_date=eq.${today}&select=profile_id&limit=1`).catch(() => null) : null,
+    loadPlanningWeekType(profile.training_group, start).catch(() => null),
+  ])
+  if ([planResult, workoutResult].some(result => !result.ok || result.truncated)) throw planningLinkError('Veckoplaneringen kunde inte hämtas. Försök igen.')
+  const [plans, workouts] = await Promise.all([planResult.json(), workoutResult.json()])
+  const orphanIds = new Set(orphanPlanningRows(plans, workouts).map(item => item.id))
+  const visibleWorkouts = workouts.map(item => publicWorkout(item, { includeDetails: false }))
+    .filter(item => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group))
+  const locked = includesToday && visibleWorkouts.some(item => item.date === today) && (!unlockResult?.ok || !(await unlockResult.json()).length)
+  const visiblePlans = plans.filter(item => !orphanIds.has(item.id) && !item.calendar_link?.detachedWorkoutId
+    && (item.source_competition_id ? canReadCompetition(item.competition_calendar, 'swimmer', profile)
+      : !item.target_groups?.length || item.target_groups.includes(profile.training_group)))
+    .map(item => publicPlan(locked && item.plan_date === today && item.activity_type === 'swim' && item.source_workout_id ? { ...item, notes: '' } : item))
+  return { plans: visiblePlans, workouts: visibleWorkouts, locked, weekType }
 }
 
 function parseWorkoutCsv(csv) {
@@ -691,6 +717,20 @@ export default async function handler(request, response) {
         const choiceProfile = profile || await getSessionProfile(request)
         if (!choiceProfile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att välja pass.' })
         return sendJson(response, 200, { options: await loadWorkoutChoices(date, choiceProfile.training_group) })
+      }
+      if (request.query?.planningWeek !== undefined || request.query?.planningCalendar !== undefined) {
+        if (role !== 'swimmer' || !profile) return sendJson(response, 403, { error: 'Veckoplaneringen visas för inloggade simmare.' })
+        const start = request.query.planningWeek ?? request.query.planningCalendar
+        if (!validCoachWeek(start) || start < '1900-01-01') return sendJson(response, 400, { error: 'Välj en giltig vecka.' })
+        const end = planningAddDays(start, 6)
+        if (request.query.planningWeek !== undefined) return sendJson(response, 200, await loadSwimmerPlanningWeek(profile, start, end, stockholmDate()))
+        const calendars = await configuredSportAdminCalendars({ strict: true })
+        let incomplete = false
+        const activities = await readSportAdminCalendars(calendars, { from: start, to: end, onFailure: () => { incomplete = true } })
+        return sendJson(response, 200, {
+          incomplete,
+          sportAdminActivities: activities.filter(item => !item.targetGroups?.length || !profile.training_group || item.targetGroups.includes(profile.training_group)),
+        })
       }
       if (request.query?.planning === 'true') {
         const hiddenCalendar = await loadHiddenCalendarActivities()

@@ -75,7 +75,7 @@ function DiaryConnections({ days, byType, raceResults, goals, onDay }) {
   </section>
 }
 
-export function DiaryCalendar({ range, entries, selectedDay, onDay, onMonthChange, today = todayKey() }) {
+export function DiaryCalendar({ range, entries, selectedDay, onDay, onMonthChange, today = todayKey(), checkinHistory = false }) {
   const month = range.end.slice(0, 7)
   const first = `${month}-01`, offset = (new Date(`${first}T12:00:00Z`).getUTCDay() + 6) % 7
   const nextMonth = new Date(`${first}T12:00:00Z`); nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1)
@@ -88,7 +88,7 @@ export function DiaryCalendar({ range, entries, selectedDay, onDay, onMonthChang
     const incomplete = dayEntries.filter(entry => missingSwimDetails(entry).length), missing = [...new Set(incomplete.flatMap(missingSwimDetails))]
     const issue = incomplete.length ? `${incomplete.length} simpass saknar uppgifter: ${missing.join(', ')}` : ''
     return <button type="button" key={date} disabled={outside} className={`${dayEntries.length ? 'has-entries' : ''} ${incomplete.length ? 'missing-details' : ''} ${selectedDay === date ? 'selected' : ''}`} aria-pressed={selectedDay === date} title={issue || undefined} aria-label={`${dateLabel(date, { weekday: 'long', day: 'numeric', month: 'long' })}: ${dayEntries.length} registreringar${issue ? `. ${issue}` : ''}`} onClick={() => onDay(selectedDay === date ? null : date)}><strong>{Number(date.slice(-2))}</strong>{incomplete.length > 0 && <span className="diary-calendar-missing" aria-hidden="true">?</span>}<span>{types.slice(0, 3).map(type => <i key={type} title={TYPES[type]?.[1]}>{TYPES[type]?.[0] || '•'}</i>)}</span>{dayEntries.some(entry => entry.state === 'planned') && <small>Planerat</small>}</button>
-  })}</div><small>Tryck på en dag för dess pass och reflektioner. Pilarna byter perioden till vald månad.</small><p className="diary-calendar-key"><span aria-hidden="true">?</span> Rosa markering = ett genomfört simpass saknar meter, tid eller inriktning. Det är en uppgiftslucka, inte en bedömning av träningen.</p></section>
+  })}</div>{!checkinHistory && <><small>Tryck på en dag för dess pass och reflektioner. Pilarna byter perioden till vald månad.</small><p className="diary-calendar-key"><span aria-hidden="true">?</span> Rosa markering = ett genomfört simpass saknar meter, tid eller inriktning. Det är en uppgiftslucka, inte en bedömning av träningen.</p></>}</section>
 }
 
 function ReflectionEditor({ entry, code, request, available, onSaved, onDirty }) {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { normalizePersonalDetails, personalSlot } from '../shared/personal-training.js'
+import { planningAddDays } from '../shared/weekly-planning.js'
 import { toDatabase } from '../api/responses.js'
 
 test('SQL 131 keeps personal planning, check-in and completion atomic, owned and idempotent',{skip:!process.env.SIMKOLL_PGLITE_MODULE},async t=>{
@@ -70,6 +71,20 @@ test('SQL 131 keeps personal planning, check-in and completion atomic, owned and
       assert.equal(saved.response.activity_type,'other');assert.equal(saved.response.activity_sport,'running');assert.equal(saved.response.activity_distance_meters,null)
       await db.exec(await readFile(new URL('../supabase/migrations/131_personal_training_sessions.sql',import.meta.url),'utf8'))
       assert.equal((await call('report',id,{response:body(id)})).created,false)
+    })
+    await t.test('SQL 151 supports dated past completions without reopening older plans',async()=>{
+      const migration=await readFile(new URL('../supabase/migrations/151_historical_personal_checkins.sql',import.meta.url),'utf8')
+      await db.exec(migration)
+      const historical=randomUUID(),date=planningAddDays(today,-5)
+      const response={...body(historical),activity_date:date,late_entry:true}
+      await assert.rejects(call('save',historical,{date}),/date out of range/)
+      await assert.rejects(call('report',historical,{date,response:{...response,day_type:'before'}}),/date out of range/)
+      await assert.rejects(call('report',historical,{date,response:{...response,late_entry:false}}),/date out of range/)
+      const saved=await call('report',historical,{date,response})
+      assert.equal(saved.created,true)
+      assert.equal(saved.response.activity_date,date)
+      assert.equal(saved.response.late_entry,true)
+      assert.equal((await call('report',historical,{date,response})).created,false)
     })
   }finally{await db.close()}
 })

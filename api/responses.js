@@ -8,6 +8,7 @@ import { validWorkoutOption } from '../shared/swim-workout-options.js'
 import { checkinTraining, validCheckinActivity } from '../shared/checkin-activity.js'
 import { reportPersonalTraining } from '../server/personal-training.js'
 import { personalSlot } from '../shared/personal-training.js'
+import { alreadyReportedCheckin, checkinAnswerPatch, historicalCheckinKey, isPastCheckinDay, validCheckinHistoryRange } from '../shared/checkin-history.js'
 import { getRole, sendJson, supabaseRequest } from '../server/supabase.js'
 import { awardArtifact, awardPoints, getSessionProfile, stockholmDate, touchProfileActivity } from '../server/profile-auth.js'
 
@@ -125,6 +126,29 @@ export default async function handler(request, response) {
       try { return sendJson(response, 200, await dailySleep(request, role)) }
       catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
     }
+    if ((request.method === 'GET' && request.query?.checkinHistory === 'true') || (request.method === 'PATCH' && request.body?.action === 'edit-checkin-answers')) {
+      const profile = role === 'swimmer' ? await getSessionProfile(request) : null
+      if (!profile) return sendJson(response, 403, { error: 'Logga in på din simmarprofil för att öppna tidigare incheckningar.' })
+      const today = stockholmDate()
+      if (request.method === 'GET') {
+        const { start, end } = request.query
+        if (!validCheckinHistoryRange(start, end, today)) return sendJson(response, 400, { error: 'Välj ett giltigt datum före idag.' })
+        const result = await analyticsRows(`responses?profile_id=eq.${profile.id}&activity_date=gte.${start}&activity_date=lte.${end}&select=*&order=activity_date.asc,created_at.asc,id.asc`)
+        if (!result.ok || result.truncated) return sendJson(response, 503, { error: 'Incheckningarna kunde inte hämtas. Försök igen.' })
+        return sendJson(response, 200, { responses: (await result.json()).map(row => fromDatabase(row, true)) })
+      }
+      const { id, date, changes } = request.body
+      const edits = checkinAnswerPatch(changes)
+      if (typeof id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) || !isPastCheckinDay(date, today) || !edits) {
+        return sendJson(response, 400, { error: 'Välj en tidigare incheckning och kontrollera svaren.' })
+      }
+      const result = await supabaseRequest(`responses?id=eq.${id}&profile_id=eq.${profile.id}&activity_date=eq.${date}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(edits),
+      })
+      if (!result.ok) return sendJson(response, 503, { error: 'Svarens ändringar kunde inte sparas. Försök igen.' })
+      const [row] = await result.json()
+      return row ? sendJson(response, 200, { response: fromDatabase(row, true) }) : sendJson(response, 404, { error: 'Incheckningen finns inte på din profil för det datumet.' })
+    }
     if (request.method === 'GET') {
       const week = request.query?.coachWeek
       if (week != null && role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan läsa gruppens veckounderlag.' })
@@ -165,18 +189,28 @@ export default async function handler(request, response) {
       const sessionProfile = await getSessionProfile(request)
       const today = stockholmDate()
       const activityDate = String(request.body?.activityDate || today)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(activityDate) || ![today, yesterdayDate(today)].includes(activityDate)) return sendJson(response, 400, { error: 'Du kan bara checka in idag eller efterregistrera gårdagen.' })
+      const yesterday = yesterdayDate(today)
+      const historical = request.body?.historical === true
+      if (historical && (role !== 'swimmer' || !sessionProfile || request.body.identified !== true)) return sendJson(response, 403, { error: 'Efterregistrering via kalendern sparas på din egen simmarprofil.' })
+      if (historical ? !isPastCheckinDay(activityDate, today) || request.body.type === 'before'
+        : ![today, yesterday].includes(activityDate)) return sendJson(response, 400, { error: 'Välj ett giltigt datum för incheckningen.' })
       const lateEntry = activityDate !== today
       if (lateEntry && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på din simmarprofil för att efterregistrera gårdagen.' })
       const profile = request.body?.identified ? sessionProfile : null
       if (request.body?.identified && !sessionProfile) return sendJson(response, 401, { error: 'Logga in på profilen igen eller svara anonymt.' })
+      if (historical) {
+        const existing = await analyticsRows(`responses?profile_id=eq.${profile.id}&activity_date=eq.${activityDate}&select=id,day_type,competition,activity_type,session_slot,personal_session_id&order=id.asc`)
+        if (!existing.ok || existing.truncated) return sendJson(response, 503, { error: 'Tidigare svar för dagen kunde inte kontrolleras. Försök igen.' })
+        if (alreadyReportedCheckin(await existing.json(), request.body)) return sendJson(response, 409, { error: 'Det här är redan rapporterat. Gå tillbaka till kalendern och välj Ändra svar.' })
+      }
       if (request.body.workoutReference) {
         const options = await loadWorkoutChoices(activityDate, sessionProfile?.training_group)
         const option = options.find((item) => item.workoutReference === request.body.workoutReference)
         if (request.body.type !== 'after' || request.body.competition === true || request.body.activityType !== 'swim' || !validWorkoutOption(option, { date: activityDate, slot: request.body.trainingSlot, trainingGroup: sessionProfile?.training_group })) return sendJson(response, 400, { error: 'Passvalet stämmer inte med datum, grupp eller morgon/eftermiddag. Välj passet igen.' })
       }
       const hmacSecret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-      const lateEntryKey = lateEntry ? createHmac('sha256', hmacSecret).update(`${sessionProfile.id}:${activityDate}`).digest('hex') : null
+      const entryScope = historical ? `:${historicalCheckinKey(request.body)}` : ''
+      const lateEntryKey = lateEntry ? createHmac('sha256', hmacSecret).update(`${sessionProfile.id}:${activityDate}${entryScope}`).digest('hex') : null
       let personalResult
       if (request.body.personalSessionId) {
         try { personalResult = await reportPersonalTraining(sessionProfile.id, request.body, { ...toDatabase(request.body, profile.id, activityDate, null), late_entry: lateEntry }) }
@@ -187,7 +221,9 @@ export default async function handler(request, response) {
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(toDatabase(request.body, profile?.id, activityDate, lateEntryKey)),
       })
-      if (lateEntry && result.status === 409) return sendJson(response, 409, { error: 'Du har redan efterregistrerat gårdagens check-in.' })
+      if (lateEntry && result.status === 409) return sendJson(response, 409, { error: historical
+        ? 'Det här är redan rapporterat. Gå tillbaka till kalendern och välj Ändra svar.'
+        : 'Det finns redan en efterregistrering för den valda dagen.' })
       if (!result.ok) {
         const detail = await result.json().catch(() => ({}))
         if (['PGRST204', '42703'].includes(detail.code)) return sendJson(response, 503, { error: `Incheckningen behöver en databasuppdatering. Be administratören köra migration ${request.body.workoutReference ? '103_checkin_workout_choice' : '087'}. Inget svar har sparats.` })
@@ -195,11 +231,13 @@ export default async function handler(request, response) {
       }
       const [created] = await result.json()
       if (sessionProfile) {
-        await touchProfileActivity(sessionProfile.id, activityDate)
-        for (const award of checkinPointAwards(request.body, activityDate)) {
-          await awardPoints(sessionProfile.id, award.eventType, award.points, award.sourceKey)
+        if (activityDate >= yesterday) {
+          await touchProfileActivity(sessionProfile.id, activityDate)
+          for (const award of checkinPointAwards(request.body, activityDate)) {
+            await awardPoints(sessionProfile.id, award.eventType, award.points, award.sourceKey)
+          }
+          await awardArtifact(sessionProfile.id, 'first_step')
         }
-        await awardArtifact(sessionProfile.id, 'first_step')
         if (!lateEntry) {
           const unlockResult = await supabaseRequest('workout_unlocks?on_conflict=profile_id,workout_date', {
             method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' },

@@ -1,0 +1,11 @@
+.history-checkin-day { margin-top: 16px; }
+.history-checkin-day h2 { margin: 0; }
+.history-checkin-day article { border-top: 1px solid #dbe8e5; padding: 12px 0; }
+.history-checkin-day article strong { text-transform: capitalize; }
+.history-checkin-day article small { display: block; color: var(--muted); }
+.history-checkin-edit fieldset { display: grid; gap: 12px; padding: 0; margin: 10px 0 0; border: 0; min-width: 0; }
+.history-checkin-edit legend { font-weight: 700; }
+.history-checkin-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr)); gap: 10px; }
+.history-checkin-edit label { display: grid; gap: 5px; font-weight: 600; }
+.history-checkin-edit :is(select, textarea) { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #c9ddda; border-radius: 12px; background: #fff; color: var(--ink); font: inherit; }
+.history-checkin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
