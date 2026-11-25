@@ -18,7 +18,7 @@ import { createRoot } from 'react-dom/client'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { redactSpeedInsightsUrl } from '../shared/speed-insights.js'
 import { apiRequest } from './api-request.js'
-import { CoachCategorizedCard, CoachCategoryOptions, CoachCategoryProvider, CoachCategoryToolbar, requestCoachCategory, useCoachCardCategories, useCoachCardVisible } from './coach-card-categories.jsx'
+import { CoachCategorizedCard, CoachCategoryOptions, CoachCategoryProvider, CoachCategoryLoadError, requestCoachCategory, useCoachCardCategories, useCoachCardVisible } from './coach-card-categories.jsx'
 import { DEFAULT_COACH_CATEGORY } from '../shared/coach-card-categories.js'
 import { competitionIncludesSwimmer } from '../shared/competition-participation.js'
 import { chatBackgroundUrl } from './chat-background.js'
@@ -2906,7 +2906,7 @@ function CoachView({ accountRole = 'coach', responses, profiles, pendingProfiles
             {legacyToolKeys.filter(coachVisible).map((key) => { const item = navItem(key); return item ? <button key={key} className={view === key ? 'active' : ''} onClick={() => openViewFromMenu(key)}><span className="desktop-tab-label">{item.label}</span><span className="mobile-tab-label">{item.mobile}</span>{key === 'goals' && goalReplyCount > 0 && <b className="tab-count">{goalReplyCount}</b>}</button> : null })}
           </div></details>
         </nav>
-        {['today', 'control-panel', 'trends', 'planning', 'swimmers'].includes(view) && <CoachCategoryToolbar />}
+        {['today', 'control-panel', 'trends', 'planning', 'swimmers'].includes(view) && <CoachCategoryLoadError />}
         {view === 'today' && <section className="coach-heading coach-overview-card"><div><p className="eyebrow">Gruppens läge</p><h1>{summaryDate === todayKey() ? 'Idag' : 'Överblick'}</h1><div className="coach-top-date-controls"><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(-1)} aria-label="Föregående dag">←</button><span>{summaryDateLabel}</span><input type="date" value={summaryDate} onChange={(event) => event.target.value && setSummaryDate(event.target.value)} aria-label="Välj datum" /><button type="button" className="secondary-button" onClick={() => shiftSummaryDate(1)} aria-label="Nästa dag">→</button><button type="button" className="secondary-button" onClick={() => setSummaryDate(todayKey())}>Idag</button></div></div><div className="usage-summary"><div className="usage-stat"><strong>{summaryDate === todayKey() ? activeProfilesToday : selectedActiveProfiles}</strong><span>{summaryDate === todayKey() ? 'aktiva profiler idag' : 'profiler med svar'}</span></div><b className="usage-divider">·</b><div className="usage-stat"><strong>{selectedDateResponses.length}</strong><span>svar</span></div></div></section>}
         {view === 'today' && <CoachCategorizedCard id="competition-day"><CompetitionDaySummary date={summaryDate} plans={summaryCompetitionPlans} responses={selectedDateResponses} profiles={groupFilteredProfiles} /></CoachCategorizedCard>}
         {view === 'today' && <CoachCategorizedCard id="today-workouts"><TodayWorkoutSummary workouts={summaryWorkouts} selectedGroups={selectedGroups} hasCompetition={hasCompetitionOnSummaryDate} date={summaryDate} responses={selectedDateResponses} profiles={groupFilteredProfiles} code={code} onOpenSwimmer={profileId => { setFocusedSwimmerId(profileId); setView('swimmers') }} /></CoachCategorizedCard>}

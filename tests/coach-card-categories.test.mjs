@@ -12,14 +12,14 @@ const { createCoachToken } = await import('../server/coach-auth.js')
 
 test('coach layouts start at Bas and higher categories include lower ones', () => {
   assert.equal(coachCategory(undefined), 'bas')
-  assert.equal(canSeeCoachCard('bas', 'pro'), false)
-  assert.equal(canSeeCoachCard('pro', 'bas'), true)
-  assert.equal(canSeeCoachCard('pro', 'exp'), false)
-  assert.equal(canSeeCoachCard('exp', 'pro'), true)
+  const categories = ['bas', 'pro', 'exp']
+  assert.deepEqual(categories.map(view => categories.filter(card => canSeeCoachCard(view, card))), [
+    ['bas'], ['bas', 'pro'], ['bas', 'pro', 'exp'],
+  ])
   assert.equal(canSeeCoachCard('pro', undefined), true)
 })
 
-test('only a live superadmin can change card categories or a coach view, including their own', async (t) => {
+test('card editing requires both superadmin and Exp, while superadmin can always change the account view', async (t) => {
   const admin = { id: '11111111-1111-4111-8111-111111111111', role: 'superadmin', view_category: 'bas' }
   const coach = { id: '22222222-2222-4222-8222-222222222222', role: 'coach', view_category: 'bas' }
   const cards = new Map([['another.setting', 'pro']])
@@ -62,6 +62,10 @@ test('only a live superadmin can change card categories or a coach view, includi
   assert.equal((await request(coachCode, 'coach-set-card-category', cardEdit)).statusCode, 403)
   assert.equal((await request(coachCode, 'coach-set-view-category', coachEdit)).statusCode, 403)
   assert.equal((await request('test-swimmer', 'coach-card-layout')).statusCode, 403)
+  assert.equal((await request(adminCode, 'coach-set-card-category', cardEdit)).statusCode, 403)
+  assert.equal((await request(adminCode, 'coach-set-view-category', { accountId: admin.id, category: 'pro' })).statusCode, 200)
+  assert.equal((await request(adminCode, 'coach-set-card-category', cardEdit)).statusCode, 403)
+  assert.equal((await request(adminCode, 'coach-set-view-category', { accountId: admin.id, category: 'exp' })).body.ownAccount, true)
   assert.equal((await request(adminCode, 'coach-set-card-category', { ...cardEdit, cardId: 'unknown' })).statusCode, 400)
   assert.equal((await request(adminCode, 'coach-set-view-category', { ...coachEdit, category: ['pro'] })).statusCode, 400)
   assert.equal((await request(adminCode, 'coach-set-card-category', cardEdit)).statusCode, 200)
@@ -69,11 +73,14 @@ test('only a live superadmin can change card categories or a coach view, includi
   assert.deepEqual((await request(adminCode, 'coach-set-view-category', coachEdit)).body, {
     account: { id: coach.id, view_category: 'pro' }, ownAccount: false,
   })
-  assert.equal((await request(adminCode, 'coach-set-view-category', { accountId: admin.id, category: 'exp' })).body.ownAccount, true)
   const layout = (await request(coachCode, 'coach-card-layout', { accountId: admin.id })).body
   assert.deepEqual(layout, { accountId: coach.id, category: 'pro', cards: { attendance: 'exp', 'lane-usage': 'pro' } })
   assert.equal((await request('test-group-coach', 'coach-card-layout')).body.category, 'bas')
   assert.equal((await request(adminCode, 'coach-card-layout')).body.category, 'exp')
+  assert.equal((await request(adminCode, 'coach-set-view-category', { accountId: coach.id, category: 'exp' })).statusCode, 200)
+  assert.equal((await request(coachCode, 'coach-set-card-category', cardEdit)).statusCode, 403)
+  assert.equal((await request(adminCode, 'coach-set-view-category', { accountId: admin.id, category: 'bas' })).statusCode, 200)
+  assert.equal((await request(adminCode, 'coach-set-card-category', cardEdit)).statusCode, 403)
   assert.equal(admin.role, 'superadmin')
   adminActive = false
   assert.equal((await request(adminCode, 'coach-set-card-category', cardEdit)).statusCode, 401)

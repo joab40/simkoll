@@ -3,6 +3,7 @@ import { writeAuditLog } from './audit.js'
 import { getRole, sendJson, supabaseRequest } from './supabase.js'
 
 const CARD_PREFIX = 'coach_card_category.'
+const CARD_EDIT_DENIED = 'Endast superadmin med kortvyn Exp kan ändra kortkategorier.'
 
 export async function readCoachCardLayout(request, response, actor) {
   if (getRole(request.headers['x-simkoll-code']) !== 'coach') {
@@ -27,7 +28,15 @@ export async function readCoachCardLayout(request, response, actor) {
 
 export async function saveCoachCardCategory(request, response, actor) {
   if (actor?.role !== 'superadmin') {
-    return sendJson(response, 403, { error: 'Endast superadmin kan ändra kortkategorier.' })
+    return sendJson(response, 403, { error: CARD_EDIT_DENIED })
+  }
+  try {
+    const result = await supabaseRequest(`coach_accounts?id=eq.${encodeURIComponent(actor.sub)}&status=eq.active&role=eq.superadmin&select=view_category&limit=1`)
+    if (!result.ok) throw new Error('Coach category lookup failed')
+    const [account] = await result.json()
+    if (account?.view_category !== 'exp') return sendJson(response, 403, { error: CARD_EDIT_DENIED })
+  } catch {
+    return sendJson(response, 503, { error: 'Din kortvy kunde inte kontrolleras. Försök igen.' })
   }
   const { cardId, category } = request.body
   if (!isCoachCard(cardId) || !isCoachCategory(category)) {

@@ -1,4 +1,4 @@
-.coach-category-toolbar {
+.coach-category-load-error {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -7,11 +7,6 @@
   margin: 8px 0 16px;
   color: var(--muted);
   font-size: 0.85rem;
-}
-
-.coach-category-toolbar .text-button[aria-pressed="true"] {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
 }
 
 .coach-card-category {

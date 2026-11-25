@@ -19,8 +19,8 @@ export function CoachCategoryProvider({ code, accountRole, children }) {
   const [ownCategory, setOwnCategory] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
-  const [showAll, setShowAll] = useState(false)
-  const canEdit = accountRole === 'superadmin'
+  const category = ownCategory ?? layout?.category
+  const canEdit = accountRole === 'superadmin' && category === 'exp'
 
   useEffect(() => {
     const controller = new AbortController()
@@ -37,13 +37,12 @@ export function CoachCategoryProvider({ code, accountRole, children }) {
   }
 
   function updateOwnCategory(account) {
-    setShowAll(false)
     setOwnCategory(account.view_category)
   }
 
   return <CategoryContext.Provider value={{
-    layout: layout && { ...layout, category: ownCategory ?? layout.category },
-    canEdit, error, showAll: canEdit && showAll, setShowAll,
+    layout: layout && { ...layout, category },
+    canEdit, error,
     retry: () => setAttempt(current => current + 1), saveCard, updateOwnCategory,
   }}>{children}</CategoryContext.Provider>
 }
@@ -54,9 +53,9 @@ export function useCoachCardCategories() {
 
 function cardVisible(categories, id) {
   if (!categories) return true
-  const { layout, error, showAll } = categories
+  const { layout, error } = categories
   if (!layout && !error) return false
-  return showAll || canSeeCoachCard(layout?.category, layout?.cards?.[id])
+  return canSeeCoachCard(layout?.category, layout?.cards?.[id])
 }
 
 export function useCoachCardVisible(id) {
@@ -67,16 +66,11 @@ export function CoachCategoryOptions() {
   return Object.entries(COACH_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)
 }
 
-export function CoachCategoryToolbar() {
+export function CoachCategoryLoadError() {
   const categories = useCoachCardCategories()
-  if (!categories) return null
-  if (categories.error) return <div className="coach-category-toolbar" role="status">{categories.error} <button type="button" className="text-button" onClick={categories.retry}>Hämta igen</button></div>
-  if (!categories.canEdit || !categories.layout) return null
-  return <div className="coach-category-toolbar">
-    <span>Min kortvy · {COACH_CATEGORY_LABELS[categories.layout.category || DEFAULT_COACH_CATEGORY]}</span>
-    <button type="button" className="text-button" aria-pressed={categories.showAll} onClick={() => categories.setShowAll(!categories.showAll)}>
-      {categories.showAll ? 'Visa min kortvy' : 'Visa alla kort för redigering'}
-    </button>
+  if (!categories?.error) return null
+  return <div className="coach-category-load-error" role="status">
+    {categories.error} <button type="button" className="text-button" onClick={categories.retry}>Hämta igen</button>
   </div>
 }
 
