@@ -566,7 +566,7 @@ function App() {
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'dryland-program' && <DrylandProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
-      {screen === 'profile' && <MyProfile profile={profile} flightRecord={<FlightRecordProfileSetting flight={flight} />} points={points} code={auth.code} onProfileChange={setProfile} onBack={() => setScreen('home')} onDiary={() => setScreen('training-diary')} onOpenTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId); setScreen('talks') }} onProfileLogout={async () => {
+      {screen === 'profile' && <MyProfile seasonGoal={currentSeasonGoal(training)} onGoals={() => setScreen('goals')} profile={profile} flightRecord={<FlightRecordProfileSetting flight={flight} />} points={points} code={auth.code} onProfileChange={setProfile} onBack={() => setScreen('home')} onDiary={() => setScreen('training-diary')} onOpenTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId); setScreen('talks') }} onProfileLogout={async () => {
         await stopDevicePush(auth.code).catch(() => {})
         await apiRequest('/api/profiles', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) })
         setProfile(null)
@@ -2199,7 +2199,7 @@ function MyGoals({ code, onTrainingChange, onBack }) {
   </>}</div></div>
 }
 
-function MyProfile({ flightRecord, profile, points, code, onProfileChange, onBack, onDiary, onOpenTalk, onProfileLogout }) {
+function MyProfile({ seasonGoal, onGoals, flightRecord, profile, points, code, onProfileChange, onBack, onDiary, onOpenTalk, onProfileLogout }) {
   const [responses, setResponses] = useState([])
   const [artifacts, setArtifacts] = useState([])
   const [competitionResults, setCompetitionResults] = useState([])
@@ -2220,8 +2220,14 @@ function MyProfile({ flightRecord, profile, points, code, onProfileChange, onBac
       <button className="back-button" onClick={onBack}>← Tillbaka</button>
       <section className="profile-summary"><span>{profile.emoji}</span><div><p className="eyebrow">Min profil</p><h1>{profile.displayName}</h1><small>@{profile.username}</small></div>{points?.current && <div className="profile-level"><b>{points.current.emoji} {points.current.name}</b><span>{points.total} poäng</span></div>}</section>
       {!editing ? <button className="profile-edit-button" onClick={() => { setEditForm({ displayName: profile.displayName, emoji: profile.emoji }); setEditError(''); setEditing(true) }}>✏️ Ändra namn eller emoji</button> : <form className="profile-edit-form" onSubmit={async (event) => { event.preventDefault(); setEditError(''); try { const data = await apiRequest('/api/profiles', code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-profile', ...editForm }) }); onProfileChange(data.profile); setEditing(false) } catch (error) { setEditError(error.message) } }}><label>Visningsnamn<input maxLength="40" required value={editForm.displayName} onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })} /></label><fieldset><legend>Välj emoji</legend><div className="avatar-picker">{PROFILE_EMOJIS.map((emoji) => <button type="button" className={editForm.emoji === emoji ? 'selected' : ''} key={emoji} onClick={() => setEditForm({ ...editForm, emoji })}>{emoji}</button>)}</div><input className="custom-emoji-input" maxLength="16" aria-label="Egen emoji" placeholder="Eller skriv en egen emoji" value={editForm.emoji} onChange={(event) => setEditForm({ ...editForm, emoji: event.target.value })} /></fieldset>{editError && <p className="form-error">{editError}</p>}<div><button type="button" className="secondary-button" onClick={() => setEditing(false)}>Avbryt</button><button className="primary-button">Spara ändringar</button></div></form>}
+      <button type="button" className="profile-shortcut" onClick={onGoals}>
+        <span><strong>🎯 Mina mål</strong>
+          <small>{seasonGoal ? `${seasonGoal.title} · ${seasonGoal.target} simpass per vecka` : 'Se dina träningsmål och utvecklingsmål'}</small>
+        </span>
+        <b aria-hidden="true">→</b>
+      </button>
       <section className="artifact-collection"><div><p className="eyebrow">Min samling</p><h2>Artefakter</h2><small>Små bevis på vanor, utveckling och lagkänsla.</small></div>{artifacts.length ? <div className="artifact-grid">{artifacts.map((artifact) => <article key={artifact.id} title={artifact.description}><span>{artifact.emoji}</span><strong>{artifact.name}</strong><small>{new Date(artifact.awardedAt).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}</small></article>)}</div> : <p className="empty">Din samling är tom än så länge.</p>}</section>
-      <button type="button" className="profile-diary-link" onClick={onDiary}><span><strong>📖 Min träningsdagbok</strong><small>Pass, träningsmängd, utveckling och egna reflektioner</small></span><b>→</b></button>
+      <button type="button" className="profile-shortcut" onClick={onDiary}><span><strong>📖 Min träningsdagbok</strong><small>Pass, träningsmängd, utveckling och egna reflektioner</small></span><b>→</b></button>
       {flightRecord}
       <PushNotificationControl code={code} />
       {competitionResults.length > 0 && <details className="my-competition-results"><summary><span><p className="eyebrow">Tävlingsresultat</p><h2>Mina tävlingsresultat</h2><small>{competitionResults.length} sparade resultat · tryck för att visa</small></span><b>＋</b></summary><div className="competition-event-list">{[...new Set(competitionResults.map((item) => item.event))].sort((a, b) => a.localeCompare(b, 'sv')).map((event) => { const items = competitionResults.filter((item) => item.event === event); const best = items.slice().sort((a, b) => (a.result_time || 999999) - (b.result_time || 999999))[0]; return <details key={event}><summary><span>{event}</span><b>{best.swim_time}</b></summary><div className="competition-history">{items.slice(0, 20).map((item) => <span key={item.id}>{item.pool || 'Bassäng saknas'} · {item.result_date ? new Date(`${item.result_date}T12:00:00`).toLocaleDateString('sv-SE') : item.result_year ? `Cirka ${item.result_year}` : 'Datum okänt'} · {item.swim_time}{item.source === 'manual' ? ' · Manuellt tillagt' : ''}</span>)}</div></details> })}</div></details>}
