@@ -182,6 +182,10 @@ const POINT_RULES = [
   { activity: 'Klappa nivåemblemet', points: 1, limit: 'Max 5 poäng per simmare och svensk kalenderdag' },
 ]
 
+function swimmerRewardProgress(total, levels) {
+  return { ...rewardProgress(total, levels), unlockedLevels: levels.filter(level => level.minPoints <= total).reverse() }
+}
+
 export default async function handler(request, response) {
   if (!await guardCoachSession(request, response)) return
   const role = getRole(String(request.headers['x-simkoll-code'] || ''))
@@ -197,7 +201,7 @@ export default async function handler(request, response) {
         // turn a committed point into an unusable response. Retries keep the ID.
         const levels = await rewardLevels()
         const { total, ...bonus } = await rewardEmblemBonus(profile.id, request.body.requestId)
-        return sendJson(response, 200, { ...rewardProgress(total, levels), emblemBonus: { ...bonus, available: true } })
+        return sendJson(response, 200, { ...swimmerRewardProgress(total, levels), emblemBonus: { ...bonus, available: true } })
       } catch (error) {
         console.error(error)
         return sendJson(response, 503, { error: 'Bonusen kunde inte bekräftas. Tryck igen för att kontrollera samma försök. Kontrollera att SQL 129 är körd.' })
@@ -487,7 +491,7 @@ export default async function handler(request, response) {
     ])
     if (!pointsResult.ok) throw new Error('Recent rewards lookup failed')
     const events = await pointsResult.json()
-    const progress = rewardProgress(totals[profile.id], levels)
+    const progress = swimmerRewardProgress(totals[profile.id], levels)
     const rewardLabels = { checkin_before: 'Du checkade in inför träningen! 🏊', training_feedback: 'Du återkopplade efter träningen! ✨', weekly_goal: 'Du nådde förra veckans simmål! 🏊', strength_weekly_goal: 'Du nådde förra veckans styrkemål! 💪', dryland_weekly_goal: 'Du nådde förra veckans landträningsmål! 🤸', planning_weekly_goal: 'Du planerade veckan proaktivt! 🗓️', goal_progress: 'Tränaren såg dina framsteg! 🎯', goal_complete: 'Du klarade ett utvecklingsmål! 🏆', program_goal: 'Du klarade ett programmål! ✅', game_played: 'Du testade ett veckospel! 🎮', personal_best: 'Nytt personbästa i Tempus Open! 🏅', streak_milestone: 'Du höll en streak-milstolpe! 🔥', coach_info_opened: 'Du läste info från tränarna! ✉️', assistant_daily_bonus: 'Dagens bonus från Simkoll-assistenten!' }
     const recentRewards = events.filter((event) => rewardLabels[event.event_type] && new Date(event.created_at) > new Date(Date.now() - 7 * 86400000)).slice(0, 3).map((event) => ({ id: event.id, message: rewardLabels[event.event_type], points: event.points, createdAt: event.created_at }))
     return sendJson(response, 200, {

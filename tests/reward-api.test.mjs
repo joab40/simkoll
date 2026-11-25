@@ -28,6 +28,7 @@ test('real endpoint uses the same complete total for coach and swimmer and never
   assert.equal(coach.code,200);assert.equal(swimmer.code,200)
   assert.equal(coach.data.profiles[0].total,878);assert.equal(swimmer.data.total,878)
   assert.equal(coach.data.profiles[0].level.id,swimmer.data.current.id)
+  assert.deepEqual(swimmer.data.unlockedLevels.map(level => level.id), [8, 1])
   assert.equal(swimmer.data.next.remaining,122);assert.equal(swimmer.data.recentRewards[0].points,3)
   assert.equal(swimmer.data.emblemBonus.available,true);assert.equal(swimmer.data.emblemBonus.used,0)
   assert.deepEqual(totalRequests,[{p_profile_ids:[id]},{p_profile_ids:[id]}])
