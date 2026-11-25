@@ -2,7 +2,7 @@ import { coachWeekAddDays } from './coach-week.js'
 import { illnessDays, validIllnessDay } from './illness.js'
 import { heavyTrainingPattern, HEAVY_PATTERN_RULE } from './heavy-training-pattern.js'
 
-export const FOLLOWUP_RULES = `${HEAVY_PATTERN_RULE} Samma regler används på simmarkortet och i kontrollpanelen. Sjukdom/sömn använder sju dagar separat: sjuk idag/igår, minst tre dagar med lite sjukdomskänningar och aktuellt känningar-svar idag/igår, eller befintlig röd sömnsignal ger rött. Övriga sjukdomssvar, aktuella ettor, RPE 8–10 på minst två dagar eller gul sömnsignal ger gult. Missad registrering av planerade pass är separat planeringsinformation, inte hälsovarning. Ingen sjukdomsprognos görs.`
+export const FOLLOWUP_RULES = `${HEAVY_PATTERN_RULE} Samma regler används på simmarkortet och under Veckan. Sjukdom/sömn använder sju dagar separat: sjuk idag/igår, minst tre dagar med lite sjukdomskänningar och aktuellt känningar-svar idag/igår, eller befintlig röd sömnsignal ger rött. Övriga sjukdomssvar, aktuella ettor, RPE 8–10 på minst två dagar eller gul sömnsignal ger gult. Missad registrering av planerade pass är separat planeringsinformation, inte hälsovarning. Ingen sjukdomsprognos görs.`
 
 // Callers provide already scoped sleep reasons. No workload threshold is used to
 // infer illness; absence of an answer is not a declaration of good health.

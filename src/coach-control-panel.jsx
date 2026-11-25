@@ -63,8 +63,8 @@ export default function CoachControlPanel({ profiles, asOf, code, request, onOpe
   const checkinComparison = buildCoachCheckinComparison(responses.filter(row => row.profileId ? ids.has(row.profileId) : includeAnonymous), weekStart, observedEnd)
   const periodLabel = dayLabel(weekStart) + '–' + dayLabel(weekEnd)
   return <section className="coach-control-panel">
-    <div className="period-heading"><div><p className="eyebrow">Tränarens kontrollpanel</p><h1>Gruppen i korthet</h1><small>{periodLabel} · {report.profileCount} simmare i valda grupper</small></div></div>
-    <nav className="coach-panel-week-navigation" aria-label="Vecka för hela kontrollpanelen">
+    <div className="period-heading"><div><p className="eyebrow">Gruppen i korthet</p><h1>Veckan</h1><small>{periodLabel} · {report.profileCount} simmare i valda grupper</small></div></div>
+    <nav className="coach-panel-week-navigation" aria-label="Välj vecka">
       <button type="button" className="secondary-button" aria-label="Föregående vecka" onClick={() => setWeekStart(coachWeekAddDays(weekStart, -7))}>←</button>
       <strong aria-live="polite">{periodLabel}</strong>
       <button type="button" className="secondary-button" aria-label="Nästa vecka" onClick={() => setWeekStart(coachWeekAddDays(weekStart, 7))}>→</button>

@@ -1,5 +1,5 @@
 export const COACH_NAV_ITEMS = [
-  { key: 'today', label: 'Idag', mobile: 'Idag' }, { key: 'control-panel', label: 'Kontrollpanel', mobile: 'Överblick' }, { key: 'swimmers', label: 'Simmare', mobile: 'Simmare' },
+  { key: 'today', label: 'Idag', mobile: 'Idag' }, { key: 'control-panel', label: 'Veckan', mobile: 'Veckan' }, { key: 'swimmers', label: 'Simmare', mobile: 'Simmare' },
   { key: 'flight-record', label: 'Flight Record', mobile: 'Flight Record' },
   { key: 'groups', label: 'Grupper', mobile: 'Grupper' }, { key: 'workout', label: 'Pass', mobile: 'Pass' },
   { key: 'planning', label: 'Planering', mobile: 'Plan' }, { key: 'competition-calendar', label: 'Tävlingskalender', mobile: 'Tävling' },
