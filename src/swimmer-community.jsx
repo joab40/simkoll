@@ -41,7 +41,7 @@ function ChatPageHeading({ title, onBack, points }) {
   </header>
 }
 
-export function CoachInfoPage({ code, profile, initialThread, onBack, request = apiRequest }) {
+export function CoachInfoPage({ code, profile, initialThread, onPrivateMessagesViewed, onBack, request = apiRequest }) {
   const [thread, setThread] = useState(initialThread)
   const privateChannel = useCommunityChannel({ code, request, active: Boolean(profile), channel: 'channel=trainer-private' })
   const messages = privateChannel.data?.messages || noItems
@@ -56,7 +56,7 @@ export function CoachInfoPage({ code, profile, initialThread, onBack, request = 
       {privateChannel.error && <p role="status">Kunde inte uppdatera privata meddelanden. <button type="button" className="text-button" onClick={() => privateChannel.refresh({ force: true }).catch(() => {})}>Försök igen</button></p>}
     </section>}
     <OpenChatPanel code={code} profileId={profile?.id} fitViewport request={request} onOpenThread={setThread} />
-    {thread && <PrivateChatReply key={privateThreadKey(thread)} thread={thread} code={code} request={request} onClose={() => setThread(null)} />}
+    {thread && <PrivateChatReply key={privateThreadKey(thread)} thread={thread} code={code} request={request} onViewed={onPrivateMessagesViewed} onClose={() => setThread(null)} />}
   </main>
 }
 

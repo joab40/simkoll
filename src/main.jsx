@@ -1,5 +1,5 @@
 import { PLANNING_WEEK_TYPES } from '../shared/planning-week-types.js'
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AssistantUsageLog } from './assistant-usage.jsx'
 import CoachPasswordReset, { coachResetRoute } from './coach-password-reset.jsx'
 import CoachTestEmail from './coach-test-email.jsx'
@@ -91,6 +91,7 @@ import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { GoalMediaEditor } from './goal-video.jsx'
 import { uploadGoalVideo } from './goal-video-upload.js'
 import { coachMetricDetails } from './coach-metric-details.js'
+import { readSeenNotifications, rememberSeenNotifications } from './swimmer-notification-state.js'
 import { latestCoachMessageId, coachInfoReadKey, markCoachMessageRead } from './coach-info.js'
 import './styles.css'
 import './swimmer-community.css'
@@ -205,7 +206,22 @@ function App() {
   const [activeProfilesToday, setActiveProfilesToday] = useState(0)
   const [activityDates, setActivityDates] = useState(null)
   const [points, setPoints] = useState(null)
-  const [notifications, setNotifications] = useState([])
+  const [notificationInbox, setNotificationInbox] = useState(null)
+  const dismissedNotifications = useRef(new Map())
+  const notifications = notificationInbox && notificationInbox.profileId === profile?.id ? notificationInbox.items : []
+  const dismissNotifications = useCallback(ids => {
+    const profileId = profile?.id
+    if (!profileId || !ids.length) return
+    const previous = dismissedNotifications.current.get(profileId) || new Set()
+    for (const id of ids) previous.add(id)
+    dismissedNotifications.current.set(profileId, previous)
+    rememberSeenNotifications(profileId, ids)
+    setNotificationInbox(current => current?.profileId === profileId && current.items.some(item => previous.has(item.id))
+      ? { profileId, items: current.items.filter(item => !previous.has(item.id)) } : current)
+  }, [profile?.id])
+  const viewTrainerMessages = useCallback(messages => dismissNotifications(
+    messages.filter(item => item.senderRole === 'coach').map(item => `message-${item.id}`),
+  ), [dismissNotifications])
   const [newDevelopmentGoals, setNewDevelopmentGoals] = useState([])
   const [training, setTraining] = useState(null)
   const weeklyTrainingSync=useMemo(()=>createWeeklyTrainingSync({request:apiRequest,code:auth?.code,profileId:profile?.id,onChange:setTraining}),[auth?.code,profile?.id])
@@ -352,7 +368,13 @@ function App() {
   useEffect(() => {
     if (!auth || !profile) return undefined
     let active = true
-    const stop = startVisiblePolling(() => apiRequest('/api/notifications', auth.code, { retry: false }).then((data) => { if (active) setNotifications(data.notifications || []) }), 60000)
+    const profileId = profile.id
+    const stop = startVisiblePolling(() => apiRequest('/api/notifications', auth.code, { retry: false }).then(data => {
+      if (!active) return
+      const seen = readSeenNotifications(profileId)
+      const dismissed = dismissedNotifications.current.get(profileId)
+      setNotificationInbox({ profileId, items: (data.notifications || []).filter(item => !seen.has(item.id) && !dismissed?.has(item.id)) })
+    }), 60000)
     return () => { active = false; stop() }
   }, [auth, profile?.id])
 
@@ -406,7 +428,8 @@ function App() {
     setWorkoutLocked(false)
     setActiveProfilesToday(0)
     setPoints(null)
-    setNotifications([])
+    setNotificationInbox(null)
+    dismissedNotifications.current.clear()
     setNewDevelopmentGoals([])
     setAvailableGames([])
     setPreviousGames([])
@@ -482,7 +505,7 @@ function App() {
       {screen === 'swimmer-terms' && profile && <SwimmerTerms code={auth.code} profile={profile} onAccepted={(nextProfile) => { setProfile(nextProfile); setScreen('home') }} onLogout={logout} />}
       {screen === 'home' && (
         <Home key={profile?.id || 'guest'} code={auth.code} onOpenDiary={shortcut => { setDiaryShortcut(shortcut); setScreen('training-diary') }}
-          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsChange={setNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={openCoachInfo} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
+          onPlanning={planningEnabled ? () => setScreen('planning') : undefined} flightRecord={<FlightRecordHomeCard flight={flight} code={auth.code} request={apiRequest} competitions={competitions} />} feedbackJumpRequest={feedbackJumpRequest} responses={responses} responsesLoaded={responsesLoaded} profile={profile} points={points} onPointsChange={setPoints} onNotificationsRead={dismissNotifications} notifications={notifications} newDevelopmentGoals={newDevelopmentGoals} training={training} workout={workout} competitions={competitions} developmentTalks={talksEnabled ? developmentTalks : []} availableGames={availableGames} previousGames={previousGames} betaGames={betaGames} onBetaGame={(key) => { setBetaGameKey(key); setScreen('beta-game') }} appFeedbackEnabled={appFeedbackEnabled} starsEnabled={starsEnabled} swimmerEffects={swimmerEffects || profile?.isTestProfile} swimmerThemesEnabled={swimmerThemesEnabled || profile?.isTestProfile} swimmerTheme={swimmerTheme} workoutLocked={workoutLocked} activeProfilesToday={activeProfilesToday} activityDates={activityDates} onCommunity={() => setScreen('community')} onCommunityChat={openCoachInfo} onGoals={() => setScreen('goals')} onTalk={(talkId) => { setSelectedDevelopmentTalkId(talkId || null); setScreen('talks') }} onStrengthProgram={() => setScreen('strength-program')} onDrylandProgram={() => setScreen('dryland-program')} onCompetitions={() => setScreen('competition-entries')} onGame={(game = 'game') => setScreen(game)} onVanda={() => setScreen('vanda')} onSwimgames={() => setScreen('swimgames')} onAljakten={() => setScreen('aljakten')} onBreakout={() => setScreen('breakout')} onSprint={() => setScreen('sprint100')} onLongJump={() => setScreen('longjump')} onBikeRun={() => setScreen('bikerun')} onTwenty48={() => setScreen('twenty48')} onAllTime={() => setScreen('alltime-games')} onDino={() => setScreen('dino')} onToggleSession={weeklyTrainingSync.saveSession} onTogglePlan={async (date, slot, planned) => apiRequest('/api/training', auth.code, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle-plan', date, slot, planned }) })} onStart={() => {
           setHistoricalCheckin(false)
           setCheckinActivityDate(todayKey())
           if (profile) setScreen('privacy-choice')
@@ -539,7 +562,7 @@ function App() {
       )}
       {screen === 'thanks' && <Thanks responses={responses} profile={profile} identified={identified} activityDate={checkinActivityDate} lateEntry={historicalCheckin || checkinActivityDate !== todayKey()} historical={historicalCheckin} workout={workout} onDone={() => setScreen(historicalCheckin ? 'checkin-history' : 'home')} />}
       {['community', 'private-messages'].includes(screen) && <Community key={profile.id} profile={profile} code={auth.code} points={points} customPepEnabled={customPepEnabled} initialView={screen === 'private-messages' ? 'private' : 'group'} onBack={() => setScreen('home')} />}
-      {screen === 'coach-info' && <CoachInfoPage key={profile?.id} code={auth.code} profile={profile} initialThread={coachInfoThread} onBack={() => setScreen('home')} />}
+      {screen === 'coach-info' && <CoachInfoPage key={profile?.id} code={auth.code} profile={profile} initialThread={coachInfoThread} onPrivateMessagesViewed={viewTrainerMessages} onBack={() => setScreen('home')} />}
       {screen === 'goals' && <MyGoals code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'strength-program' && <StrengthProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
       {screen === 'dryland-program' && <DrylandProgramPage code={auth.code} onTrainingChange={setTraining} onBack={() => setScreen('home')} />}
@@ -1139,7 +1162,7 @@ function StarProgress({ stars }) {
   return <div className="star-progress" aria-label="Dina stjärnor">{items.map(([key, label]) => <span key={key} className={stars[key] ? 'earned' : ''} title={`${label}: ${stars[key] ? 'klar' : 'inte klar ännu'}`}>{stars[key] ? '★' : '☆'}</span>)}</div>
 }
 
-function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest = 0, responses, responsesLoaded = false, profile, points, onPointsChange, notifications, onNotificationsChange, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onOpenCheckinHistory }) {
+function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest = 0, responses, responsesLoaded = false, profile, points, onPointsChange, notifications, onNotificationsRead, newDevelopmentGoals = [], training, workout, competitions, developmentTalks = [], availableGames, previousGames, betaGames = [], onBetaGame, appFeedbackEnabled, openChatEnabled, starsEnabled, swimmerEffects, swimmerThemesEnabled, swimmerTheme, workoutLocked, activeProfilesToday, activityDates, onCommunity, onCommunityChat, onGoals, onTalk, onStrengthProgram, onDrylandProgram, onCompetitions, onGame, onVanda, onSwimgames, onAljakten, onBreakout, onSprint, onLongJump, onBikeRun, onTwenty48, onAllTime, onDino, onToggleSession, onTogglePlan, onStart, onOpenCheckinHistory }) {
   const bonusScope = useRef(null)
   useEffect(() => {
     bonusScope.current = {}
@@ -1156,6 +1179,11 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
   const [communityPreviewError, setCommunityPreviewError] = useState(false)
   const chatVisible = Boolean(communityPreview?.trainerPrivate?.length) || (communityPreview?.openChat?.enabled ?? (openChatEnabled === true))
   const [coachPreviewRequest, setCoachPreviewRequest] = useState(0)
+  const unreadTrainerMessage = notifications.find(item => item.type === 'message')
+  const openTrainerNotice = item => {
+    if (!item.thread) onNotificationsRead([item.id])
+    onCommunityChat(item.thread)
+  }
   const levelVisible = Boolean(profile && points?.current)
   const pendingDevelopmentTalk = latestPendingDevelopmentTalk(developmentTalks)
   useEffect(() => {
@@ -1209,7 +1237,9 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
       <section key="today" className={`mood-hero ${energized ? 'energized' : ''} ${contextClass}${themeClass}`}>
         {swimmerThemesEnabled && swimmerTheme === 'halloween' && <div className="halloween-decor" aria-hidden="true"><span className="halloween-web">🕸️</span><span className="halloween-spider">🕷️</span><span className="halloween-pumpkin pumpkin-left">🎃</span><span className="halloween-pumpkin pumpkin-right">🎃</span></div>}
         {winterActive && <WinterHeroDecor animate={swimmerEffects} />}
-        {profile && chatVisible && <CoachLetterBadge code={code} chat={communityPreview?.openChat} profileId={profile.id} onOpen={() => setCoachPreviewRequest((value) => value + 1)} />}
+        {profile && (chatVisible || unreadTrainerMessage) && <CoachLetterBadge code={code} chat={communityPreview?.openChat}
+          profileId={profile.id} privateNotice={unreadTrainerMessage} onOpenPrivate={openTrainerNotice}
+          onOpen={() => setCoachPreviewRequest(value => value + 1)} />}
         <div className={`mood-hero-heading${nextCompetitionLogo ? ' has-competition-logo' : ''}`}>
           <div>
             <p className="eyebrow light">Idag i gruppen</p>
@@ -1267,7 +1297,7 @@ function Home({ flightRecord, onOpenDiary, onPlanning, code, feedbackJumpRequest
       {profile && <CompetitionSignupCard competitions={competitions} onOpen={onCompetitions} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'strength') && <StrengthProgramCard training={training} onOpen={onStrengthProgram || onGoals} />}
       {profile && training?.assignments?.some((assignment) => assignment.program?.type === 'dryland') && <StrengthProgramCard programType="dryland" training={training} onOpen={onDrylandProgram || onGoals} />}
-      {profile && <NotificationCard profile={profile} notifications={notifications} onChange={onNotificationsChange} onCommunity={onCommunity} onGoals={onGoals} />}
+      {profile && <NotificationCard notifications={notifications} onRead={onNotificationsRead} onOpenTrainer={openTrainerNotice} onCommunity={onCommunity} onGoals={onGoals} />}
       {profile && <PushNotificationControl code={code} compact />}
       {profile && <WeeklySwimCard code={code} training={training} showStars={starsEnabled} halloween={swimmerThemesEnabled && swimmerTheme === 'halloween'} winter={winterActive} onOpen={onGoals} onPlanning={onPlanning} onToggle={onToggleSession} onPlan={onTogglePlan} />}
       {profile && <GameBetaList games={betaGames} onPlay={onBetaGame} />}
@@ -1375,7 +1405,7 @@ function OpenChatCard({ data, code, setData, error = false, onOpen, channel = 'c
   </section>
 }
 
-function CoachLetterBadge({ code, chat, profileId, onOpen }) {
+function CoachLetterBadge({ code, chat, profileId, privateNotice, onOpenPrivate, onOpen }) {
   const [hasMessage, setHasMessage] = useState(false)
   const [messageKey, setMessageKey] = useState('')
   const [readKey, setReadKey] = useState('')
@@ -1385,8 +1415,10 @@ function CoachLetterBadge({ code, chat, profileId, onOpen }) {
     setHasMessage(Boolean(latest)); setMessageKey(latest)
     try { setReadKey(localStorage.getItem(coachInfoReadKey(profileId)) || '') } catch { setReadKey('') }
   }, [chat, profileId])
-  if (!hasMessage || opened) return null
+  if (!privateNotice && (!hasMessage || opened)) return null
+  const label = privateNotice ? 'Nytt privat meddelande från tränarna – öppna' : 'Nytt meddelande från tränarna – öppna'
   const open = () => {
+    if (privateNotice) { onOpenPrivate(privateNotice); return }
     if (!opened && messageKey) {
       setReadKey(messageKey)
       markCoachMessageRead(window.localStorage, profileId, messageKey)
@@ -1394,7 +1426,7 @@ function CoachLetterBadge({ code, chat, profileId, onOpen }) {
     }
     onOpen()
   }
-  return <button type="button" className="coach-letter-badge" onClick={open} aria-label="Nytt meddelande från tränarna – öppna" title="Nytt meddelande från tränarna"><span className="coach-letter-envelope" aria-hidden="true"><svg viewBox="0 0 48 36" focusable="false"><rect x="2" y="2" width="44" height="32" rx="5" fill="#ffdc59" stroke="#b77916" strokeWidth="2" /><path d="M3 30 18 17M45 30 30 17" fill="none" stroke="#d79928" strokeWidth="2" /><path d="m3 5 18 15a5 5 0 0 0 6 0L45 5" fill="#ffe995" stroke="#b77916" strokeWidth="2" strokeLinejoin="round" /></svg></span></button>
+  return <button type="button" className="coach-letter-badge" onClick={open} aria-label={label} title={label}><span className="coach-letter-envelope" aria-hidden="true"><svg viewBox="0 0 48 36" focusable="false"><rect x="2" y="2" width="44" height="32" rx="5" fill="#ffdc59" stroke="#b77916" strokeWidth="2" /><path d="M3 30 18 17M45 30 30 17" fill="none" stroke="#d79928" strokeWidth="2" /><path d="m3 5 18 15a5 5 0 0 0 6 0L45 5" fill="#ffe995" stroke="#b77916" strokeWidth="2" strokeLinejoin="round" /></svg></span></button>
 }
 
 function CompetitionSignupCard({ competitions = [], onOpen }) {
@@ -1429,21 +1461,15 @@ function DailyProgressCard({ responses }) {
   return <section className="daily-progress-card"><div><p className="eyebrow">Din status idag</p><h2>{todayDone ? 'Du är incheckad ✓' : 'Hur är läget?'}</h2><small>{todayDone ? `Senaste status: ${status || 'svar registrerat'}` : 'En snabb check-in hjälper dig och tränaren.'}</small></div></section>
 }
 
-function NotificationCard({ profile, notifications, onChange, onCommunity, onGoals }) {
-  const storageKey = `simkoll-notifications-seen-${profile.id}`
-  const [seen, setSeen] = useState(() => {
-    try { return new Set(JSON.parse(window.localStorage.getItem(storageKey) || '[]')) } catch { return new Set() }
-  })
-  const unread = notifications.filter((item) => !seen.has(item.id))
+function NotificationCard({ notifications: unread, onRead, onOpenTrainer, onCommunity, onGoals }) {
   if (!unread.length) return null
-  const dismiss = (item) => {
-    const next = new Set(seen).add(item.id)
-    setSeen(next)
-    window.localStorage.setItem(storageKey, JSON.stringify([...next].slice(-100)))
-    onChange(notifications.filter((entry) => entry.id !== item.id))
+  const open = item => {
+    if (item.type === 'message') { onOpenTrainer(item); return }
+    onRead([item.id])
+    if (item.type === 'goal') onGoals()
+    else if (item.type !== 'artifact') onCommunity()
   }
-  const open = (item) => { dismiss(item); if (item.type === 'goal') onGoals(); else if (item.type !== 'artifact') onCommunity() }
-  return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => dismiss(item)}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => unread.forEach(dismiss)}>Markera alla som lästa</button>}</section>
+  return <section className="notification-card"><div className="notification-heading"><div><p className="eyebrow">Nytt för dig</p><h2>Du har fått något</h2></div><span>{unread.length}</span></div><div className="notification-list">{unread.slice(0, 4).map((item) => <article key={item.id}><span className="notification-icon">{item.icon}</span><button className="notification-content" onClick={() => open(item)}><strong>{item.title}</strong><p>{item.text}</p><small>{formatFeedDate(item.createdAt)} · Visa →</small></button><button className="notification-dismiss" aria-label="Markera som läst" onClick={() => onRead([item.id])}>×</button></article>)}</div>{unread.length > 4 && <button className="notification-more" onClick={() => onRead(unread.map(item => item.id))}>Markera alla som lästa</button>}</section>
 }
 
 function StartCard({ profile, onStart, followUp = false, raceFollowUp = false }) {
@@ -3976,7 +4002,11 @@ function CompetitionSubmissionManager({ code, initialCompetitionId = '' }) {
     <div className="period-heading"><div><p className="eyebrow">Tävlingsplanering</p><h1>Tävlingsanmälningar</h1><small>Se vilka som skickat in och vilka grenval som återstår.</small></div><div className="settings-actions"><button type="button" className="secondary-button competition-refresh" onClick={() => setRefresh(value => value + 1)} disabled={waiting || saving}>Uppdatera</button><button className="secondary-button" onClick={exportCsv} disabled={waiting || !!error || !!calendarError || !exportableEntries.length}>Exportera CSV</button></div></div>
     {competitions.length > 0 && <label className="settings-field"><strong>Välj tävling</strong><select disabled={saving} value={selectedId} onChange={event => setSelectedId(event.target.value)}>{competitions.map(item => <option key={item.id} value={item.id}>{item.title} · {item.startDate}</option>)}</select></label>}
     {(error || calendarError) ? <p className="form-error" role="alert">{calendarError || error}</p> : waiting ? <p className="empty" role="status">Hämtar anmälningar…</p> : !competition ? <p className="empty">Inga tävlingar är skapade ännu.</p> : <>
-      <CompetitionEntryProgress key={selectedId} roster={data.roster} entries={safeEntries} available={data.rosterAvailable} entriesOpen={competition.entriesOpen} />
+      <CompetitionEntryProgress key={selectedId} roster={data.roster} entries={safeEntries} available={data.rosterAvailable} entriesOpen={competition.entriesOpen}
+        onRemind={(profileId, requestId) => apiRequest('/api/workouts', code, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'competition-entry-reminder', competitionId: selectedId, profileId, requestId }),
+        })} />
       <h2 className="competition-submitted-heading">Inskickade grenval</h2>
       {profiles.length ? <div className="competition-swimmer-picker">{profiles.map(profile => <button type="button" disabled={saving} className={selectedProfile === profile.profile_id ? 'active' : ''} key={profile.profile_id} onClick={() => selectProfile(profile.profile_id)}><span className="competition-picker-name">{profile.profileEmoji || '🏊'} {profile.profileName || 'Simmare'}</span><small>{submitted.filter(entry => entry.profile_id === profile.profile_id).length} grenar{competition.participantOverrides?.[profile.profile_id] === false ? ' · Avbockad' : ''}</small></button>)}</div> : <p className="empty">Ingen simmare har skickat in sitt grenval ännu.</p>}
       {selectedProfile && <section className="competition-edit-selection"><h2>Justera grenval</h2><div className="competition-entry-list">{safeEvents.map(event => <label key={event.id}><input type="checkbox" disabled={saving || event.selectable === false} checked={event.selectable !== false && chosen.includes(event.id)} onChange={() => event.selectable !== false && setChosen(current => current.includes(event.id) ? current.filter(id => id !== event.id) : [...current, event.id])} /><span><strong>{event.eventNumber ? `${event.eventNumber} · ` : ''}{event.label}</strong><small>{event.gender} · {event.ageClass}</small></span></label>)}</div><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Sparar…' : 'Spara ändrat grenval'}</button></section>}

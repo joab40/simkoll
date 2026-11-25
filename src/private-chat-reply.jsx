@@ -6,7 +6,7 @@ import './private-chat-reply.css'
 
 export const privateThreadKey = thread => `${thread?.kind}:${thread?.id}`
 
-export default function PrivateChatReply({ thread, name, coach = false, code, request, onClose, onSent }) {
+export default function PrivateChatReply({ thread, name, coach = false, code, request, onClose, onSent, onViewed }) {
   const dialog = useRef(null), log = useRef(null), input = useRef(null), sending = useRef(false)
   const titleId = useId()
   const [deleting, setDeleting] = useState(null)
@@ -28,7 +28,14 @@ export default function PrivateChatReply({ thread, name, coach = false, code, re
       previousFocus?.focus()
     }
   }, [])
+  const viewedId = useRef(null)
   const latestMessageId = messages?.at(-1)?.id
+  useEffect(() => {
+    if (onViewed && latestMessageId && viewedId.current !== latestMessageId) {
+      viewedId.current = latestMessageId
+      onViewed(messages)
+    }
+  }, [latestMessageId, messages, onViewed])
   useLayoutEffect(() => {
     if (follow.current && log.current) log.current.scrollTop = log.current.scrollHeight
   }, [latestMessageId])

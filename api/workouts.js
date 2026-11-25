@@ -16,7 +16,8 @@ import { assistantSystemPrompt } from '../server/assistant-style.js'
 import { handleAssistantBonus, isAssistantBonusQuestion } from '../server/assistant-bonus.js'
 import { featureFaqGuide } from '../shared/feature-faq.js'
 import { buildCoachAssistantFeatureSnapshot, COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
-import { queueCategoryPush } from '../server/web-push.js'
+import { sendCompetitionEntryReminder } from '../server/competition-entry-reminder.js'
+import { queueCategoryPush, queueMessagePush } from '../server/web-push.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { loadWorkoutOccasions, workoutOccasionChoices, prepareWorkoutOccasion, persistWorkoutOccasion } from '../server/workout-occasions.js'
 import { importDriveWorkbook } from '../server/drive-workout-import.js'
@@ -954,6 +955,13 @@ export default async function handler(request, response) {
         const availability = await aiAvailability()
         if (!availability.allowed) return sendJson(response, 403, { error: availability.reason === 'limit' ? `Månadstaket på ${availability.limit.toLocaleString('sv-SE')} tokens är nått.` : 'AI-stöd är avstängt i webapp-inställningarna.' })
         return sendJson(response, 200, await answerAssistant(request, role))
+      }
+      if (request.body?.action === 'competition-entry-reminder') {
+        if (role !== 'coach') return sendJson(response, 403, { error: 'Endast tränare kan skicka påminnelser om grenval.' })
+        const { message, created, status, error } = await sendCompetitionEntryReminder(request.body)
+        if (!message) return sendJson(response, status, { error })
+        if (created) queueMessagePush({ kind: 'trainer-private', id: message.id, profileId: message.thread.id })
+        return sendJson(response, created ? 201 : 200, { sent: true })
       }
       if (['coach-update-competition-entry', 'save-competition-entry', 'submit-competition-entries'].includes(request.body?.action)) {
         const coachEdit = request.body.action === 'coach-update-competition-entry'

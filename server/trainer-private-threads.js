@@ -81,11 +81,26 @@ export async function sendTrainerThreadMessage({ kind, id, role, profileId, cont
   const row = role === 'coach'
     ? { sender_role: 'coach', recipient_role: 'swimmer', recipient_profile_id: context.swimmerId }
     : { sender_role: 'swimmer', recipient_role: 'coach', sender_profile_id: context.swimmerId }
-  const result = await read('private_messages', {
-    method: 'POST', headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ ...row, content: text, ...(kind === 'question' ? { reply_to_open_chat_id: id } : {}) }),
+  const { message } = await storeTrainerMessage({ ...row, content: text, ...(kind === 'question' ? { reply_to_open_chat_id: id } : {}) }, read)
+  return { message, recipientId: context.swimmerId }
+}
+
+export async function storeTrainerMessage(row, read = supabaseRequest) {
+  const id = row.id
+  const result = await read(id ? 'private_messages?on_conflict=id' : 'private_messages', {
+    method: 'POST',
+    headers: { Prefer: id ? 'resolution=ignore-duplicates,return=representation' : 'return=representation' },
+    body: JSON.stringify(row),
   })
   if (!result.ok) throw fail('Meddelandet kunde inte skickas. Försök igen.', 502)
   const [saved] = await result.json()
-  return { message: presentTrainerMessage(saved), recipientId: context.swimmerId }
+  if (saved) return { message: presentTrainerMessage(saved), created: true }
+  if (!id) throw fail('Meddelandet kunde inte bekräftas. Försök igen.', 502)
+  const previous = await read(`private_messages?id=eq.${id}&select=${columns}&limit=1`)
+  if (!previous.ok) throw fail('Meddelandet kunde inte bekräftas. Försök igen.', 502)
+  const [existing] = await previous.json()
+  if (!existing || Object.entries(row).some(([key, value]) => existing[key] !== value) || existing.reply_to_open_chat_id) {
+    throw fail('Påminnelsen kunde inte bekräftas. Uppdatera sidan.', 409)
+  }
+  return { message: presentTrainerMessage(existing), created: false }
 }
