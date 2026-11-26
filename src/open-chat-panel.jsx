@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { apiRequest } from './api-request.js'
 import { chatBackgroundUrl } from './chat-background.js'
 import { markCoachMessageRead } from './coach-info.js'
@@ -69,7 +69,27 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
   const deletingMessage = useRef(false)
   const [deletingMessageId, setDeletingMessageId] = useState(null)
   const chatPanelRef = useRef(null)
+  const expandedDialog = useRef(null)
+  const resizeButton = useRef(null)
+  const headingId = useId()
+  const [expanded, setExpanded] = useState(false)
   const scroller = useRef(null), follow = useRef(true), seen = useRef(new Set())
+  const resizeChat = next => {
+    const dialog = expandedDialog.current
+    const log = scroller.current
+    const scrollTop = log.scrollTop
+    const following = follow.current
+    if (next) {
+      dialog.removeAttribute('open')
+      dialog.showModal()
+    } else {
+      dialog.close()
+      dialog.setAttribute('open', '')
+    }
+    setExpanded(next)
+    resizeButton.current?.focus({ preventScroll: true })
+    log.scrollTop = following ? log.scrollHeight : scrollTop
+  }
   const engagement = useOpenChatEngagement({
     active: !coach && !!profileId && active && chat.enabled,
     messages: chat.messages, scroller, code, request, setData: channel.setData,
@@ -155,12 +175,14 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
   if (!channel.data) return <section ref={chatPanelRef} className={coach ? 'message-channel-loading' : 'swimmer-message-channel channel-placeholder'} aria-busy={channel.loading}>{coach && <><span aria-hidden="true">💬</span><h2>Info från tränarna</h2></>}<p role="status">{channel.error || 'Hämtar tränarinfon…'}</p>{channel.error && <button type="button" onClick={load}>Försök igen</button>}{coach && <div aria-hidden="true" className="message-loading-lines"><i /><i /><i /></div>}</section>
   if (!chat.enabled) return coach ? <section className="message-channel-loading"><h2>Tränarinfo är avstängd</h2><p>Klubbflödet och privata meddelanden finns i flikarna ovan.</p></section> : <section className="swimmer-message-channel channel-placeholder"><p>Gruppinformationen är avstängd.</p></section>
   const chatBackground = coach ? chatBackgroundUrl(chat.backgroundImage || '/assets/open-chat-bg-teal.png') : null
-  return <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${coach ? '' : ' swimmer-info-chat swimmer-message-channel'}`}
+  const panel = <section ref={chatPanelRef} className={`open-chat-panel coach-open-chat${coach ? '' : ' swimmer-info-chat swimmer-message-channel'}`}
     style={chatBackground ? { backgroundImage: `linear-gradient(rgba(4,16,65,.48),rgba(4,16,65,.48)),url(${chatBackground})` } : undefined}>
 
     <div className="open-chat-heading">
-      {coach ? <div><p className="eyebrow">Tränarinfo</p><h2>Info från tränarna 💬</h2></div> : <span className="channel-heading-icon" aria-hidden="true">{chat.swimmerPrivate !== false && !chat.coachOnly ? '🔒' : '💬'}</span>}
+      {coach ? <div><p className="eyebrow">Tränarinfo</p><h2 id={headingId}>Info från tränarna 💬</h2></div> : <span className="channel-heading-icon" aria-hidden="true">{chat.swimmerPrivate !== false && !chat.coachOnly ? '🔒' : '💬'}</span>}
       <small>{coach ? 'Tränarinfo till gruppen · privata dialoger märks med 🔒' : chat.coachOnly ? 'Meddelanden från tränarna' : chat.swimmerPrivate !== false ? 'Dina frågor och svaren från tränarna är privata.' : 'Frågor i gruppchatten kan läsas av alla. Privata svar märks med 🔒.'}</small>
+      {coach && <button ref={resizeButton} type="button" className="secondary-button coach-chat-resize"
+        onClick={() => resizeChat(!expanded)}><span aria-hidden="true">{expanded ? '↙' : '↗'}</span> {expanded ? 'Minimera' : 'Förstora'}</button>}
       {coach && <details className="chat-management"><summary>Hantera</summary><button type="button" className="text-button danger-text" onClick={clear}>Rensa chatten</button></details>}
     </div>
     <div className="open-chat-messages" ref={scroller} role="log" aria-label="Tränarinfo och frågor" aria-live="polite" onScroll={event => { const el = event.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (follow.current) setUnread(0) }}>{entries.length ? entries.map(({ key, item, thread: direct }) => {
@@ -222,4 +244,12 @@ function InfoChannelPanel({ code, coach = false, profileId = '', fitViewport = f
       name={privateReply.name} coach code={code} request={request} onClose={() => setPrivateReply(null)} onViewed={messages => onPrivateViewed?.(privateReply, messages)} />}
     {coach && active && readDetailsMessage && <OpenChatReadDetails message={readDetailsMessage} code={code} request={request} onClose={() => setReadDetailsMessage(null)} />}
   </section>
+  return coach ? <dialog ref={expandedDialog} open className="coach-chat-window" aria-labelledby={headingId}
+    role={expanded ? undefined : 'presentation'} onCancel={event => {
+      if (event.target !== event.currentTarget) return
+      event.preventDefault()
+      resizeChat(false)
+    }}>
+    {panel}
+  </dialog> : panel
 }

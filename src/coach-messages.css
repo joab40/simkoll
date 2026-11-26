@@ -115,3 +115,26 @@
   outline: 2px solid #d2f458;
   outline-offset: -5px;
 }
+
+.coach-chat-window[open]:not(:modal) { display: contents; }
+.coach-chat-window:modal {
+  width: min(1120px, calc(100% - 32px));
+  height: calc(100dvh - 32px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: #f3f8f5;
+  overflow: hidden;
+}
+.coach-chat-window::backdrop { background: #183c4b80; }
+html:has(.coach-chat-window:modal) { overflow: hidden; }
+.coach-messages-workspace .coach-chat-window:modal .coach-open-chat { height: 100%; border-radius: inherit; }
+.coach-messages-workspace .coach-chat-resize { padding: 8px 12px; min-height: 40px; font-size: 13px; white-space: nowrap; }
+@media (max-width: 640px) {
+  .coach-chat-window:modal { width: 100%; height: 100dvh; border-radius: 0; margin: 0; }
+  .coach-messages-workspace .coach-chat-window:modal .open-chat-compose {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
