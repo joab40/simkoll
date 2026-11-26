@@ -21,7 +21,7 @@ async function rows(query, { optional = false, warnings, label }) {
 }
 
 export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true,
-  includeGoals = true, includeCheckinSignals = false, summaryOnly = false, planningCache } = {}) {
+  includeGoals = true, includeCheckinSignals = false, includeEntryComments = false, summaryOnly = false, planningCache } = {}) {
   const today = stockholmDate()
   const range = diaryRange(start, end, today)
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
@@ -37,9 +37,10 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     warnings.push(...notes)
     return value
   }
+  const responseColumns = 'id,activity_date,created_at,day_type,activity_type,session_slot,competition,workout_reference,activity_distance_meters,activity_minutes,planned_completion,feeling,body,energy,motivation,rpe,speed_feeling,pass_rating,setup_rating,temperature'
   const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks, drylandLogs] = await Promise.all([
     read(`personal_training_sessions?${owner}&${within('session_date')}&select=${summaryOnly ? 'id,session_date,session_slot,activity_type,source,workout_reference,personal_details' : '*'}&order=session_date.asc,id.asc`, 'registrerade pass'),
-    read(`responses?${owner}&${within('activity_date')}&select=${summaryOnly ? 'id,activity_date,created_at,day_type,activity_type,session_slot,competition,workout_reference,activity_distance_meters,activity_minutes,planned_completion,feeling,body,energy,motivation,rpe,speed_feeling,pass_rating,setup_rating,temperature' : '*'}&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
+    read(`responses?${owner}&${within('activity_date')}&select=${summaryOnly ? responseColumns + (includeEntryComments ? ',comment,late_entry' : '') : '*'}&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
     readPlanning(`daily_workouts?${within('workout_date')}&select=${summaryOnly ? 'id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups' : '*'}&order=workout_date.asc,id.asc`, 'upplagda pass'),
     readPlanning(`training_plans?${within('plan_date')}&select=${summaryOnly ? 'id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,source_workout_id,calendar_link,location,sync_status' : '*'}&order=plan_date.asc,id.asc`, 'grundplanering'),
     read(`planned_training_sessions?${owner}&${within('planned_date')}&select=*&order=planned_date.asc,id.asc`, 'personlig planering'),

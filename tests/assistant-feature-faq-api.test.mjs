@@ -138,3 +138,58 @@ test('role-specific model overrides apply independently and the default falls ba
   assert.deepEqual(swimmer.requests.map(body => body.model), ['gpt-6-luna', 'gpt-4o-mini'])
   assert.deepEqual(swimmer.writes.map(row => [row.model, row.status]), [['gpt-6-luna', 'failure'], ['gpt-4o-mini', 'success']])
 })
+
+test('tider are read from the session profile and grouped by comparable conditions', async () => {
+  const today = stockholmDate()
+  const time = { result_date: today, distance_meters: 100, stroke: 'freestyle', pool_length: 25, start_type: 'dive', exercise: 'full', equipment: [], timing_method: 'hand', kind: 'test' }
+  const { reads, context } = await ask('swimmer', 'Vad är mitt snabbaste testlopp på 100 frisim i kortbana?', {
+    tables: {
+      training_swim_times: [
+        { ...time, result_time: 6010 },
+        { ...time, result_time: 6100 },
+        { ...time, result_time: 6200, start_type: 'push' },
+        { ...time, result_time: 5550, pool_length: 50 },
+        { ...time, result_time: 5300, kind: 'training' },
+      ],
+    },
+  })
+  const read = reads.find(row => row.table === 'training_swim_times')
+  assert.equal(read.query.get('profile_id'), `eq.${profileId}`)
+  assert(!reads.some(row => row.table === 'competition_results' || row.table === 'responses'))
+  assert.equal(context.practiceTimes.matchingCount, 3)
+  assert.deepEqual(context.practiceTimes.bestByCategory.map(row => row.time), ['1:00,10', '1:02,00'])
+})
+
+test('competition history keeps official and manual rows separate and can select a stroke, distance and pool', async () => {
+  const result = { event: '100 m Freestyle', pool: '25 M', result_date: stockholmDate(), competition_name: 'Testcupen', swim_time: '01:00.04', result_time: 6004, source: 'tempus' }
+  const { context, reads } = await ask('swimmer', 'Vad har jag för personbästa på 100 frisim i 25 m bassäng?', {
+    tables: { competition_results: [result, { ...result, source: 'manual', result_time: 5900, swim_time: '59,00' }, { ...result, pool: '50 m' }, { ...result, event: '200 m Freestyle' }] },
+  })
+  assert.equal(reads.find(row => row.table === 'competition_results').query.get('profile_id'), `eq.${profileId}`)
+  assert(!reads.some(row => row.table === 'training_swim_times'))
+  assert.equal(context.competitionResults.matchingCount, 2)
+  assert.deepEqual(context.competitionResults.bestByCategory.map(row => row.source), ['tempus', 'manual'])
+})
+
+test('diary statistics cover the requested period and ordinary stats do not read private text', async () => {
+  const today = stockholmDate()
+  const { reads, context } = await ask('swimmer', 'Hur många simmeter har jag simmat senaste 3 månaderna?', {
+    tables: { responses: [{ id: 'report', activity_date: today, day_type: 'after', activity_type: 'swim', session_slot: 'afternoon_swim', activity_distance_meters: 3400, activity_minutes: 90, rpe: 6, comment: 'PRIVATE COMMENT' }] },
+  })
+  assert.equal(context.trainingDiary.range.end, today)
+  assert(context.trainingDiary.range.days >= 90)
+  assert.equal(context.trainingDiary.current.swimMeters, 3400)
+  assert.equal(context.trainingDiary.current.minutes, 90)
+  assert(!JSON.stringify(context).includes('PRIVATE COMMENT'))
+  assert(!reads.some(row => ['training_diary_reflections', 'private_messages', 'coach_activity_notes'].includes(row.table)))
+})
+
+test('own reflections are included only upon request and the ignored body profile cannot redirect diary access', async () => {
+  const today = stockholmDate()
+  const { context, reads } = await ask('swimmer', 'Vad skrev jag i min dagboksreflektion idag?', {
+    tables: { training_diary_reflections: [{ entry_key: 'old-entry', activity_date: today, what_worked: 'Vändningarna.', next_time: 'Fokusera på starten.' }] },
+  })
+  assert.equal(reads.find(row => row.table === 'training_diary_reflections').query.get('profile_id'), `eq.${profileId}`)
+  assert.equal(context.trainingDiary.entries[0].reflection.whatWorked, 'Vändningarna.')
+  assert(!reads.some(row => row.table === 'private_messages' || row.table === 'coach_activity_notes'))
+})
