@@ -1308,7 +1308,18 @@ button { cursor: pointer; }
 .history-date strong { font-size: 15px; margin-bottom: 2px; }
 .history-mood { display: flex; align-items: center; gap: 9px; }
 .history-mood > span { font-size: 28px; }
-.swimmer-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.swimmers-section {
+  --roster-card-border: #cbded9;
+  --roster-card-radius: 18px;
+  --roster-card-surface: #fbfdfb;
+}
+.swimmer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.swimmers-section .swimmer-card {
+  background: var(--roster-card-surface);
+  border-color: var(--roster-card-border);
+  border-radius: var(--roster-card-radius);
+}
+.swimmers-section .swimmer-card:is(:hover, .expanded) { border-color: #92b9b0; }
 .swimmer-card { background: var(--paper); border: 1px solid #dbe6e3; border-radius: 18px; padding: 0; overflow: hidden; }
 .swimmer-card-header { display: flex; align-items: center; }
 .swimmer-card-header > .swimmer-card-toggle { flex: 1; min-width: 0; }
@@ -1318,6 +1329,11 @@ button { cursor: pointer; }
 .swimmer-card-toggle:hover { background: #f7fbf9; }
 .swimmer-card-toggle:focus-visible { outline: 3px solid rgba(45, 126, 115, .25); outline-offset: -3px; }
 .swimmer-card-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 9px; padding-left: 60px; }
+:is(.swimmer-traffic-trend, .swimmer-traffic).red { --traffic-accent: #b25250; --traffic-text: #833b3b; --traffic-wash: #fdf3f0; --traffic-line: #ecd2cc; }
+:is(.swimmer-traffic-trend, .swimmer-traffic).yellow { --traffic-accent: #ae7b13; --traffic-text: #72500f; --traffic-wash: #fcf6e7; --traffic-line: #e9dcb6; }
+:is(.swimmer-traffic-trend, .swimmer-traffic).green { --traffic-accent: #31836b; --traffic-text: #216452; --traffic-wash: #ecf6ef; --traffic-line: #cbe3d4; }
+.swimmer-traffic-dot { display: inline-block; flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--traffic-accent, #8b9a96); }
+.swimmer-traffic-dot.unknown { background: #8b9a96; }
 .swimmer-mood { min-width: 22px; font-size: 22px; line-height: 1; }
 .swimmer-traffic { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; line-height: 1; }
 .swimmer-traffic small { color: var(--muted); font-size: 9px; font-weight: 800; }
@@ -2231,7 +2247,7 @@ button { cursor: pointer; }
   .week-days > div { min-height: 91px; }
   .week-days strong { font-size: 23px; }
   .week-days small { font-size: 8px; }
-  .swimmer-grid { grid-template-columns: 1fr; }
+  .swimmer-grid { grid-template-columns: minmax(0, 1fr); }
   .history-row { grid-template-columns: 1fr repeat(4, .55fr); gap: 12px; padding: 16px; }
   .history-date { grid-column: 1 / -1; border-bottom: 1px solid #e2ebe8; padding-bottom: 11px; }
   .history-mood { align-items: flex-start; flex-direction: column; gap: 2px; }

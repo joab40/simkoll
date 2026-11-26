@@ -2,8 +2,9 @@
    The swimmer name remains the identity heading; colours retain their meaning. */
 .swimmer-card { --swimmer-copy-size: 12px; --swimmer-meta-size: 11px; }
 .swimmer-card-header-inline .swimmer-card-meta { font-size: var(--swimmer-copy-size); line-height: 1.4; }
-.swimmer-card-header-inline :is(.swimmer-stars, .swimmer-attention, .swimmer-expand-hint),
+.swimmer-card-header-inline :is(.swimmer-stars, .swimmer-attention),
 .swimmer-card-header-inline .swimmer-traffic small { font-size: var(--swimmer-copy-size); font-weight: 600; line-height: 1.4; }
+.swimmer-card-header-inline .swimmer-expand-hint { font-size: var(--swimmer-copy-size); font-weight: 750; }
 .swimmer-card .swimmer-speed > small { font-size: var(--swimmer-copy-size); line-height: 1.4; }
 .swimmer-card .swimmer-speed > .speed-age { font-size: var(--swimmer-meta-size); }
 .swimmer-card-details .swimmer-traffic-reasons { gap: 4px; margin: 0 0 12px; padding: 12px; line-height: 1.5; }
