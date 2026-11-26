@@ -27,7 +27,7 @@ export function logRememberedSwimmerLogin(request, profile) {
     details: { alias: profile.display_name || profile.username, login: 'remembered-session' } })
 }
 
-export async function writeAiUsage(request, { feature, model, role = null, profileId = null, response = null, status = 'success', error = null, usageDetails = null }) {
+export async function writeAiUsage(request, { feature, model, role = null, profileId = null, swimmerActorId, response = null, status = 'success', error = null, usageDetails = null }) {
   const usage = response?.usage || {}
   const promptTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0)
   const completionTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0)
@@ -36,7 +36,7 @@ export async function writeAiUsage(request, { feature, model, role = null, profi
   try {
     const coach = coachFromRequest(request)
     if (coach?.sub) coachAccountId = coach.sub
-    else if (role === 'swimmer') actorProfileId = (await getSessionProfile(request))?.id || null
+    else if (role === 'swimmer') actorProfileId = swimmerActorId ?? (await getSessionProfile(request))?.id ?? null
   } catch (identityError) { console.warn('AI usage actor lookup failed:', identityError.message) }
   try {
     const legacyRow = { feature, model, role, profile_id: profileId, status, prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: totalTokens, error_message: error ? String(error).slice(0, 300) : null }

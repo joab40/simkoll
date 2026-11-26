@@ -22,3 +22,8 @@ test('exercise-image generation estimates text input and image output token pric
   assert.deepEqual(pricingFor('gpt-image-2.5-flare'), { input: 5, output: 30 })
   assert.equal(estimatedCostUsd({ model: 'gpt-image-2.5-flare', promptTokens: 200, completionTokens: 1800 }), 0.055)
 })
+
+test('GPT-6 Luna is priced in the assistant usage log', () => {
+  assert.deepEqual(pricingFor('gpt-6-luna'), { input: 0.10, output: 0.50 })
+  assert.deepEqual(pricingFor('gpt-6-luna', 272001), { input: 0.20, output: 0.75 })
+})

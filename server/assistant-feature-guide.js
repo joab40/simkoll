@@ -1,5 +1,4 @@
 import { COACH_NAV_ITEMS } from '../shared/coach-navigation.js'
-import { featureFaqGuide } from '../shared/feature-faq.js'
 
 const coachRoleName = (role) => role === 'superadmin' ? 'Superadmin' : role === 'head_coach' ? 'Huvudtränare' : 'Tränare'
 const settingEnabled = (settings, key) => settings ? settings[key] !== false : null
@@ -42,7 +41,7 @@ export function buildCoachAssistantFeatureSnapshot({ accountRole = 'coach', weba
   }
 }
 
-export const COACH_ASSISTANT_FEATURE_GUIDE = featureFaqGuide('coach') + `Tränarfunktioner och inställningar:\n- Denna guide beskriver Simkolls användarfunktioner; ingen källkod, hemlighet, token, lösenord, PIN eller privat tränar-/simmarprofil lämnas till modellen.
+export const COACH_ASSISTANT_FEATURE_GUIDE = `Tränarfunktioner och inställningar:\n- Denna guide beskriver Simkolls användarfunktioner; ingen källkod, hemlighet, token, lösenord, PIN eller privat tränar-/simmarprofil lämnas till modellen.
 - Aktuell meny och status finns i coachFeatureSettings. navigation.inMenu visar om funktionen finns i tränarmenyn/Verktyg; navigation.overviewShortcut visar om den är en genväg på översikten. “Dold” är inte samma sak som saknad behörighet: menyinställningar ändrar inte roller, serverbehörigheter eller data.
 - Vanlig tränare följer klubbens globala menyval. Huvudtränare och superadmin kan använda egna meny- och översiktsval om personalSettingsEnabled är sant; de påverkar bara det egna kontot. Endast superadmin har de övriga globala inställningarna.
 - För frågor om en funktion: använd menyns aktuella svenska namn, berätta var den finns och förklara vad reglaget styr. Ett “okänt” värde betyder att inställningen inte kunde läsas, inte att funktionen är av.

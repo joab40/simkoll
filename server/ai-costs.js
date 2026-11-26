@@ -8,6 +8,8 @@ const PRICES = [
   { match: /^gpt-image-2\.5-flare(?:-|$)/i, input: 5.00, output: 30.00 },
   // https://developers.openai.com/api/docs/models/gpt-6.1-sol (2026-10-08)
   { match: /^gpt-6\.1-sol(?:-|$)/i, input: 2.00, output: 10.00, longContext: { above: 272000, input: 4.00, output: 15.00 } },
+  // https://developers.openai.com/api/docs/models/gpt-6-luna (2026-11-26)
+  { match: /^gpt-6-luna(?:-|$)/i, input: 0.10, output: 0.50, longContext: { above: 272000, input: 0.20, output: 0.75 } },
   { match: /^gpt-4o-mini(?:-|$)/i, input: 0.15, output: 0.60 },
   { match: /^gpt-4o(?:-|$)/i, input: 2.50, output: 10.00 },
   { match: /^gpt-4\.1-mini(?:-|$)/i, input: 0.40, output: 1.60 },

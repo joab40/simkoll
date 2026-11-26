@@ -2,7 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { FEATURE_FAQ, FEATURE_FAQ_SECTIONS, featureFaqFor, featureFaqGuide } from '../shared/feature-faq.js'
-import { COACH_ASSISTANT_FEATURE_GUIDE } from '../server/assistant-feature-guide.js'
 
 test('FAQ entries have unique stable IDs and questions, valid groups and nonempty answers', () => {
   assert.equal(new Set(FEATURE_FAQ.map(item => item.id)).size, FEATURE_FAQ.length)
@@ -27,7 +26,7 @@ test('swimmer FAQ and diary help do not contain coach-only actions', () => {
   assert.deepEqual(featureFaqFor('swimmer', 'missing'), [])
 })
 
-test('both assistants receive exactly the same curated feature answers as the visible FAQ', () => {
+test('the complete curated guide uses the same answers as the visible FAQ', () => {
   for (const role of ['coach', 'swimmer']) {
     const guide = featureFaqGuide(role)
     for (const entry of featureFaqFor(role)) {
@@ -37,10 +36,7 @@ test('both assistants receive exactly the same curated feature answers as the vi
     assert.match(guide, /inte åtkomst till personliga uppgifter/)
     assert.match(guide, /inte ändra, generera, publicera, skicka eller spara/)
   }
-  assert.ok(COACH_ASSISTANT_FEATURE_GUIDE.includes(featureFaqGuide('coach')))
-  const api = readFileSync(new URL('../api/workouts.js', import.meta.url), 'utf8')
-  assert.match(api, /role === 'coach' \? '' : featureFaqGuide\('swimmer'\)/)
-  assert.match(api, /\$\{faq\}\$\{coachFaq\}/)
+
 })
 
 test('key recent functions and diary boundaries remain documented', () => {

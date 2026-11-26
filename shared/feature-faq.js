@@ -340,7 +340,7 @@ export function featureFaqFor(role = 'swimmer', section) {
     .map(({ coachAnswer, ...item }) => ({ ...item, answer: [...item.answer, ...(audience === 'coach' ? coachAnswer || [] : [])] }))
 }
 
-export function featureFaqGuide(role) {
-  return `\nAktuell funktionshjälp för ${role === 'coach' ? 'tränare' : 'simmare'} (samma källa som appens FAQ):\n` + featureFaqFor(role)
+export function featureFaqGuide(role, entries = featureFaqFor(role)) {
+  return `\nAktuell funktionshjälp för ${role === 'coach' ? 'tränare' : 'simmare'} (samma källa som appens FAQ):\n` + entries
     .map(item => `${item.question}\n${item.answer.join('\n')}`).join('\n\n') + '\nHjälpen beskriver funktioner, inte åtkomst till personliga uppgifter. Använd bara aktuellt behörigt underlag för faktiska värden. Hitta inte på sömnsvar, dagboksreflektioner, testlopp, meddelanden, bilageinnehåll, AI-analyser eller lagringssiffror som saknas i chattunderlaget. Du kan förklara var användaren hittar dem men inte ändra, generera, publicera, skicka eller spara något åt användaren.\n'
 }
