@@ -2,9 +2,9 @@ import { supabaseRequest } from './supabase.js'
 
 const isId = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value)
 const fail = (message, status) => Object.assign(new Error(message), { status })
-const columns = 'id,content,created_at,sender_role,recipient_role,sender_profile_id,recipient_profile_id,reply_to_open_chat_id'
+export const trainerMessageColumns = 'id,content,created_at,sender_role,recipient_role,sender_profile_id,recipient_profile_id,reply_to_open_chat_id'
 
-function swimmerFor(row) {
+export function trainerMessageSwimmerId(row) {
   if (row.sender_role === 'coach' && row.recipient_role === 'swimmer') return row.recipient_profile_id
   if (row.sender_role === 'swimmer' && row.recipient_role === 'coach') return row.sender_profile_id
   return null
@@ -14,15 +14,15 @@ export function presentTrainerMessage(row) {
   const id = row.reply_to_open_chat_id
   return {
     id: row.id, content: row.content, createdAt: row.created_at, senderRole: row.sender_role,
-    thread: id ? { kind: 'question', id } : { kind: 'direct', id: swimmerFor(row) },
+    thread: id ? { kind: 'question', id } : { kind: 'direct', id: trainerMessageSwimmerId(row) },
   }
 }
 
 export async function loadTrainerPrivateMessages(profileId, limit, read = supabaseRequest) {
   if (!isId(profileId)) return []
-  const result = await read(`private_messages?recipient_profile_id=eq.${profileId}&recipient_role=eq.swimmer&sender_role=eq.coach&select=${columns}&order=created_at.desc,id.desc&limit=${limit}`)
+  const result = await read(`private_messages?recipient_profile_id=eq.${profileId}&recipient_role=eq.swimmer&sender_role=eq.coach&select=${trainerMessageColumns}&order=created_at.desc,id.desc&limit=${limit}`)
   if (!result.ok) throw fail('Privata meddelanden kunde inte hämtas.', 502)
-  const rows = (await result.json()).filter(row => row.sender_role === 'coach' && swimmerFor(row) === profileId)
+  const rows = (await result.json()).filter(row => row.sender_role === 'coach' && trainerMessageSwimmerId(row) === profileId)
   const threads = new Map()
   for (const row of rows) {
     const message = presentTrainerMessage(row)
@@ -57,9 +57,9 @@ function scopedMessages(kind, id, swimmerId) {
 
 export async function loadTrainerThread({ kind, id, role, profileId }, read = supabaseRequest) {
   const context = await threadContext(kind, id, role, profileId, read)
-  const result = await read(`${scopedMessages(kind, id, context.swimmerId)}&select=${columns}&order=created_at.desc,id.desc&limit=150`)
+  const result = await read(`${scopedMessages(kind, id, context.swimmerId)}&select=${trainerMessageColumns}&order=created_at.desc,id.desc&limit=150`)
   if (!result.ok) throw fail('Dialogen kunde inte hämtas.', 502)
-  const messages = (await result.json()).filter(row => swimmerFor(row) === context.swimmerId
+  const messages = (await result.json()).filter(row => trainerMessageSwimmerId(row) === context.swimmerId
     && (kind === 'question' ? row.reply_to_open_chat_id === id : !row.reply_to_open_chat_id))
   return { question: context.question, messages: messages.reverse().map(presentTrainerMessage) }
 }
@@ -96,7 +96,7 @@ export async function storeTrainerMessage(row, read = supabaseRequest) {
   const [saved] = await result.json()
   if (saved) return { message: presentTrainerMessage(saved), created: true }
   if (!id) throw fail('Meddelandet kunde inte bekräftas. Försök igen.', 502)
-  const previous = await read(`private_messages?id=eq.${id}&select=${columns}&limit=1`)
+  const previous = await read(`private_messages?id=eq.${id}&select=${trainerMessageColumns}&limit=1`)
   if (!previous.ok) throw fail('Meddelandet kunde inte bekräftas. Försök igen.', 502)
   const [existing] = await previous.json()
   if (!existing || Object.entries(row).some(([key, value]) => existing[key] !== value) || existing.reply_to_open_chat_id) {

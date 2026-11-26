@@ -28,6 +28,11 @@ export function createCommunityChannelResource({ request, code, url, onChange, m
       pending = task
       return task
     },
+    invalidate() {
+      loadedAt = -Infinity
+      controller?.abort()
+      pending = null
+    },
     update(updater) {
       if (disposed) return
       controller?.abort()

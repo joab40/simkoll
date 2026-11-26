@@ -6,18 +6,43 @@ const json = data => ({ ok: true, json: async () => data })
 const settings = { openChat: { enabled: true, swimmerPrivate: true } }
 const directory = [{ id, display_name: 'Demo', emoji: '🐬' }, { id: other, display_name: 'Other', emoji: '🐢' }]
 
-test('information channel reads no public feed, reactions, kudos or unlinked private inbox', async () => {
+test('coach information has one direct preview per swimmer and keeps linked replies under their question', async () => {
   const calls = []
+  const earlier = '2026-11-15T13:00:00Z', later = '2026-11-16T13:00:00Z'
+  const outgoing = { content: 'Private reply', recipient_profile_id: id, recipient_role: 'swimmer', sender_role: 'coach' }
+  const incoming = { content: 'Follow-up from the swimmer', sender_profile_id: id, recipient_role: 'coach', sender_role: 'swimmer' }
   const result = await loadInfoChannel(settings, 'coach', null, async query => {
     calls.push(query)
     if (query.startsWith('profiles?')) return json(directory)
     if (query.startsWith('open_chat_messages?')) return json([{ id: parent, sender_profile_id: id, sender_role: 'swimmer', visibility: 'coaches', content: 'Private question', created_at: '2026-11-15T12:00:00Z' }])
+    if (query.includes('reply_to_open_chat_id=is.null')) {
+      assert.match(query, /sender_role.eq.coach,recipient_role.eq.swimmer/)
+      return json([
+        { ...outgoing, id: 'reminder', content: 'A private reminder', created_at: later },
+        { ...incoming, id: 'direct-in', created_at: earlier },
+        { ...outgoing, id: 'foreign', recipient_profile_id: other, sender_role: 'swimmer', content: 'DO NOT SEND', created_at: later },
+        { ...outgoing, id: 'linked', reply_to_open_chat_id: parent, created_at: later },
+      ])
+    }
     assert.match(query, /^private_messages\?reply_to_open_chat_id=in\./)
-    return json([{ id: 'reply', content: 'Private reply', reply_to_open_chat_id: parent, recipient_profile_id: id, recipient_role: 'swimmer', sender_role: 'coach' }])
+    return json([
+      { ...outgoing, id: 'linked', reply_to_open_chat_id: parent, created_at: earlier },
+      { ...incoming, id: 'linked-in', reply_to_open_chat_id: parent, created_at: later },
+      { ...incoming, id: 'wrong-swimmer', sender_profile_id: other, content: 'DO NOT SEND', reply_to_open_chat_id: parent, created_at: later },
+    ])
   })
-  assert.equal(calls.length, 3)
-  assert.equal(result.openChat.messages[0].privateReplies[0].content, 'Private reply')
-  assert(!calls.some(query => /^(community_posts|community_reactions|kudos|group_pep)\?/.test(query)))
+  assert.equal(calls.length, 4)
+  const question = result.openChat.messages[0]
+  assert.equal(question.privateThread.latest.content, 'Follow-up from the swimmer')
+  assert.deepEqual(question.privateThread.latest.thread, { kind: 'question', id: parent })
+  assert.equal(question.privateThread.latestIncoming.id, 'linked-in')
+  assert.equal(result.openChat.privateThreads.length, 1)
+  const [direct] = result.openChat.privateThreads
+  assert.deepEqual(direct.latest.thread, { kind: 'direct', id })
+  assert.equal(direct.latest.content, 'A private reminder')
+  assert.equal(direct.latestIncoming.id, 'direct-in', 'a later outgoing message does not hide an unread incoming reply')
+  assert.equal(direct.swimmer.displayName, 'Demo')
+  assert(!JSON.stringify(result).includes('DO NOT SEND'))
 })
 
 test('swimmer chat keeps recipient SQL filters and defensive visibility checks, including private replies', async () => {
@@ -37,6 +62,7 @@ test('swimmer chat keeps recipient SQL filters and defensive visibility checks, 
   assert.deepEqual(result.openChat.messages.map(row => row.content), ['Own question', 'Public info'])
   assert(!JSON.stringify(result).includes('DO NOT SEND'))
   assert.equal(result.openChat.messages[0].privateReplies.length, 0)
+  assert.equal(Object.hasOwn(result.openChat, 'privateThreads'), false)
 })
 
 test('disabled information channel does no reads; bad identities are denied; failed reads are not empty chats', async () => {

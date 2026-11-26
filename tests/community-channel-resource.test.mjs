@@ -19,7 +19,9 @@ test('switching back to a recently fetched tab reuses its data until refresh is 
   const resource = createCommunityChannelResource({ code: 'demo', url: 'club', onChange() {}, request: async () => ({ reads: ++reads }) })
   await resource.refresh()
   assert.deepEqual(await resource.refresh({ maxAge: 10000 }), { reads: 1 })
-  assert.deepEqual(await resource.refresh({ maxAge: 10000, force: true }), { reads: 2 })
+  resource.invalidate()
+  assert.equal(reads, 1, 'invalidating an inactive tab does not fetch')
+  assert.deepEqual(await resource.refresh({ maxAge: 10000 }), { reads: 2 })
 })
 
 test('unmounted and old account requests cannot publish stale private data, even when the transport ignores abort', async () => {
@@ -64,7 +66,8 @@ test('coach and swimmer club feeds share presentation, but not private inboxes o
   assert.match(coach, /<PeppChannelPanel coach/)
   assert.match(coach, /visited\.includes\('club'\)/)
   assert.match(coach, /active=\{tab === 'club'\}/)
-  assert.doesNotMatch(coach, /localStorage|sessionStorage|polish-community-post/)
+  assert.doesNotMatch(coach, /sessionStorage|polish-community-post/)
+  assert.match(coach, /localStorage.setItem\(storagePrefix \+ key, JSON.stringify\(cursor\)\)/)
   assert.match(info, /key=\{`\$\{props.code\}:\$\{props.coach/)
   assert.match(coach, /Skriv RADERA/)
 })

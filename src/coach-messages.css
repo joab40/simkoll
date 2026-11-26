@@ -68,3 +68,50 @@
 .coach-private-history article time, .coach-private-history article button { font-size: 11px; color: #718a87; }
 @media(max-width:640px) { .coach-messages-title { margin-bottom: 16px; } .coach-channel-tabs { gap: 3px; padding: 4px; border-radius: 14px; } .coach-channel-tabs button { padding: 12px 6px; text-align: center; } .coach-channel-tabs strong { font-size: 12px; } .coach-channel-tabs small { display: none; } .coach-messages-workspace .open-chat-heading { padding: 14px; } .coach-messages-workspace .open-chat-heading > div { flex-basis: auto; } .coach-messages-workspace .open-chat-heading > small { order: 3; flex-basis: 100%; } .coach-messages-workspace .open-chat-messages { padding: 14px 10px; } .coach-messages-workspace .open-chat-messages article { gap: 5px; } .coach-messages-workspace .open-chat-messages article > div { max-width: calc(100% - 76px); padding: 10px 12px; } .coach-messages-workspace .open-chat-compose { padding: 10px; gap: 6px; } .coach-messages-workspace .open-chat-compose textarea { font-size: 16px; } .coach-messages-workspace .open-chat-compose > button { padding: 10px; } .coach-private-inbox { padding: 16px; } }
 @media(max-width:640px) { .coach-messages-workspace .open-chat-messages article > .danger-text { font-size: 0; width: 24px; min-height: 32px; } .coach-messages-workspace .open-chat-messages article > .danger-text::before { content: '×'; font-size: 18px; } }
+
+.coach-messages-workspace .private-thread-reply.coach-thread-preview {
+  color: #f7fffd;
+  background: #114e70;
+}
+.coach-messages-workspace .coach-direct-thread .coach-thread-preview {
+  width: min(calc(100% - 35px), 560px);
+  margin: 0;
+  border-radius: 4px 16px 16px 4px;
+  padding: 12px 15px;
+}
+.coach-thread-preview .private-question-content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.coach-thread-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-top: 6px;
+}
+.coach-messages-workspace .open-chat-messages .coach-thread-meta small {
+  opacity: 1;
+  color: #d7edf2;
+}
+.coach-thread-meta small:last-child { font-weight: 700; }
+.coach-messages-workspace .coach-private-unread {
+  display: inline-block;
+  vertical-align: middle;
+  opacity: 1;
+  margin: 4px 6px 4px 0;
+  padding: 2px 7px;
+  background: #e7f9bc;
+  color: #163d44;
+  border-radius: 16px;
+  font-weight: 800;
+  font-size: 11px;
+}
+.coach-private-history .coach-private-unread { margin-inline-start: 6px; }
+.coach-messages-workspace .coach-thread-preview:focus-visible {
+  outline: 2px solid #d2f458;
+  outline-offset: -5px;
+}

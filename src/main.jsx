@@ -2961,7 +2961,7 @@ function CoachView({ accountRole = 'coach', responses, profiles, pendingProfiles
         ) : view === 'talks' ? (
           <DevelopmentTalkCoach key={talkNavigation?.key || 'all-talks'} code={code} profiles={groupFilteredProfiles} initialTalkId={talkNavigation?.talkId || ''} initialProfileId={talkNavigation?.profileId || ''} onReturnToSwimmer={talkNavigation ? () => { setFocusedSwimmerId(talkNavigation.profileId); setTalkNavigation(null); setView('swimmers') } : undefined} />
         ) : view === 'community' ? (
-          <CoachMessages key={code} code={code} profiles={groupFilteredProfiles} initialRecipientId={focusedSwimmerId} />
+          <CoachMessages key={code} code={code} accountId={coachProfile?.id} profiles={groupFilteredProfiles} initialRecipientId={focusedSwimmerId} />
         ) : view === 'workout' ? (
           <WorkoutEditor code={code} responses={groupFilteredResponses} aiEnabled={aiEnabled} selectedGroups={selectedGroups} availableGroups={availableGroups} />
         ) : view === 'planning' ? (

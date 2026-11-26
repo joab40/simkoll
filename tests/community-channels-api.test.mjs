@@ -15,16 +15,17 @@ async function call(query, requestCode = code, cookie = '', body) {
   return response
 }
 
-test('real info route skips unrelated tables and returns no inbox/public-feed payload', async () => {
+test('real coach info route reads direct previews and skips unrelated feeds', async () => {
   const calls = []
   globalThis.fetch = async url => {
     const table = new URL(url).pathname.split('/').at(-1); calls.push(table)
-    assert(['app_settings', 'profiles', 'open_chat_messages'].includes(table), table)
+    assert(['app_settings', 'private_messages', 'profiles', 'open_chat_messages'].includes(table), table)
+    if (table === 'private_messages') assert.equal(new URL(url).searchParams.get('reply_to_open_chat_id'), 'is.null')
     return json(rows[table])
   }
   const response = await call({ openChat: 'true' })
   assert.equal(response.code, 200); assert.equal(response.data.openChat.messages[0].content, 'Public info')
-  assert.deepEqual(calls, ['app_settings', 'open_chat_messages']); assert.match(response.headers['Cache-Control'], /no-store/)
+  assert.deepEqual(calls, ['app_settings', 'private_messages', 'open_chat_messages']); assert.match(response.headers['Cache-Control'], /no-store/)
   assert.deepEqual(Object.keys(response.data), ['openChat'])
 })
 
@@ -38,6 +39,7 @@ test('coach info sends counts up front and returns unseen names only on an autho
     calls.push(table)
     switch (table) {
       case 'app_settings': return json(rows.app_settings)
+      case 'private_messages': return json([])
       case 'open_chat_messages': return json([{ ...rows.open_chat_messages[0], id: messageId, visibility: 'group' }])
       case 'open_chat_coach_read_totals':
         assert.deepEqual(JSON.parse(options.body), { p_message_ids: [messageId] })
@@ -50,7 +52,7 @@ test('coach info sends counts up front and returns unseen names only on an autho
   const channel = await call({ openChat: 'true' })
   assert.equal(channel.code, 200)
   assert.deepEqual(channel.data.openChat.messages[0].engagement, { seenCount: 8, recipientCount: 9, likeCount: 2 })
-  assert.deepEqual(calls, ['app_settings', 'open_chat_messages', 'open_chat_coach_read_totals'])
+  assert.deepEqual(calls, ['app_settings', 'private_messages', 'open_chat_messages', 'open_chat_coach_read_totals'])
   const detail = await call({ openChatReadDetails: messageId })
   assert.equal(detail.code, 200)
   assert.deepEqual(detail.data, { seenCount: 8, recipientCount: 9, unseen })

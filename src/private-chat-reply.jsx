@@ -4,7 +4,7 @@ import { useCommunityChannel } from './use-community-channel.js'
 import PrivateReplyAi from './private-reply-ai.jsx'
 import './private-chat-reply.css'
 
-export const privateThreadKey = thread => `${thread?.kind}:${thread?.id}`
+export { privateThreadKey } from './private-thread-preview.js'
 
 export default function PrivateChatReply({ thread, name, coach = false, code, request, onClose, onSent, onViewed }) {
   const dialog = useRef(null), log = useRef(null), input = useRef(null), sending = useRef(false)
@@ -56,7 +56,7 @@ export default function PrivateChatReply({ thread, name, coach = false, code, re
       channel.setData(current => ({ ...current, messages: [...current.messages.filter(item => item.id !== result.message.id), result.message] }))
       setContent('')
       onSent?.()
-      window.dispatchEvent(new Event('simkoll-private-message-sent'))
+      window.dispatchEvent(new Event('simkoll-private-messages-changed'))
     } catch (reason) { setError(reason.message || 'Svaret kunde inte skickas. Försök igen.') }
     finally { sending.current = false; setBusy(false) }
   }
@@ -71,6 +71,7 @@ export default function PrivateChatReply({ thread, name, coach = false, code, re
       })
       channel.setData(current => ({ ...current, messages: current.messages.filter(message => message.id !== item.id) }))
       onSent?.()
+      window.dispatchEvent(new Event('simkoll-private-messages-changed'))
     } catch (reason) { setError(reason.message) }
     finally { setDeleting(null) }
   }
