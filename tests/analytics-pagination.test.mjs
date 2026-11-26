@@ -61,13 +61,13 @@ test('safety ceiling is explicitly flagged instead of pretending the dataset is 
   assert.equal(result.truncated, true)
 })
 
-test('three months and the preceding three months include the last rows beyond 10,000 check-ins', async () => {
+test('three months and the comparison period read all check-ins in separate overlapping page chains', async () => {
   const responses = [
     ...replies('2026-05-15', 3000, 5), ...replies('2026-06-18', 3200, 5),
     ...replies('2026-08-25', 4900, 6), ...replies('2026-10-29', 18, 8),
   ]
   const scope = '11111111-1111-4111-8111-111111111111'
-  const offsets = []
+  const pages = []
   const rosters = [{ id: scope, training_group: 'junior', created_at: '2026-01-01T00:00:00Z' }, ...profiles]
   globalThis.fetch = async raw => {
     const url = new URL(raw), table = url.pathname.split('/').at(-1)
@@ -75,12 +75,17 @@ test('three months and the preceding three months include the last rows beyond 1
     const offset = Number(url.searchParams.get('offset') || 0)
     const limit = Number(url.searchParams.get('limit') || 500)
     if (table === 'responses') {
-      offsets.push(offset)
+      const dates = url.searchParams.getAll('created_at')
+      const start = dates.find(value => value.startsWith('gte.')).slice(4)
+      const end = dates.find(value => value.startsWith('lt.')).slice(3)
+      pages.push({ start, offset })
       assert.equal(url.searchParams.get('or'), `(profile_id.in.(${scope}),profile_id.is.null)`)
       assert.doesNotMatch(url.searchParams.get('select'), /comment/)
+      return new Response(JSON.stringify(responses.filter(row => row.created_at >= start && row.created_at < end)
+        .slice(offset, offset + limit).map(row => ({ ...row, profile_id: scope }))))
     }
+    if (table === 'daily_workouts') assert.doesNotMatch(url.searchParams.get('select'), /content|note/)
     const data = {
-      responses: responses.map(item => ({ ...item, profile_id: scope })),
       profiles: rosters,
       daily_workouts: [{ id: 'recent', workout_date: '2026-10-29', title: 'Passet', distance_meters: 3000 }],
     }[table] || []
@@ -96,6 +101,8 @@ test('three months and the preceding three months include the last rows beyond 1
   assert.equal(result.data.previous.checkins, 6200)
   assert.equal(result.data.workoutAnalysis.trend[0].count, 18)
   assert.equal(result.data.workoutAnalysis.trend[0].rpe, 8)
-  assert.ok(offsets.some(offset => offset > 10000))
+  assert.equal(new Set(pages.slice(0, 2).map(page => page.start)).size, 2)
+  assert.ok(pages.slice(0, 2).every(page => page.offset === 0))
+  assert.equal(Math.max(...pages.map(page => page.offset)), 6000)
   assert.ok(!result.data.groupTrend.warnings.some(warning => warning.includes('hämtgränsen')))
 })

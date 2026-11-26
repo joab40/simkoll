@@ -299,7 +299,15 @@ export default async function handler(request, response) {
       if (request.method === 'POST') {
         try { return sendJson(response, 200, { reflection: await saveDiaryReflection(profile, request.body) }) } catch (error) { return sendJson(response, error.status || 502, { error: error.message }) }
       }
-      try { return sendJson(response, 200, await loadTrainingDiary(profile, String(request.query.start || ''), String(request.query.end || ''))) } catch (error) { return sendJson(response, /Välj/.test(error.message) ? 400 : 502, { error: error.message }) }
+      const start = String(request.query.start || ''), end = String(request.query.end || '')
+      const { view } = request.query
+      if (view === 'day' && start !== end) return sendJson(response, 400, { error: 'Välj en dag för att visa passdetaljer.' })
+      try {
+        const data = await loadTrainingDiary(profile, start, end, view === 'day'
+          ? { includeComparison: false, includeGoals: false } : { overview: view === 'overview' })
+        return sendJson(response, 200, view === 'day'
+          ? { entries: data.entries, reflectionsAvailable: data.reflectionsAvailable, warnings: data.warnings } : data)
+      } catch (error) { return sendJson(response, /Välj/.test(error.message) ? 400 : 502, { error: error.message }) }
     }
     if (request.method === 'GET') {
       if (role === 'coach') return sendJson(response, 200, await loadTraining())

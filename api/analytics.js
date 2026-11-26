@@ -280,7 +280,7 @@ export default async function handler(request, response) {
   if (role === 'swimmer' && (!sessionProfile || profileId !== sessionProfile.id)) return sendJson(response, 403, { error: 'Du kan bara se din egen statistik.' })
   if ([start, end, previousStart, previousEnd].some((value) => Number.isNaN(Date.parse(value))) || !(previousStart < previousEnd && previousEnd <= start && start < end)) return sendJson(response, 400, { error: 'Ogiltig period.' })
   const profileFilter = profileId ? `&profile_id=eq.${encodeURIComponent(profileId)}` : ''
-  const timestampRange = `&created_at=gte.${encodeURIComponent(previousStart)}&created_at=lt.${encodeURIComponent(end)}`
+  const timestampRange = (from, to) => `&created_at=gte.${encodeURIComponent(from)}&created_at=lt.${encodeURIComponent(to)}`
   const previousStartDay = stockholmKey(previousStart), endDay = stockholmKey(end)
   const startDay = stockholmKey(start), olderHistoryStart = addDays(startDay, -365)
   const requestToday = stockholmKey(new Date()), requestMonday = mondayFor(requestToday)
@@ -294,16 +294,26 @@ export default async function handler(request, response) {
   const responseScope = scoped && includeAnonymous ? `&or=(profile_id.in.(${groupIds.join(',')}),profile_id.is.null)` : scoped
   const responseFields = 'profile_id,activity_date,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating'
   const personalResponseFields = 'late_entry,activity_type,activity_minutes,activity_distance_meters,planned_completion,workout_reference,session_slot,competition,comment'
+  const groupResponses = (from, to) => groupRead(`responses?select=${responseFields}${timestampRange(from, to)}${responseScope}&order=created_at.asc,id.asc`)
+  const readResponses = async () => {
+    if (profileId) return reportRead(`responses?select=${responseFields},${personalResponseFields}${profileFilter}&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}&order=activity_date.asc,created_at.asc,id.asc`)
+    if (request.query?.period !== '90') return groupResponses(previousStart, end)
+    // Page through the current and comparison periods concurrently.
+    const [previous, current] = await Promise.all([groupResponses(previousStart, previousEnd), groupResponses(start, end)])
+    if (!previous.ok) return previous
+    if (!current.ok) return current
+    return { ok: true, truncated: previous.truncated || current.truncated, json: async () => [...await previous.json(), ...await current.json()] }
+  }
   try {
     const [savedResult, profilesResult, responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, plansResult, notesResult, competitionResultsResult, olderResponsesResult, olderSessionsResult, strengthLogsResult, assignmentsResult, swimmerNotesResult, plannedPersonalResult, olderStrengthLogsResult, swimmerProfileResult, attendanceResult] = await Promise.all([
       supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`),
       profileId ? null : groupRead('profiles?select=id,is_test_profile,created_at,training_group&order=id.asc'),
-      reportRead(`responses?select=${responseFields}${profileId ? `,${personalResponseFields}${profileFilter}&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}&order=activity_date.asc,created_at.asc,id.asc` : `${timestampRange}${responseScope}&order=created_at.asc,id.asc`}`),
+      readResponses(),
       reportRead(`personal_training_sessions?select=profile_id,activity_type,session_date,session_slot${profileId ? `,completed_at,workout_reference${profileFilter}` : scoped}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&order=session_date.asc,id.asc`),
       reportRead(`profile_daily_activity?select=profile_id,activity_date${profileFilter || scoped}&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}&order=activity_date.asc,profile_id.asc`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
-      reportRead(`daily_workouts?select=id,workout_date,title,content,focus,distance_meters,duration_minutes,time_of_day,target_groups${profileId ? ',note' : ''}&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc,id.asc`),
+      reportRead(`daily_workouts?select=id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups${profileId ? ',content,note' : ''}&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc,id.asc`),
       reportRead(`training_plans?select=id,source_workout_id,calendar_link,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups${profileId ? ',notes' : ''}&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc,id.asc`),
       role === 'coach' && !profileId ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
       profileId ? supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_year,date_precision,result_time,swim_time,competition_name,source${profileFilter}&order=result_date.desc&limit=10000`) : groupRead(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&source=eq.tempus&result_date=lt.${endDay}${scoped}&order=result_date.asc,id.asc`),

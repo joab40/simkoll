@@ -21,7 +21,7 @@ async function rows(query, { optional = false, warnings, label }) {
 }
 
 export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true,
-  includeGoals = true, includeCheckinSignals = false, includeEntryComments = false, summaryOnly = false, planningCache, readProfileRows } = {}) {
+  includeGoals = true, includeCheckinSignals = false, includeEntryComments = false, summaryOnly = false, overview = false, planningCache, readProfileRows } = {}) {
   const today = stockholmDate()
   const range = diaryRange(start, end, today)
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
@@ -41,20 +41,24 @@ export async function loadTrainingDiary(profile, start, end, { includeReflection
     return value
   }
   const responseColumns = 'id,activity_date,created_at,day_type,activity_type,session_slot,competition,workout_reference,activity_distance_meters,activity_minutes,planned_completion,feeling,body,energy,motivation,rpe,speed_feeling,pass_rating,setup_rating,temperature'
+  const compact = overview || summaryOnly
+  const responseSelect = overview ? `${responseColumns},training_origin,activity_focus,activity_sport,comment,late_entry`
+    : summaryOnly ? responseColumns + (includeEntryComments ? ',comment,late_entry' : '') : '*'
+  const drylandSelect = overview ? 'session_date,pass_number,program_title,pass_title' : summaryOnly ? 'session_date,pass_number' : '*'
   const [sessions, responses, workouts, plans, personalPlans, attendance, strengthLogs, assignments, results, goals, reflections, unlocks, drylandLogs] = await Promise.all([
-    read(`personal_training_sessions?${owner}&${within('session_date')}&select=${summaryOnly ? 'id,session_date,session_slot,activity_type,source,workout_reference,personal_details' : '*'}&order=session_date.asc,id.asc`, 'registrerade pass'),
-    read(`responses?${owner}&${within('activity_date')}&select=${summaryOnly ? responseColumns + (includeEntryComments ? ',comment,late_entry' : '') : '*'}&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
-    readPlanning(`daily_workouts?${within('workout_date')}&select=${summaryOnly ? 'id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups' : '*'}&order=workout_date.asc,id.asc`, 'upplagda pass'),
-    readPlanning(`training_plans?${within('plan_date')}&select=${summaryOnly ? 'id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,source_workout_id,calendar_link,location,sync_status' : '*'}&order=plan_date.asc,id.asc`, 'grundplanering'),
-    read(`planned_training_sessions?${owner}&${within('planned_date')}&select=*&order=planned_date.asc,id.asc`, 'personlig planering'),
+    read(`personal_training_sessions?${owner}&${within('session_date')}&select=${compact ? 'id,session_date,session_slot,activity_type,source,workout_reference,personal_details' : '*'}&order=session_date.asc,id.asc`, 'registrerade pass'),
+    read(`responses?${owner}&${within('activity_date')}&select=${responseSelect}&order=activity_date.asc,created_at.asc,id.asc`, 'incheckningar'),
+    readPlanning(`daily_workouts?${within('workout_date')}&select=${compact ? 'id,workout_date,title,focus,distance_meters,duration_minutes,time_of_day,target_groups' : '*'}&order=workout_date.asc,id.asc`, 'upplagda pass'),
+    readPlanning(`training_plans?${within('plan_date')}&select=${compact ? 'id,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups,source_workout_id,calendar_link,location,sync_status' : '*'}&order=plan_date.asc,id.asc`, 'grundplanering'),
+    read(`planned_training_sessions?${owner}&${within('planned_date')}&select=${overview ? 'planned_date,session_slot,personal_details' : '*'}&order=planned_date.asc,id.asc`, 'personlig planering'),
     read(`session_attendance?${owner}&${within('attendance_date')}&present=eq.true&select=attendance_date,session_slot,present,marked_at&order=attendance_date.asc,marked_at.asc`, 'tränarens närvaromarkeringar', true),
-    read(`strength_program_logs?${owner}&${within('session_date')}&select=${summaryOnly ? 'session_date,pass_number' : '*'}&order=session_date.asc,id.asc`, 'styrkeloggar', true),
-    summaryOnly ? [] : read(`program_assignments?${owner}&select=id,training_programs(title,content)&order=id.asc`, 'styrkeprogram', true),
+    read(`strength_program_logs?${owner}&${within('session_date')}&select=${overview ? 'session_date,pass_number,assignment_id' : summaryOnly ? 'session_date,pass_number' : '*'}&order=session_date.asc,id.asc`, 'styrkeloggar', true),
+    summaryOnly ? [] : read(`program_assignments?${owner}&select=id,training_programs(${overview ? 'title' : 'title,content'})&order=id.asc`, 'styrkeprogram', true),
     includeResults ? read(`competition_results?${owner}&${within('result_date')}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`, 'tävlingsresultat', true) : [],
     includeGoals ? read(`development_goals?${owner}&start_date=lte.${end}&select=id,title,description,next_step,start_date,target_date,status&order=start_date.desc,id.asc`, 'utvecklingsmål', true) : [],
     includeReflections ? read(`training_diary_reflections?${owner}&${within('activity_date')}&select=entry_key,activity_date,what_worked,next_time,updated_at&order=activity_date.asc,id.asc`, 'dagboksanteckningar (kräver migration 095)', true) : Promise.resolve([]),
-    summaryOnly ? [] : read(`workout_unlocks?${owner}&workout_date=eq.${today}&select=profile_id&order=profile_id.asc`, 'dagens passåtkomst'),
-    read(`dryland_program_logs?${owner}&${within('session_date')}&select=${summaryOnly ? 'session_date,pass_number' : '*'}&order=session_date.asc,id.asc`, 'landträningsloggar (kräver SQL 111)', true),
+    compact || end < today ? [] : read(`workout_unlocks?${owner}&workout_date=eq.${today}&select=profile_id&order=profile_id.asc`, 'dagens passåtkomst'),
+    read(`dryland_program_logs?${owner}&${within('session_date')}&select=${drylandSelect}&order=session_date.asc,id.asc`, 'landträningsloggar (kräver SQL 111)', true),
   ])
   // Older coach attendance may predate personal_training_sessions. Merge it
   // into the same completed-session stream; the diary builder deduplicates by

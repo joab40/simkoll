@@ -2980,6 +2980,7 @@ button { cursor: pointer; }
 .high-five-burst span { position: absolute; bottom: -3.2rem; font-size: clamp(1.7rem, 5vw, 2.7rem); filter: drop-shadow(0 4px 8px rgba(0,0,0,.24)); animation: high-five-float 1.85s cubic-bezier(.2,.7,.25,1) both; }
 @keyframes high-five-float { 0% { opacity: 0; transform: translate3d(0,0,0) rotate(-12deg) scale(.65); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate3d(var(--high-five-drift), -78svh,0) rotate(18deg) scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .pep-message-reactions .pep-reaction { transition: none; } .high-five-burst span { animation-duration: .01ms; } }
+.info-new-messages { align-self: center; position: relative; margin-top: -44px; margin-bottom: 9px; z-index: 1; background: #fff; border: 1px solid #bdd7cd; border-radius: 20px; padding: 8px 14px; color: #1d7475; cursor: pointer; }
 .pep-channel-panel .open-chat-messages { flex: 1 1 auto; min-height: 0; max-height: none; overscroll-behavior-y: contain; }
 .pep-channel-panel .open-chat-messages article { width: 100%; }
 .pep-channel-panel .open-chat-messages article > div { min-width: 0; max-width: min(calc(100% - 2.8rem), 38rem); }

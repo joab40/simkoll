@@ -45,7 +45,6 @@
 .coach-messages-workspace .open-chat-compose .chat-emoji-trigger { background: #e9f2ec; color: #23454c; }
 .coach-messages-workspace .open-chat-compose > button { width: auto; min-height: 46px; border-radius: 14px; font-size: 13px; }
 .coach-messages-workspace .open-chat-compose > small { flex-basis: 100%; color: #587776; }
-.info-new-messages { align-self: center; position: relative; margin-top: -44px; margin-bottom: 9px; z-index: 1; background: #fff; border: 1px solid #bdd7cd; border-radius: 20px; padding: 8px 14px; color: #1d7475; cursor: pointer; }
 .coach-messages-workspace .private-replies-warning { background: #fff3d4; color: #6d522e; margin: 0; padding: 10px 16px; }
 .coach-private-inbox { border: 1px solid #d3e3db; border-radius: 23px; background: #fbfdfb; padding: 24px; }
 .coach-private-inbox header h2 { font-size: 19px; margin: 0 0 8px; }

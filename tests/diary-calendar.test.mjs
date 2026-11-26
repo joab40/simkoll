@@ -39,7 +39,7 @@ test('the calendar updates the owned diary range with unsaved-text protection an
   assert.match(source,/onMonthChange=\{changeCalendarMonth\}/)
   assert.match(source,/if \(changeRange\(next\)\) calendarNavigation.current/)
   assert.match(source,/if \(!allowLeave\(\)\) return false/)
-  assert.match(source,/request\(`\/api\/training\?diary=true&start=\$\{range.start\}&end=\$\{range.end\}`/)
+  assert.ok(source.includes('/api/training?diary=true&start=${range.start}&end=${range.end}&view=overview'))
   assert.doesNotMatch(source,/disabled=\{month <= range.start/)
   assert.match(source,/simpass saknar uppgifter/);assert.match(source,/diary-calendar-missing/)
 })

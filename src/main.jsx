@@ -2,7 +2,6 @@ import { PLANNING_WEEK_TYPES } from '../shared/planning-week-types.js'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AssistantUsageLog } from './assistant-usage.jsx'
 import CoachPasswordReset, { coachResetRoute } from './coach-password-reset.jsx'
-import CoachTestEmail from './coach-test-email.jsx'
 import FeatureFaq from './feature-faq.jsx'
 import RewardLevelCard from './reward-level-card.jsx'
 import SwimmerCollection from './swimmer-collection.jsx'
@@ -27,7 +26,6 @@ import { createVisibleRefresh, startVisiblePolling } from './visible-refresh.js'
 import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
 import { personalActivityStreak, stockholmActivityDay } from '../shared/activity-streak.js'
-import ActivityCorrection from './activity-correction.jsx'
 import LaneUsagePanel,{LaneUsageSettings} from './lane-usage.jsx'
 import TrendLineChart from './trend-line-chart.jsx'
 import { activityLabel } from '../shared/checkin-activity.js'
@@ -52,13 +50,11 @@ import { latestSwimmerComment } from './swimmer-card-focus.js'
 import { strengthPasses, strengthExercises } from '../shared/strength-program.js'
 import { programKind } from '../shared/program-kind.js'
 import DrylandProgramPage, { DrylandProgramRunner, DrylandHistory } from './dryland-program.jsx'
-import ProgramBulkAssign from './program-bulk-assign.jsx'
 import ProgramManagementCard from './program-management-card.jsx'
 import WorkoutOccasionChoice from './workout-occasion-choice.jsx'
 import { clearOccasionTarget, hasOccasionTarget, occasionValidationKey } from '../shared/workout-occasion-selection.js'
 import WorkoutGenerator, { WorkoutGenerationResult, WorkoutGenerationButtonContent } from './workout-generator.jsx'
 import WorkoutCard, { WorkoutContent, WorkoutMeta } from './workout-card.jsx'
-import WorkoutPreview from './workout-preview.jsx'
 import { WORKOUT_FOCUSES } from '../shared/workout-focuses.js'
 import { SWIM_WORKBOOK_TYPES } from '../shared/swim-workbook.js'
 import { StrengthProgramImagesEditor, SwimmerExerciseImage } from './strength-exercise-images.jsx'
@@ -67,7 +63,6 @@ import SwimmerWeekPlanner from './swimmer-week-planner.jsx'
 import {createWeeklyTrainingSync,pendingWeeklySessions} from './weekly-training-sync.js'
 import WeeklyTrainingVolume from './weekly-training-volume.jsx'
 import CoachHeader from './coach-header.jsx'
-import DriveSettings from './drive-settings.jsx'
 import { CalendarVisibilityButton, HiddenCalendarActivities, CompetitionPlanVisibilityButton, HiddenCompetitionPlans } from './calendar-visibility.jsx'
 import SwimmerHeader from './swimmer-header.jsx'
 import WinterHeroDecor, { WinterTrainingBuddy } from './winter-theme.jsx'
@@ -88,7 +83,6 @@ import { illnessLabel } from '../shared/illness.js'
 import { SavedCompetitionLogo } from './competition-logo.jsx'
 import { showCompetitionLogoThisWeek } from '../shared/competition-logo-presets.js'
 import { CoachInfoPage, Community } from './swimmer-community.jsx'
-import CoachMessages from './coach-messages.jsx'
 import { TALK_STEPS, TALK_FIELD_LABELS } from '../shared/development-talk-form.js'
 import GoalCreationTools, { GoalAnalysisImage } from './goal-creation-tools.jsx'
 import { GoalMediaEditor } from './goal-video.jsx'
@@ -100,7 +94,6 @@ import './styles.css'
 import './swimmer-community.css'
 import './planning-editor.css'
 import CompetitionPm from './competition-pm.jsx'
-import CompetitionEntryProgress from './competition-entry-progress.jsx'
 import { isSubmittedCompetitionEntry } from '../shared/competition-entry-status.js'
 import { canUseSwimmerAssistant } from '../shared/swimmer-assistant.js'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
@@ -114,6 +107,13 @@ const PlanningImport = deferredPanel(() => import('./planning-import.jsx'), 'Öp
 const StrengthProgramBuilder = deferredPanel(() => import('./strength-program-builder.jsx'))
 const WorkoutWorkbookReview = deferredPanel(() => import('./workout-workbook-review.jsx'))
 const CoachControlPanel = deferredPanel(() => import('./coach-control-panel.jsx'))
+const CoachMessages = deferredPanel(() => import('./coach-messages.jsx'), 'Öppnar meddelanden…')
+const ActivityCorrection = deferredPanel(() => import('./activity-correction.jsx'), 'Öppnar aktivitetsdagar…')
+const DriveSettings = deferredPanel(() => import('./drive-settings.jsx'), 'Öppnar Drive-inställningar…')
+const CoachTestEmail = deferredPanel(() => import('./coach-test-email.jsx'))
+const ProgramBulkAssign = deferredPanel(() => import('./program-bulk-assign.jsx'))
+const WorkoutPreview = deferredPanel(() => import('./workout-preview.jsx'), 'Öppnar förhandsvisningen…')
+const CompetitionEntryProgress = deferredPanel(() => import('./competition-entry-progress.jsx'), 'Öppnar överblicken…')
 const CoachFlightRecord = deferredPanel(() => import('./coach-flight-record.jsx'), 'Öppnar Flight Record…')
 const CoachFlightOverview = deferredPanel(() => import('./coach-flight-overview.jsx'), 'Öppnar Flight Record…')
 const CoachMetricDetails = deferredPanel(() => import('./coach-metric-details.jsx'))
