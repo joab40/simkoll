@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { coachWeekAddDays } from '../shared/coach-week.js'
 import { builtInFlightDefaults, flightGroupCurve, flightGroupId, FLIGHT_OVERVIEW_BATCH } from '../shared/flight-defaults.js'
-import { FLIGHT_HISTORY_DAYS, FLIGHT_PERIODS } from '../shared/flight-record.js'
+import { FLIGHT_PERIODS } from '../shared/flight-record.js'
 import { isTimeDate } from '../shared/swim-times.js'
 import { FlightPlot } from './flight-record.jsx'
 import { usePlanningWeekTypes } from './use-planning-week-types.js'
@@ -31,7 +31,7 @@ function MiniFlightLine({ points }) {
 
 export default function CoachFlightOverview({ profiles, availableGroups = [], asOf, request, code, onOpenSwimmer, onOpenSettings, initialOpen }) {
   const [open, setOpen] = useState(initialOpen)
-  const [period, setPeriod] = useState(FLIGHT_HISTORY_DAYS)
+  const [period, setPeriod] = useState(28)
   const [endDate, setEndDate] = useState(null)
   const [result, setResult] = useState(null)
   const [attempt, setAttempt] = useState(0)
@@ -42,38 +42,45 @@ export default function CoachFlightOverview({ profiles, availableGroups = [], as
   const end = endDate ?? asOf
   const start = coachWeekAddDays(end, 1 - period)
   const loadKey = `${code}:${end}:${idKey}:${attempt}`
+  const coveredDays = result?.key === loadKey ? result.days : 0
 
   useEffect(() => {
-    if (!open || !idKey || result?.key === loadKey) return
+    if (!open || !idKey || coveredDays >= period) return
     const controller = new AbortController()
     const ids = idKey.split(',')
+    const members = new Map()
+    let clubMinSwimmers = builtInFlightDefaults.minSwimmers
+    let nextIndex = 0, completed = 0
     setProgress(0)
     setDay(null)
-    const load = async () => {
-      const members = new Map()
-      let clubMinSwimmers = builtInFlightDefaults.minSwimmers
-      for (let index = 0; index < ids.length; index += FLIGHT_OVERVIEW_BATCH) {
-        const batch = ids.slice(index, index + FLIGHT_OVERVIEW_BATCH)
+    const loadBatches = async () => {
+      while (!controller.signal.aborted && nextIndex < ids.length) {
+        const batch = ids.slice(nextIndex, nextIndex + FLIGHT_OVERVIEW_BATCH)
+        nextIndex += batch.length
         try {
-          const data = await request(`/api/training?flightRecord=overview&end=${end}&days=${FLIGHT_HISTORY_DAYS}&ids=${encodeURIComponent(batch.join(','))}`, code, { signal: controller.signal, retry: false })
+          const query = new URLSearchParams({ flightRecord: 'overview', end, days: period, ids: batch.join(',') })
+          const data = await request(`/api/training?${query}`, code, { signal: controller.signal, retry: false })
           if (controller.signal.aborted) return
           clubMinSwimmers = data.clubMinSwimmers
           data.profiles.forEach(profile => members.set(profile.id, profile))
         } catch {
           if (controller.signal.aborted) return
-          batch.forEach(id => members.set(id, { unavailable: true, points: [] }))
         }
-        setProgress(Math.min(ids.length, index + batch.length))
+        // A profile can disappear from the result if its access changed while loading.
+        batch.forEach(id => { if (!members.has(id)) members.set(id, { unavailable: true, points: [] }) })
+        completed += batch.length
+        setProgress(completed)
       }
-      setResult({ key: loadKey, members, clubMinSwimmers })
     }
-    void load()
+    Promise.all([loadBatches(), loadBatches()]).then(() => {
+      if (!controller.signal.aborted) setResult({ key: loadKey, days: period, members, clubMinSwimmers })
+    })
     return () => controller.abort()
-  }, [open, loadKey, idKey, code, end, request, result?.key])
+  }, [open, loadKey, idKey, code, end, period, request, coveredDays])
 
-  const loaded = result?.key === loadKey ? result : null
+  const loaded = coveredDays >= period ? result : null
   const groups = new Set(roster.map(profile => flightGroupId(profile.trainingGroup)))
-  const weekPlan = usePlanningWeekTypes({ code, request, from: open && idKey ? coachWeekAddDays(end, 1 - FLIGHT_HISTORY_DAYS) : null, to: end })
+  const weekPlan = usePlanningWeekTypes({ code, request, from: open && idKey ? start : null, to: end })
   const groupNames = new Map(availableGroups)
   const weekTypes = weekPlan.data?.weekTypes?.filter(row => groups.has(row.groupId))
     .map(row => ({ ...row, groupName: groups.size > 1 ? groupNames.get(row.groupId) ?? row.groupId : null })) ?? []

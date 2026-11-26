@@ -1,3 +1,4 @@
+import { indexRowsBy } from '../shared/index-rows.js'
 import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
 
 const groupKey = (value) => ({
@@ -39,13 +40,15 @@ export function deduplicatePlannedActivities({ plans = [], workouts = [], from, 
   const scopedPlans = effectivePlans.filter((item) => inDateRange(item.plan_date) && ['swim', 'strength', 'dryland', 'competition'].includes(item.activity_type) && matchesScope(item, selectedGroups)).map(publicPlan)
   const scopedWorkouts = workouts.filter((item) => inDateRange(item.workout_date) && matchesScope(item, selectedGroups)).map(publicWorkout)
 
+  const workoutsById = indexRowsBy(scopedWorkouts, row => String(row.id))
+  const workoutsByDay = indexRowsBy(scopedWorkouts, row => row.date)
   const findLinkedWorkout = (plan) => {
-    const exact = scopedWorkouts.find((workout) => String(workout.id) === String(plan.sourceWorkoutId))
+    const exact = workoutsById.get(String(plan.sourceWorkoutId))?.[0]
     const exactMatchesPlan = exact && exact.date === plan.date && (!plan.timeOfDay || !exact.timeOfDay || exact.timeOfDay === plan.timeOfDay) && (!plan.distanceMeters || !exact.distanceMeters || Number(plan.distanceMeters) === Number(exact.distanceMeters))
     if (exactMatchesPlan) return exact
     if (plan.activityType !== 'swim') return null
     const planGroups = new Set(normalizedGroups(plan.targetGroups))
-    const candidates = scopedWorkouts.filter((workout) => workout.date === plan.date && (!plan.timeOfDay || !workout.timeOfDay || workout.timeOfDay === plan.timeOfDay) && (!planGroups.size || !workout.targetGroups?.length || workout.targetGroups.some((group) => planGroups.has(groupKey(group)))))
+    const candidates = (workoutsByDay.get(plan.date) ?? []).filter((workout) => (!plan.timeOfDay || !workout.timeOfDay || workout.timeOfDay === plan.timeOfDay) && (!planGroups.size || !workout.targetGroups?.length || workout.targetGroups.some((group) => planGroups.has(groupKey(group)))))
     return candidates.map((workout) => {
       let score = 0
       if (plan.focus && workout.focus === plan.focus) score += 5
@@ -67,13 +70,15 @@ export function deduplicatePlannedActivities({ plans = [], workouts = [], from, 
   const activityRank = (item) => (item.sourceWorkoutId ? 8 : 0) + (item.location ? 2 : 0) + (item.focus ? 2 : 0) + (item.notes ? 1 : 0) + (item.title && !/^image\.jpg$|^importerat träningspass$/i.test(item.title) ? 1 : 0)
   const deduplicated = []
   const duplicateKeys = new Map()
+  const firstByBase = new Map()
   rawActivities.forEach((item) => {
     const groups = normalizedGroups(item.targetGroups).join(',')
     const baseKey = [item.date, item.activityType || '', item.distanceMeters || '', item.durationMinutes || '', groups].join('|')
     const activityKey = `${baseKey}|${item.timeOfDay || ''}`
-    const previousIndex = duplicateKeys.get(activityKey) ?? duplicateKeys.get(`${baseKey}|`) ?? [...duplicateKeys.entries()].find(([candidate]) => candidate.startsWith(`${baseKey}|`) && (!candidate.split('|').pop() || !item.timeOfDay))?.[1]
+    const previousIndex = duplicateKeys.get(activityKey) ?? duplicateKeys.get(`${baseKey}|`) ?? (!item.timeOfDay ? firstByBase.get(baseKey) : undefined)
     if (previousIndex == null) {
       duplicateKeys.set(activityKey, deduplicated.length)
+      if (!firstByBase.has(baseKey)) firstByBase.set(baseKey, deduplicated.length)
       deduplicated.push(item)
       return
     }

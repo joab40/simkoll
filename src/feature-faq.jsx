@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { featureFaqFor, FEATURE_FAQ_SECTIONS } from '../shared/feature-faq.js'
-import TrainingHeartExamples from './training-heart-examples.jsx'
-import FormKollenExamples from './form-kollen-examples.jsx'
+import { deferredPanel } from './deferred-panel.jsx'
 import './feature-faq.css'
+
+const TrainingHeartExamples = deferredPanel(() => import('./training-heart-examples.jsx'), 'Hämtar exempel…')
+const FormKollenExamples = deferredPanel(() => import('./form-kollen-examples.jsx'), 'Hämtar exempel…')
 
 export default function FeatureFaq({ role = 'swimmer', section }) {
   const entries = featureFaqFor(role, section)

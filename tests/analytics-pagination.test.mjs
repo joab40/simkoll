@@ -9,9 +9,9 @@ const { analyticsRows } = await import('../server/analytics-rows.js')
 const query = { start: '2026-09-30T22:00:00.000Z', end: '2026-10-29T23:00:00.000Z', previousStart: '2026-09-01T22:00:00.000Z', previousEnd: '2026-09-30T22:00:00.000Z', period: 'this_month' }
 const profiles = Array.from({ length: 6 }, (_, index) => ({ id: `swimmer-${index}`, created_at: '2026-01-01T00:00:00Z', training_group: 'junior' }))
 const replies = (date, count, rpe) => Array.from({ length: count }, (_, index) => ({ id: `${date}-${index}`, profile_id: profiles[index % profiles.length].id, activity_date: date, created_at: `${date}T15:00:00Z`, day_type: 'after', activity_type: 'swim', feeling: 4, body: 3, rpe, speed_feeling: 4, pass_rating: 5 }))
-const invoke = async () => {
+const invoke = async (range = query) => {
   const response = { setHeader() {}, status(code) { this.code = code; return this }, json(data) { this.data = data; return this } }
-  await handler({ method: 'GET', headers: { 'x-simkoll-code': 'fixture-coach' }, query }, response)
+  await handler({ method: 'GET', headers: { 'x-simkoll-code': 'fixture-coach' }, query: range }, response)
   return response
 }
 
@@ -59,4 +59,43 @@ test('safety ceiling is explicitly flagged instead of pretending the dataset is 
   const result = await analyticsRows('responses?order=id.asc', async () => ({ ok: true, json: async () => Array(500).fill({}) }))
   assert.equal((await result.json()).length, 10000)
   assert.equal(result.truncated, true)
+})
+
+test('three months and the preceding three months include the last rows beyond 10,000 check-ins', async () => {
+  const responses = [
+    ...replies('2026-05-15', 3000, 5), ...replies('2026-06-18', 3200, 5),
+    ...replies('2026-08-25', 4900, 6), ...replies('2026-10-29', 18, 8),
+  ]
+  const scope = '11111111-1111-4111-8111-111111111111'
+  const offsets = []
+  const rosters = [{ id: scope, training_group: 'junior', created_at: '2026-01-01T00:00:00Z' }, ...profiles]
+  globalThis.fetch = async raw => {
+    const url = new URL(raw), table = url.pathname.split('/').at(-1)
+    assert.equal(url.hostname, 'analytics-pagination.invalid')
+    const offset = Number(url.searchParams.get('offset') || 0)
+    const limit = Number(url.searchParams.get('limit') || 500)
+    if (table === 'responses') {
+      offsets.push(offset)
+      assert.equal(url.searchParams.get('or'), `(profile_id.in.(${scope}),profile_id.is.null)`)
+      assert.doesNotMatch(url.searchParams.get('select'), /comment/)
+    }
+    const data = {
+      responses: responses.map(item => ({ ...item, profile_id: scope })),
+      profiles: rosters,
+      daily_workouts: [{ id: 'recent', workout_date: '2026-10-29', title: 'Passet', distance_meters: 3000 }],
+    }[table] || []
+    return new Response(JSON.stringify(data.slice(offset, offset + limit)))
+  }
+  const result = await invoke({
+    start: '2026-08-01T22:00:00.000Z', end: '2026-10-30T23:00:00.000Z',
+    previousStart: '2026-05-03T22:00:00.000Z', previousEnd: '2026-08-01T22:00:00.000Z',
+    period: '90', profileIds: scope, includeAnonymous: 'true',
+  })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.current.checkins, 4918)
+  assert.equal(result.data.previous.checkins, 6200)
+  assert.equal(result.data.workoutAnalysis.trend[0].count, 18)
+  assert.equal(result.data.workoutAnalysis.trend[0].rpe, 8)
+  assert.ok(offsets.some(offset => offset > 10000))
+  assert.ok(!result.data.groupTrend.warnings.some(warning => warning.includes('hämtgränsen')))
 })

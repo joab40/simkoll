@@ -1,6 +1,8 @@
 import { deduplicatePlannedActivities } from './planned-activities.js'
+import { indexRowsBy } from '../shared/index-rows.js'
 
-const dayKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value))
+const dayFormat = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' })
+const dayKey = value => dayFormat.format(new Date(value))
 const mean = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 const rounded = (value) => value == null ? null : Number(value.toFixed(2))
 const direction = (change, threshold) => change >= threshold - 1e-9 ? 'up' : change <= -threshold + 1e-9 ? 'down' : 'steady'
@@ -14,10 +16,11 @@ const percentDirection = (current, previous, threshold = .05) => {
 function responseSummary(rows, days) {
   const ratings = rows.filter((row) => ['feeling', 'body'].some((key) => Number.isFinite(row[key])))
   const people = new Set(ratings.map((row) => row.profile_id).filter(Boolean))
+  const responseDays = new Map(ratings.map(row => [row, dayKey(row.created_at)]))
   const metrics = Object.fromEntries(['feeling', 'body'].map((key) => {
     const values = ratings.filter((row) => Number.isFinite(row[key]) && row[key] >= 1 && row[key] <= 5)
     const buckets = new Map()
-    values.forEach((row) => { const day = dayKey(row.created_at); if (!buckets.has(day)) buckets.set(day, []); buckets.get(day).push(row[key]) })
+    values.forEach((row) => { const day = responseDays.get(row); if (!buckets.has(day)) buckets.set(day, []); buckets.get(day).push(row[key]) })
     // Each day has equal weight, so a day with many check-ins cannot dominate.
     const enough = values.length >= 6 && buckets.size >= Math.min(2, days) && (new Set(values.map((row) => row.profile_id).filter(Boolean)).size >= 3 || values.filter((row) => !row.profile_id).length >= 6)
     return [key, { value: enough ? rounded(mean([...buckets.values()].map(mean))) : null, count: values.length, days: buckets.size }]
@@ -48,14 +51,10 @@ export function buildGroupTrend({ currentResponses, previousResponses, currentSe
   const appliesToProfile = (row, profileId) => !Array.isArray(row.target_groups) || !row.target_groups.length || row.target_groups.includes(profileGroups.get(profileId))
   const sessionKey = (row) => `${row.profile_id}|${row.session_date}|${row.session_slot || row.activity_type}`
   const uniqueSessions = (rows) => [...new Map(rows.filter((row) => cohort.has(row.profile_id)).map((row) => [sessionKey(row), row])).values()]
+  const plansByDayAndType = indexRowsBy([...workouts, ...plans], row => `${row.workout_date || row.plan_date}|${row.activity_type || 'swim'}`)
   const matchingPlan = (session) => {
-    const source = session.activity_type === 'swim' ? [...workouts, ...plans.filter((row) => row.activity_type === 'swim')] : plans
-    const candidates = source.filter((row) => {
-      const rowDate = row.workout_date || row.plan_date
-      const rowType = row.activity_type || 'swim'
-      if (rowDate !== session.session_date || rowType !== session.activity_type || !appliesToProfile(row, session.profile_id)) return false
-      return true
-    })
+    const options = plansByDayAndType.get(`${session.session_date}|${session.activity_type}`) ?? []
+    const candidates = options.filter(row => appliesToProfile(row, session.profile_id))
     const time = expectedTime(session.session_slot)
     const exactTime = time ? candidates.filter((row) => row.time_of_day === time) : []
     const untimed = time ? candidates.filter((row) => !row.time_of_day) : candidates

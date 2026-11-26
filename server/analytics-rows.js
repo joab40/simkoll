@@ -2,8 +2,8 @@ import { supabaseRequest } from './supabase.js'
 
 // Stay below the database's per-request row limit. Callers supply a stable
 // order so equal dates cannot move between pages.
-export async function analyticsRows(query, read = supabaseRequest) {
-  const rows = [], maxRows = 10000, pageSize = 500
+export async function analyticsRows(query, read = supabaseRequest, { maxRows = 10000 } = {}) {
+  const rows = [], pageSize = 500
   for (let offset = 0; offset < maxRows; offset += pageSize) {
     const result = await read(`${query}&limit=${pageSize}&offset=${offset}`)
     if (!result.ok) return result

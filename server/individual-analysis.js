@@ -1,5 +1,6 @@
 import { plannedSwimTime, commonPlannedSwimTime } from '../shared/planned-swim-time.js'
 import { calendarPlanComplements } from '../shared/calendar-plan-complements.js'
+import { indexRowsBy } from '../shared/index-rows.js'
 import { isPersonalSlot } from '../shared/personal-training.js'
 
 const number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -8,8 +9,9 @@ const average = (rows, key) => {
   const values = rows.map((row) => number(row[key])).filter((value) => value !== null)
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null
 }
-export const responseDay = (row) => row.activity_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(row.created_at))
-const submissionDay = (value) => value ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(value)) : null
+const stockholmDayFormat = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' })
+const submissionDay = value => value ? stockholmDayFormat.format(new Date(value)) : null
+export const responseDay = row => row.activity_date || stockholmDayFormat.format(new Date(row.created_at))
 const dayDifference = (from, to) => from && to ? Math.max(0, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000)) : 0
 export const analysisResponse = (row) => {
   const date = responseDay(row)
@@ -22,22 +24,38 @@ export const analysisResponse = (row) => {
 // AM and PM, or count a planned workout's full distance as actually swum.
 export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], trainingGroup }) {
   const originalPlans = plans
-  plans = calendarPlanComplements(plans, { workoutIds: new Set(workouts.map(row => row.id)) }).rows
+  const workoutIds = new Set(workouts.map(row => row.id))
+  plans = calendarPlanComplements(plans, { workoutIds }).rows
   const inGroup = (row) => !row.target_groups?.length || Boolean(trainingGroup && row.target_groups.includes(trainingGroup))
-  const candidates = workouts.filter(inGroup).map((row) => ({ ...row, duration_minutes: plannedSwimTime(row.duration_minutes, plans.filter(plan => plan.source_workout_id === row.id && plan.plan_date === row.workout_date && !plan.calendar_link?.detachedWorkoutId && inGroup(plan)).map(plan => plan.duration_minutes)) ?? row.duration_minutes, time_of_day: plans.find((plan) => plan.source_workout_id === row.id && plan.calendar_link?.mode === 'linked' && inGroup(plan))?.time_of_day || row.time_of_day, source: 'published', note: [row.note, ...plans.filter((plan) => plan.source_workout_id === row.id && inGroup(plan)).map((plan) => plan.notes)].filter(Boolean).join('\n').slice(0, 2500) }))
-  plans.filter((row) => row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && (!row.source_workout_id || !workouts.some((workout) => workout.id === row.source_workout_id)) && inGroup(row)).forEach((row) => candidates.push({ ...row, workout_date: row.plan_date, note: row.notes, source: 'plan' }))
+  const linkedPlans = indexRowsBy(plans.filter(plan => plan.source_workout_id && inGroup(plan)), plan => plan.source_workout_id)
+  const candidates = workouts.filter(inGroup).map(row => {
+    const linked = linkedPlans.get(row.id) ?? []
+    const minutes = linked.filter(plan => plan.plan_date === row.workout_date && !plan.calendar_link?.detachedWorkoutId).map(plan => plan.duration_minutes)
+    return {
+      ...row, duration_minutes: plannedSwimTime(row.duration_minutes, minutes) ?? row.duration_minutes,
+      time_of_day: linked.find(plan => plan.calendar_link?.mode === 'linked')?.time_of_day || row.time_of_day,
+      source: 'published', note: [row.note, ...linked.map(plan => plan.notes)].filter(Boolean).join('\n').slice(0, 2500),
+    }
+  })
+  plans.filter(row => row.activity_type === 'swim' && !row.calendar_link?.detachedWorkoutId && (!row.source_workout_id || !workoutIds.has(row.source_workout_id)) && inGroup(row))
+    .forEach(row => candidates.push({ ...row, workout_date: row.plan_date, note: row.notes, source: 'plan' }))
+  const candidatesByDay = indexRowsBy(candidates, row => row.workout_date)
+  const feedbackByDay = indexRowsBy(responses.filter(row => row.day_type === 'after'), responseDay)
   const seen = new Set()
   sessions = sessions.filter((row) => { if (!row.session_slot || row.session_slot === 'legacy') return true; const key = `${row.session_date}|${row.session_slot}`; if (seen.has(key)) return false; seen.add(key); return true })
   const swimSessions = sessions.filter((row) => row.activity_type === 'swim')
+  const sessionsByDay = indexRowsBy(sessions, row => row.session_date)
+  const clubSwimsByDay = indexRowsBy(swimSessions.filter(row => !isPersonalSlot(row.session_slot)), row => row.session_date)
   return swimSessions.map((session) => {
     const day = session.session_date
+    const feedbackOnDay = feedbackByDay.get(day) ?? []
     if (isPersonalSlot(session.session_slot)) {
-      const report = responses.filter(row => responseDay(row) === day && row.day_type === 'after' && row.session_slot === session.session_slot && row.activity_type === 'swim').sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))[0]
+      const report = feedbackOnDay.filter(row => row.session_slot === session.session_slot && row.activity_type === 'swim').sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))[0]
       const details = session.personal_details || {}
       return { date: day, sessionSlot: session.session_slot, title: details.title || (report?.training_origin === 'niu' ? 'NIU-simning' : 'Eget simpass'), focus: report?.activity_focus || details.focus || null, timeOfDay: details.timeOfDay || null, distanceMeters: null, durationMinutes: null, reportedDistanceMeters: number(report?.activity_distance_meters) ?? number(details.distanceMeters), reportedMinutes: number(report?.activity_minutes) ?? number(details.durationMinutes), timeBasis: null, content: '', note: '', source: report?.training_origin || details.origin || 'self', matchStatus: 'personal', matchReason: null, feedbackLink: report ? 'slot' : 'missing', feedback: report ? analysisResponse(report) : null, candidateTitles: [] }
     }
-    const sameDay = candidates.filter((row) => row.workout_date === day)
-    const sessionCount = swimSessions.filter((row) => row.session_date === day && !isPersonalSlot(row.session_slot)).length
+    const sameDay = candidatesByDay.get(day) ?? []
+    const sessionCount = clubSwimsByDay.get(day)?.length ?? 0
     const timeOfDay = ({ morning_swim: 'morning', afternoon_swim: 'afternoon' })[session.session_slot]
     const timed = timeOfDay ? sameDay.filter((row) => row.time_of_day === timeOfDay) : []
     let candidate = timed.length === 1 ? timed[0] : null
@@ -52,8 +70,8 @@ export function buildSwimmerPasses({ sessions, responses, workouts, plans = [], 
         matchReason = otherGroup ? 'group-mismatch' : 'no-plan'
       }
     }
-    const dayFeedback = responses.filter((row) => responseDay(row) === day && row.day_type === 'after' && (!row.activity_type || row.activity_type === 'swim'))
-    const allSessionsCount = sessions.filter((row) => row.session_date === day).length
+    const dayFeedback = feedbackOnDay.filter(row => !row.activity_type || row.activity_type === 'swim')
+    const allSessionsCount = sessionsByDay.get(day)?.length ?? 0
     const slotFeedback = dayFeedback.filter((row) => row.session_slot && row.session_slot === session.session_slot).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(b.id || '').localeCompare(String(a.id || '')))
     const legacyFeedback = dayFeedback.filter((row) => !row.session_slot)
     const feedbackLink = slotFeedback.length ? 'slot' : legacyFeedback.length === 1 && allSessionsCount === 1 ? 'day_only' : legacyFeedback.length ? 'ambiguous' : 'missing'

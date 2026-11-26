@@ -7,9 +7,11 @@ import { analysisResponse, responseDay, buildSwimmerPasses, individualSignals, n
 import { requestSwimmerInsight } from '../server/swimmer-ai.js'
 import { analyticsRows } from '../server/analytics-rows.js'
 import { buildDiaryEntries } from '../shared/training-diary.js'
+import { indexRowsBy } from '../shared/index-rows.js'
 import { swimMeterCalendar } from '../shared/swim-meter-day.js'
 
-const stockholmKey = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
+const stockholmDateFormat = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
+const stockholmKey = value => stockholmDateFormat.format(new Date(value))
 const addDays = (date, days) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10) }
 const mondayOnOrAfter = (date) => { const value = new Date(`${date}T12:00:00Z`), offset = (value.getUTCDay() + 6) % 7; return offset === 0 ? date : addDays(date, 7 - offset) }
 const mondayFor = (date) => { const value = new Date(`${date}T12:00:00Z`), offset = (value.getUTCDay() + 6) % 7; return addDays(date, -offset) }
@@ -18,7 +20,11 @@ const mean = (rows, key) => {
   return values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)) : null
 }
 const meanValues = (values) => values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)) : null
-const spread = (values) => values.length > 1 ? Number(Math.sqrt(values.reduce((sum, value) => sum + (value - values.reduce((a, b) => a + b, 0) / values.length) ** 2, 0) / values.length).toFixed(1)) : null
+const spread = (values) => {
+  if (values.length < 2) return null
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length
+  return Number(Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length).toFixed(1))
+}
 const findPersonalBests = (rows, startDay, endDay) => {
   const groups = new Map()
   rows.forEach((row) => {
@@ -280,18 +286,27 @@ export default async function handler(request, response) {
   const requestToday = stockholmKey(new Date()), requestMonday = mondayFor(requestToday)
   const sessionQueryStart = profileId && requestMonday < previousStartDay ? requestMonday : previousStartDay
   const sessionQueryEnd = profileId && addDays(requestMonday, 7) > endDay ? addDays(requestMonday, 7) : endDay
+  const groupRead = query => analyticsRows(query, supabaseRequest, { maxRows: 50000 })
+  const reportRead = profileId ? analyticsRows : groupRead
+  const groupIds = groupScope ? [...groupScope] : []
+  const canFilterAtSource = groupIds.length > 0 && groupIds.length <= 100 && groupIds.every(id => /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id))
+  const scoped = canFilterAtSource ? `&profile_id=in.(${groupIds.join(',')})` : ''
+  const responseScope = scoped && includeAnonymous ? `&or=(profile_id.in.(${groupIds.join(',')}),profile_id.is.null)` : scoped
+  const responseFields = 'profile_id,activity_date,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating'
+  const personalResponseFields = 'late_entry,activity_type,activity_minutes,activity_distance_meters,planned_completion,workout_reference,session_slot,competition,comment'
   try {
-    const savedResult = await supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`)
-  const [responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, plansResult, notesResult, competitionResultsResult, olderResponsesResult, olderSessionsResult, strengthLogsResult, assignmentsResult, swimmerNotesResult, plannedPersonalResult, olderStrengthLogsResult, swimmerProfileResult, attendanceResult] = await Promise.all([
-      analyticsRows(`responses?select=profile_id,activity_date,late_entry,activity_type,activity_minutes,activity_distance_meters,planned_completion,workout_reference,session_slot,competition,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating,comment${profileFilter}${profileId ? `&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}` : timestampRange}&order=activity_date.asc,created_at.asc,id.asc`),
-      analyticsRows(`personal_training_sessions?select=profile_id,activity_type,completed_at,session_date,session_slot,workout_reference${profileFilter}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&order=session_date.asc,id.asc`),
-      analyticsRows(`profile_daily_activity?select=profile_id,activity_date${profileFilter}&activity_date=gte.${stockholmKey(previousStart)}&activity_date=lt.${stockholmKey(end)}&order=activity_date.asc,profile_id.asc`),
+    const [savedResult, profilesResult, responsesResult, sessionsResult, activityResult, goalsResult, crossGoalsResult, workoutsResult, plansResult, notesResult, competitionResultsResult, olderResponsesResult, olderSessionsResult, strengthLogsResult, assignmentsResult, swimmerNotesResult, plannedPersonalResult, olderStrengthLogsResult, swimmerProfileResult, attendanceResult] = await Promise.all([
+      supabaseRequest(`ai_insights?scope_key=eq.${encodeURIComponent(profileId || 'group')}&period=eq.${encodeURIComponent(request.query?.period || '')}&select=insight,created_at&limit=1`),
+      profileId ? null : groupRead('profiles?select=id,is_test_profile,created_at,training_group&order=id.asc'),
+      reportRead(`responses?select=${responseFields}${profileId ? `,${personalResponseFields}${profileFilter}&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}&order=activity_date.asc,created_at.asc,id.asc` : `${timestampRange}${responseScope}&order=created_at.asc,id.asc`}`),
+      reportRead(`personal_training_sessions?select=profile_id,activity_type,session_date,session_slot${profileId ? `,completed_at,workout_reference${profileFilter}` : scoped}&session_date=gte.${sessionQueryStart}&session_date=lt.${sessionQueryEnd}&order=session_date.asc,id.asc`),
+      reportRead(`profile_daily_activity?select=profile_id,activity_date${profileFilter || scoped}&activity_date=gte.${previousStartDay}&activity_date=lt.${endDay}&order=activity_date.asc,profile_id.asc`),
       profileId ? supabaseRequest(`season_swim_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
       profileId ? supabaseRequest(`cross_training_goals?profile_id=eq.${encodeURIComponent(profileId)}&select=*&order=start_date.asc`) : Promise.resolve(null),
-      supabaseRequest(`daily_workouts?select=id,workout_date,title,content,note,focus,distance_meters,duration_minutes,time_of_day,target_groups&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc&limit=1000`),
-      supabaseRequest(`training_plans?select=id,source_workout_id,calendar_link,plan_date,activity_type,title,notes,focus,distance_meters,duration_minutes,time_of_day,target_groups&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc&limit=1000`),
-      role === 'coach' ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
-      supabaseRequest(profileId ? `competition_results?select=profile_id,event,pool,result_date,result_year,date_precision,result_time,swim_time,competition_name,source${profileFilter}&order=result_date.desc&limit=10000` : `competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&source=eq.tempus&result_date=lt.${endDay}&limit=10000`),
+      reportRead(`daily_workouts?select=id,workout_date,title,content,focus,distance_meters,duration_minutes,time_of_day,target_groups${profileId ? ',note' : ''}&workout_date=gte.${previousStartDay}&workout_date=lt.${endDay}&order=workout_date.asc,created_at.asc,id.asc`),
+      reportRead(`training_plans?select=id,source_workout_id,calendar_link,plan_date,activity_type,title,focus,distance_meters,duration_minutes,time_of_day,target_groups${profileId ? ',notes' : ''}&plan_date=gte.${previousStartDay}&plan_date=lt.${endDay}&order=plan_date.asc,updated_at.asc,id.asc`),
+      role === 'coach' && !profileId ? supabaseRequest(`coach_activity_notes?note_date=gte.${previousStartDay}&note_date=lt.${endDay}&select=note_date,activity_type,content&order=note_date.asc,updated_at.asc&limit=500`) : Promise.resolve(null),
+      profileId ? supabaseRequest(`competition_results?select=profile_id,event,pool,result_date,result_year,date_precision,result_time,swim_time,competition_name,source${profileFilter}&order=result_date.desc&limit=10000`) : groupRead(`competition_results?select=profile_id,event,pool,result_date,result_time,swim_time&source=eq.tempus&result_date=lt.${endDay}${scoped}&order=result_date.asc,id.asc`),
       profileId && role === 'coach' ? supabaseRequest(`responses?select=activity_date,late_entry,competition,created_at,day_type,feeling,energy,body,rpe,speed_feeling,temperature,pass_rating,setup_rating&profile_id=eq.${encodeURIComponent(profileId)}&activity_date=gte.${olderHistoryStart}&activity_date=lt.${previousStartDay}&order=activity_date.desc&limit=1000`) : Promise.resolve(null),
       profileId && role === 'coach' ? supabaseRequest(`personal_training_sessions?profile_id=eq.${encodeURIComponent(profileId)}&session_date=gte.${olderHistoryStart}&session_date=lt.${startDay}&select=activity_type,session_date&limit=2000`) : Promise.resolve(null),
       profileId && role === 'coach' ? supabaseRequest(`strength_program_logs?profile_id=eq.${encodeURIComponent(profileId)}&session_date=gte.${startDay}&session_date=lt.${endDay}&select=assignment_id,pass_number,session_date,weights,notes&order=session_date.asc&limit=300`) : Promise.resolve(null),
@@ -320,10 +335,9 @@ export default async function handler(request, response) {
     const swimmerProfile = swimmerProfileResult?.ok ? (await swimmerProfileResult.json())[0] || {} : {}
     const assignedPrograms = assignments.length ? await supabaseRequest(`training_programs?id=in.(${[...new Set(assignments.map((item) => item.program_id))].join(',')})&select=id,program_type,title,description,content,start_date,end_date`) : null
     const programRows = assignedPrograms?.ok ? await assignedPrograms.json() : []
-    const truncated = Boolean(responsesResult.truncated || sessionsResult.truncated || activityResult.truncated)
+    const truncated = [responsesResult, sessionsResult, activityResult, workoutsResult, plansResult, profilesResult].some(result => result?.truncated)
     let reportProfiles = []
     if (!profileId) {
-      const profilesResult = await supabaseRequest('profiles?select=id,is_test_profile,created_at,training_group&limit=10000')
       if (!profilesResult.ok) throw new Error('Group profile lookup failed')
       const allProfiles = await profilesResult.json()
       const testIds = new Set(allProfiles.filter((item) => item.is_test_profile).map((item) => item.id))
@@ -340,29 +354,20 @@ export default async function handler(request, response) {
     const currentActivities = activities.filter((item) => item.activity_date >= currentStartDay), previousActivities = activities.filter((item) => item.activity_date < previousEndDay)
     const currentWorkouts = workouts.filter((item) => item.workout_date >= currentStartDay && item.workout_date < endDay)
     const metricCompetitionResults = profileId ? competitionResults.filter((item) => item.source === 'tempus') : competitionResults
-    const currentPersonalBests = findPersonalBests(metricCompetitionResults, currentStartDay, endDay)
-    const previousPersonalBests = findPersonalBests(metricCompetitionResults, previousStartDay, previousEndDay)
-    const spanDays = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 86400000))
-    const buckets = new Map()
-    currentResponses.forEach((item) => {
-      const date = new Date(item.created_at)
-      let key = stockholmKey(date)
-      if (spanDays > 14) {
-        const weekday = (date.getUTCDay() + 6) % 7
-        const monday = new Date(date); monday.setUTCDate(date.getUTCDate() - weekday)
-        key = stockholmKey(monday)
-      }
-      buckets.set(key, [...(buckets.get(key) || []), item])
-    })
+    const personalBests = findPersonalBests(metricCompetitionResults, previousStartDay, endDay)
+    const currentPersonalBests = personalBests.filter(row => row.result_date >= currentStartDay)
+    const previousPersonalBests = personalBests.filter(row => row.result_date < previousEndDay)
+    const responsesByDay = indexRowsBy(currentResponses, item => stockholmKey(item.created_at))
+    const swimSlotsByDay = indexRowsBy(currentSessions.filter(session => session.activity_type === 'swim' && session.session_slot), session => session.session_date)
     const privateView = Boolean(profileId)
     const workoutFocusLabel = { kondition_frisim: 'Kondition frisim', kondition_special: 'Kondition special', fart: 'Fart', sprint: 'Sprint', troskel: 'Tröskel', syra: 'Syra', f2_frisim: 'F2 Frisim', f2_spec: 'F2 Spec', distans: 'Distans', teknik: 'Teknik', aterhamtning: 'Återhämtning', tavlingsinsim: 'Tävlingsinsim', tavling: 'Tävling' }
     const workoutFocusMap = new Map()
     currentWorkouts.forEach((workout) => {
-      const dayRows = currentResponses.filter((item) => stockholmKey(item.created_at) === workout.workout_date)
+      const dayRows = responsesByDay.get(workout.workout_date) ?? []
       const afterRows = dayRows.filter((item) => item.day_type === 'after')
       const enoughResponses = privateView || dayRows.length >= 3
       const key = workout.focus || 'utan_fokus'
-      const daySwimSlots = new Set(currentSessions.filter((session) => session.activity_type === 'swim' && session.session_date === workout.workout_date).map((session) => session.session_slot).filter(Boolean))
+      const daySwimSlots = new Set((swimSlotsByDay.get(workout.workout_date) ?? []).map(session => session.session_slot))
       const sessionCount = daySwimSlots.size || 1
       const entry = workoutFocusMap.get(key) || { focus: key, label: workoutFocusLabel[key] || 'Ingen inriktning', workouts: 0, sessions: 0, distance: 0, duration: 0, responseDays: 0, responseCount: 0, feeling: [], body: [], rpe: [], speedFeeling: [], temperature: [], passRating: [] }
       entry.workouts += 1; entry.sessions += sessionCount; entry.distance += Number(workout.distance_meters || 0); entry.duration += Number(workout.duration_minutes || 0); entry.responseCount += dayRows.length
@@ -416,10 +421,10 @@ export default async function handler(request, response) {
       if (activeCross) currentCrossGoals = Object.fromEntries([['strength', activeCross.strength_sessions_per_week], ['dryland', activeCross.dryland_sessions_per_week]].map(([type, target]) => { const completed = sessions.filter((session) => session.activity_type === type && session.session_date >= currentMonday && session.session_date < addDays(currentMonday, 7)).length; return [type, { target, completed, remaining: Math.max(0, target - completed), percentage: target ? Math.round((completed / target) * 100) : 0 }] }))
     }
     const trendPasses = currentWorkouts.map((workout) => {
-      const rows = currentResponses.filter((item) => stockholmKey(item.created_at) === workout.workout_date)
+      const rows = responsesByDay.get(workout.workout_date) ?? []
       const afterRows = rows.filter((item) => item.day_type === 'after')
       const enoughResponses = privateView || rows.length >= 3
-      const sessionSlots = [...new Set(currentSessions.filter((session) => session.activity_type === 'swim' && session.session_date === workout.workout_date).map((session) => session.session_slot).filter(Boolean))]
+      const sessionSlots = [...new Set((swimSlotsByDay.get(workout.workout_date) ?? []).map(session => session.session_slot))]
       return {
         date: workout.workout_date,
         count: rows.length,
@@ -444,7 +449,7 @@ export default async function handler(request, response) {
       const attendance = attendanceResult?.ok ? await attendanceResult.json() : []
       const attendanceSessions = attendance.map(row => ({ session_date: row.attendance_date, session_slot: row.session_slot, activity_type: 'swim', source: 'coach-attendance' }))
       const meterEntries = buildDiaryEntries({ sessions: [...currentSessions, ...attendanceSessions], responses: currentResponses, workouts: currentWorkouts, plans: plans.filter(row => row.plan_date >= startDay && row.plan_date < endDay), trainingGroup: swimmerProfile.training_group, today: requestToday })
-      workoutAnalysis.meterDays = swimMeterCalendar(meterEntries, workoutAnalysis.range.start, workoutAnalysis.range.endExclusive, { complete: !truncated && Boolean(attendanceResult?.ok) && !attendanceResult?.truncated && workouts.length < 1000 && plans.length < 1000 })
+      workoutAnalysis.meterDays = swimMeterCalendar(meterEntries, workoutAnalysis.range.start, workoutAnalysis.range.endExclusive, { complete: !truncated && Boolean(attendanceResult?.ok) && !attendanceResult?.truncated  })
       workoutAnalysis.personal = true
       workoutAnalysis.basis = personalSignals.volume.basis
       workoutAnalysis.focuses = personalSignals.focuses.map((row) => ({ ...row, focus: row.label, label: workoutFocusLabel[row.label] || 'Ingen inriktning', sessions: row.workouts }))

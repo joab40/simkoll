@@ -1,5 +1,6 @@
 import { buildSwimmerPasses, responseDay } from '../server/individual-analysis.js'
 import { swimMeterDay } from './swim-meter-day.js'
+import { indexRowsBy } from './index-rows.js'
 import { isPersonalSlot } from './personal-training.js'
 
 export const diaryAddDays = (day, amount) => new Date(Date.parse(`${day}T12:00:00Z`) + amount * 86400000).toISOString().slice(0, 10)
@@ -25,7 +26,8 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
     if (!entries.has(key)) entries.set(key, { key, date, type, slot: slot || null, state, title: '', source: 'reported', responses: [], strengthLogs: [], drylandLogs: [], results: [], content: '', note: '', focus: '', reportedMeters: null, reportedMinutes: null, plannedMeters: null, plannedMinutes: null, linked: false })
     return entries.get(key)
   }
-  const afterOnDay = (day) => responses.filter((row) => responseDay(row) === day && row.day_type === 'after' && row.competition !== true)
+  const responsesByDay = indexRowsBy(responses, responseDay)
+  const afterOnDay = day => (responsesByDay.get(day) ?? []).filter(row => row.day_type === 'after' && row.competition !== true)
   sessions.forEach((session) => {
     const day = session.session_date
     let type = session.activity_type
@@ -34,7 +36,7 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
       const swimFeedback = after.filter((row) => (!row.activity_type || row.activity_type === 'swim') && (!row.session_slot || row.session_slot === session.session_slot))
       // Historical training reads backfilled afternoon sessions for every
       // after-answer, including races and cycling. Do not repeat that guess.
-      if (!swimFeedback.length && responses.some((row) => responseDay(row) === day && (row.competition === true || (row.day_type === 'after' && row.activity_type && row.activity_type !== 'swim')))) return
+      if (!swimFeedback.length && responsesByDay.get(day)?.some(row => row.competition === true || (row.day_type === 'after' && row.activity_type && row.activity_type !== 'swim'))) return
       if (swimFeedback.length && swimFeedback.every((row) => !row.activity_type && !row.session_slot)) type = 'unknown'
     }
     const slot = session.session_slot === 'legacy' ? `legacy-${session.id}` : session.session_slot
@@ -148,11 +150,14 @@ export function buildDiaryEntries({ sessions = [], responses = [], workouts = []
 export function summarizeDiary(entries, responses, start, end, { includeCheckinSignals = false } = {}) {
   const selected = entries.filter((entry) => entry.date >= start && entry.date <= end)
   const training = selected.filter((entry) => entry.state === 'completed' && !['competition', 'rest', 'sick'].includes(entry.type))
+  const entriesByDay = indexRowsBy(selected, entry => entry.date)
+  const trainingByDay = indexRowsBy(training, entry => entry.date)
+  const responsesByDay = indexRowsBy(responses, responseDay)
   const days = []
   for (let date = start; date <= end; date = diaryAddDays(date, 1)) {
-    const dayEntries = selected.filter((entry) => entry.date === date)
-    const dayTraining = training.filter((entry) => entry.date === date)
-    const dayResponses = responses.filter((row) => responseDay(row) === date)
+    const dayEntries = entriesByDay.get(date) ?? []
+    const dayTraining = trainingByDay.get(date) ?? []
+    const dayResponses = responsesByDay.get(date) ?? []
     const extra = includeCheckinSignals ? {
       energy: mean(dayResponses.map(row => row.energy)),
       motivation: mean(dayResponses.map(row => row.motivation)),

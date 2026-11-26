@@ -418,6 +418,23 @@ test('the coach roster returns only date-limited chart values for approved profi
   }
 })
 
+test('coach overview skips unused sleep and times and fetches only diary fields used for the chart', async t => {
+  const { calls, profile } = dbFixture(t, { extended: true, taper: true, pb: true, presentation: true })
+  profile.flight_record_weights = { ...defaultFlightWeights, speedFeeling: 0, energy: 17, body: 83, sleepQuality: 0, times: 0 }
+  profile.flight_record_taper_weight = 0
+  const result = await call({ code: coach, mode: 'overview', query: { ids: id, end: today, days: '14' } })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.profiles[0].points.length, 14)
+  assert.ok(!result.data.profiles[0].partial)
+  for (const table of ['training_swim_times', 'competition_results', 'profile_daily_sleep', 'workout_unlocks', 'program_assignments']) {
+    assert.ok(!calls.some(row => row.table === table), table)
+  }
+  const feedback = calls.find(row => row.table === 'responses').query.get('select')
+  assert.doesNotMatch(feedback, /comment|\*/)
+  const workouts = calls.find(row => row.table === 'daily_workouts').query.get('select')
+  assert.doesNotMatch(workouts, /content|note|\*/)
+})
+
 test('group curve respects coverage thresholds and never treats missing values as zero', () => {
   const members = [{ points: [{ date: yesterday, value: 44, limited: true }, { date: today, value: 0 }] },
     { points: [{ date: yesterday, value: 51 }, { date: today, value: null }] }, { points: [] }]
