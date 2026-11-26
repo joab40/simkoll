@@ -21,14 +21,17 @@ async function rows(query, { optional = false, warnings, label }) {
 }
 
 export async function loadTrainingDiary(profile, start, end, { includeReflections = true, includeComparison = true, includeResults = true,
-  includeGoals = true, includeCheckinSignals = false, includeEntryComments = false, summaryOnly = false, planningCache } = {}) {
+  includeGoals = true, includeCheckinSignals = false, includeEntryComments = false, summaryOnly = false, planningCache, readProfileRows } = {}) {
   const today = stockholmDate()
   const range = diaryRange(start, end, today)
   const warnings = [], owner = `profile_id=eq.${encodeURIComponent(profile.id)}`
   const within = (field) => `${field}=gte.${includeComparison ? range.previousStart : start}&${field}=lt.${range.endExclusive}`
-  const read = (query, label, optional = false) => rows(query, { label, optional, warnings })
+  const read = (query, label, optional = false) => {
+    const readOne = path => rows(path, { label, optional, warnings })
+    return readProfileRows ? readProfileRows(query, readOne) : readOne(query)
+  }
   const readPlanning = async (query, label) => {
-    if (!planningCache) return read(query, label)
+    if (!planningCache) return rows(query, { label, warnings })
     if (!planningCache.has(query)) {
       const notes = []
       planningCache.set(query, rows(query, { label, warnings: notes }).then(value => ({ value, notes })))

@@ -1,11 +1,12 @@
-import React, { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useId, useRef, useState } from 'react'
+import { lazyPanel } from './deferred-panel.jsx'
 import { apiRequest } from './api-request.js'
 import { buildTaperSummary, TAPER_PRIORITIES, TAPER_DIALOG_QUESTION } from '../shared/taper-kollen.js'
 import { canUseSwimmerAssistant, SWIMMER_ASSISTANT_DEFAULTS } from '../shared/swimmer-assistant.js'
 import { illnessLabel } from '../shared/illness.js'
 import { heartDuration } from '../shared/training-heart-display.js'
 import './taper-kollen.css'
-const SwimmerAssistant = lazy(() => import('./swimmer-assistant.jsx'))
+const SwimmerAssistant = lazyPanel(() => import('./swimmer-assistant.jsx'))
 
 const date = day => day ? new Date(`${day}T12:00:00Z`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Stockholm' }) : 'Inte angivet'
 const value = number => number == null ? 'Saknas' : number.toLocaleString('sv-SE', { maximumFractionDigits: 1 })

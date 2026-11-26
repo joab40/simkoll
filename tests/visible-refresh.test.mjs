@@ -19,6 +19,16 @@ test('hidden apps skip requests and a disposed profile cannot start a new refres
   visible=true;await loop.refresh();assert.equal(calls,1)
   loop.dispose();await loop.refresh();assert.equal(calls,1)
 })
+test('slow-changing data stay fresh only after a successful refresh', async () => {
+  let time = 0, calls = 0
+  const loop = createVisibleRefresh(() => {
+    if (++calls === 1) throw new Error('offline')
+  }, { visible: () => true, now: () => time, minInterval: 15000, freshFor: 120000 })
+  await assert.rejects(loop.refresh(), /offline/)
+  time = 15000; await loop.refresh(); assert.equal(calls, 2)
+  time = 134999; await loop.refresh(); assert.equal(calls, 2)
+  time = 135000; await loop.refresh(); assert.equal(calls, 3)
+})
 test('a failed refresh can be retried; polling removes timers and listeners on navigation', async () => {
   let calls=0
   const loop=createVisibleRefresh(()=>{if(!calls++)throw new Error('offline')},{visible:()=>true,minInterval:0})

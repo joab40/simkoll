@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { lazyPanel } from './deferred-panel.jsx'
 import './swimmer-training-times-card.css'
 import SwimmerCardSummary, { DirectionExplanation } from './swimmer-card-summary.jsx'
 import { directionDay, directionUnavailable, swimTimesDirection } from '../shared/swimmer-card-direction.js'
 
-const SwimTimes = React.lazy(() => import('./swim-times.jsx'))
+const SwimTimes = lazyPanel(() => import('./swim-times.jsx'))
 
 export default function SwimmerTrainingTimesCard({ profile, code, request }) {
   const [visited, setVisited] = useState(false), [dirty, setDirty] = useState(false)

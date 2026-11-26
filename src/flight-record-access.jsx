@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createVisibleRefresh } from './visible-refresh.js'
+import { lazyPanel } from './deferred-panel.jsx'
 import SwimmerCardSummary from './swimmer-card-summary.jsx'
 import { flightGroupId } from '../shared/flight-defaults.js'
 import { usePlanningWeekTypes } from './use-planning-week-types.js'
@@ -10,8 +11,8 @@ const dataUrl = '/api/training?flightRecord=data'
 const weightsUrl = '/api/training?flightRecord=weights'
 const postOptions = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const empty = { access: null, saving: false, error: '' }
-const FlightRecordChart = React.lazy(() => import('./flight-record.jsx'))
-const FlightRecordDetails = React.lazy(() => import('./flight-record.jsx').then(module => ({ default: module.FlightRecordView })))
+const FlightRecordChart = lazyPanel(() => import('./flight-record.jsx'))
+const FlightRecordDetails = lazyPanel(() => import('./flight-record.jsx').then(module => ({ default: module.FlightRecordView })))
 
 export function useFlightRecordAccess(profileId, code, request) {
   const scope = useMemo(() => ({ profileId, code, alive: false, revision: 0, saving: false }), [profileId, code])

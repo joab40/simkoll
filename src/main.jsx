@@ -22,7 +22,7 @@ import { CoachCategorizedCard, CoachCategoryOptions, CoachCategoryProvider, Coac
 import { DEFAULT_COACH_CATEGORY } from '../shared/coach-card-categories.js'
 import { competitionIncludesSwimmer } from '../shared/competition-participation.js'
 import { chatBackgroundUrl } from './chat-background.js'
-import { deferredPanel } from './deferred-panel.jsx'
+import { deferredPanel, lazyPanel } from './deferred-panel.jsx'
 import { createVisibleRefresh, startVisiblePolling } from './visible-refresh.js'
 import { attendanceFromCheckins } from './attendance.js'
 import { checkinDay, compareCheckinsNewest, latestCheckinForDay, checkinStatus, checkinFollowUp } from './checkin-status.js'
@@ -105,7 +105,7 @@ import { isSubmittedCompetitionEntry } from '../shared/competition-entry-status.
 import { canUseSwimmerAssistant } from '../shared/swimmer-assistant.js'
 import { PushAdminSettings, PushNotificationControl, PushReminderSettings, stopDevicePush, usePushSession } from './push-notifications.jsx'
 
-const TrainingDiary = React.lazy(() => import('./training-diary.jsx'))
+const TrainingDiary = lazyPanel(() => import('./training-diary.jsx'))
 const CheckinHistory = deferredPanel(() => import('./checkin-history.jsx'), 'Öppnar tidigare incheckningar…')
 const CheckinSwimTime = deferredPanel(() => import('./swim-times.jsx').then(module => ({ default: module.CheckinSwimTime })), 'Öppnar tidsfrågan…')
 const SwimmerAssistant = deferredPanel(() => import('./swimmer-assistant.jsx'), 'Öppnar simmarassistenten…')
@@ -265,13 +265,6 @@ function App() {
   const [availableGames, setAvailableGames] = useState([])
   const [previousGames, setPreviousGames] = useState([])
   const [betaGames, setBetaGames] = useState([]), [betaGameKey, setBetaGameKey] = useState('')
-  useEffect(() => {
-    if (auth?.role !== 'swimmer' || !profile) return
-    const refresh = () => { void weeklyTrainingSync.refresh().catch(() => {}) }
-    window.addEventListener('simkoll-personal-training-changed', refresh)
-    window.addEventListener('simkoll-home-open', refresh)
-    return () => { window.removeEventListener('simkoll-personal-training-changed', refresh);window.removeEventListener('simkoll-home-open', refresh) }
-  }, [auth?.code, auth?.role, profile?.id,weeklyTrainingSync])
   useEffect(() => { setBetaGames([]); setBetaGameKey('') }, [profile?.id, auth?.code])
   usePushSession(auth, profile, (target) => {
     if (auth?.role !== 'swimmer') window.dispatchEvent(new Event(target.screen === 'goals' ? 'simkoll-coach-open-goals' : 'simkoll-coach-open-messages'))
@@ -326,28 +319,40 @@ function App() {
     if (!auth || !profile) { updateDailyWorkout({ workout: null, locked: false }); return }
     let active = true
     setTraining(null); setPoints(null); setWorkout(null); setActivityDates(null)
+    setCompetitions([]); setAvailableGames([]); setPreviousGames([])
     setCompetitionsLoaded(false)
     // Each card can render as soon as its own request completes.
     const load = (url, apply) => apiRequest(url, auth.code).then((data) => { if (active) apply(data) })
-    const loadProfileData = () => Promise.allSettled([
-      weeklyTrainingSync.refresh(),
-      load('/api/workouts', updateDailyWorkout),
-      load('/api/activity?streak=true', (data) => { setActiveProfilesToday(data.activeProfilesToday); setActivityDates(data.activityDates || []) }),
-      load('/api/workouts?calendar=true', (data) => { setCompetitions(data.competitions || []); setCompetitionsLoaded(true) }).catch(() => { if (active) { setCompetitions([]); setCompetitionsLoaded(true) } }),
-      load('/api/points', setPoints),
-      load('/api/points?games=true', (data) => { setAvailableGames(data.catalog || []); setPreviousGames(data.previousGames || []); setBetaGames(data.betaGames || []) }),
-    ])
-    const refresh = createVisibleRefresh(loadProfileData, { minInterval: 15000 })
-    const refreshOnFocus = () => { void refresh.refresh().catch(() => {}) }
-    const refreshPoints = () => { void load('/api/points', setPoints).catch(() => {}) }
+    const visibleRefresh = (task, freshFor) => createVisibleRefresh(task, { minInterval: 15000, freshFor })
+    const readPoints = () => load('/api/points', setPoints)
+    const weeklyRefresh = visibleRefresh(weeklyTrainingSync.refresh)
+    const refreshers = [
+      weeklyRefresh,
+      visibleRefresh(() => load('/api/workouts', updateDailyWorkout)),
+      visibleRefresh(() => load('/api/activity?streak=true', (data) => { setActiveProfilesToday(data.activeProfilesToday); setActivityDates(data.activityDates || []) })),
+      visibleRefresh(() => load('/api/workouts?calendar=true', data => setCompetitions(data.competitions || []))
+        .finally(() => { if (active) setCompetitionsLoaded(true) }), 120000),
+      visibleRefresh(readPoints),
+      visibleRefresh(() => load('/api/points?games=true', (data) => { setAvailableGames(data.catalog || []); setPreviousGames(data.previousGames || []); setBetaGames(data.betaGames || []) }), 300000),
+    ]
+    const refreshOnFocus = () => {
+      for (const loader of refreshers) void loader.refresh().catch(() => {})
+    }
+    const refreshOnHome = () => { void weeklyRefresh.refresh().catch(() => {}) }
+    const refreshTraining = () => { void weeklyTrainingSync.refresh().catch(() => {}) }
+    const refreshPoints = () => { void readPoints().catch(() => {}) }
     refreshOnFocus()
     window.addEventListener('focus', refreshOnFocus)
+    window.addEventListener('simkoll-home-open', refreshOnHome)
+    window.addEventListener('simkoll-personal-training-changed', refreshTraining)
     window.addEventListener('simkoll-points-changed', refreshPoints)
     document.addEventListener('visibilitychange', refreshOnFocus)
     return () => {
       active = false
-      refresh.dispose()
+      for (const loader of refreshers) loader.dispose()
       window.removeEventListener('focus', refreshOnFocus)
+      window.removeEventListener('simkoll-home-open', refreshOnHome)
+      window.removeEventListener('simkoll-personal-training-changed', refreshTraining)
       window.removeEventListener('simkoll-points-changed', refreshPoints)
       document.removeEventListener('visibilitychange', refreshOnFocus)
     }

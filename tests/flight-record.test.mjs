@@ -85,7 +85,7 @@ async function call({ code = 'swimmer', method = 'GET', mode = 'status', profile
   return response
 }
 
-function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, presentation = false, weekType, practiceTimes, tempusHistory } = {}) {
+function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, migrationMissing = false, weightsMigrationMissing = false, revokeWhileLoading = false, failSleep = false, extended = false, taper = false, pb = false, presentation = false, weekType, practiceTimes, tempusHistory, extraProfile, failBatchedResponses = false } = {}) {
   const profile = { id, active: true, approval_status: 'approved', terms_accepted_at: today, flight_record_offer_id: offerId, flight_record_choice: state, ...(weightsMigrationMissing ? {} : { flight_record_weights: null }) }
   if (extended) profile.flight_record_sleep_goal_minutes = null
   if (taper) Object.assign(profile, { flight_record_taper_weight: 0, flight_record_boost_settings: null })
@@ -113,6 +113,10 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     if (table === 'planning_week_types') return json(weekType ? [{ week_start: coachWeekMonday(today), group_id: 'ungdom_svart', week_type: weekType }] : [])
     if (table === 'profile_sessions') return json([{ profile_id: id }])
     if (table === 'profiles') {
+      if (extraProfile && query.get('id')?.startsWith('in.(')) {
+        const ids = query.get('id').slice(4, -1).split(',')
+        return json([profile, extraProfile].filter(row => ids.includes(row.id)))
+      }
       assert([`eq.${id}`, `in.(${id})`].includes(query.get('id')))
       assert.equal(query.get('active'), 'eq.true')
       assert.equal(query.get('approval_status'), 'eq.approved')
@@ -188,6 +192,18 @@ function dbFixture(t, { state = 'pending', offerId = offer, revoked = false, mig
     if (table === 'profile_daily_sleep') return failSleep ? json({}, 503) : json(Array.from({ length: 35 }, (_, offset) => ({
       activity_date: coachWeekAddDays(today, -offset), minutes: 510, quality: 5,
     })))
+    if (extraProfile && ['personal_training_sessions', 'responses', 'planned_training_sessions', 'session_attendance', 'strength_program_logs', 'dryland_program_logs'].includes(table)) {
+      const filter = query.get('profile_id')
+      const owners = filter.startsWith('in.(') ? filter.slice(4, -1).split(',') : [filter.slice(3)]
+      assert(owners.every(owner => owner === id || owner === extraProfile.id))
+      if (table !== 'responses') return json([])
+      if (failBatchedResponses && owners.length > 1) return json({}, 503)
+      return json(owners.flatMap(profile_id => Array.from({ length: 35 }, (_, offset) => ({
+        profile_id,
+        activity_date: coachWeekAddDays(today, -offset),
+        body: offset < 7 ? (profile_id === id ? 5 : 1) : 3,
+      }))))
+    }
     if (['personal_training_sessions', 'responses', 'planned_training_sessions', 'session_attendance', 'strength_program_logs', 'program_assignments', 'workout_unlocks', 'dryland_program_logs'].includes(table)) assert.equal(query.get('profile_id'), `eq.${id}`)
     if (table === 'responses') {
       if (taper) return json(Array.from({ length: 146 }, (_, offset) => ({
@@ -433,6 +449,31 @@ test('coach overview skips unused sleep and times and fetches only diary fields 
   assert.doesNotMatch(feedback, /comment|\*/)
   const workouts = calls.find(row => row.table === 'daily_workouts').query.get('select')
   assert.doesNotMatch(workouts, /content|note|\*/)
+})
+
+test('group overview batches diary reads while preserving each approved swimmer’s series', async t => {
+  const weights = { ...Object.fromEntries(Object.keys(defaultFlightWeights).map(key => [key, 0])), body: 100 }
+  for (const failBatchedResponses of [false, true]) {
+    await t.test(failBatchedResponses ? 'fallback after a batch fails' : 'shared database reads', async t => {
+      const { profile, calls } = dbFixture(t, {
+        extraProfile: { id: other, flight_record_weights: weights },
+        failBatchedResponses,
+      })
+      profile.flight_record_weights = weights
+      const overview = ids => call({ code: coach, mode: 'overview', query: { ids, end: today, days: '90' } })
+      const grouped = await overview(`${id},${other},${offer}`)
+      assert.equal(grouped.code, 200)
+      const batchCalls = calls.splice(0)
+      const first = (await overview(id)).data.profiles[0]
+      const second = (await overview(other)).data.profiles[0]
+      assert.deepEqual(grouped.data.profiles, [first, second])
+      assert.notEqual(first.points.at(-1).value, second.points.at(-1).value)
+      const checkins = batchCalls.filter(row => row.table === 'responses')
+      assert.equal(checkins.length, failBatchedResponses ? 3 : 1)
+      assert.equal(checkins[0].query.get('profile_id'), `in.(${id},${other})`)
+      assert.equal(batchCalls.filter(row => row.table === 'daily_workouts').length, 1)
+    })
+  }
 })
 
 test('group curve respects coverage thresholds and never treats missing values as zero', () => {

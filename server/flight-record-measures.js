@@ -11,13 +11,13 @@ async function read(query) {
   return result.json()
 }
 
-export async function readFlightMeasures(profileId) {
-  const rows = await read(`flight_record_metrics?profile_id=eq.${profileId}&select=id,name,category&order=category.asc,name.asc,id.asc`)
+export async function readFlightMeasures(profileId, readProfileRows = read) {
+  const rows = await readProfileRows(`flight_record_metrics?profile_id=eq.${profileId}&select=id,name,category&order=category.asc,name.asc,id.asc`, read)
   return rows.map(row => ({ key: row.id, label: row.name, category: row.category }))
 }
 
-export async function readFlightScores(profileId, start, end) {
-  const rows = await read(`flight_record_scores?profile_id=eq.${profileId}&activity_date=gte.${start}&activity_date=lte.${end}&select=metric_id,activity_date,value&order=activity_date.asc,metric_id.asc`)
+export async function readFlightScores(profileId, start, end, readProfileRows = read) {
+  const rows = await readProfileRows(`flight_record_scores?profile_id=eq.${profileId}&activity_date=gte.${start}&activity_date=lte.${end}&select=metric_id,activity_date,value&order=activity_date.asc,metric_id.asc`, read)
   const byDate = new Map()
   for (const row of rows) {
     if (!byDate.has(row.activity_date)) byDate.set(row.activity_date, {})

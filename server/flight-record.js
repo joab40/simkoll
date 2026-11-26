@@ -4,6 +4,7 @@ import { coachFromRequest } from './coach-auth.js'
 import { getSessionProfile, stockholmDate } from './profile-auth.js'
 import { writeAuditLog } from './audit.js'
 import { analyticsRows } from './analytics-rows.js'
+import { createFlightOverviewReader } from './flight-overview-rows.js'
 import { loadTrainingDiary } from './training-diary.js'
 import { readFlightMeasures, readFlightScores, saveFlightMeasure, sleepGoalField } from './flight-record-measures.js'
 import { coachWeekAddDays, coachWeekMonday } from '../shared/coach-week.js'
@@ -59,7 +60,7 @@ function profileWeights(profile) {
   return Object.hasOwn(profile, taperWeightField) ? { ...weights, taper: profile[taperWeightField] } : weights
 }
 
-async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = FLIGHT_HISTORY_DAYS, preview = false, includeWeekType = false, defaults: loadedDefaults, planningCache, overview = false } = {}) {
+async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = FLIGHT_HISTORY_DAYS, preview = false, includeWeekType = false, defaults: loadedDefaults, planningCache, readProfileRows } = {}) {
   const defaults = loadedDefaults ?? await loadFlightDefaults([profile.training_group])
   const inherited = defaults.group(profile.training_group) ?? defaults.club
   const start = coachWeekAddDays(end, 1 - (chartOnly ? chartDays : FLIGHT_HISTORY_DAYS))
@@ -75,12 +76,13 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = F
   const firstLiftDay = coachWeekAddDays(start, 1 - timeDays)
   const timeStart = coachWeekAddDays(firstLiftDay, -FLIGHT_TIME_BASELINE_DAYS)
   const owner = `profile_id=eq.${profile.id}`
+  const read = query => readProfileRows ? readProfileRows(query, readRows) : readRows(query)
   const during = (column, from) => `${column}=gte.${from}&${column}=lte.${end}`
   const weights = profile.flight_record_weights == null
     ? { ...inherited.weights, taper: Object.hasOwn(profile, taperWeightField) ? inherited.weights.taper : 0 }
     : profileWeights(profile)
-  const needTimes = !overview || weights.times > 0
-  const needSleep = !overview || weights.sleepQuality > 0 || weights.sleepGoal > 0
+  const needTimes = !readProfileRows || weights.times > 0
+  const needSleep = !readProfileRows || weights.sleepQuality > 0 || weights.sleepGoal > 0
   const needPb = pbBoostSettingsAvailable && (!chartOnly || weights.times > 0)
   const taperAvailable = Object.hasOwn(profile, taperWeightField)
   const needTaper = taperAvailable && (!chartOnly || weights.taper > 0)
@@ -91,14 +93,14 @@ async function loadFlightRecord(profile, end, { chartOnly = false, chartDays = F
   const needCustom = extended && (!chartOnly || Object.keys(weights).some(key => isTimeId(key) && weights[key] > 0))
   const [diary, practice, races, sleep, audit, measures, scores, tempus, planningWeeks] = await Promise.allSettled([
     loadTrainingDiary(profile, historyStart, end, { includeComparison: false, includeReflections: false, includeResults: false,
-      includeGoals: false, includeCheckinSignals: true, summaryOnly: true, planningCache }),
-    needTimes ? readRows(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`) : [],
-    needTimes || needTaper ? readRows(`competition_results?${owner}&${during('result_date', raceStart)}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`) : [],
-    needSleep ? readRows(`profile_daily_sleep?${owner}&${during('activity_date', contextStart)}&select=activity_date,minutes,quality,skipped&order=activity_date.asc`) : [],
+      includeGoals: false, includeCheckinSignals: true, summaryOnly: true, planningCache, readProfileRows }),
+    needTimes ? read(`training_swim_times?${owner}&${during('result_date', timeStart)}&select=id,result_date,distance_meters,stroke,pool_length,result_time,kind,start_type,exercise,equipment,timing_method,conditions,created_at&order=result_date.asc,created_at.asc,id.asc`) : [],
+    needTimes || needTaper ? read(`competition_results?${owner}&${during('result_date', raceStart)}&select=id,result_date,event,pool,swim_time,result_time,competition_name,source&order=result_date.asc,id.asc`) : [],
+    needSleep ? read(`profile_daily_sleep?${owner}&${during('activity_date', contextStart)}&select=activity_date,minutes,quality,skipped&order=activity_date.asc`) : [],
     chartOnly ? [] : readRows(`audit_logs?${owner}&event_type=eq.training_time_create&status=eq.success&created_at=gte.${start}T00:00:00Z&select=role,details&order=created_at.asc,id.asc`),
-    needCustom ? readFlightMeasures(profile.id) : [],
-    needCustom ? readFlightScores(profile.id, contextStart, end) : new Map(),
-    needPb ? readRows(`competition_results?${owner}&source=eq.tempus&result_date=lte.${end}&select=source,result_date,event,pool,result_time,swim_time&order=result_date.asc,id.asc`) : [],
+    needCustom ? readFlightMeasures(profile.id, readProfileRows) : [],
+    needCustom ? readFlightScores(profile.id, contextStart, end, readProfileRows) : new Map(),
+    needPb ? read(`competition_results?${owner}&source=eq.tempus&result_date=lte.${end}&select=source,result_date,event,pool,result_time,swim_time&order=result_date.asc,id.asc`) : [],
     preview || includeWeekType ? loadFlightPlanningWeeks(profile.training_group, start) : [],
   ])
   const baseSources = needSleep ? [diary, sleep] : [diary]
@@ -278,20 +280,17 @@ async function coachFlightOverview(request, response) {
   const rows = await checkAccessResult(await supabaseRequest(`profiles?id=in.(${ids.join(',')})&${configuredProfile}&${acceptedTerms}&is_test_profile=eq.false&select=id,training_group,flight_record_weights,${sleepGoalField},${taperWeightField},${boostSettingsField},${pbSettingsField},${presentationField}`), 142)
   const defaults = await loadFlightDefaults(rows.map(row => row.training_group))
   const planningCache = new Map()
-  const profiles = []
-  for (let index = 0; index < rows.length; index += 3) {
-    const batch = await Promise.all(rows.slice(index, index + 3).map(async profile => {
-      const group = flightGroupId(profile.training_group)
-      const model = { id: profile.id, group, minSwimmers: (defaults.group(group) ?? defaults.club).minSwimmers }
-      try {
-        const chart = await loadFlightRecord(profile, end, { chartOnly: true, chartDays, defaults, planningCache, overview: true })
-        return { ...model, partial: chart.partial, points: chart.points.map(({ date, value, limited }) => ({ date, value, ...(limited ? { limited } : {}) })) }
-      } catch {
-        return { ...model, unavailable: true, points: [] }
-      }
-    }))
-    profiles.push(...batch)
-  }
+  const readProfileRows = createFlightOverviewReader()
+  const profiles = await Promise.all(rows.map(async profile => {
+    const group = flightGroupId(profile.training_group)
+    const model = { id: profile.id, group, minSwimmers: (defaults.group(group) ?? defaults.club).minSwimmers }
+    try {
+      const chart = await loadFlightRecord(profile, end, { chartOnly: true, chartDays, defaults, planningCache, readProfileRows })
+      return { ...model, partial: chart.partial, points: chart.points.map(({ date, value, limited }) => ({ date, value, ...(limited ? { limited } : {}) })) }
+    } catch {
+      return { ...model, unavailable: true, points: [] }
+    }
+  }))
   return sendJson(response, 200, { profiles, clubMinSwimmers: defaults.club.minSwimmers })
 }
 
