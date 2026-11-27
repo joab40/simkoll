@@ -35,8 +35,8 @@
 .mood-hero-heading h1, .mood-hero-heading .mood-context { overflow-wrap: anywhere; }
 .mood-competition-side {
   display: grid;
-  justify-items: end;
-  gap: 6px;
+  justify-items: center;
+  gap: 4px;
   width: clamp(92px, 19vw, 176px);
   min-width: 0;
 }
@@ -46,7 +46,22 @@
   aspect-ratio: 4 / 3;
   padding: 0;
 }
-.mood-competition-side .race-day-badge { position: static; gap: 3px; font-size: 10px; letter-spacing: .08em; }
+.mood-competition-side .race-day-badge {
+  position: static;
+  justify-content: center;
+  gap: clamp(4px, 0.65vw, 9px);
+  max-width: 100%;
+  padding: 0.4em 0.65em;
+  border: 1px solid #ffe08355;
+  border-radius: 999px;
+  background: #102c3ccc;
+  color: #fff1b3;
+  font-size: clamp(0.8125rem, 1.2vw, 1.0625rem);
+  line-height: 1.2;
+  letter-spacing: .12em;
+  white-space: nowrap;
+}
+.mood-competition-side .race-day-badge .race-flag { font-size: 1em; }
 @media (max-width: 480px) {
   .competition-logo-upload .competition-logo-tile,
   .competition-card-logo .competition-logo-tile { width: 84px; height: 65px; padding: 6px; }
